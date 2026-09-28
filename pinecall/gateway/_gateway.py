@@ -40,4 +40,6 @@ class Gateway:
     @property
     def serving(self) -> Serving:
         """What a call runs through."""
-        return Serving(connections=self.connections, logs=self.logs, live=self.live)
+        return Serving(
+            connections=self.connections, logs=self.logs, live=self.live, embedder=self.embedder
+        )

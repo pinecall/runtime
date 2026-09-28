@@ -18,8 +18,7 @@ from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import Env
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Connection, Pool
-from pinecall.retrieval.embed import Embedder, halfvec
-from pinecall.retrieval.search import (
+from pinecall.retrieval._search import (
     CANDIDATES_PER_BRANCH,
     Evidence,
     Figures,
@@ -31,6 +30,7 @@ from pinecall.retrieval.search import (
     relative_to_the_best,
     top_cosine,
 )
+from pinecall.retrieval.embed import Embedder, halfvec
 from pinecall.wire.rest.retrieval import (
     MemoryGolden,
     MemoryMiss,

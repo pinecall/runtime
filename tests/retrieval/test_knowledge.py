@@ -13,7 +13,8 @@ from pinecall.domain.names import PRODUCTION, SANDBOX, Env
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
 from pinecall.providers.catalog import Embedding
-from pinecall.retrieval import knowledge, search
+from pinecall.retrieval import _search, knowledge
+from pinecall.retrieval._search import NDCG_AT
 from pinecall.retrieval.embed import Embedder, estimated_tokens, halfvec
 from pinecall.retrieval.knowledge import (
     A_HEADING,
@@ -36,7 +37,6 @@ from pinecall.retrieval.knowledge import (
     score_docs,
     where,
 )
-from pinecall.retrieval.search import NDCG_AT
 from pinecall.tenancy import orgs
 from tests.conftest import postgres
 from tests.fakes.embeddings import Embeddings, Meanings
@@ -852,22 +852,22 @@ def test_a_golden_with_no_questions_scores_nothing_and_says_so() -> None:
 
 
 def test_a_question_that_wants_two_answers_and_got_one_of_them_is_half_recalled() -> None:
-    figures = search.figures([[1, None]])
+    figures = _search.figures([[1, None]])
     assert figures.recall_at_k == 0.5
     assert figures.ndcg_at_10 == pytest.approx(0.6131, abs=0.001)
 
 
 def test_two_wanted_answers_ranked_low_are_recalled_whole_and_ordered_badly() -> None:
-    figures = search.figures([[5, 6]])
+    figures = _search.figures([[5, 6]])
     assert figures.recall_at_k == 1.0
     assert figures.ndcg_at_10 == pytest.approx(0.4556, abs=0.001)
 
 
 def test_a_question_that_wanted_nothing_scores_nothing_and_raises_nothing() -> None:
-    figures = search.figures([[]])
+    figures = _search.figures([[]])
     assert (figures.recall_at_k, figures.ndcg_at_10) == (0.0, 0.0)
 
 
 def test_a_question_that_wants_two_answers_and_got_the_top_two_is_perfect() -> None:
-    figures = search.figures([[1, 2]])
+    figures = _search.figures([[1, 2]])
     assert (figures.recall_at_k, figures.ndcg_at_10) == (1.0, 1.0)

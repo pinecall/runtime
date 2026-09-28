@@ -5,6 +5,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 from typing import Literal
 
 from livekit import api
@@ -12,10 +13,11 @@ from livekit import api
 from pinecall.channels.rooms import room_closed, rooms_with_an_agent
 from pinecall.domain.agent import AgentConfig, Model
 from pinecall.domain.call import CallContext
-from pinecall.domain.errors import Conflict, NotAvailable, PinecallError
+from pinecall.domain.errors import Conflict, NotAvailable, PinecallError, QuotaExhausted
 from pinecall.domain.names import CHANNELS_WITH_A_NUMBER, Env, JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.evals import judges
+from pinecall.gateway._call_setup import exhausted, keys_of
 from pinecall.gateway._sockets import Process, Registration, SocketId, Sockets, orgs_own
 from pinecall.log import facts, queries
 from pinecall.log.logs import Log, Logs, Subscription, arrival_entry
@@ -26,10 +28,13 @@ from pinecall.process.connections import Connections
 from pinecall.providers import catalog, credentials, prices
 from pinecall.providers.build import Running
 from pinecall.providers.catalog import Providers
-from pinecall.providers.credentials import Keyring
+from pinecall.providers.credentials import Keyring, thinking
+from pinecall.retrieval import extraction, lookups, memory
+from pinecall.retrieval.embed import Embedder
+from pinecall.retrieval.lookups import OnTheCall
 from pinecall.session.session import Session
 from pinecall.session.tools import ToolCalls
-from pinecall.tenancy import orgs, vault
+from pinecall.tenancy import admission, orgs, vault
 from pinecall.tenancy.codes import Codes
 from pinecall.wire.commands import DevAnswer
 from pinecall.wire.events import (
@@ -39,10 +44,12 @@ from pinecall.wire.events import (
     CallScore,
     CallStarted,
     CallSummary,
+    ErrorEvent,
+    MemoryOps,
 )
 from pinecall.wire.frames import Command, Entry
-from pinecall.wire.parts import EndReason, PlatformTool
-from pinecall.wire.rest.calls import SealCallRequest
+from pinecall.wire.parts import EndReason, MemoryOp
+from pinecall.wire.rest.calls import LookupRequest, SealCallRequest
 from pinecall.wire.state import AgentTurn
 
 type Send = Callable[[Entry], Awaitable[None]]
@@ -62,9 +69,6 @@ NO_UNCLAIMED = (
 )
 
 
-NO_LOOKUPS = "this runtime keeps no memory and no knowledge base to look in"
-
-
 JUDGING_OFF = "this org's calls are not judged at hang-up: POST /v1/evals/judge/{call} judges one"
 
 
@@ -74,7 +78,7 @@ A_RUN_JUDGES_IT = "an eval run opened this call, and its own judges scored it in
 NO_JUDGE = "this box's providers configuration names no judge model"
 
 
-NO_CEILING = "PINECALL_JUDGE_CEILING_EUR is zero, so no judge model may be asked"
+NO_CEILING = "PINECALL_JUDGE_CEILING_USD is zero, so no judge model may be asked"
 
 
 JUDGING_BROKE = "judging this call failed: {broke}"
@@ -87,6 +91,13 @@ NOT_JUDGED_REAPED = (
 
 
 NOTHING_SAID = "no reply"
+
+
+REMEMBER_FAILED = "the call was not written into memory: {why}"
+
+
+# What a hang-up waits for the one model call that writes memory, unless the settings say.
+REMEMBER_BUDGET_S = 8.0
 
 
 # Entries a taking-over socket is rebuilt from; the prompt is not, the log keeps its hash alone.
@@ -268,6 +279,8 @@ class Serving:
     connections: Connections
     logs: Logs
     live: ServedCalls
+    # None when the box embeds nothing: every lookup finds nothing and no hang-up remembers.
+    embedder: Embedder | None
 
 
 # A call opened with a key goes to that key's scope; one that rang, to the caller's phone
@@ -313,11 +326,59 @@ async def opened(log: Log, context: CallContext, agent: str) -> None:
     await log.append(kind, data)
 
 
-async def nothing_found(
-    _tool: PlatformTool, _arguments: JsonObject, _speech: str | None
-) -> JsonObject:
-    """A lookup on a runtime with no memory and no knowledge."""
-    raise NotAvailable(NO_LOOKUPS)
+# The quotas are read per lookup, so a plan changed mid-call applies from the next turn.
+async def looked_up(serving: Serving, served: Served, request: LookupRequest) -> JsonObject:
+    """Recall or search for a call served here, written on its log, answered as the model reads."""
+    pool = serving.connections.pool
+    quotas = await admission.quotas_of(pool, served.scope.org, served.scope.env)
+    on_the_call = OnTheCall(
+        scope=served.scope,
+        context=served.context,
+        config=served.config,
+        log=served.log,
+        now=_now(serving),
+    )
+    return await lookups.lookup(pool, serving.embedder, on_the_call, request, quotas=quotas)
+
+
+# Runs between call.ended and call.summary. The org's keys are read now, so a key rotated during
+# the call is the one used. A refusal at the cap goes on the agent's log, and the call's says an
+# empty remember; anything that breaks is an entry, and the call still seals.
+async def remembered(serving: Serving, served: Served) -> MemoryOp | None:
+    """What the call taught its contact's memory, written; None when the agent keeps nothing."""
+    pool = serving.connections.pool
+    entries = await serving.logs.store.whole(served.call)
+    heard = lookups.heard_in(served.context, served.config, entries, at=_now(serving))
+    if heard is None or serving.embedder is None:
+        return None
+    try:
+        await admission.admit_memory(
+            pool,
+            served.scope.org,
+            served.scope.env,
+            kept=await memory.kept(pool, served.scope.org, served.scope.env),
+        )
+    except QuotaExhausted as refused:
+        await exhausted(serving.logs, served.scope.org, served.agent, refused)
+        op = MemoryOp(op="remember", contact=heard.contact, facts=[], took_ms=0.0)
+        await served.log.append("memory.ops", MemoryOps(ops=[op]).written())
+        return op
+    budget = serving.connections.settings.remember_budget_s or REMEMBER_BUDGET_S
+    try:
+        async with asyncio.timeout(budget):
+            configured = await catalog.providers(pool)
+            keys = await keys_of(pool, serving.connections.vault, served.scope)
+            model = thinking(served.config, configured, keys)
+            op = await extraction.remember(pool, serving.embedder, model, served.scope, heard)
+    except Exception as broke:
+        # Memory is a courtesy to the next call; this one ends all the same.
+        logger.warning("call %s was not written into memory", served.call, exc_info=True)
+        why = REMEMBER_FAILED.format(why=str(broke) or type(broke).__name__)
+        failed = ErrorEvent(code="remember_failed", message=why, recoverable=True)
+        await served.log.append("error", failed.written())
+        return None
+    await served.log.append("memory.ops", MemoryOps(ops=[op]).written())
+    return op
 
 
 async def attach(live: ServedCalls, store: Store, call: str, app: SocketId) -> Entry | None:
@@ -388,7 +449,8 @@ async def claim_code(
 async def sealed(
     serving: Serving, served: Served, sealing: SealCallRequest, *, lent: Sequence[str] = ()
 ) -> None:
-    """Price the call, write its summary and its score, seal the log, let the call go."""
+    """Remember, price the call, write its summary and its score, seal the log, let it go."""
+    await remembered(serving, served)
     await summed_up(serving.connections.pool, serving.logs.store, served.log, sealing)
     if lent:
         await facts.lent(serving.connections.pool, served.call, lent)
@@ -483,12 +545,16 @@ async def judge_of(connections: Connections, configured: Providers) -> tuple[Run
     """The judge model on the box's key, or None and the sentence that says why there is none."""
     if configured.judge is None:
         return None, NO_JUDGE
-    if connections.settings.judge_ceiling_eur <= 0:
+    if connections.settings.judge_ceiling_usd <= 0:
         return None, NO_CEILING
     box = await vault.box_credentials(connections.pool, connections.vault)
     named = configured.judge.llm
     declared = Model(provider=named.vendor, model=named.model or "")
     return credentials.stage("llm", declared, configured, Keyring(box=box)), ""
+
+
+def _now(serving: Serving) -> datetime:
+    return datetime.fromtimestamp(serving.logs.store.clock(), UTC)
 
 
 async def _pumped(entries: Subscription, send: Send) -> None:

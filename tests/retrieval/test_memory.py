@@ -10,9 +10,9 @@ from pinecall.domain.names import PRODUCTION, SANDBOX
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
 from pinecall.retrieval import memory
+from pinecall.retrieval._search import RRF_K, Hit
 from pinecall.retrieval.embed import Embedder
 from pinecall.retrieval.memory import HALF_LIFE_DAYS, Answered, Held, Paging, Recall
-from pinecall.retrieval.search import RRF_K, Hit
 from pinecall.wire.rest.retrieval import (
     MemoryGolden,
     MemoryQuestion,

@@ -34,7 +34,7 @@ from pinecall.gateway import _deps
 from pinecall.gateway._call_setup import exhausted, keys_of, tuned
 from pinecall.gateway._deps import EvalsKey, GatewayDep, ScopeDep
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import NO_AGENT, judge_of, judged_call, nothing_found
+from pinecall.gateway._served import NO_AGENT, judge_of, judged_call
 from pinecall.gateway._sockets import Registration
 from pinecall.gateway._text_calls import TextSetup, open_text_as
 from pinecall.providers import catalog, credentials
@@ -393,9 +393,11 @@ async def _written(
         run=suite.run.id,
         holder=scope.holder or None,
     )
-    lookup = goldens.golden_lookup(golden.memory, nothing_found)
     session = await open_text_as(
-        gateway.serving, registration, context, dataclasses.replace(setup, lookup=lookup)
+        gateway.serving,
+        registration,
+        context,
+        dataclasses.replace(setup, recalled=tuple(golden.memory)),
     )
     heard = gateway.logs.writing(opened.call, registration.slug).fanout.subscribe()
     try:

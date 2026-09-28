@@ -240,10 +240,10 @@ class Settings(BaseModel):
         description="The IANA zone a call's `today` is read in (Europe/Madrid). UTC unless set.",
     )
     # Zero disables model-based judges; code-based ones still run.
-    judge_ceiling_eur: float = Field(
+    judge_ceiling_usd: float = Field(
         0.002,
-        alias="PINECALL_JUDGE_CEILING_EUR",
-        description="What judging one call may spend on a model, in euros. Zero: no judge asks.",
+        alias="PINECALL_JUDGE_CEILING_USD",
+        description="What judging one call may spend on a model, in dollars. Zero: no judge asks.",
     )
 
     # ── memory and retrieval ──

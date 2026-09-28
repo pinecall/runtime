@@ -133,7 +133,7 @@ async def list_persona_runs(
                 "turns": run.turns,
                 "end_reason": run.facts.end_reason,
                 "outcome": run.facts.outcome,
-                "cost_eur": run.facts.cost_eur,
+                "cost_usd": run.facts.cost_usd,
                 "score": run.facts.score,
             }
         )

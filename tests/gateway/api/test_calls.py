@@ -490,3 +490,43 @@ async def test_the_apps_preflight_is_answered_and_a_page_may_not_write(knocking:
     assert preflight.status_code == 200
     assert "GET" in preflight.headers["access-control-allow-methods"]
     assert writing.status_code == 400
+
+
+@postgres
+async def test_a_lookup_for_a_call_served_here_answers_the_tools_shape_and_its_time(
+    knocking: Knocking,
+) -> None:
+    app = await an_app(knocking)
+    context = a_call(knocking)
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+        searched = await worker.post(
+            f"/v1/calls/{context.call}/lookup",
+            json={"tool": "search", "input": {"query": "horarios"}, "speech_id": "sp_1"},
+        )
+        recalled = await worker.post(
+            f"/v1/calls/{context.call}/lookup", json={"tool": "recall", "input": {"query": "x"}}
+        )
+        nobody = await worker.post(
+            "/v1/calls/call_nobody/lookup", json={"tool": "search", "input": {"query": "x"}}
+        )
+    assert searched.status_code == 200
+    assert searched.json()["output"] == {"chunks": []}
+    assert isinstance(searched.json()["took_ms"], float)
+    assert recalled.json()["output"] == {"facts": []}
+    assert nobody.status_code == 404
+    await app.close()
+
+
+@postgres
+async def test_remember_on_a_call_that_keeps_nothing_counts_no_op(knocking: Knocking) -> None:
+    app = await an_app(knocking)
+    context = a_call(knocking)
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+        remembered = await worker.post(f"/v1/calls/{context.call}/remember")
+        nobody = await worker.post("/v1/calls/call_nobody/remember")
+    assert remembered.status_code == 200
+    assert remembered.json()["ops"] == 0
+    assert nobody.status_code == 404
+    await app.close()

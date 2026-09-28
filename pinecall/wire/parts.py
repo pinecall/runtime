@@ -160,14 +160,6 @@ class DocSource(WireModel):
     excerpt: str | None = None
 
 
-class CostRate(WireModel):
-    """The connections rate the cost was computed with, stated so the number can be reproduced."""
-
-    currency: Literal["EUR"] = "EUR"
-    usd_to_eur: float
-    as_of: str
-
-
 class CostRow(WireModel):
     """One priced line: a model, what was counted, how much, and what it came to."""
 
@@ -185,7 +177,7 @@ class CostRow(WireModel):
     ]
     quantity: float
     unit_price_usd: float
-    eur: float
+    usd: float
 
 
 class UnpricedRow(WireModel):
@@ -196,10 +188,9 @@ class UnpricedRow(WireModel):
 
 
 class Cost(WireModel):
-    """What the call cost in provider fees, informational, in euros."""
+    """What the call cost in provider fees, informational, in US dollars, as providers price."""
 
-    eur: float
-    rate: CostRate
+    usd: float
     rows: list[CostRow]
     unpriced: list[UnpricedRow]
 

@@ -71,8 +71,7 @@ def test_the_reason_the_call_ended_with_is_kept_over_the_summarys() -> None:
         "turns": 1,
         "usage": [],
         "cost": {
-            "eur": 0.1,
-            "rate": {"currency": "EUR", "usd_to_eur": 1.0, "as_of": "x"},
+            "usd": 0.1,
             "rows": [],
             "unpriced": [],
         },

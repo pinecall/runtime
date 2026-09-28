@@ -29,7 +29,7 @@ ADMISSION = "admission"
 
 QUOTAS = """
 SELECT minutes, messages, agents, concurrent_calls, memory_facts, knowledge_chunks, numbers, seats,
-       llm_tokens, budget_eur, lends
+       llm_tokens, budget_usd, lends
 FROM quotas WHERE org = %(org)s AND env = %(env)s
 """
 
@@ -37,15 +37,15 @@ FROM quotas WHERE org = %(org)s AND env = %(env)s
 # Replaced whole: a limit left out stops being one.
 SET_QUOTAS = """
 INSERT INTO quotas (org, env, minutes, messages, agents, concurrent_calls, memory_facts,
-                    knowledge_chunks, numbers, seats, llm_tokens, budget_eur, lends)
+                    knowledge_chunks, numbers, seats, llm_tokens, budget_usd, lends)
 VALUES (%(org)s, %(env)s, %(minutes)s, %(messages)s, %(agents)s, %(concurrent_calls)s,
         %(memory_facts)s, %(knowledge_chunks)s, %(numbers)s, %(seats)s, %(llm_tokens)s,
-        %(budget_eur)s, %(lends)s)
+        %(budget_usd)s, %(lends)s)
 ON CONFLICT (org, env) DO UPDATE SET
     minutes = excluded.minutes, messages = excluded.messages, agents = excluded.agents,
     concurrent_calls = excluded.concurrent_calls, memory_facts = excluded.memory_facts,
     knowledge_chunks = excluded.knowledge_chunks, numbers = excluded.numbers,
-    seats = excluded.seats, llm_tokens = excluded.llm_tokens, budget_eur = excluded.budget_eur,
+    seats = excluded.seats, llm_tokens = excluded.llm_tokens, budget_usd = excluded.budget_usd,
     lends = excluded.lends, set_at = now()
 """
 
@@ -193,5 +193,5 @@ async def _set_quotas(connection: Connection, org: str, env: Env, quotas: Quotas
     lends = None if quotas.lends is None else sorted(quotas.lends)
     await connection.execute(
         SET_QUOTAS,
-        {"org": org, "env": env, **quotas.limits, "budget_eur": quotas.budget_eur, "lends": lends},
+        {"org": org, "env": env, **quotas.limits, "budget_usd": quotas.budget_usd, "lends": lends},
     )

@@ -98,7 +98,7 @@ class JudgingSettings(WireModel):
     """Whether an org's calls are judged at hang-up, and the ceiling per call."""
 
     on: bool
-    ceiling_eur: float | None
+    ceiling_usd: float | None
 
 
 class JudgingRequest(WireModel):

@@ -13,6 +13,7 @@ from pinecall.wire.parts import (
     Contact,
     Cost,
     EndReason,
+    PlatformTool,
     Projection,
     SessionFlag,
     ThreadKind,
@@ -167,6 +168,29 @@ class AppendEntryRequest(WireModel):
     type: str
     data: JsonObject
     ephemeral: bool | None = None
+
+
+# `input` is whole and unread by the wire: what recall and search take is the runtime's shape.
+class LookupRequest(WireModel):
+    """Which platform tool to run for a call's turn, what to run it with, and the turn it joins."""
+
+    tool: PlatformTool
+    input: JsonObject
+    speech_id: str | None = None
+
+
+class LookupResponse(WireModel):
+    """What the tool found, as the model reads it, and how long finding it took."""
+
+    output: JsonObject
+    took_ms: float
+
+
+class RememberResponse(WireModel):
+    """How many memory operations a call produced, and how long remembering took."""
+
+    ops: int
+    took_ms: float
 
 
 class SealCallRequest(WireModel):

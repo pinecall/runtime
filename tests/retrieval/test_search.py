@@ -6,8 +6,7 @@ import pytest
 from psycopg import sql
 
 from pinecall.postgres.pool import Pool
-from pinecall.retrieval.embed import halfvec
-from pinecall.retrieval.search import (
+from pinecall.retrieval._search import (
     CANDIDATES_PER_BRANCH,
     RRF_K,
     Hit,
@@ -17,6 +16,7 @@ from pinecall.retrieval.search import (
     relative_to_the_best,
     top_cosine,
 )
+from pinecall.retrieval.embed import halfvec
 from pinecall.tenancy import orgs
 from tests.conftest import postgres
 

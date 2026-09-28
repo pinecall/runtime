@@ -57,8 +57,7 @@ def a_summary(usage: list[Json]) -> JsonObject:
         "turns": 8,
         "usage": usage,
         "cost": {
-            "eur": 0.02,
-            "rate": {"currency": "EUR", "usd_to_eur": 0.9, "as_of": "2026-09-01"},
+            "usd": 0.02,
             "rows": [],
             "unpriced": [],
         },
@@ -128,7 +127,7 @@ def test_the_summary_brings_the_bill_and_the_outcome() -> None:
     state = reduce([entry(1, "call.summary", a_summary([tts]))])
     assert (state.outcome, state.end_reason) == ("moved the appointment", "caller_hung_up")
     assert state.cost is not None
-    assert state.cost.eur == 0.02
+    assert state.cost.usd == 0.02
     assert state.usage[0].type == "tts_usage"
 
 
@@ -445,7 +444,7 @@ STT: JsonObject = {
     "model": "nova",
     "audio_duration": 118.0,
 }
-A_SCORE: JsonObject = {"passed": True, "judges": [], "judge_calls": 3, "judge_cost_eur": 0.004}
+A_SCORE: JsonObject = {"passed": True, "judges": [], "judge_calls": 3, "judge_cost_usd": 0.004}
 
 
 def metered(
@@ -464,12 +463,12 @@ def test_a_summary_counts_minutes_turns_the_llms_tokens_and_the_tts_characters()
     used = row.used
     assert (used.calls, used.minutes, used.messages) == (1, 2.0, 8)
     assert (used.input_tokens, used.output_tokens, used.characters) == (900, 150, 320)
-    assert (used.cost_eur, used.judge_calls) == (0.02, 0)
+    assert (used.cost_usd, used.judge_calls) == (0.02, 0)
 
 
 def test_a_score_counts_its_judge_calls_and_their_cost_and_nothing_else() -> None:
     used = usage_row(metered(8, "dental", "call.score", A_SCORE)).used
-    assert (used.judge_calls, used.cost_eur, used.calls, used.minutes) == (3, 0.004, 0, 0.0)
+    assert (used.judge_calls, used.cost_usd, used.calls, used.minutes) == (3, 0.004, 0, 0.0)
 
 
 def test_a_score_nobody_judged_costs_nothing_although_its_cost_is_null() -> None:
@@ -479,9 +478,9 @@ def test_a_score_nobody_judged_costs_nothing_although_its_cost_is_null() -> None
         "judges": [],
         "panel": None,
         "judge_calls": 0,
-        "judge_cost_eur": None,
+        "judge_cost_usd": None,
     }
-    assert usage_row(metered(9, "dental", "call.score", nobody)).used.cost_eur == 0.0
+    assert usage_row(metered(9, "dental", "call.score", nobody)).used.cost_usd == 0.0
 
 
 def test_a_log_nobody_claimed_is_filed_as_unowned_rather_than_dropped() -> None:

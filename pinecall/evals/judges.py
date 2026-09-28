@@ -355,7 +355,7 @@ async def at_hangup(
     else:
         scored["not_judged"] = NOTHING_ANSWERED if model is not None else unjudged
     if spent:
-        scored["judge_cost_eur"] = prices.cost(spent, configured).eur
+        scored["judge_cost_usd"] = prices.cost(spent, configured).usd
     return CallScore.model_validate(scored)
 
 
