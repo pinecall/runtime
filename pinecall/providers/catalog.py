@@ -7,8 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from pinecall.domain.errors import Conflict, DeclarationRefused, NotAvailable
 from pinecall.domain.names import Json, JsonObject
-from pinecall.postgres import box_settings
 from pinecall.postgres.pool import Pool
+from pinecall.process import box_settings
 from pinecall.providers.build import MODALITIES, Modality, doing
 from pinecall.wire.parts import CostRate
 

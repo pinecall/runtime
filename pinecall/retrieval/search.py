@@ -1,8 +1,10 @@
 """The hybrid search over one table: nearest vectors and best BM25 words, fused by rank in SQL."""
 
 import dataclasses
-from collections.abc import Mapping
+import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from statistics import fmean
 from typing import Literal
 
 from psycopg import sql
@@ -16,6 +18,10 @@ type Evidence = Literal["strong", "weak", "none"]
 
 # Cormack's constant: a rank weighs 1 / (60 + rank), so cosine and BM25 are never compared.
 RRF_K = 60
+
+
+# The cutoff of nDCG, past any k a turn is handed.
+NDCG_AT = 10
 
 
 CANDIDATES_PER_BRANCH = 30
@@ -92,6 +98,14 @@ class Hit:
     row: DictRow
 
 
+@dataclass(frozen=True)
+class Figures:
+    """Recall at k, and nDCG at 10."""
+
+    recall_at_k: float
+    ndcg_at_10: float
+
+
 async def hybrid(
     connection: Connection, table: SearchedTable, *, vector: list[float], words: str, room: int
 ) -> list[Hit]:
@@ -139,3 +153,34 @@ def evidence_of(cosine: float) -> Evidence:
     if cosine < NONE_BELOW:
         return "none"
     return "weak"
+
+
+# nDCG is normalised by the ideal order for as many answers as the question wants.
+def figures(ranks: Sequence[Sequence[int | None]]) -> Figures:
+    """The two figures over the ranks of each question's wanted answers; None is not found."""
+    if not ranks:
+        return Figures(recall_at_k=0.0, ndcg_at_10=0.0)
+    return Figures(
+        recall_at_k=fmean(_share_found(question) for question in ranks),
+        ndcg_at_10=fmean(_normalised(question) for question in ranks),
+    )
+
+
+def _share_found(ranks: Sequence[int | None]) -> float:
+    if not ranks:
+        return 0.0
+    return sum(rank is not None for rank in ranks) / len(ranks)
+
+
+def _normalised(ranks: Sequence[int | None]) -> float:
+    if not ranks:
+        return 0.0
+    ideal = sum(_discounted(place) for place in range(1, min(len(ranks), NDCG_AT) + 1))
+    return sum(_discounted(rank) for rank in ranks) / ideal
+
+
+# Past the tenth the model never saw it.
+def _discounted(rank: int | None) -> float:
+    if rank is None or rank > NDCG_AT:
+        return 0.0
+    return 1.0 / math.log2(rank + 1)

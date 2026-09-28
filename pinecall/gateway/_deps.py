@@ -11,13 +11,14 @@ from fastapi import Depends, HTTPException, Query
 from starlette.requests import HTTPConnection
 
 from pinecall.domain.agent import AgentConfig
-from pinecall.domain.errors import NotAllowed, NotFound, NotSignedIn, QuotaExhausted
+from pinecall.domain.errors import NotAllowed, NotAvailable, NotFound, NotSignedIn, QuotaExhausted
 from pinecall.domain.names import Env, parse_env
 from pinecall.domain.person import HOLDING, THE_FLEET, THE_TEAM, KeyScope
 from pinecall.domain.scope import Scope
-from pinecall.gateway._agents import exhausted
-from pinecall.gateway._state import Gateway
+from pinecall.gateway._call_setup import exhausted
+from pinecall.gateway._gateway import Gateway
 from pinecall.log import queries
+from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy import admission, keys, people, tokens
 from pinecall.tenancy.keys import Bearer
 from pinecall.tenancy.tokens import PROJECTION_OF, Visit
@@ -43,6 +44,9 @@ NOT_THE_OPERATORS = "this door is the box's: its operator key, or a person the b
 
 
 NOT_STARTED = "the gateway never started: its lifespan never ran"
+NO_EMBEDDER = (
+    "this box embeds nothing: its providers row names no embedding, or the box holds no key for it"
+)
 
 
 SCOPES_OF: dict[Callable[..., object], frozenset[KeyScope]] = {}
@@ -144,6 +148,14 @@ async def admit_call(gateway: Gateway, scope: Scope, agent: str) -> admission.Ce
     except QuotaExhausted as refused:
         await exhausted(gateway.logs, scope.org, agent, refused)
         raise
+
+
+# A box with no embedder still starts: the doors that embed refuse, and every other answers.
+def embedder_of(gateway: Gateway) -> Embedder:
+    """The box's embedder; NotAvailable in one sentence when it has none."""
+    if gateway.embedder is None:
+        raise NotAvailable(NO_EMBEDDER)
+    return gateway.embedder
 
 
 def gateway_of(connection: HTTPConnection) -> Gateway:
@@ -251,11 +263,9 @@ UsageKey = Annotated[Acting, Depends(opening("usage"))]
 
 EvalsKey = Annotated[Acting, Depends(opening("evals"))]
 
+KnowledgeKey = Annotated[Acting, Depends(opening("knowledge"))]
 
 MemoryKey = Annotated[Acting, Depends(opening("memory"))]
-
-
-KnowledgeKey = Annotated[Acting, Depends(opening("knowledge"))]
 
 
 WordsKey = Annotated[Acting, Depends(opening("pipeline", "words"))]

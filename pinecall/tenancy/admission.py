@@ -9,8 +9,8 @@ from pinecall.domain.names import Env
 from pinecall.domain.org import QuotaName, Quotas
 from pinecall.log.reduce import Metered, Usage, usage_row
 from pinecall.log.store import entry_of
-from pinecall.postgres import box_settings
 from pinecall.postgres.pool import Connection, Pool
+from pinecall.process import box_settings
 
 REFUSED = "the org has used {used} of its {limit} {quota} in the {env}"
 

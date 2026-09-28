@@ -1,4 +1,4 @@
-"""The box_settings rows: what the operator configured, one JSON value per name."""
+"""The box_settings rows: what the operator configured for this box, one JSON value per name."""
 
 from psycopg.types.json import Jsonb
 

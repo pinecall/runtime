@@ -10,7 +10,7 @@ from pinecall.domain.errors import (
 from pinecall.domain.person import RoomScope
 from pinecall.gateway import _deps
 from pinecall.gateway._deps import Acting, GatewayDep, Reader, ReaderDep
-from pinecall.gateway._state import Gateway
+from pinecall.gateway._gateway import Gateway
 from pinecall.log import queries
 from pinecall.tenancy import keys, tokens
 from pinecall.wire.commands import SupervisorVerb, Verb

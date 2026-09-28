@@ -1,7 +1,7 @@
 """Tests for the box_settings rows: read what the operator set, write it whole."""
 
-from pinecall.postgres import box_settings
 from pinecall.postgres.pool import Pool
+from pinecall.process import box_settings
 from tests.conftest import postgres
 
 

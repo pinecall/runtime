@@ -16,11 +16,11 @@ from pinecall.domain.errors import (
 from pinecall.domain.names import Json
 from pinecall.domain.person import HOLDING
 from pinecall.gateway import _deps
-from pinecall.gateway._agents import exhausted, tuned
+from pinecall.gateway._call_setup import exhausted, tuned
 from pinecall.gateway._deps import Acting, AppKey, CallsKey, GatewayDep, ScopeDep
+from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import claim_code, handed_on, parked_calls_of
 from pinecall.gateway._sockets import NOT_REGISTERED, Process, Registration, new_socket_id
-from pinecall.gateway._state import Gateway
 from pinecall.providers import catalog
 from pinecall.session.call import changed_by, with_app_fields
 from pinecall.tenancy import admission, keys

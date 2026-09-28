@@ -1,6 +1,6 @@
 """Tests for the gateway's state: what a call runs through is the process's own."""
 
-from pinecall.gateway._state import Gateway
+from pinecall.gateway._gateway import Gateway
 from tests.conftest import postgres
 
 

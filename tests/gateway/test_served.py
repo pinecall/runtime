@@ -7,9 +7,9 @@ from pinecall.domain.agent import AgentConfig
 from pinecall.domain.call import CallContext, Route, new_call_id
 from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
+from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import attach, handed_on, opened, reaped, sealed, served_call
 from pinecall.gateway._sockets import Sockets
-from pinecall.gateway._state import Gateway
 from pinecall.log.logs import Logs, started_entry
 from pinecall.log.store import Store
 from pinecall.wire.frames import Command, Entry

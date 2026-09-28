@@ -1,4 +1,4 @@
-"""An agent as a call runs it: tuned by the scope, keyed by the org, and what a refusal writes."""
+"""What a call of an agent is set up with: its config tuned by the scope, the keys, a refusal."""
 
 from cryptography.fernet import MultiFernet
 

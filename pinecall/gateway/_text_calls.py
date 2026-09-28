@@ -7,7 +7,7 @@ from datetime import UTC, date, datetime
 from pinecall.domain.call import CallContext, Route, today_in
 from pinecall.domain.names import CHANNELS_WITH_A_NUMBER
 from pinecall.domain.scope import Scope
-from pinecall.gateway._agents import keys_of, tuned
+from pinecall.gateway._call_setup import keys_of, tuned
 from pinecall.gateway._served import Served, Serving, attach, nothing_found, sealed, served_call
 from pinecall.gateway._sockets import Registration
 from pinecall.log import queries
