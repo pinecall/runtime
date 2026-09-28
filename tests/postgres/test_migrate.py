@@ -54,10 +54,10 @@ def test_every_migration_is_numbered_and_named_and_no_two_share_a_number() -> No
 
 
 def test_the_first_migration_holds_no_extension_and_no_bookkeeping_table() -> None:
-    said = migration_files()[0].read_text(encoding="utf-8").lower()
-    assert "create extension" not in said
-    assert "create table schema_migrations" not in said
-    assert "public." not in said
+    text = migration_files()[0].read_text(encoding="utf-8").lower()
+    assert "create extension" not in text
+    assert "create table schema_migrations" not in text
+    assert "public." not in text
 
 
 def test_the_migrations_live_beside_the_runner_so_the_wheel_carries_them() -> None:
@@ -125,11 +125,11 @@ async def test_a_migration_edited_after_it_ran_is_refused_by_name_and_by_both_ha
     with pytest.raises(MigrationsRefused) as refused:
         await apply_migrations(DSN, schema=schema)
 
-    said = str(refused.value)
-    assert FIRST in said
-    assert "a" * 64 in said, "the hash this database ran"
-    assert file_hash(migration_files()[0]) in said, "and the one on disk now"
-    assert "never edited" in said
+    data = str(refused.value)
+    assert FIRST in data
+    assert "a" * 64 in data, "the hash this database ran"
+    assert file_hash(migration_files()[0]) in data, "and the one on disk now"
+    assert "never edited" in data
 
 
 @postgres
@@ -169,7 +169,7 @@ async def test_two_runs_at_once_do_not_both_migrate(schema: str) -> None:
         apply_migrations(DSN, schema=schema), apply_migrations(DSN, schema=schema)
     )
 
-    ran = [name for one in both for name in one.applied]
+    ran = [name for item in both for name in item.applied]
     assert len(ran) == len(set(ran)), "no migration was applied twice"
     assert set(ran) == {path.name for path in migration_files()}
 

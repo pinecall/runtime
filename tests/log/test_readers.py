@@ -4,8 +4,9 @@ import json
 
 import pytest
 
+from pinecall.domain.agent import AgentConfig
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.types import AgentConfig, JsonObject
+from pinecall.domain.names import JsonObject
 from pinecall.log.readers import (
     ALWAYS_PASS,
     EVERYTHING,
@@ -19,7 +20,7 @@ from pinecall.log.readers import (
 )
 from pinecall.log.reduce import reduce
 from pinecall.wire.frames import Entry, read_log
-from tests.wire.parity import GOLDEN_LOG
+from tests.wire.golden import GOLDEN_LOG
 
 GOLDEN = read_log(GOLDEN_LOG.read_text(encoding="utf-8"))
 STATE = reduce(GOLDEN)
@@ -56,21 +57,21 @@ def entry(kind: str, data: JsonObject, *, ephemeral: bool = False) -> Entry:
     )
 
 
-def public(one: Entry, viewer: str | None = None) -> JsonObject | None:
-    return project_entry(one, "public", DECLARED, viewer)
+def public(item: Entry, viewer: str | None = None) -> JsonObject | None:
+    return project_entry(item, "public", DECLARED, viewer)
 
 
 # ── filters ──
 
 
 def test_the_default_filter_narrows_nothing() -> None:
-    assert all(EVERYTHING.passes(one) for one in GOLDEN)
+    assert all(EVERYTHING.passes(item) for item in GOLDEN)
 
 
 def test_types_keeps_only_what_it_names() -> None:
     wanted = Filter(types=frozenset({"turn.user"}))
-    assert {one.type for one in GOLDEN if wanted.passes(one)} == {"turn.user", *ALWAYS_PASS} & {
-        one.type for one in GOLDEN
+    assert {item.type for item in GOLDEN if wanted.passes(item)} == {"turn.user", *ALWAYS_PASS} & {
+        item.type for item in GOLDEN
     }
 
 
@@ -162,23 +163,23 @@ def test_an_agent_that_declared_nothing_shows_the_public_nothing_and_the_tenant_
 
 
 def test_a_participant_reads_an_envelope_without_the_agent_or_the_call() -> None:
-    for one in GOLDEN:
-        seen = public(one)
+    for item in GOLDEN:
+        seen = public(item)
         assert seen is None or set(seen) == {"seq", "ts", "type", "ephemeral", "data"}
 
 
 def test_an_entry_type_the_contract_does_not_name_never_reaches_a_participant() -> None:
-    unnamed = {one.type for one in GOLDEN} - set(PUBLIC_ENTRY_FIELDS)
+    unnamed = {item.type for item in GOLDEN} - set(PUBLIC_ENTRY_FIELDS)
     assert {"tool.call", "call.summary", "metrics.llm"} <= unnamed
-    assert all(public(one) is None for one in GOLDEN if one.type in unnamed)
+    assert all(public(item) is None for item in GOLDEN if item.type in unnamed)
 
 
 def test_a_participant_reads_only_the_fields_its_row_names() -> None:
-    for one in GOLDEN:
-        seen = public(one)
-        if seen is not None and one.type not in {"state.changed", "log.gap"}:
+    for item in GOLDEN:
+        seen = public(item)
+        if seen is not None and item.type not in {"state.changed", "log.gap"}:
             assert isinstance(seen["data"], dict)
-            assert set(seen["data"]) <= set(PUBLIC_ENTRY_FIELDS[one.type])
+            assert set(seen["data"]) <= set(PUBLIC_ENTRY_FIELDS[item.type])
 
 
 def test_a_participant_reads_a_reply_with_the_wait_and_nothing_else_measured() -> None:

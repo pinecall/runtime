@@ -8,9 +8,11 @@ from dataclasses import dataclass, field
 from psycopg.rows import DictRow
 from psycopg.types.json import Jsonb
 
+from pinecall.domain.agent import Versions
 from pinecall.domain.errors import Conflict
-from pinecall.domain.types import Corner, JsonObject, Versions
-from pinecall.log.index import record
+from pinecall.domain.names import JsonObject
+from pinecall.domain.scope import Scope
+from pinecall.log.facts import record
 from pinecall.log.reduce import Metered
 from pinecall.postgres.pool import Pool
 from pinecall.wire.frames import Entry
@@ -64,7 +66,7 @@ order by seq
 limit %(limit)s
 """
 
-# Sealing a log nothing was written to is allowed: recovery may seal before the first entry.
+# SealCallRequest a log nothing was written to is allowed: recovery may seal before the first entry.
 SEAL = """
 insert into call_log_head (log, call, sealed) values (%(call)s, %(call)s, true)
 on conflict (log) do update set sealed = true
@@ -127,9 +129,9 @@ limit 1
 
 @dataclass(frozen=True, slots=True)
 class Claim:
-    """What a call log is claimed with: its corner and the versions it was built on."""
+    """What a call log is claimed with: its scope and the versions it was built on."""
 
-    corner: Corner
+    scope: Scope
     versions: Versions = field(default_factory=Versions)
 
 
@@ -224,8 +226,8 @@ class Store:
     async def claim(
         self, call: str | None, agent: str, org: str, claim: Claim | None = None
     ) -> None:
-        """Record the log's org, and for a call its corner and versions; the first claim stands."""
-        corner = None if call is None or claim is None else claim.corner
+        """Record the log's org, and for a call its scope and versions; the first claim stands."""
+        scope = None if call is None or claim is None else claim.scope
         versions = Versions() if call is None or claim is None else claim.versions
         async with self.pool.connection() as connection:
             await connection.execute(
@@ -235,8 +237,8 @@ class Store:
                     "agent": agent,
                     "call": call,
                     "org": org,
-                    "env": None if corner is None else corner.env,
-                    "holder": None if corner is None else corner.holder,
+                    "env": None if scope is None else scope.env,
+                    "holder": None if scope is None else scope.holder,
                     "config": versions.config,
                     "lexicon": versions.lexicon,
                 },
@@ -259,9 +261,9 @@ class Store:
         self, types: Sequence[str], *, after: int = 0, limit: int = DEFAULT_LIMIT
     ) -> list[Metered]:
         """Return one page of the metered entries of every log, by position, with their owners."""
-        asked = {"types": list(types), "after": after, "limit": limit}
+        params = {"types": list(types), "after": after, "limit": limit}
         async with self.pool.connection() as connection:
-            rows = await (await connection.execute(ACROSS, asked)).fetchall()
+            rows = await (await connection.execute(ACROSS, params)).fetchall()
         return [
             Metered(
                 position=int(row["position"]),

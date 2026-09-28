@@ -6,25 +6,21 @@ from datetime import date
 
 import pytest
 
-from pinecall.domain.types import (
-    AgentConfig,
-    CallContext,
-    Channel,
-    Contact,
-    Json,
-    JsonObject,
-    Route,
-)
-from pinecall.log.log import Log
+from pinecall.domain.agent import AgentConfig
+from pinecall.domain.call import CallContext, Contact, Route
+from pinecall.domain.names import Channel, Json, JsonObject
+from pinecall.log.logs import Log
 from pinecall.log.store import Store
 from pinecall.providers.build import Running
 from pinecall.session.call import Call, Platform, ToolUse
-from pinecall.session.session import Session, written
+from pinecall.session.session import Session
+from pinecall.session.text import text_session
 from pinecall.wire.events import ToolCall
 from pinecall.wire.frames import Entry
 from pinecall.wire.metrics import ModelUsage
 from pinecall.wire.parts import PlatformTool, ToolResult
-from tests.fakes import ACME, AcmeLLM, Server
+from tests.fakes.acme import ACME, AcmeLLM
+from tests.fakes.livekit import Server
 
 AGENT = "clinica-norte"
 A_NUMBER = "+59829001199"
@@ -64,7 +60,7 @@ class Box:
     found: dict[PlatformTool, JsonObject] = field(default_factory=dict[PlatformTool, JsonObject])
     failing: set[PlatformTool] = field(default_factory=set[PlatformTool])
     used: list[ToolUse] = field(default_factory=list[ToolUse])
-    looked: list[tuple[PlatformTool, JsonObject]] = field(
+    lookups: list[tuple[PlatformTool, JsonObject]] = field(
         default_factory=list[tuple[PlatformTool, JsonObject]]
     )
     sealed: list[tuple[list[ModelUsage], str]] = field(
@@ -88,7 +84,7 @@ class Box:
         self, tool: PlatformTool, arguments: JsonObject, _speech: str | None
     ) -> JsonObject:
         """What the index finds, nothing, or a failure."""
-        self.looked.append((tool, arguments))
+        self.lookups.append((tool, arguments))
         if tool in self.failing:
             raise ConnectionError(f"the {tool} index did not answer")
         return self.found.get(tool, {"facts": []} if tool == "recall" else {"chunks": []})
@@ -125,7 +121,7 @@ def a_session(
     call = Call(context_of(box.log.call, contact=contact, run=run), config, box.platform())
     scripted: list[Json] = list(replies)
     script: JsonObject = {"replies": scripted}
-    return written(call, Running(ACME, "a-key", options=script))
+    return text_session(call, Running(ACME, "a-key", options=script))
 
 
 def model_of(session: Session) -> AcmeLLM:

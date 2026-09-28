@@ -6,7 +6,22 @@ from pathlib import Path
 import pytest
 from fastapi.routing import APIRoute, APIWebSocketRoute
 
-from pinecall.gateway.api import agents, calls, telephony, whatsapp
+from pinecall.gateway.api import (
+    agents,
+    apps,
+    callbacks,
+    calls,
+    chat,
+    desk,
+    fleet,
+    line,
+    numbers,
+    org,
+    relay,
+    threads,
+    visitors,
+    whatsapp,
+)
 from pinecall.gateway.app import app
 from tests.rules.tree import FIXTURES, PARITY_MD, V1
 
@@ -20,8 +35,23 @@ DOORS_OF_V1 = 193
 def routes_of_the_gateway() -> frozenset[tuple[str, str]]:
     """Return every (method, path) the gateway answers, spelled as the table of v1 spells them."""
     found: set[tuple[str, str]] = set()
-    routers = (calls, agents, telephony, whatsapp)
-    for route in [*(one for door in routers for one in door.router.routes), *app.routes]:
+    routers = (
+        agents,
+        apps,
+        callbacks,
+        calls,
+        chat,
+        desk,
+        fleet,
+        line,
+        numbers,
+        org,
+        relay,
+        threads,
+        visitors,
+        whatsapp,
+    )
+    for route in [*(route for door in routers for route in door.router.routes), *app.routes]:
         if isinstance(route, APIRoute):
             found |= {(method, _spelled(route.path)) for method in route.methods or ()}
         elif isinstance(route, APIWebSocketRoute):
@@ -41,8 +71,8 @@ A_CELL = re.compile(r"`([^`]+)`")
 def doors_in(table: Path) -> list[tuple[str, str]]:
     """Return every (method, path) the table names, in its order."""
     found: list[tuple[str, str]] = []
-    for line in table.read_text(encoding="utf-8").splitlines():
-        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+    for row in table.read_text(encoding="utf-8").splitlines():
+        cells = [cell.strip() for cell in row.strip().strip("|").split("|")]
         if len(cells) < 2 or not cells[0].startswith("`"):
             continue
         methods = A_CELL.findall(cells[0])
@@ -62,19 +92,19 @@ def _doors_of(methods: list[str], tokens: list[str]) -> list[tuple[str, str]]:
             continue
         if " " in token:
             named, path = token.split(" ", 1)
-            found += [(one, _without_query(_resolved(path, found))) for one in [*pending, named]]
+            found += [(item, _without_query(_resolved(path, found))) for item in [*pending, named]]
             pending = []
             continue
         if not token.startswith("/"):
             pending.append(token)
             continue
         if pending:
-            found += [(one, _without_query(_resolved(token, found))) for one in pending]
+            found += [(item, _without_query(_resolved(token, found))) for item in pending]
             pending = []
             continue
         path = _resolved(token, found)
-        found += [(one, _without_query(path)) for one in methods]
-    found += [(one, found[-1][1]) for one in pending]
+        found += [(method, _without_query(path)) for method in methods]
+    found += [(item, found[-1][1]) for item in pending]
     return found
 
 
@@ -93,18 +123,16 @@ def done_per_parity() -> list[tuple[str, str]]:
     text = PARITY_MD.read_text(encoding="utf-8")
     section = text.split("## Doors done", 1)[1].split("\n## ", 1)[0]
     return [
-        (line[2:].split(" ", 1)[0], line[2:].split(" ", 1)[1])
-        for line in section.splitlines()
-        if line.startswith("- ") and "/" in line
+        (row[2:].split(" ", 1)[0], row[2:].split(" ", 1)[1])
+        for row in section.splitlines()
+        if row.startswith("- ") and "/" in row
     ]
 
 
 @pytest.mark.skipif(not EVERY_DOOR.is_file(), reason="the v1 checkout is not beside this one")
 def test_the_table_of_v1_names_the_doors_and_this_parser_reads_every_one() -> None:
     rows = [
-        line
-        for line in EVERY_DOOR.read_text(encoding="utf-8").splitlines()
-        if line.startswith("| `")
+        line for row in EVERY_DOOR.read_text(encoding="utf-8").splitlines() if row.startswith("| `")
     ]
     doors = doors_in(EVERY_DOOR)
     assert len(rows) == ROWS_OF_V1

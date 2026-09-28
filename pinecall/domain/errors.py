@@ -26,7 +26,7 @@ class NotAllowed(PinecallError):
 
 
 class NotFound(PinecallError):
-    """Nothing by that name in the caller's corner."""
+    """Nothing by that name in the caller's scope."""
 
     status = 404
 

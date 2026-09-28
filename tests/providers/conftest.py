@@ -31,6 +31,6 @@ def configured() -> Providers:
                 "sonic": {"characters": 0.00003},
                 "flux": {"audio_seconds": 0.0001},
             },
-            "exchange": {"usd_to_eur": 0.92, "as_of": "2026-09-06"},
+            "connections": {"usd_to_eur": 0.92, "as_of": "2026-09-06"},
         }
     )

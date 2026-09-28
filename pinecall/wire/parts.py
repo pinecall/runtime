@@ -4,7 +4,8 @@ from typing import Literal
 
 from pydantic import Field
 
-from pinecall.domain.types import Channel, EventSource, Json, JsonObject
+from pinecall.domain.agent import EventSource
+from pinecall.domain.names import Channel, Json, JsonObject
 from pinecall.wire.frames import WireModel
 
 # What a console may ask of the process standing in the agent's directory, relayed by the gateway.
@@ -160,7 +161,7 @@ class DocSource(WireModel):
 
 
 class CostRate(WireModel):
-    """The exchange rate the cost was computed with, stated so the number can be reproduced."""
+    """The connections rate the cost was computed with, stated so the number can be reproduced."""
 
     currency: Literal["EUR"] = "EUR"
     usd_to_eur: float

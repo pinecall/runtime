@@ -1,16 +1,16 @@
-"""Rule 8: tests mirror the source, one test file per module, and no orphan test."""
+"""Rule 8: tests mirror the source, one per module (`_b.py` mirrors `test_b.py`), no orphan."""
 
 from pathlib import Path
 
 from tests.rules.tree import FIXTURES, PACKAGE, TESTS
 
 # Suites that mirror no module: the rules, the live suite, the shared fakes and configuration.
-NOT_A_MIRROR = ("rules", "live", "conftest.py", "fakes.py")
+NOT_A_MIRROR = ("rules", "live", "fakes", "conftest.py")
 
 
 def mirror_of(module: Path, package: Path) -> Path:
     relative = module.relative_to(package)
-    return package.parent / "tests" / relative.parent / f"test_{relative.name}"
+    return package.parent / "tests" / relative.parent / f"test_{relative.name.removeprefix('_')}"
 
 
 def unmirrored(package: Path) -> list[str]:
@@ -27,8 +27,9 @@ def orphans(package: Path, tests: Path) -> list[str]:
         relative = test.relative_to(tests)
         if relative.parts[0] in NOT_A_MIRROR:
             continue
-        module = package / relative.parent / relative.name.removeprefix("test_")
-        if not module.is_file():
+        name = relative.name.removeprefix("test_")
+        module = package / relative.parent / name
+        if not module.is_file() and not (package / relative.parent / f"_{name}").is_file():
             found.append(str(test.relative_to(package.parent)))
     return found
 

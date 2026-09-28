@@ -26,14 +26,14 @@ def _forwards(function: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     if not isinstance(value, ast.Call):
         return False
     arguments = function.args
-    names = [one.arg for one in [*arguments.posonlyargs, *arguments.args, *arguments.kwonlyargs]]
+    names = [item.arg for item in [*arguments.posonlyargs, *arguments.args, *arguments.kwonlyargs]]
     if names and names[0] in ("self", "cls"):
         names = names[1:]
-    passed = [one.id for one in value.args if isinstance(one, ast.Name)]
+    passed = [arg.id for arg in value.args if isinstance(arg, ast.Name)]
     passed += [
-        one.value.id
-        for one in value.keywords
-        if isinstance(one.value, ast.Name) and one.arg == one.value.id
+        keyword.value.id
+        for keyword in value.keywords
+        if isinstance(keyword.value, ast.Name) and keyword.arg == keyword.value.id
     ]
     if len(passed) != len(value.args) + len(value.keywords):
         return False
@@ -49,9 +49,9 @@ def _is_a_docstring(statement: ast.stmt) -> bool:
 
 
 def test_no_function_of_the_package_only_forwards_its_own_parameters() -> None:
-    assert [one for path in source_files() for one in pass_throughs(path)] == []
+    assert [pass_through for path in source_files() for pass_through in pass_throughs(path)] == []
 
 
 def test_the_rule_catches_forwarding_in_any_order_awaited_or_through_an_attribute() -> None:
     found = pass_throughs(FIXTURES / "rule02/forwarding.py")
-    assert [one.rsplit(" ", 1)[1] for one in found] == ["open_call", "seal", "read"]
+    assert [item.rsplit(" ", 1)[1] for item in found] == ["open_call", "seal", "read"]

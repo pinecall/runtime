@@ -13,7 +13,7 @@ from livekit.agents.tts import SynthesizedAudio
 from livekit.agents.utils import http_context
 
 from pinecall.domain.errors import NotFound, UpstreamFailed
-from pinecall.domain.types import Json, JsonObject
+from pinecall.domain.names import Json, JsonObject
 from pinecall.providers.build import Running, a_list, a_mapping, tts_of
 
 SAMPLE_WIDTH = 2  # 16-bit PCM, as every plugin emits it
@@ -26,7 +26,7 @@ NOT_LISTED = "{vendor} lists no voices here: its voice is the vendor's own id, s
 
 
 @dataclass(frozen=True)
-class Listed:
+class ListedVoice:
     """A voice as the picker shows it: its id, its name, and the vendor's row whole."""
 
     id: str
@@ -44,7 +44,7 @@ class Sample:
     total_ms: int
 
 
-async def voices(running: Running) -> list[Listed]:
+async def voices(running: Running) -> list[ListedVoice]:
     """The voices a vendor lists on the stage's key, where its plugin lists any; NotFound if not."""
     async with http_context.open():
         speech = tts_of(running)
@@ -52,10 +52,10 @@ async def voices(running: Running) -> list[Listed]:
         if not callable(listing):
             raise NotFound(NOT_LISTED.format(vendor=running.vendor))
         try:
-            asked = listing()
-            if not inspect.isawaitable(asked):
+            params = listing()
+            if not inspect.isawaitable(params):
                 raise NotFound(NOT_LISTED.format(vendor=running.vendor))
-            answered: object = await asked
+            answered: object = await params
         except APIError as refused:
             raise _refused(running.vendor, "did not list its voices", refused) from refused
         finally:
@@ -92,13 +92,13 @@ def _refused(vendor: str, what: str, error: APIError) -> UpstreamFailed:
 def _rows(answered: object) -> list[JsonObject]:
     if a_mapping(answered):
         return [{"id": key, "name": key} for key in answered]
-    return [_row(one) for one in answered] if a_list(answered) else []
+    return [_row(item) for item in answered] if a_list(answered) else []
 
 
-def _row(one: object) -> JsonObject:
-    if dataclasses.is_dataclass(one) and not isinstance(one, type):
-        return _json(dataclasses.asdict(one))
-    return _json(one) if a_mapping(one) else {}
+def _row(item: object) -> JsonObject:
+    if dataclasses.is_dataclass(item) and not isinstance(item, type):
+        return _json(dataclasses.asdict(item))
+    return _json(item) if a_mapping(item) else {}
 
 
 def _json(fields: Mapping[str, object]) -> JsonObject:
@@ -111,16 +111,16 @@ def _value(value: object) -> Json:
     if a_mapping(value):
         return _json(value)
     if a_list(value):
-        return [_value(one) for one in value]
+        return [_value(item) for item in value]
     return str(value)
 
 
-def _listed(row: JsonObject) -> Listed | None:
+def _listed(row: JsonObject) -> ListedVoice | None:
     named = next((str(row[name]) for name in _THE_ID if row.get(name)), None)
     if named is None:
         return None
     shown = next((str(row[name]) for name in _THE_NAME if row.get(name)), named)
-    return Listed(id=named, name=shown, detail=row)
+    return ListedVoice(id=named, name=shown, detail=row)
 
 
 # livekit refuses a synthesis that pushed no audio, so what reaches here has some.

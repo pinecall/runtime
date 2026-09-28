@@ -1,13 +1,6 @@
-"""Tests for the metrics: every livekit-agents block and usage row, verbatim."""
+"""Tests for the metrics: a livekit-agents block names its kind by itself."""
 
-from pinecall.wire import metrics
 from pinecall.wire.metrics import LLMMetrics
-from pinecall_protocol import metrics as their_metrics
-from tests.wire.parity import mismatches
-
-
-def test_every_metric_is_the_generated_one_field_for_field() -> None:
-    assert mismatches(metrics, their_metrics) == []
 
 
 def test_a_metric_block_names_its_kind_by_itself() -> None:

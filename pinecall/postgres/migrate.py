@@ -78,7 +78,7 @@ async def apply_migrations(dsn: str, *, schema: str = DEFAULT_SCHEMA) -> Applied
             )
         await connection.execute(
             sql.SQL("set search_path to {}").format(
-                sql.SQL(", ").join(sql.Identifier(one) for one in schemas)
+                sql.SQL(", ").join(sql.Identifier(schema) for schema in schemas)
             )
         )
         await connection.execute(MIGRATIONS_TABLE)

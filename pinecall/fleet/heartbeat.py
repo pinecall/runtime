@@ -1,0 +1,125 @@
+"""Beside a worker's calls: the load livekit reads, and the heartbeat the gateway hears."""
+
+import asyncio
+import logging
+from collections.abc import Callable
+from dataclasses import fields
+
+from livekit.agents import AgentServer
+from livekit.agents.worker import ServerOptions
+
+from pinecall.domain.errors import DeclarationRefused, GatewayRefused
+from pinecall.fleet.client import GatewayClient
+from pinecall.fleet.roster import HEARTBEAT_S, REFUSED_AT
+from pinecall.process.settings import Settings
+from pinecall.wire.rest.fleet import HeartbeatRequest
+
+logger = logging.getLogger(__name__)
+
+
+NO_MEASURE = "livekit's load_fnc option no longer carries a measure of its own"
+
+
+A_SLOT_AT_LEAST = "a worker holds at least one call: PINECALL_MAX_JOBS={max_jobs}"
+
+
+# The exit a cordoned worker leaves with; its unit's RestartPreventExitStatus= keeps it down.
+CORDONED_EXIT = 3
+
+
+# livekit reads the load every half second: two jobs inside one reading see the same count, so
+# max_jobs is set one under what was measured.
+class Load:
+    """The load a worker reports: calls over its measured slots, or its machine's CPU."""
+
+    def __init__(
+        self, max_jobs: int | None, measure: Callable[[AgentServer], float] | None = None
+    ) -> None:
+        """A worker nobody has dispatched to yet."""
+        if max_jobs is not None and max_jobs < 1:
+            raise DeclarationRefused(A_SLOT_AT_LEAST.format(max_jobs=max_jobs))
+        self.max_jobs = max_jobs
+        self.measure = measure or livekits_measure()
+        self.refused = False
+
+    def __call__(self, server: AgentServer) -> float:
+        """The load now, as livekit reads it."""
+        if self.max_jobs is None:
+            return self.announced(self.measure(server))
+        return self.at(len(server.active_jobs))
+
+    def at(self, active: int) -> float:
+        """The load of a worker holding this many calls, when its slots were measured."""
+        return self.announced(active / (self.max_jobs or 1))
+
+    def announced(self, load: float) -> float:
+        """The load, a crossing of livekit's line said once each way."""
+        refused = load >= REFUSED_AT
+        if refused != self.refused:
+            self.refused = refused
+            if refused:
+                logger.warning("load %.2f: livekit routes no job here until it falls", load)
+            else:
+                logger.info("load %.2f: livekit routes jobs here again", load)
+        return load
+
+
+class Heartbeats:
+    """The worker's report to its gateway every five seconds, and a cordon's way out."""
+
+    def __init__(
+        self, server: AgentServer, gateway: GatewayClient, settings: Settings, name: str
+    ) -> None:
+        """Not beating yet; `leave` is set when the worker must go."""
+        self.server = server
+        self.gateway = gateway
+        self.fleet = settings.fleet
+        self.max_jobs = settings.max_jobs
+        self.name = name
+        self.cordoned = False
+        self.leave = asyncio.Event()
+
+    def beat(self) -> HeartbeatRequest:
+        """What this worker holds now."""
+        load_of = self.server.load_fnc
+        return HeartbeatRequest(
+            fleet=self.fleet,
+            worker=self.name,
+            active=len(self.server.active_jobs),
+            max_jobs=self.max_jobs,
+            load=load_of(self.server) if isinstance(load_of, Load) else 0.0,
+            draining=self.server.draining,
+        )
+
+    # A gateway away is said and waited out: the worker keeps its calls meanwhile.
+    async def run(self) -> None:
+        """Beat until cordoned; then ask the worker to leave."""
+        while True:
+            try:
+                existing = await self.gateway.heartbeat(self.beat())
+            except GatewayRefused as refused:
+                logger.warning("heartbeat: %s", refused)
+            else:
+                if existing.cordoned:
+                    logger.warning("cordoned by the gateway: draining, then leaving")
+                    self.cordoned = True
+                    self.leave.set()
+                    return
+            await asyncio.sleep(HEARTBEAT_S)
+
+
+# livekit's own CPU average, read off its options' default rather than its private class.
+def livekits_measure() -> Callable[[AgentServer], float]:
+    """The load function livekit runs when given none: the machine's CPU over a few seconds."""
+    (declared,) = (option for option in fields(ServerOptions) if option.name == "load_fnc")
+    measure = declared.default
+    if not callable(measure):
+        raise DeclarationRefused(NO_MEASURE)
+
+    def measured(server: AgentServer) -> float:
+        load = measure(server)
+        if not isinstance(load, int | float):
+            raise DeclarationRefused(NO_MEASURE)
+        return float(load)
+
+    return measured

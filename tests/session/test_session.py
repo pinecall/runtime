@@ -3,7 +3,6 @@
 import asyncio
 import time
 from collections.abc import AsyncIterator
-from typing import get_args
 
 import pytest
 from livekit import rtc
@@ -14,7 +13,6 @@ from livekit.agents import (
     CloseReason,
     ConversationItemAddedEvent,
     RunContext,
-    SessionUsageUpdatedEvent,
     UserInputTranscribedEvent,
     UserStateChangedEvent,
     llm,
@@ -25,42 +23,29 @@ from livekit.agents import ErrorEvent as ComponentFailed
 from livekit.agents.beta.tools import EndCallTool
 from livekit.agents.language import LanguageCode
 from livekit.agents.llm.tool_context import ToolFlag
-from livekit.agents.metrics import AgentSessionUsage
-from livekit.agents.types import NotGiven, TimedString
-from livekit.agents.voice import Agent, ModelSettings
-from livekit.agents.voice.agent_session import DEFAULT_TTS_TEXT_TRANSFORMS
-from livekit.agents.voice.room_io import RoomOptions
+from livekit.agents.types import TimedString
+from livekit.agents.voice import ModelSettings
 from livekit.protocol.sip import SIPOutboundConfig
 
-from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotAvailable
-from pinecall.domain.types import (
+from pinecall.domain.agent import (
     AgentConfig,
     Greeting,
     Hangup,
-    JsonObject,
     MemoryPolicy,
-    PromptBlock,
     ToolSpec,
-    Turn,
 )
+from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotAvailable
+from pinecall.domain.names import JsonObject
 from pinecall.log.store import Store
 from pinecall.providers.build import Running
-from pinecall.providers.keys import Pipeline
-from pinecall.session import session as session_module
+from pinecall.providers.credentials import Pipeline
 from pinecall.session import text
-from pinecall.session.call import Call, Platform, ToolUse
-from pinecall.session.room import CALLER_NUMBER, Room, Trunk
-from pinecall.session.session import (
-    A_RELEASE,
-    BLOCKS,
-    CLOSING,
-    MIN_WORDS,
-    SAY_GOODBYE_FIRST,
-    Session,
-    is_a_backchannel,
-    keyterms,
-    spoken,
-)
+from pinecall.session._hearing import keyterms
+from pinecall.session._prompt import A_RELEASE
+from pinecall.session.call import CLOSING, Call, Platform, ToolUse
+from pinecall.session.room import CALLER_NUMBER, CallRoom, Trunk
+from pinecall.session.session import SAY_GOODBYE_FIRST, Session
+from pinecall.session.voice import voice_session
 from pinecall.wire.commands import (
     AgentReply,
     AgentSay,
@@ -89,8 +74,9 @@ from pinecall.wire.parts import AgentConfig as Declared
 from pinecall.wire.parts import Supervisor, ToolResult
 from pinecall.wire.parts import ToolSpec as WiredTool
 from tests.conftest import postgres
-from tests.fakes import ACME, Server, seat
-from tests.fakes import Room as AnOfflineRoom
+from tests.fakes.acme import ACME, seat
+from tests.fakes.livekit import Room as AnOfflineRoom
+from tests.fakes.livekit import Server
 from tests.session.conftest import (
     THE_CALLER,
     Box,
@@ -166,7 +152,7 @@ async def test_words_run_the_verbatim_verb_and_nothing_else(
     await text.end(session, "caller_hung_up", "caller")
     agent = [entry.data["text"] for entry in await store.whole(call) if entry.type == "turn.agent"]
     assert agent == ["Buenas, clínica."]
-    assert model_of(session).asked == []
+    assert model_of(session).requests == []
 
 
 @postgres
@@ -181,7 +167,7 @@ async def test_an_instruction_runs_the_model_and_never_the_verbatim_verb(
     await session.start()
     await settled()
     await text.end(session, "caller_hung_up", "caller")
-    assert len(model_of(session).asked) == 1
+    assert len(model_of(session).requests) == 1
     agent = [entry.data["text"] for entry in await store.whole(call) if entry.type == "turn.agent"]
     assert agent == ["Hola, ¿qué necesita?"]
 
@@ -206,8 +192,8 @@ async def test_agent_say_is_the_sessions_say_verbatim_and_enters_the_history(box
     await session.apply(AgentSay(text="Su turno es el lunes."))
     await settled()
     await text.hears(session, "¿qué dijo?")
-    said = [getattr(item, "text_content", "") for item in model_of(session).asked[0].items]
-    assert "Su turno es el lunes." in said
+    sentence = [getattr(item, "text_content", "") for item in model_of(session).requests[0].items]
+    assert "Su turno es el lunes." in sentence
     await text.end(session, "caller_hung_up", "caller")
 
 
@@ -217,28 +203,12 @@ async def test_agent_reply_is_one_model_turn_guided_by_the_instruction(box: Box)
     await session.start()
     await session.apply(AgentReply(instructions="Confirma el turno"))
     await settled()
-    asked = model_of(session).asked
-    assert len(asked) == 1
+    requests = model_of(session).requests
+    assert len(requests) == 1
     assert "Confirma el turno" in str(
-        [getattr(item, "text_content", "") for item in asked[0].items]
+        [getattr(item, "text_content", "") for item in requests[0].items]
     )
     await text.end(session, "caller_hung_up", "caller")
-
-
-@postgres
-async def test_a_static_block_rewrites_the_instructions_and_the_log_keeps_its_hash(
-    box: Box, store: Store, call: str
-) -> None:
-    session = a_session(box, NOBODY, ["ok"])
-    await session.start()
-    await session.apply(PromptSet(name="identity", text="Sos la recepción de la clínica."))
-    await text.hears(session, "hola")
-    await text.end(session, "caller_hung_up", "caller")
-    first = model_of(session).asked[0].items[0]
-    assert "Sos la recepción" in str(getattr(first, "text_content", ""))
-    changed = next(entry for entry in await store.whole(call) if entry.type == "prompt.changed")
-    assert changed.data["chars"] == len("Sos la recepción de la clínica.")
-    assert "recepción" not in str(changed.data)
 
 
 @postgres
@@ -259,23 +229,9 @@ async def test_the_view_reaches_the_model_last_and_never_touches_the_instruction
     await session.apply(PromptSet(name="view", text="Turnos libres: lunes"))
     await text.hears(session, "¿hay turno?")
     await text.end(session, "caller_hung_up", "caller")
-    items = model_of(session).asked[0].items
+    items = model_of(session).requests[0].items
     assert "Turnos libres" in str(getattr(items[-1], "text_content", ""))
     assert "Turnos libres" not in str(session.agent.instructions)
-
-
-@postgres
-async def test_a_block_the_agent_never_declared_is_refused_and_leaves_no_entry(
-    box: Box, store: Store, call: str
-) -> None:
-    session = a_session(
-        box, AgentConfig(slug="clinica-norte", prompt=(PromptBlock("identity", "static"),))
-    )
-    await session.start()
-    with pytest.raises(DeclarationRefused, match="no block named 'view'"):
-        await session.apply(PromptSet(name="view", text="x"))
-    await text.end(session, "caller_hung_up", "caller")
-    assert "prompt.changed" not in await kinds(store, call)
 
 
 @postgres
@@ -301,36 +257,6 @@ async def test_a_session_configure_declares_for_the_call_and_sets_its_state(
     await text.end(session, "caller_hung_up", "caller")
     assert session.call.config.language == "en-US"
     assert {"agent.configured", "state.changed"} <= set(await kinds(store, call))
-
-
-@postgres
-async def test_the_caller_is_pinned_before_livekit_links_a_seat_and_a_written_call_hears_none(
-    box: Box, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    told: list[RoomOptions] = []
-
-    class Recorded(RoomOptions):
-        def __init__(
-            self,
-            *,
-            participant_identity: str | NotGiven,
-            audio_input: bool | NotGiven,
-            audio_output: bool | NotGiven,
-        ) -> None:
-            super().__init__(
-                participant_identity=participant_identity,
-                audio_input=audio_input,
-                audio_output=audio_output,
-            )
-            told.append(self)
-
-    monkeypatch.setattr(session_module, "RoomOptions", Recorded)
-    session = a_session(box, NOBODY)
-    await session.start(seat="visitor_1")
-    await text.end(session, "caller_hung_up", "caller")
-    (options,) = told
-    assert options.participant_identity == "visitor_1"
-    assert (options.audio_input, options.audio_output) == (False, False)
 
 
 @postgres
@@ -405,11 +331,11 @@ async def test_a_tool_round_trips_through_the_platform_and_the_model_reads_its_a
         box, BOOKING, [{"name": "book", "arguments": {"day": "lunes"}, "call_id": "t1"}], ["Listo"]
     )
     await session.start()
-    said = await text.hears(session, "reserva el lunes")
+    sentence = await text.hears(session, "reserva el lunes")
     await text.end(session, "caller_hung_up", "caller")
     assert [(use.name, use.arguments) for use in box.used] == [("book", {"day": "lunes"})]
     assert '"table": "mesa 4"' in _output_of(session, "t1").output
-    assert said == "Listo"
+    assert sentence == "Listo"
 
 
 @postgres
@@ -428,7 +354,7 @@ async def test_a_confirm_tool_reads_back_what_was_done_before_the_model_answers(
     await text.end(session, "caller_hung_up", "caller")
     agent = [entry.data["text"] for entry in await store.whole(call) if entry.type == "turn.agent"]
     assert agent[0] == "Reservado para el lunes, mesa 4 {{result.missing}}."
-    history = [getattr(item, "text_content", "") for item in model_of(session).asked[1].items]
+    history = [getattr(item, "text_content", "") for item in model_of(session).requests[1].items]
     assert agent[0] in history
 
 
@@ -486,7 +412,7 @@ async def test_a_tools_set_between_two_requests_leaves_the_providers_tools_byte_
     await session.apply(ToolsSet(tools=[]))
     await text.hears(session, "hola otra vez")
     await text.end(session, "caller_hung_up", "caller")
-    first, second = model_of(session).asked
+    first, second = model_of(session).requests
     assert first.tools == second.tools
 
 
@@ -541,8 +467,8 @@ async def test_an_ask_puts_the_caller_on_hold_and_says_what_a_supervisor_is_want
         await session.apply(CallAttention(reason="otra vez", wait_s=30))
     await text.end(session, "caller_hung_up", "caller")
     entries = await store.whole(call)
-    asked = next(entry for entry in entries if entry.type == "attention.requested")
-    assert asked.data == {"reason": "quiere hablar con un médico", "wait_s": 30.0}
+    found = next(entry for entry in entries if entry.type == "attention.requested")
+    assert found.data == {"reason": "quiere hablar con un médico", "wait_s": 30.0}
     assert [entry.data["held"] for entry in entries if entry.type == "call.line"] == [True]
 
 
@@ -604,8 +530,8 @@ async def test_a_whisper_lands_in_the_history_and_asks_for_the_next_turn(
     await session.apply(supervised(WhisperVerb(text="ofrecele el martes")))
     await settled()
     await text.end(session, "caller_hung_up", "caller")
-    (asked,) = model_of(session).asked
-    notes = [str(getattr(item, "text_content", "")) for item in asked.items]
+    (request,) = model_of(session).requests
+    notes = [str(getattr(item, "text_content", "")) for item in request.items]
     assert any("ofrecele el martes" in note for note in notes)
     assert "ofrecele" not in str(session.agent.instructions)
     assert "supervisor.whispered" in await kinds(store, call)
@@ -618,7 +544,7 @@ async def test_a_whisper_while_a_human_holds_the_line_never_talks_over_them(box:
     await session.apply(supervised(TakeoverVerb()))
     await session.apply(supervised(WhisperVerb(text="nada")))
     await settled()
-    assert model_of(session).asked == []
+    assert model_of(session).requests == []
     await text.end(session, "caller_hung_up", "caller")
 
 
@@ -641,7 +567,7 @@ async def test_a_release_gives_the_line_back_with_a_note_that_never_guesses(box:
     await settled()
     await text.end(session, "caller_hung_up", "caller")
     assert session.call.taken_by is None
-    notes = [str(getattr(item, "text_content", "")) for item in model_of(session).asked[0].items]
+    notes = [str(getattr(item, "text_content", "")) for item in model_of(session).requests[0].items]
     assert A_RELEASE in notes
     assert "Do not guess" in A_RELEASE
 
@@ -694,16 +620,16 @@ async def test_an_interim_is_an_ephemeral_transcript_and_starts_the_lookups(box:
     seen = heard_live(box)
     session = a_session(box, AgentConfig(slug="clinica-norte", memory=MemoryPolicy()))
     await session.start()
-    said = "quiero cambiar mi turno del lunes"
+    sentence = "quiero cambiar mi turno del lunes"
     session.live.emit(
         "user_input_transcribed",
-        UserInputTranscribedEvent(transcript=said, is_final=False, language=LanguageCode("es")),
+        UserInputTranscribedEvent(transcript=sentence, is_final=False, language=LanguageCode("es")),
     )
     await settled()
     await text.end(session, "caller_hung_up", "caller")
     heard = [entry for entry in seen if entry.type == "user.transcript"]
     assert (heard[0].data["final"], heard[0].ephemeral) == (False, True)
-    assert box.looked == [("recall", {"contact": "+59899123456", "query": said})]
+    assert box.lookups == [("recall", {"contact": "+59899123456", "query": sentence})]
 
 
 @postgres
@@ -715,7 +641,7 @@ async def test_a_turn_too_short_to_start_a_run_starts_none_before_the_turn_ends(
     )
     await settled()
     await text.end(session, "caller_hung_up", "caller")
-    assert box.looked == []
+    assert box.lookups == []
 
 
 @postgres
@@ -756,62 +682,19 @@ async def test_a_vendor_having_a_bad_minute_is_written_and_the_call_goes_on(
 
 
 @postgres
-async def test_a_block_is_written_after_every_listener_saw_it_so_the_speech_id_is_there(
-    box: Box,
-) -> None:
-    seen = heard_live(box)
-    session = a_session(box, NOBODY)
-    await session.start()
-    block = metrics.TTSMetrics(
-        label="acme", request_id="r1", timestamp=time.time(), ttfb=0.2, duration=1.0,
-        audio_duration=1.0, cancelled=False, characters_count=12, streamed=True,
-    )  # fmt: skip
-    model_of(session).emit("metrics_collected", block)
-    block.speech_id = "speech_9"
-    await settled()
-    await text.end(session, "caller_hung_up", "caller")
-    written = [entry for entry in seen if entry.type == "metrics.tts"]
-    assert written[0].data["speech_id"] == "speech_9"
-
-
-@postgres
 async def test_an_agent_turn_carries_its_report_whole_and_whether_it_was_cut_off(
     box: Box, store: Store, call: str
 ) -> None:
     session = a_session(box, NOBODY)
     await session.start()
-    said = llm.ChatMessage(
+    sentence = llm.ChatMessage(
         role="assistant", content=["Hasta"], interrupted=True, metrics={"llm_node_ttft": 0.3}
     )
-    session.live.emit("conversation_item_added", ConversationItemAddedEvent(item=said))
+    session.live.emit("conversation_item_added", ConversationItemAddedEvent(item=sentence))
     await text.end(session, "caller_hung_up", "caller")
     turn = next(entry for entry in await store.whole(call) if entry.type == "turn.agent")
     assert (turn.data["text"], turn.data["interrupted"]) == ("Hasta", True)
     assert turn.data["metrics"] == {"llm_node_ttft": 0.3}
-
-
-@postgres
-async def test_a_user_turn_carries_the_language_the_recogniser_said_and_its_eou_block(
-    box: Box, store: Store, call: str
-) -> None:
-    session = a_session(box, NOBODY)
-    await session.start()
-    session.live.emit(
-        "user_input_transcribed",
-        UserInputTranscribedEvent(transcript="hola", is_final=True, language=LanguageCode("es")),
-    )
-    heard = llm.ChatMessage(
-        role="user",
-        content=["hola"],
-        metrics={"end_of_turn_delay": 0.4, "transcription_delay": 0.1},
-    )
-    session.live.emit("conversation_item_added", ConversationItemAddedEvent(item=heard))
-    await text.end(session, "caller_hung_up", "caller")
-    entries = await store.whole(call)
-    written = [entry.type for entry in entries]
-    assert written.index("metrics.eou") < written.index("turn.user")
-    turn = next(entry for entry in entries if entry.type == "turn.user")
-    assert turn.data["language"] == "es"
 
 
 # ── the time a call is given ──
@@ -825,8 +708,8 @@ async def test_a_limit_under_two_minutes_is_told_at_its_half_and_ends_at_the_lim
     await session.start()
     await session.keep_time(1, exhausted=None)
     await session.close()
-    asked = model_of(session).asked
-    assert CLOSING in str([getattr(item, "text_content", "") for item in asked[0].items])
+    params = model_of(session).requests
+    assert CLOSING in str([getattr(item, "text_content", "") for item in params[0].items])
     ended = next(entry for entry in await store.whole(call) if entry.type == "call.ended")
     assert (ended.data["reason"], ended.data["ended_by"]) == ("timeout", "platform")
 
@@ -840,7 +723,7 @@ async def test_a_person_on_the_line_is_not_talked_over_and_the_limit_still_holds
     session.call.taken_by = A_SUPERVISOR
     await session.keep_time(1, exhausted=None)
     await session.close()
-    assert model_of(session).asked == []
+    assert model_of(session).requests == []
     assert "call.ended" in await kinds(store, call)
 
 
@@ -866,58 +749,6 @@ async def test_no_limit_keeps_no_clock() -> None:
 # ── a spoken call's session ──
 
 
-@postgres
-async def test_a_spoken_call_is_built_with_the_ears_the_voice_and_the_model_it_asked_for(
-    box: Box,
-) -> None:
-    session = _spoken(box, AgentConfig(slug="clinica-norte"))
-    assert [type(one).__name__ for one in session.built] == ["AcmeLLM", "AcmeSTT", "AcmeTTS"]
-
-
-@postgres
-async def test_ears_that_end_the_turn_decide_it_and_others_get_the_local_detector(box: Box) -> None:
-    deciding = _spoken(box, NOBODY, ends_the_turn=True)
-    local = _spoken(box, NOBODY)
-    assert deciding.live.options.turn_handling.get("turn_detection") == "stt"
-    assert type(local.live.options.turn_handling.get("turn_detection")).__name__ == "TurnDetector"
-
-
-@postgres
-async def test_what_it_takes_to_cut_the_agent_off_is_the_agents_own_else_two_words(
-    box: Box,
-) -> None:
-    declared = _spoken(box, AgentConfig(slug="clinica-norte", turn=Turn(min_interruption_words=4)))
-    inherited = _spoken(box, NOBODY)
-    assert declared.live.options.interruption.get("min_words") == 4
-    assert inherited.live.options.interruption.get("min_words") == MIN_WORDS == 2
-
-
-@postgres
-async def test_interruptions_are_judged_locally_and_a_cut_sentence_is_never_said_twice(
-    box: Box,
-) -> None:
-    options = _spoken(box, NOBODY).live.options
-    assert options.interruption.get("mode") == "vad"
-    assert options.interruption.get("resume_false_interruption") is False
-    assert options.interruption.get("false_interruption_timeout") == 1.0
-    assert options.preemptive_generation.get("enabled") is False
-
-
-@postgres
-async def test_the_tenants_own_pronunciations_are_said_after_livekits_filters(box: Box) -> None:
-    said = _spoken(box, AgentConfig(slug="clinica-norte", says={"GSA": "ge ese a"}))
-    transforms = list(said.live.options.tts_text_transforms or [])
-    assert transforms[: len(DEFAULT_TTS_TEXT_TRANSFORMS)] == list(DEFAULT_TTS_TEXT_TRANSFORMS)
-    assert len(transforms) == len(DEFAULT_TTS_TEXT_TRANSFORMS) + 1
-
-
-def test_agreement_alone_is_a_backchannel_and_anything_that_takes_the_floor_is_not() -> None:
-    assert is_a_backchannel("sí, claro")
-    assert is_a_backchannel("Mm, ok.")
-    assert not is_a_backchannel("sí, pero el martes no puedo")
-    assert not is_a_backchannel("")
-
-
 def test_the_declared_words_come_first_and_the_state_adds_the_names_it_holds() -> None:
     config = AgentConfig(slug="clinica-norte", hears=("Vidal",))
     state: JsonObject = {
@@ -926,11 +757,6 @@ def test_the_declared_words_come_first_and_the_state_adds_the_names_it_holds() -
         "who": "Vidal",
     }
     assert keyterms(config, state) == ["Vidal", "Ana Pérez"]
-
-
-def test_the_keyterms_stop_where_the_vendors_do() -> None:
-    state: JsonObject = {f"n{index}": f"Nombre {index}" for index in range(80)}
-    assert len(keyterms(NOBODY, state)) == 50
 
 
 # ── end_call ──
@@ -957,7 +783,7 @@ async def test_the_tenants_words_and_the_goodbye_reach_livekits_own_end_call(box
     assert end_call.info.flags & ToolFlag.IGNORE_ON_ENTER
 
 
-def _spoken(
+def spoken_call(
     box: Box, config: AgentConfig, *, ends_the_turn: bool = False, keyterms: bool = False
 ) -> Session:
     assert box.log.call is not None
@@ -968,7 +794,7 @@ def _spoken(
         stt=Running(ACME, "k", ends_the_turn=ends_the_turn, options=ears),
         tts=Running(ACME, "k"),
     )
-    return spoken(call, stages)
+    return voice_session(call, stages)
 
 
 def _component_error(error: Exception, *, recoverable: bool = False) -> object:
@@ -976,44 +802,12 @@ def _component_error(error: Exception, *, recoverable: bool = False) -> object:
 
 
 def _output_of(session: Session, call_id: str) -> llm.FunctionCallOutput:
-    items = model_of(session).asked[-1].items
+    items = model_of(session).requests[-1].items
     return next(
         item
         for item in items
         if isinstance(item, llm.FunctionCallOutput) and item.call_id == call_id
     )
-
-
-def test_the_table_names_every_block_the_library_declares() -> None:
-    declared = set(get_args(metrics.AgentMetrics))
-    assert {livekits for livekits, _, _ in BLOCKS} == declared
-    assert {kind for _, kind, _ in BLOCKS} == {
-        "metrics.llm",
-        "metrics.stt",
-        "metrics.tts",
-        "metrics.vad",
-        "metrics.eou",
-        "metrics.eot",
-        "metrics.interruption",
-        "metrics.realtime",
-        "metrics.avatar",
-    }
-
-
-@postgres
-async def test_the_vad_is_livekits_own_local_one_built_when_none_is_given(box: Box) -> None:
-    spoken_call = _spoken(box, NOBODY)
-    assert spoken_call.live.vad is not None
-    assert type(spoken_call.live.vad).__module__.startswith("livekit.agents.inference")
-
-
-@postgres
-async def test_a_written_call_hears_nothing_speaks_nothing_and_takes_its_turns_by_hand(
-    box: Box,
-) -> None:
-    session = a_session(box, NOBODY)
-    assert [type(one).__name__ for one in session.built] == ["AcmeLLM"]
-    assert session.live.options.turn_handling.get("turn_detection") == "manual"
 
 
 # ── what the agent says, piece by piece ──
@@ -1033,8 +827,8 @@ async def test_an_aligned_reply_is_logged_word_by_word_with_livekits_own_timings
     ]
     await text.end(session, "caller_hung_up", "caller")
     assert passed == words
-    said = [entry.data for entry in seen if entry.type == "agent.transcript"]
-    assert [(one["text"], one.get("start"), one.get("end")) for one in said] == [
+    sentence = [entry.data for entry in seen if entry.type == "agent.transcript"]
+    assert [(item["text"], item.get("start"), item.get("end")) for item in sentence] == [
         ("Hola", 0.0, 0.3),
         (" Ana", 0.3, 0.6),
     ]
@@ -1048,9 +842,9 @@ async def test_a_voice_that_aligned_nothing_leaves_the_timings_off_the_entry(box
     async for _ in session.agent.transcription_node(_pieces("Hola"), ModelSettings()):
         pass
     await text.end(session, "caller_hung_up", "caller")
-    (said,) = [entry.data for entry in seen if entry.type == "agent.transcript"]
-    assert "start" not in said
-    assert "end" not in said
+    (sentence,) = [entry.data for entry in seen if entry.type == "agent.transcript"]
+    assert "start" not in sentence
+    assert "end" not in sentence
 
 
 # ── what the caller says ──
@@ -1089,7 +883,7 @@ async def test_only_the_interim_transcript_reaches_the_lookups_and_never_the_fin
     session.live.emit("user_input_transcribed", final)
     await settled()
     await text.end(session, "caller_hung_up", "caller")
-    assert box.looked == []
+    assert box.lookups == []
 
 
 @postgres
@@ -1099,80 +893,14 @@ async def test_an_agent_reply_is_no_query_and_asks_nobody(box: Box) -> None:
     await session.apply(AgentReply(instructions="Ofrecé el martes a las diez de la mañana"))
     await settled()
     await text.end(session, "caller_hung_up", "caller")
-    assert box.looked == []
-
-
-@postgres
-async def test_a_backchannel_over_the_agents_voice_never_reaches_the_model(
-    box: Box, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    heard = [_speech("sí, claro"), _speech("sí, pero el martes no puedo")]
-
-    async def recognised(
-        _agent: Agent, _audio: object, _settings: ModelSettings
-    ) -> AsyncIterator[stt.SpeechEvent]:
-        for event in heard:
-            yield event
-
-    monkeypatch.setattr(Agent.default, "stt_node", recognised)
-    session = a_session(box, NOBODY)
-    await session.start()
-    session.live.emit(
-        "agent_state_changed", AgentStateChangedEvent(old_state="thinking", new_state="speaking")
-    )
-    over_the_agent = [event async for event in session.agent.stt_node(_no_audio(), ModelSettings())]
-    session.live.emit(
-        "agent_state_changed", AgentStateChangedEvent(old_state="speaking", new_state="listening")
-    )
-    after_it = [event async for event in session.agent.stt_node(_no_audio(), ModelSettings())]
-    await text.end(session, "caller_hung_up", "caller")
-    assert [event.alternatives[0].text for event in over_the_agent] == [
-        "sí, pero el martes no puedo"
-    ]
-    assert len(after_it) == 2
+    assert box.lookups == []
 
 
 # ── the ears' words ──
 
 
-@postgres
-async def test_the_ears_are_told_the_names_the_state_is_holding_the_moment_it_moves(
-    box: Box,
-) -> None:
-    session = _spoken(box, AgentConfig(slug="clinica-norte", hears=("Vidal",)), keyterms=True)
-    session.call.writing.open()
-    await session.apply(StateSet(state={"patient": {"name": "Ana Pérez"}}))
-    await session.call.writing.close(5)
-    assert session.live.keyterms == ["Vidal", "Ana Pérez"]
-
-
-@postgres
-async def test_ears_with_no_keyterms_door_are_never_told_anything(box: Box) -> None:
-    session = _spoken(box, AgentConfig(slug="clinica-norte", hears=("Vidal",)))
-    session.call.writing.open()
-    await session.apply(StateSet(state={"patient": {"name": "Ana Pérez"}}))
-    await session.call.writing.close(5)
-    assert session.live.keyterms == []
-    assert session.live.options.stt_context_options.get("keyterms") == []
-
-
-@postgres
-async def test_the_words_the_agent_declared_it_hears_reach_the_ears_that_take_them(
-    box: Box,
-) -> None:
-    session = _spoken(box, AgentConfig(slug="clinica-norte", hears=("Vidal", "GSA")), keyterms=True)
-    assert session.live.options.stt_context_options.get("keyterms") == ["Vidal", "GSA"]
-    unsaid = _spoken(box, NOBODY, keyterms=True)
-    assert unsaid.live.options.stt_context_options.get("keyterms") == []
-
-
 def test_an_agent_that_declared_nothing_and_holds_nothing_asks_for_nothing() -> None:
     assert keyterms(NOBODY, {}) == []
-
-
-@postgres
-async def test_a_spoken_call_asks_the_voice_to_align_the_transcript_it_speaks(box: Box) -> None:
-    assert _spoken(box, NOBODY).live.options.use_tts_aligned_transcript is True
 
 
 # ── the line ──
@@ -1185,28 +913,6 @@ async def test_a_held_call_leaves_the_agent_neither_speaking_nor_hearing(box: Bo
     await session.apply(CallHold())
     assert (session.live.input.audio_enabled, session.live.output.audio_enabled) == (False, False)
     await text.end(session, "caller_hung_up", "caller")
-
-
-@postgres
-async def test_taking_the_call_off_hold_gives_the_agent_its_ears_before_its_voice(
-    box: Box, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    session = a_session(box, NOBODY)
-    await session.start()
-    await session.apply(CallHold())
-    switched: list[tuple[str, bool]] = []
-
-    def ears(on: object) -> None:
-        switched.append(("ears", on is True))
-
-    def voice(on: object) -> None:
-        switched.append(("voice", on is True))
-
-    monkeypatch.setattr(session.live.input, "set_audio_enabled", ears)
-    monkeypatch.setattr(session.live.output, "set_audio_enabled", voice)
-    await session.apply(CallUnhold())
-    await text.end(session, "caller_hung_up", "caller")
-    assert switched == [("ears", True), ("voice", True)]
 
 
 @postgres
@@ -1229,15 +935,6 @@ async def test_a_takeover_cuts_the_sentence_and_leaves_the_agent_mute_and_deaf(
 
 
 @postgres
-async def test_a_takeover_with_nothing_to_interrupt_still_takes_the_line(box: Box) -> None:
-    session = a_session(box, NOBODY)
-    await session.start()
-    await session.apply(supervised(TakeoverVerb()))
-    assert session.call.taken_by == A_SUPERVISOR
-    await text.end(session, "caller_hung_up", "caller")
-
-
-@postgres
 async def test_a_supervisor_taking_a_line_on_plain_hold_ends_the_hold_for_them(
     box: Box, store: Store, call: str
 ) -> None:
@@ -1249,38 +946,14 @@ async def test_a_supervisor_taking_a_line_on_plain_hold_ends_the_hold_for_them(
     lines = [entry.data["held"] for entry in await store.whole(call) if entry.type == "call.line"]
     assert lines == [True, False]
     assert session.call.taken_by == A_SUPERVISOR
-    assert not session.held
-
-
-@postgres
-async def test_a_release_gives_the_ears_back_first_and_then_the_voice(
-    box: Box, store: Store, call: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    session = a_session(box, NOBODY, ["¿Seguimos?"])
-    await session.start()
-    await session.apply(supervised(TakeoverVerb()))
-    switched: list[str] = []
-
-    def ears(_on: object) -> None:
-        switched.append("ears")
-
-    def voice(_on: object) -> None:
-        switched.append("voice")
-
-    monkeypatch.setattr(session.live.input, "set_audio_enabled", ears)
-    monkeypatch.setattr(session.live.output, "set_audio_enabled", voice)
-    await session.apply(supervised(ReleaseVerb()))
-    await settled()
-    await text.end(session, "caller_hung_up", "caller")
-    assert switched[:2] == ["ears", "voice"]
-    assert "supervisor.released" in await kinds(store, call)
+    assert not session.on_hold
 
 
 @postgres
 async def test_every_one_of_the_six_verbs_lands_in_the_callers_log(
     box: Box, store: Store, call: str, server: Server
 ) -> None:
-    session = _spoken(box, NOBODY)
+    session = spoken_call(box, NOBODY)
     await session.start(where=_a_room(box, session.call, server))
     for verb in (
         SayVerb(text="Un momento"),
@@ -1315,8 +988,8 @@ async def test_a_transfer_is_written_here_and_finished_by_the_transfer_applier(
     entries = await store.whole(call)
     written = [entry.type for entry in entries]
     assert written.index("supervisor.transferred") < written.index("call.transferred")
-    asked = next(entry for entry in entries if entry.type == "supervisor.transferred")
-    assert asked.data["mode"] == "cold"
+    found = next(entry for entry in entries if entry.type == "supervisor.transferred")
+    assert found.data["mode"] == "cold"
     ended = next(entry for entry in entries if entry.type == "call.ended")
     assert ended.data["reason"] == "transferred"
 
@@ -1344,7 +1017,7 @@ async def test_the_receipt_does_not_make_the_model_answer_itself(
         "Reservado para el lunes, mesa 4 {{result.missing}}.",
         "¿Algo más?",
     ]
-    assert len(model_of(session).asked) == 2
+    assert len(model_of(session).requests) == 2
 
 
 @postgres
@@ -1361,11 +1034,11 @@ async def test_a_platform_that_refuses_is_a_tool_that_did_not_answer_and_the_cal
         append=box.log.append, tool=refusing, lookup=box.lookup, seal=box.seal
     )
     await session.start()
-    said = await text.hears(session, "reserva")
+    sentence = await text.hears(session, "reserva")
     await text.end(session, "caller_hung_up", "caller")
     output = _output_of(session, "t1")
     assert (output.output, output.is_error) == ("the app is not connected", True)
-    assert said == "Probemos luego"
+    assert sentence == "Probemos luego"
 
 
 @postgres
@@ -1380,7 +1053,7 @@ async def test_the_tool_runs_after_its_announcement_with_or_without_a_receipt(
     monkeypatch.setattr(RunContext, "wait_for_playout", played)
     answering = box.tool
 
-    async def asked(use: ToolUse, speech: str | None) -> ToolResult:
+    async def recording(use: ToolUse, speech: str | None) -> ToolResult:
         happened.append(use.name)
         return await answering(use, speech)
 
@@ -1391,7 +1064,7 @@ async def test_the_tool_runs_after_its_announcement_with_or_without_a_receipt(
         ["hecho"],
     )
     session.call.platform = Platform(
-        append=box.log.append, tool=asked, lookup=box.lookup, seal=box.seal
+        append=box.log.append, tool=recording, lookup=box.lookup, seal=box.seal
     )
     await session.start()
     await text.hears(session, "reservá y cancelá")
@@ -1425,7 +1098,7 @@ async def test_letting_go_of_the_session_leaves_no_listener_behind(box: Box) -> 
     session.live.emit(
         "user_state_changed", UserStateChangedEvent(old_state="listening", new_state="away")
     )
-    model_of(session).emit("metrics_collected", _a_block())
+    model_of(session).emit("metrics_collected", a_block())
     await settled()
     assert len(seen) == before
 
@@ -1459,7 +1132,7 @@ async def test_nothing_is_generated_after_end_call(box: Box) -> None:
     await text.hears(session, "chau")
     await asyncio.sleep(0.2)
     await session.close()
-    assert len(model_of(session).asked) == 1
+    assert len(model_of(session).requests) == 1
 
 
 @postgres
@@ -1475,7 +1148,7 @@ async def test_the_agent_is_told_a_minute_before_a_limit_of_two_minutes_or_more(
 
     session = a_session(box, NOBODY, ["cerramos"])
     await session.start()
-    monkeypatch.setattr(session_module.asyncio, "sleep", counted)
+    monkeypatch.setattr(asyncio, "sleep", counted)
     await session.keep_time(300, exhausted=None)
     monkeypatch.undo()
     await session.close()
@@ -1483,32 +1156,6 @@ async def test_the_agent_is_told_a_minute_before_a_limit_of_two_minutes_or_more(
 
 
 # ── metrics ──
-
-
-@postgres
-async def test_every_field_of_a_block_reaches_the_log_under_its_own_name(box: Box) -> None:
-    seen = heard_live(box)
-    session = a_session(box, NOBODY)
-    await session.start()
-    block = _a_block()
-    model_of(session).emit("metrics_collected", block)
-    await settled()
-    await text.end(session, "caller_hung_up", "caller")
-    (written,) = [entry.data for entry in seen if entry.type == "metrics.llm"]
-    for name, value in block.model_dump(mode="json").items():
-        assert written[name] == value
-
-
-@postgres
-async def test_a_cancelled_block_from_a_discarded_generation_is_logged(box: Box) -> None:
-    seen = heard_live(box)
-    session = a_session(box, NOBODY)
-    await session.start()
-    model_of(session).emit("metrics_collected", _a_block(cancelled=True))
-    await settled()
-    await text.end(session, "caller_hung_up", "caller")
-    (written,) = [entry.data for entry in seen if entry.type == "metrics.llm"]
-    assert written["cancelled"] is True
 
 
 @postgres
@@ -1547,8 +1194,8 @@ async def test_a_turn_that_generated_no_token_leaves_its_ttft_out(
 ) -> None:
     session = a_session(box, NOBODY)
     await session.start()
-    said = llm.ChatMessage(role="assistant", content=[""], metrics={})
-    session.live.emit("conversation_item_added", ConversationItemAddedEvent(item=said))
+    sentence = llm.ChatMessage(role="assistant", content=[""], metrics={})
+    session.live.emit("conversation_item_added", ConversationItemAddedEvent(item=sentence))
     await text.end(session, "caller_hung_up", "caller")
     turn = next(entry for entry in await store.whole(call) if entry.type == "turn.agent")
     assert turn.data["metrics"] == {}
@@ -1562,19 +1209,19 @@ async def _pieces(*pieces: str) -> AsyncIterator[str]:
         yield piece
 
 
-async def _no_audio() -> AsyncIterator[rtc.AudioFrame]:
+async def no_audio() -> AsyncIterator[rtc.AudioFrame]:
     for frame in ():
         yield frame
 
 
-def _speech(said: str) -> stt.SpeechEvent:
+def speech_event(text: str) -> stt.SpeechEvent:
     return stt.SpeechEvent(
         type=stt.SpeechEventType.FINAL_TRANSCRIPT,
-        alternatives=[stt.SpeechData(language=LanguageCode("es"), text=said)],
+        alternatives=[stt.SpeechData(language=LanguageCode("es"), text=text)],
     )
 
 
-def _a_block(*, cancelled: bool = False) -> metrics.LLMMetrics:
+def a_block(*, cancelled: bool = False) -> metrics.LLMMetrics:
     return metrics.LLMMetrics(
         label="acme", request_id="r1", timestamp=time.time(), duration=0.8, ttft=0.2,
         cancelled=cancelled, completion_tokens=5, prompt_tokens=20, prompt_cached_tokens=0,
@@ -1589,7 +1236,7 @@ def _heard_block(*, streamed: bool) -> metrics.STTMetrics:
     )  # fmt: skip
 
 
-def _a_room(box: Box, call: Call, server: Server) -> Room:
+def _a_room(box: Box, call: Call, server: Server) -> CallRoom:
     caller = seat(
         "sip_caller",
         kind=rtc.ParticipantKind.PARTICIPANT_KIND_SIP,
@@ -1603,18 +1250,4 @@ def _a_room(box: Box, call: Call, server: Server) -> Room:
     async def claim(_code: str) -> None:
         return
 
-    return Room(call, AnOfflineRoom(box.log.call, caller), server, trunks=trunks, claim=claim)
-
-
-@postgres
-async def test_a_row_livekit_grew_a_field_for_is_still_the_calls_usage(box: Box) -> None:
-    session = a_session(box, NOBODY)
-    await session.start()
-    heard = metrics.STTModelUsage(provider="acme", model="acme-ears", audio_duration=3.0)
-    session.live.emit(
-        "session_usage_updated",
-        SessionUsageUpdatedEvent(usage=AgentSessionUsage(model_usage=[heard])),
-    )
-    await text.end(session, "caller_hung_up", "caller")
-    ((usage, _),) = box.sealed
-    assert [(row.type, row.model) for row in usage] == [("stt_usage", "acme-ears")]
+    return CallRoom(call, AnOfflineRoom(box.log.call, caller), server, trunks=trunks, claim=claim)

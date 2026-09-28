@@ -6,7 +6,7 @@ import pytest
 
 from pinecall.cli.main import doctor, fleet_key, gateway, main, migrate_up
 from pinecall.domain.errors import PinecallError
-from pinecall.domain.settings import Settings
+from pinecall.process.settings import Settings
 from tests.conftest import DSN, postgres
 
 
@@ -32,14 +32,14 @@ def test_the_doctor_says_each_missing_thing_and_exits_one(
         }
     )
     assert doctor(settings, argparse.Namespace()) == 1
-    said = capsys.readouterr().out.splitlines()
-    assert [line.split()[1].rstrip(":") for line in said] == [
+    data = capsys.readouterr().out.splitlines()
+    assert [line.split()[1].rstrip(":") for line in data] == [
         "vault",
         "database",
         "livekit",
         "gateway",
     ]
-    assert all(line.startswith("NO") for line in said)
+    assert all(line.startswith("NO") for line in data)
 
 
 @postgres

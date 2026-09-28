@@ -10,14 +10,15 @@ import psycopg
 import pytest
 from psycopg import sql
 
+from pinecall.domain.agent import Versions
 from pinecall.domain.errors import Conflict
-from pinecall.domain.types import Corner, Versions
+from pinecall.domain.scope import Scope
 from pinecall.log.reduce import reduce
 from pinecall.log.store import AGENT_LOG_PREFIX, DEFAULT_LIMIT, Claim, Store, entry_of, log_name
 from pinecall.postgres.pool import Pool, connect
 from pinecall.wire.frames import Entry, read_log
 from tests.conftest import DSN, postgres
-from tests.wire.parity import GOLDEN_LOG, GOLDEN_STATE
+from tests.wire.golden import GOLDEN_LOG, GOLDEN_STATE
 
 pytestmark = postgres
 
@@ -188,8 +189,8 @@ async def test_list_calls_names_every_call_the_agent_handled_oldest_first(
     store: Store, call: str
 ) -> None:
     second = f"{call}-b"
-    for one in (call, second, call):
-        await store.append(one, AGENT, "custom", {}, ephemeral=False)
+    for item in (call, second, call):
+        await store.append(item, AGENT, "custom", {}, ephemeral=False)
     await store.append(f"{call}-other", f"{AGENT}-other", "custom", {}, ephemeral=False)
     assert await store.list_calls(AGENT) == [call, second]
     assert await store.list_calls(f"{AGENT}-nobody") == []
@@ -211,9 +212,9 @@ async def test_a_log_is_the_first_orgs_that_claims_it_and_never_moves(
 async def test_a_claim_may_come_before_the_first_entry_and_carries_the_corner(
     store: Store, call: str, pool: Pool
 ) -> None:
-    claim = Claim(Corner("clinica", "sandbox", "m_berna"), Versions(config=3, lexicon=1))
+    claim = Claim(Scope("clinica", "sandbox", "m_berna"), Versions(config=3, lexicon=1))
     await store.claim(call, AGENT, "clinica", claim)
-    await store.claim(call, AGENT, "clinica", Claim(Corner("clinica"), Versions(config=9)))
+    await store.claim(call, AGENT, "clinica", Claim(Scope("clinica"), Versions(config=9)))
     async with pool.connection() as connection:
         row = await (
             await connection.execute(

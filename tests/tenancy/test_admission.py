@@ -3,10 +3,14 @@
 import pytest
 
 from pinecall.domain.errors import QuotaExhausted
-from pinecall.domain.types import Corner, Env, JsonObject, Org, Quotas
+from pinecall.domain.names import Env, JsonObject
+from pinecall.domain.org import Org, Quotas
+from pinecall.domain.scope import Scope
 from pinecall.log.store import Claim, Store
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy.admission import (
+    Admission,
+    admission,
     admit_agent,
     admit_call,
     admit_memory,
@@ -14,10 +18,15 @@ from pinecall.tenancy.admission import (
     admit_push,
     admit_seat,
     admit_turn,
+    quotas_of,
+    set_quotas,
     used,
 )
-from pinecall.tenancy.orgs import create, set_quotas
+from pinecall.tenancy.orgs import create, remove
 from tests.conftest import postgres
+
+CLOSED = Quotas(minutes=0, messages=0, concurrent_calls=0)
+TRIAL = Quotas(minutes=30, messages=300, concurrent_calls=1, lends=frozenset({"deepgram"}))
 
 
 def _summary(seconds: float, turns: int, tokens: int) -> JsonObject:
@@ -44,7 +53,7 @@ def _summary(seconds: float, turns: int, tokens: int) -> JsonObject:
 
 
 async def _a_call(store: Store, org: Org, env: Env, summary: JsonObject, call: str) -> None:
-    await store.claim(call, "recepcion", org.id, Claim(Corner(org.id, env, "")))
+    await store.claim(call, "recepcion", org.id, Claim(Scope(org.id, env, "")))
     await store.append(call, "recepcion", "call.summary", summary, ephemeral=False)
 
 
@@ -159,3 +168,65 @@ async def test_a_push_that_would_pass_the_chunks_is_refused_whole(pool: Pool) ->
     await admit_push(pool, org.id, "sandbox", keeping=100)
     with pytest.raises(QuotaExhausted, match="101 of its 100 knowledge chunks"):
         await admit_push(pool, org.id, "sandbox", keeping=101)
+
+
+@postgres
+async def test_an_org_nobody_limited_has_no_row_and_no_limits(pool: Pool) -> None:
+    org = await create(pool, "clinica-norte", "Clínica Norte")
+    assert await quotas_of(pool, org.id, "production") == Quotas()
+    assert await quotas_of(pool, org.id, "sandbox") == Quotas()
+
+
+@postgres
+async def test_every_quota_round_trips_and_zero_comes_back_as_zero_and_not_as_no_limit(
+    pool: Pool,
+) -> None:
+    org = await create(pool, "clinica-norte", "Clínica Norte")
+    every = Quotas(
+        minutes=0,
+        messages=1,
+        agents=2,
+        concurrent_calls=3,
+        memory_facts=4,
+        knowledge_chunks=5,
+        numbers=6,
+        seats=7,
+        llm_tokens=8,
+        budget_eur=9,
+        lends=frozenset({"deepgram", "anthropic/claude-haiku-4-5"}),
+    )
+    await set_quotas(pool, org.id, "production", every)
+    assert await quotas_of(pool, org.id, "production") == every
+
+
+@postgres
+async def test_the_set_is_replaced_whole_so_a_limit_left_out_stops_being_one(pool: Pool) -> None:
+    org = await create(pool, "clinica-norte", "Clínica Norte")
+    await set_quotas(pool, org.id, "production", Quotas(minutes=30, seats=3, budget_eur=50))
+    await set_quotas(pool, org.id, "production", Quotas(minutes=60))
+    assert await quotas_of(pool, org.id, "production") == Quotas(minutes=60)
+
+
+@postgres
+async def test_each_world_keeps_its_own_limits(pool: Pool) -> None:
+    org = await create(pool, "clinica-norte", "Clínica Norte")
+    await set_quotas(pool, org.id, "sandbox", TRIAL)
+    await set_quotas(pool, org.id, "production", CLOSED)
+    assert await quotas_of(pool, org.id, "sandbox") == TRIAL
+    assert await quotas_of(pool, org.id, "production") == CLOSED
+
+
+@postgres
+async def test_removing_the_org_takes_its_quotas_with_it(pool: Pool) -> None:
+    org = await create(pool, "clinica-norte", "Clínica Norte")
+    await set_quotas(pool, org.id, "sandbox", TRIAL)
+    assert await remove(pool, org.id)
+    assert not await remove(pool, org.id)
+    assert await quotas_of(pool, org.id, "sandbox") == Quotas()
+
+
+@postgres
+async def test_a_box_that_never_said_what_a_new_org_gets_limits_nothing(pool: Pool) -> None:
+    assert await admission(pool) == Admission()
+    org = await create(pool, "clinica-norte", "Clínica Norte")
+    assert await quotas_of(pool, org.id, "sandbox") == Quotas()

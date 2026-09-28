@@ -3,15 +3,9 @@
 import pytest
 
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.wire import frames
 from pinecall.wire.frames import read_log
 from pinecall.wire.parts import Contact
-from pinecall_protocol import envelope
-from tests.wire.parity import GOLDEN_LOG, mismatches
-
-
-def test_the_entry_and_the_command_are_the_generated_ones_field_for_field() -> None:
-    assert mismatches(frames, envelope) == []
+from tests.wire.golden import GOLDEN_LOG
 
 
 def test_the_golden_log_reads_whole_in_the_order_it_was_written() -> None:

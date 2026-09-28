@@ -8,9 +8,9 @@ from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
 
 from pinecall.domain.errors import Conflict, NotSignedIn
-from pinecall.domain.settings import Settings
+from pinecall.gateway._deps import SCOPES_OF, operator
 from pinecall.gateway.app import app, origins_allowed, refused
-from pinecall.gateway.deps import SCOPES_OF, operator
+from pinecall.process.settings import Settings
 from tests.conftest import Knocking, postgres
 
 # The doors a key opens without a scope: what the fleet's key and a page's token read are
@@ -21,11 +21,13 @@ NO_SCOPE = frozenset({"/{path:path}", "/widget/{file}"})
 def scopes_of(dependant: Dependant) -> list[Callable[..., object]]:
     """Every scoped dependency a door declares, however deep."""
     found = [
-        one.call for one in dependant.dependencies if one.call in SCOPES_OF or one.call is operator
+        dependency.call
+        for dependency in dependant.dependencies
+        if dependency.call in SCOPES_OF or dependency.call is operator
     ]
-    for one in dependant.dependencies:
-        found += scopes_of(one)
-    return [one for one in found if one is not None]
+    for dependency in dependant.dependencies:
+        found += scopes_of(dependency)
+    return [item for item in found if item is not None]
 
 
 def test_every_door_declares_exactly_one_scope() -> None:
@@ -64,8 +66,8 @@ def test_the_apps_two_webviews_are_always_let_in_and_the_variable_adds_after_the
 
 
 @postgres
-async def test_a_door_without_a_key_asks_for_a_bearer(gateway: Knocking) -> None:
-    async with httpx.AsyncClient(base_url=gateway.url) as nobody:
+async def test_a_door_without_a_key_asks_for_a_bearer(knocking: Knocking) -> None:
+    async with httpx.AsyncClient(base_url=knocking.url) as nobody:
         refused_now = await nobody.get("/v1/agents")
     assert refused_now.status_code == 401
     assert refused_now.headers["www-authenticate"] == "Bearer"
@@ -73,8 +75,8 @@ async def test_a_door_without_a_key_asks_for_a_bearer(gateway: Knocking) -> None
 
 
 @postgres
-async def test_an_allowed_origin_is_echoed_and_another_gets_nothing(gateway: Knocking) -> None:
-    async with gateway.http(gateway.app["sandbox"]) as tenant:
+async def test_an_allowed_origin_is_echoed_and_another_gets_nothing(knocking: Knocking) -> None:
+    async with knocking.http(knocking.app["sandbox"]) as tenant:
         app_origin = await tenant.get("/v1/agents", headers={"Origin": "capacitor://localhost"})
         stranger = await tenant.get("/v1/agents", headers={"Origin": "https://evil.example"})
     assert app_origin.headers["access-control-allow-origin"] == "capacitor://localhost"
@@ -82,8 +84,8 @@ async def test_an_allowed_origin_is_echoed_and_another_gets_nothing(gateway: Kno
 
 
 @postgres
-async def test_any_page_may_read_a_calls_own_doors_with_its_token(gateway: Knocking) -> None:
-    async with httpx.AsyncClient(base_url=gateway.url) as page:
+async def test_any_page_may_read_a_calls_own_doors_with_its_token(knocking: Knocking) -> None:
+    async with httpx.AsyncClient(base_url=knocking.url) as page:
         answered = await page.get(
             "/v1/calls/call_1/state", headers={"Origin": "https://shop.example"}
         )
@@ -91,16 +93,16 @@ async def test_any_page_may_read_a_calls_own_doors_with_its_token(gateway: Knock
 
 
 @postgres
-async def test_a_path_under_the_api_nobody_declared_is_a_json_404(gateway: Knocking) -> None:
-    async with httpx.AsyncClient(base_url=gateway.url) as anybody:
+async def test_a_path_under_the_api_nobody_declared_is_a_json_404(knocking: Knocking) -> None:
+    async with httpx.AsyncClient(base_url=knocking.url) as anybody:
         answered = await anybody.get("/v1/nothing/here")
     assert answered.status_code == 404
     assert answered.json() == {"detail": "Not Found"}
 
 
 @postgres
-async def test_a_gateway_nobody_built_the_console_into_says_so(gateway: Knocking) -> None:
-    async with httpx.AsyncClient(base_url=gateway.url) as browser:
+async def test_a_gateway_nobody_built_the_console_into_says_so(knocking: Knocking) -> None:
+    async with httpx.AsyncClient(base_url=knocking.url) as browser:
         page = await browser.get("/calls/123")
         widget = await browser.get("/widget/pinecall-widget.js")
     assert page.status_code == 404

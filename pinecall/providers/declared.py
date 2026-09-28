@@ -3,7 +3,7 @@
 import dataclasses
 from collections.abc import Mapping
 
-from pinecall.domain.types import AgentConfig, Lexicon, Model, Tuning, Voice
+from pinecall.domain.agent import AgentConfig, Lexicon, Model, Tuning, Voice
 from pinecall.providers.build import Modality, doing, installed
 from pinecall.providers.catalog import Stage
 
@@ -20,8 +20,8 @@ def apply_tuning(
         declared,
         greeting=tuning.greeting,
         voice=_voice(declared, tuning, defaults),
-        stt=_model(tuning.stt, "stt", in_use=_in_use(declared.stt, defaults["stt"])),
-        llm=_model(tuning.llm, "llm", in_use=_in_use(declared.llm, defaults["llm"])),
+        stt=model_of(tuning.stt, "stt", in_use=_in_use(declared.stt, defaults["stt"])),
+        llm=model_of(tuning.llm, "llm", in_use=_in_use(declared.llm, defaults["llm"])),
         hangup=tuning.hangup,
         turn=tuning.turn,
         memory=tuning.memory,
@@ -36,45 +36,30 @@ def apply_tuning(
     )
 
 
-def model_of(said: str, modality: Modality, *, in_use: str) -> Model:
-    """`vendor/model`, a vendor alone (its default model), or a model on the vendor in use."""
-    vendor, model = vendor_and_model(said, modality, in_use=in_use)
-    return Model(provider=vendor, model=model or "")
-
-
-def voice_of(tts: str | None, voice: str | None, *, in_use: str) -> Voice | None:
-    """The voice a tuning or a persona names: `tts` moves the vendor, `voice` is its id."""
-    if tts is None and voice is None:
+def model_of(text: str | None, modality: Modality, *, in_use: str) -> Model | None:
+    """`vendor/model`, a vendor alone, or a model on the vendor in use; None when none is named."""
+    if text is None:
         return None
-    vendor, model = (in_use, None) if tts is None else vendor_and_model(tts, "tts", in_use=in_use)
-    return Voice(provider=vendor, model=model, voice_id=voice)
-
-
-def vendor_and_model(said: str, modality: Modality, *, in_use: str) -> tuple[str, str | None]:
-    """Split a knob into its vendor and its model; the vendor must be installed and do the stage."""
-    word = said.strip()
+    word = text.strip()
     vendor, slash, model = word.partition(SEPARATOR)
     if slash:
-        return doing(vendor.lower(), modality), model
+        return Model(provider=doing(vendor.lower(), modality), model=model)
     if word.lower() in installed():
-        return doing(word.lower(), modality), None
-    return doing(in_use, modality), word
+        return Model(provider=doing(word.lower(), modality), model="")
+    return Model(provider=doing(in_use, modality), model=word)
 
 
 # `tts_model` names the model of the vendor `tts` names, or of the one in use.
 def _voice(
     declared: AgentConfig, tuning: Tuning, defaults: Mapping[Modality, Stage]
 ) -> Voice | None:
+    if tuning.tts is None and tuning.voice is None and tuning.tts_model is None:
+        return None
     in_use = _in_use(declared.voice, defaults["tts"])
-    voice = voice_of(tuning.tts, tuning.voice, in_use=in_use)
-    if tuning.tts_model is None:
-        return voice
-    base = voice or Voice(provider=in_use)
-    return dataclasses.replace(base, model=tuning.tts_model)
-
-
-def _model(said: str | None, modality: Modality, *, in_use: str) -> Model | None:
-    return None if said is None else model_of(said, modality, in_use=in_use)
+    named = model_of(tuning.tts, "tts", in_use=in_use)
+    provider = in_use if named is None else named.provider
+    model = tuning.tts_model or (None if named is None else named.model or None)
+    return Voice(provider=provider, model=model, voice_id=tuning.voice)
 
 
 def _in_use(declared: Model | Voice | None, default: Stage) -> str:

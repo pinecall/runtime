@@ -1,0 +1,165 @@
+"""Tests for what livekit hands the session, read as ours."""
+
+import time
+from typing import get_args
+
+import pytest
+from livekit.agents import (
+    ConversationItemAddedEvent,
+    SessionUsageUpdatedEvent,
+    UserInputTranscribedEvent,
+    llm,
+    metrics,
+)
+from livekit.agents.language import LanguageCode
+from livekit.agents.metrics import AgentSessionUsage
+
+from pinecall.domain.agent import (
+    AgentConfig,
+    PromptBlock,
+)
+from pinecall.domain.errors import DeclarationRefused
+from pinecall.log.store import Store
+from pinecall.session import text
+from pinecall.session._livekit import BLOCKS
+from pinecall.wire.commands import (
+    PromptSet,
+)
+from tests.conftest import postgres
+from tests.session.conftest import (
+    Box,
+    a_session,
+    heard_live,
+    kinds,
+    model_of,
+)
+from tests.session.test_session import NOBODY, a_block, settled
+
+
+@postgres
+async def test_a_static_block_rewrites_the_instructions_and_the_log_keeps_its_hash(
+    box: Box, store: Store, call: str
+) -> None:
+    session = a_session(box, NOBODY, ["ok"])
+    await session.start()
+    await session.apply(PromptSet(name="identity", text="Sos la recepción de la clínica."))
+    await text.hears(session, "hola")
+    await text.end(session, "caller_hung_up", "caller")
+    first = model_of(session).requests[0].items[0]
+    assert "Sos la recepción" in str(getattr(first, "text_content", ""))
+    changed = next(entry for entry in await store.whole(call) if entry.type == "prompt.changed")
+    assert changed.data["chars"] == len("Sos la recepción de la clínica.")
+    assert "recepción" not in str(changed.data)
+
+
+@postgres
+async def test_a_block_the_agent_never_declared_is_refused_and_leaves_no_entry(
+    box: Box, store: Store, call: str
+) -> None:
+    session = a_session(
+        box, AgentConfig(slug="clinica-norte", prompt=(PromptBlock("identity", "static"),))
+    )
+    await session.start()
+    with pytest.raises(DeclarationRefused, match="no block named 'view'"):
+        await session.apply(PromptSet(name="view", text="x"))
+    await text.end(session, "caller_hung_up", "caller")
+    assert "prompt.changed" not in await kinds(store, call)
+
+
+@postgres
+async def test_a_block_is_written_after_every_listener_saw_it_so_the_speech_id_is_there(
+    box: Box,
+) -> None:
+    seen = heard_live(box)
+    session = a_session(box, NOBODY)
+    await session.start()
+    block = metrics.TTSMetrics(
+        label="acme", request_id="r1", timestamp=time.time(), ttfb=0.2, duration=1.0,
+        audio_duration=1.0, cancelled=False, characters_count=12, streamed=True,
+    )  # fmt: skip
+    model_of(session).emit("metrics_collected", block)
+    block.speech_id = "speech_9"
+    await settled()
+    await text.end(session, "caller_hung_up", "caller")
+    written = [entry for entry in seen if entry.type == "metrics.tts"]
+    assert written[0].data["speech_id"] == "speech_9"
+
+
+@postgres
+async def test_a_user_turn_carries_the_language_the_recogniser_said_and_its_eou_block(
+    box: Box, store: Store, call: str
+) -> None:
+    session = a_session(box, NOBODY)
+    await session.start()
+    session.live.emit(
+        "user_input_transcribed",
+        UserInputTranscribedEvent(transcript="hola", is_final=True, language=LanguageCode("es")),
+    )
+    heard = llm.ChatMessage(
+        role="user",
+        content=["hola"],
+        metrics={"end_of_turn_delay": 0.4, "transcription_delay": 0.1},
+    )
+    session.live.emit("conversation_item_added", ConversationItemAddedEvent(item=heard))
+    await text.end(session, "caller_hung_up", "caller")
+    entries = await store.whole(call)
+    written = [entry.type for entry in entries]
+    assert written.index("metrics.eou") < written.index("turn.user")
+    turn = next(entry for entry in entries if entry.type == "turn.user")
+    assert turn.data["language"] == "es"
+
+
+def test_the_table_names_every_block_the_library_declares() -> None:
+    declared = set(get_args(metrics.AgentMetrics))
+    assert {livekits for livekits, _, _ in BLOCKS} == declared
+    assert {kind for _, kind, _ in BLOCKS} == {
+        "metrics.llm",
+        "metrics.stt",
+        "metrics.tts",
+        "metrics.vad",
+        "metrics.eou",
+        "metrics.eot",
+        "metrics.interruption",
+        "metrics.realtime",
+        "metrics.avatar",
+    }
+
+
+@postgres
+async def test_every_field_of_a_block_reaches_the_log_under_its_own_name(box: Box) -> None:
+    seen = heard_live(box)
+    session = a_session(box, NOBODY)
+    await session.start()
+    block = a_block()
+    model_of(session).emit("metrics_collected", block)
+    await settled()
+    await text.end(session, "caller_hung_up", "caller")
+    (written,) = [entry.data for entry in seen if entry.type == "metrics.llm"]
+    for name, value in block.model_dump(mode="json").items():
+        assert written[name] == value
+
+
+@postgres
+async def test_a_cancelled_block_from_a_discarded_generation_is_logged(box: Box) -> None:
+    seen = heard_live(box)
+    session = a_session(box, NOBODY)
+    await session.start()
+    model_of(session).emit("metrics_collected", a_block(cancelled=True))
+    await settled()
+    await text.end(session, "caller_hung_up", "caller")
+    (written,) = [entry.data for entry in seen if entry.type == "metrics.llm"]
+    assert written["cancelled"] is True
+
+
+@postgres
+async def test_a_row_livekit_grew_a_field_for_is_still_the_calls_usage(box: Box) -> None:
+    session = a_session(box, NOBODY)
+    await session.start()
+    heard = metrics.STTModelUsage(provider="acme", model="acme-ears", audio_duration=3.0)
+    session.live.emit(
+        "session_usage_updated",
+        SessionUsageUpdatedEvent(usage=AgentSessionUsage(model_usage=[heard])),
+    )
+    await text.end(session, "caller_hung_up", "caller")
+    ((usage, _),) = box.sealed
+    assert [(row.type, row.model) for row in usage] == [("stt_usage", "acme-ears")]

@@ -11,19 +11,27 @@ from psycopg.rows import DictRow
 from pinecall.postgres.pool import Connection
 from pinecall.retrieval.embed import halfvec
 
+type Evidence = Literal["strong", "weak", "none"]
+
+
 # Cormack's constant: a rank weighs 1 / (60 + rank), so cosine and BM25 are never compared.
 RRF_K = 60
+
+
 CANDIDATES_PER_BRANCH = 30
+
 
 # Measured on a golden of real questions; data for the reader and the judge, never a gate.
 STRONG = 0.45
+
+
 NONE_BELOW = 0.30
 
-type Evidence = Literal["strong", "weak", "none"]
 
 # `hnsw.iterative_scan` makes the index scan past its first 40 candidates when the scope filters
 # them out: one tenant's rows among every tenant's would otherwise come back short, or empty.
 ITERATIVE_SCAN = "SET LOCAL hnsw.iterative_scan = relaxed_order"
+
 
 # `<@>` is BM25 negated, lower is better, and 0 when no term matched: those rows are no match.
 HYBRID = """
@@ -59,7 +67,7 @@ ORDER BY fusion.fused DESC, fusion.id
 
 
 @dataclass(frozen=True)
-class Table:
+class SearchedTable:
     """What differs between the tables searched: which rows a query sees and what a hit carries."""
 
     name: str
@@ -85,7 +93,7 @@ class Hit:
 
 
 async def hybrid(
-    connection: Connection, table: Table, *, vector: list[float], words: str, room: int
+    connection: Connection, table: SearchedTable, *, vector: list[float], words: str, room: int
 ) -> list[Hit]:
     """Up to `room` rows from each branch, fused by reciprocal rank, the best first."""
     query = sql.SQL(HYBRID).format(
@@ -94,7 +102,7 @@ async def hybrid(
         scope=table.scope,
         same_space=table.same_space,
         k=sql.Literal(RRF_K),
-        columns=sql.SQL(", ").join(sql.Identifier("found", one) for one in table.columns),
+        columns=sql.SQL(", ").join(sql.Identifier("found", column) for column in table.columns),
     )
     params = {**table.params, "q": halfvec(vector), "words": words, "room": room}
     async with connection.transaction():
@@ -105,7 +113,7 @@ async def hybrid(
             id=row["hit_id"],
             fused=row["hit_fused"],
             cosine=row["hit_cosine"],
-            row={one: row[one] for one in table.columns},
+            row={column: row[column] for column in table.columns},
         )
         for row in rows
     ]

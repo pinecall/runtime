@@ -5,10 +5,10 @@ import json
 import pytest
 from livekit.agents import llm
 
+from pinecall.domain.agent import DEFAULT_LAYOUT, Greeting, PromptBlock
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.types import DEFAULT_LAYOUT, Greeting, PromptBlock
 from pinecall.providers.build import a_list, a_mapping
-from pinecall.session.prompt import (
+from pinecall.session._prompt import (
     Blocks,
     Request,
     greeting_for,
@@ -46,14 +46,14 @@ def _with_instructions(blocks: Blocks) -> llm.ChatContext:
 
 
 # What a format that keeps system messages apart was handed as them.
-def _system(asked: Request) -> list[str]:
-    _, data = asked.to_provider_format("anthropic")
-    said: object = getattr(data, "system_messages", None)
-    return [str(one) for one in said] if a_list(said) else []
+def _system(params: Request) -> list[str]:
+    _, data = params.to_provider_format("anthropic")
+    text: object = getattr(data, "system_messages", None)
+    return [str(item) for item in text] if a_list(text) else []
 
 
-def _tool_results(asked: Request) -> list[str]:
-    messages, _ = asked.to_provider_format("anthropic")
+def _tool_results(params: Request) -> list[str]:
+    messages, _ = params.to_provider_format("anthropic")
     found: list[str] = []
     for message in messages:
         content = message.get("content")
@@ -148,8 +148,8 @@ def test_every_other_format_reads_the_static_blocks_as_the_one_joined_string() -
 
 
 def test_the_dynamic_blocks_land_after_the_history_in_layout_order_one_message_each() -> None:
-    asked = request(_history(), _written(stage="Paso 2", view="Turnos libres"))
-    tail = [item.text_content for item in asked.items[-2:] if isinstance(item, llm.ChatMessage)]
+    params = request(_history(), _written(stage="Paso 2", view="Turnos libres"))
+    tail = [item.text_content for item in params.items[-2:] if isinstance(item, llm.ChatMessage)]
     assert tail == ["Turnos libres", "Paso 2"]
 
 
@@ -166,18 +166,18 @@ def test_a_block_nobody_wrote_sends_nothing_and_the_request_is_the_history_alone
 
 
 def test_a_lookup_lands_ahead_of_the_caller_so_their_words_stay_next_to_the_view() -> None:
-    asked = request(_history(), _written(view="Turnos"), _lookup()).items
-    kinds = [item.type for item in asked]
+    params = request(_history(), _written(view="Turnos"), _lookup()).items
+    kinds = [item.type for item in params]
     assert kinds == ["message", "function_call", "function_call_output", "message", "message"]
-    assert isinstance(asked[3], llm.ChatMessage)
-    assert asked[3].text_content == "quiero un turno"
+    assert isinstance(params[3], llm.ChatMessage)
+    assert params[3].text_content == "quiero un turno"
 
 
 def test_a_turn_the_caller_did_not_open_keeps_its_lookups_at_the_end() -> None:
     history = llm.ChatContext.empty()
     history.add_message(role="assistant", content="¿Algo más?")
-    asked = request(history, Blocks(LAYOUT), _lookup()).items
-    assert [item.type for item in asked] == ["message", "function_call", "function_call_output"]
+    params = request(history, Blocks(LAYOUT), _lookup()).items
+    assert [item.type for item in params] == ["message", "function_call", "function_call_output"]
 
 
 def test_both_halves_of_a_pair_survive_the_formatter_in_order() -> None:
@@ -188,10 +188,10 @@ def test_both_halves_of_a_pair_survive_the_formatter_in_order() -> None:
 
 def test_a_lookups_content_parses_as_json_and_no_fact_reaches_the_system_field() -> None:
     blocks = _written(identity="Recepción")
-    asked = request(_with_instructions(blocks), blocks, _lookup())
-    assert "penicilina" not in "".join(_system(asked))
-    (said,) = _tool_results(asked)
-    facts = json.loads(said)["facts"]
+    params = request(_with_instructions(blocks), blocks, _lookup())
+    assert "penicilina" not in "".join(_system(params))
+    (data,) = _tool_results(params)
+    facts = json.loads(data)["facts"]
     assert facts[0]["text"] == "alérgico a la penicilina"
 
 
@@ -223,9 +223,9 @@ def test_a_greeting_that_names_neither_verb_or_both_is_refused_at_declaration() 
 
 
 def test_a_prompt_hash_is_sha256_hex_and_says_nothing_of_the_text() -> None:
-    said = hashed("Sos la recepción")
-    assert len(said) == 64
-    assert all(character in "0123456789abcdef" for character in said)
+    text = hashed("Sos la recepción")
+    assert len(text) == 64
+    assert all(character in "0123456789abcdef" for character in text)
 
 
 def test_the_file_a_class_ships_with_gets_a_line_of_its_own_and_none_ships_none() -> None:
@@ -238,9 +238,9 @@ def test_the_file_a_class_ships_with_gets_a_line_of_its_own_and_none_ships_none(
 def test_a_config_update_stays_in_the_history_and_never_reaches_the_provider() -> None:
     history = _history()
     history.items.append(llm.AgentConfigUpdate(instructions="Sos otra recepción"))
-    asked = request(history, Blocks(LAYOUT))
-    assert any(isinstance(item, llm.AgentConfigUpdate) for item in asked.items)
-    messages, _ = asked.to_provider_format("openai")
+    params = request(history, Blocks(LAYOUT))
+    assert any(isinstance(item, llm.AgentConfigUpdate) for item in params.items)
+    messages, _ = params.to_provider_format("openai")
     assert "Sos otra recepción" not in json.dumps(messages)
 
 

@@ -6,18 +6,14 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field
 
 from pinecall.domain.errors import Conflict, DeclarationRefused, NotAvailable
-from pinecall.domain.types import Json, JsonObject
+from pinecall.domain.names import Json, JsonObject
+from pinecall.postgres import box_settings
 from pinecall.postgres.pool import Pool
 from pinecall.providers.build import MODALITIES, Modality, doing
 from pinecall.wire.parts import CostRate
 
 ROW = "providers"
 
-READ = "SELECT value FROM box_settings WHERE name = %(name)s"
-WRITE = """
-INSERT INTO box_settings (name, value) VALUES (%(name)s, %(value)s)
-ON CONFLICT (name) DO UPDATE SET value = excluded.value, set_at = now()
-"""
 SEED = """
 INSERT INTO box_settings (name, value) VALUES (%(name)s, %(value)s)
 ON CONFLICT (name) DO NOTHING
@@ -57,7 +53,7 @@ class Rate(BaseModel):
     as_of: str = ""
 
 
-class Told(BaseModel):
+class StageOptions(BaseModel):
     """What one vendor is told for one stage: which class it builds and the kwargs it is given."""
 
     model_config = ConfigDict(frozen=True)
@@ -104,12 +100,12 @@ class Providers(BaseModel):
     # `cartesia/es`: the voice an agent that names none speaks with.
     voices: dict[str, str] = Field(default_factory=dict[str, str])
     # `stt/deepgram`: what that vendor is told for that stage.
-    tuning: dict[str, Told] = Field(default_factory=dict[str, Told])
+    tuning: dict[str, StageOptions] = Field(default_factory=dict[str, StageOptions])
     # Languages the ears listen for beside the call's own.
     hints: tuple[str, ...] = ()
     # A model's price, by the longest prefix of its id: dated snapshots price by family.
     rates: dict[str, Rate] = Field(default_factory=dict[str, Rate])
-    exchange: CostRate
+    connections: CostRate
     judge: Judge | None = None
     # `es`: the line a voice reads in the picker.
     lines: dict[str, str] = Field(default_factory=dict[str, str])
@@ -119,24 +115,26 @@ class Providers(BaseModel):
 async def providers(pool: Pool) -> Providers:
     """The box's configuration; NotAvailable until it was written."""
     async with pool.connection() as connection:
-        row = await (await connection.execute(READ, {"name": ROW})).fetchone()
-    if row is None:
+        value = await box_settings.read(connection, ROW)
+    if value is None:
         raise NotAvailable(UNSET)
-    return Providers.model_validate(row["value"])
+    return Providers.model_validate(value)
 
 
 async def configure(pool: Pool, edited: Providers) -> None:
     """Write the configuration whole, as the console's box screen sends it."""
     checked(edited)
     async with pool.connection() as connection:
-        await connection.execute(WRITE, {"name": ROW, "value": _jsonb(edited)})
+        await box_settings.write(connection, ROW, edited.model_dump(mode="json"))
 
 
 async def seed(pool: Pool, seeded: Providers) -> None:
     """Write the configuration a box starts from; Conflict when one is already there."""
     checked(seeded)
     async with pool.connection() as connection:
-        written = await connection.execute(SEED, {"name": ROW, "value": _jsonb(seeded)})
+        written = await connection.execute(
+            SEED, {"name": ROW, "value": Jsonb(seeded.model_dump(mode="json"))}
+        )
         if await written.fetchone() is None:
             raise Conflict("this box is configured already: the console edits what is there")
 
@@ -162,7 +160,3 @@ def checked(written: Providers) -> Providers:
             f"column is halfvec({VECTOR_WIDTH}), so it must be asked for {VECTOR_WIDTH}"
         )
     return written
-
-
-def _jsonb(written: Providers) -> Jsonb:
-    return Jsonb(written.model_dump(mode="json"))

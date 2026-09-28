@@ -18,31 +18,47 @@ from livekit.agents import llm, stt, tts
 from livekit.agents.language import LanguageCode
 from typing_extensions import TypeIs
 
+from pinecall.domain.agent import Turn
 from pinecall.domain.errors import DeclarationRefused, NotAvailable
-from pinecall.domain.types import Credentials, Json, JsonObject, Turn
-
-logger = logging.getLogger(__name__)
+from pinecall.domain.names import Credentials, Json, JsonObject
 
 type Modality = Literal["llm", "stt", "tts"]
-MODALITIES: tuple[Modality, ...] = ("llm", "stt", "tts")
+
+
+logger = logging.getLogger(__name__)
 
 
 # LiveKit Inference: the same three classes, on the box's LiveKit key pair, models `vendor/model`.
 INFERENCE = "livekit"
+
+
 _INFERENCE_MODULE = "livekit.agents.inference"
+
+
 _PLUGINS = "livekit.plugins"
-CLASS_OF: dict[Modality, str] = {"llm": "LLM", "stt": "STT", "tts": "TTS"}
+
 
 # livekit's three bases are generic in the extra events a subclass may emit; a plugin adds none.
 _AN_LLM: type[llm.LLM[Never]] = llm.LLM
+
+
 _AN_STT: type[stt.STT[Never]] = stt.STT
+
+
 _A_TTS: type[tts.TTS[Never]] = tts.TTS
+
 
 # Plugins spell the same argument differently; the first one a constructor declares gets it.
 # `voice_id` comes before `voice`: a plugin that declares both reads the id.
 _THE_KEY = ("api_key", "speech_key", "secret")
+
+
 _THE_VOICE = ("voice_id", "voice_uuid", "voice", "speaker", "voice_name")
+
+
 _THE_LANGUAGE = ("language", "language_code")
+
+
 _THE_HINTS = ("language_hint", "language_hints")
 
 
@@ -75,6 +91,12 @@ class Running:
     ends_the_turn: bool = False
     # On the box's key rather than the org's own.
     lent: bool = False
+
+
+MODALITIES: tuple[Modality, ...] = ("llm", "stt", "tts")
+
+
+CLASS_OF: dict[Modality, str] = {"llm": "LLM", "stt": "STT", "tts": "TTS"}
 
 
 @cache
@@ -222,12 +244,19 @@ def _as_declared(declared: object, value: object) -> object:
     if shape is None or not a_mapping(value):
         return value
     typed = typing.get_type_hints(shape)
-    return shape(**{name: _as_declared(typed.get(name), one) for name, one in value.items()})
+    return shape(**{name: _as_declared(typed.get(name), given) for name, given in value.items()})
 
 
 def _dataclass_in(declared: object) -> type | None:
     if isinstance(declared, type) and dataclasses.is_dataclass(declared):
         return declared
     if isinstance(declared, types.UnionType):
-        return next((one for one in typing.get_args(declared) if _dataclass_in(one)), None)
+        return next(
+            (
+                declared_one
+                for declared_one in typing.get_args(declared)
+                if _dataclass_in(declared_one)
+            ),
+            None,
+        )
     return None

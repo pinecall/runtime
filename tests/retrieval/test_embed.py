@@ -9,7 +9,7 @@ import pytest
 from pinecall.domain.errors import EmbedderUnreachable, NotAvailable, WrongWidth
 from pinecall.providers.catalog import Embedding
 from pinecall.retrieval.embed import PUSH_TIMEOUT, Embedder, estimated_tokens, halfvec
-from tests.fakes import TOO_BIG, Embeddings, int8_vector
+from tests.fakes.embeddings import TOO_BIG, Embeddings, int8_vector
 
 URL = "https://api.perplexity.test/v1"
 KEY = "a-key-of-the-box"
@@ -75,7 +75,7 @@ async def test_the_embeddings_shape_asks_for_floats_at_its_width_and_never_sniff
 ) -> None:
     vectors = await an_embedder(client, slept, FLAT).embed(["hola", "turno"])
     assert [len(vector) for vector in vectors] == [1024, 1024]
-    assert [request.url.path for request in vendor.asked] == ["/v1/embeddings"]
+    assert [request.url.path for request in vendor.requests] == ["/v1/embeddings"]
     assert vendor.sent() == [
         {
             "model": "embed-flat-06b",
@@ -90,7 +90,7 @@ async def test_the_contextual_shape_asks_for_signed_bytes_at_1024(
     vendor: Embeddings, client: httpx.AsyncClient, slept: list[float]
 ) -> None:
     await an_embedder(client, slept).embed_documents([["uno", "dos", "tres"]])
-    assert [request.url.path for request in vendor.asked] == ["/v1/contextualizedembeddings"]
+    assert [request.url.path for request in vendor.requests] == ["/v1/contextualizedembeddings"]
     assert vendor.sent() == [
         {
             "model": "embed-context-4b",
@@ -106,7 +106,7 @@ async def test_the_rows_url_is_asked_whatever_its_trailing_slash(
 ) -> None:
     slashed = FLAT.model_copy(update={"url": f"{URL}/"})
     await an_embedder(client, slept, slashed).embed(["hola"])
-    assert str(vendor.asked[0].url) == f"{URL}/embeddings"
+    assert str(vendor.requests[0].url) == f"{URL}/embeddings"
 
 
 @pytest.mark.parametrize("key", [KEY, {"api_key": KEY}])
@@ -114,7 +114,7 @@ async def test_the_boxs_key_travels_as_a_bearer_whether_the_row_holds_it_bare_or
     vendor: Embeddings, client: httpx.AsyncClient, key: str | dict[str, str]
 ) -> None:
     await Embedder(FLAT, dict(key) if isinstance(key, dict) else key, client).embed(["hola"])
-    assert vendor.asked[0].headers["authorization"] == f"Bearer {KEY}"
+    assert vendor.requests[0].headers["authorization"] == f"Bearer {KEY}"
 
 
 async def test_credentials_that_hold_no_api_key_are_refused_naming_the_vendor(
@@ -129,7 +129,7 @@ async def test_the_model_and_the_width_are_the_rows_and_nothing_is_asked_of_the_
 ) -> None:
     embedder = an_embedder(client, slept)
     assert (embedder.embedding.model, embedder.embedding.dimensions) == ("embed-context-4b", 1024)
-    assert vendor.asked == []
+    assert vendor.requests == []
 
 
 @pytest.mark.parametrize("embedding", [FLAT, CONTEXTUAL], ids=["embeddings", "contextual"])
@@ -140,7 +140,7 @@ async def test_nothing_to_embed_asks_nobody(
     assert await embedder.embed([]) == []
     assert await embedder.embed_documents([]) == []
     assert await embedder.embed_documents([[]]) == [[]]
-    assert vendor.asked == []
+    assert vendor.requests == []
 
 
 @pytest.mark.parametrize("embedding", [FLAT, CONTEXTUAL], ids=["embeddings", "contextual"])
@@ -148,7 +148,7 @@ async def test_a_push_waits_long_for_a_window_the_vendor_takes_time_over(
     vendor: Embeddings, client: httpx.AsyncClient, slept: list[float], embedding: Embedding
 ) -> None:
     await an_embedder(client, slept, embedding).embed_documents([["uno", "dos"]])
-    assert vendor.asked[0].extensions["timeout"] == PUSH_TIMEOUT.as_dict()
+    assert vendor.requests[0].extensions["timeout"] == PUSH_TIMEOUT.as_dict()
     assert PUSH_TIMEOUT.read == 120.0
 
 
@@ -157,8 +157,8 @@ async def test_a_query_keeps_the_clients_own_wait_and_the_turns_budget_bounds_it
     vendor: Embeddings, client: httpx.AsyncClient, slept: list[float], embedding: Embedding
 ) -> None:
     await an_embedder(client, slept, embedding).embed(["hola"])
-    assert vendor.asked[0].extensions["timeout"] == client.timeout.as_dict()
-    assert vendor.asked[0].extensions["timeout"]["read"] != 120.0
+    assert vendor.requests[0].extensions["timeout"] == client.timeout.as_dict()
+    assert vendor.requests[0].extensions["timeout"]["read"] != 120.0
 
 
 # ── documents, queries, windows and batches ──
@@ -177,7 +177,7 @@ async def test_a_query_is_a_document_of_one_chunk_so_it_shares_the_chunks_space(
 ) -> None:
     [vector] = await an_embedder(client, slept).embed(["¿cuánto cuesta la revisión?"])
     assert len(vector) == 1024
-    assert [request.url.path for request in vendor.asked] == ["/v1/contextualizedembeddings"]
+    assert [request.url.path for request in vendor.requests] == ["/v1/contextualizedembeddings"]
     assert vendor.sent()[0]["input"] == [["¿cuánto cuesta la revisión?"]]
 
 
@@ -299,8 +299,8 @@ async def test_a_reply_that_mixes_two_widths_is_refused_naming_both(
 async def test_a_reply_with_fewer_vectors_than_chunks_is_refused_before_a_row_is_written(
     vendor: Embeddings, client: httpx.AsyncClient, slept: list[float]
 ) -> None:
-    one = {"data": [{"data": [{"embedding": int8_vector([3] * 1024)}]}]}
-    vendor.script = [httpx.Response(200, json=one)]
+    item = {"data": [{"data": [{"embedding": int8_vector([3] * 1024)}]}]}
+    vendor.script = [httpx.Response(200, json=item)]
     with pytest.raises(EmbedderUnreachable, match="1 vectors for 2 chunks"):
         await an_embedder(client, slept).embed_documents([["uno", "dos"]])
 
@@ -394,7 +394,7 @@ async def test_a_refusal_about_the_key_is_raised_at_once_and_never_split(
     vendor.script = [refused(401, "Invalid API key")]
     with pytest.raises(EmbedderUnreachable, match="Invalid API key"):
         await an_embedder(client, slept, FLAT).embed(["uno", "dos", "tres", "cuatro"])
-    assert len(vendor.asked) == 1
+    assert len(vendor.requests) == 1
     assert slept == []
 
 
@@ -404,7 +404,7 @@ async def test_a_transient_failure_is_retried_after_a_wait_that_grows(
     vendor.script = [httpx.Response(503), httpx.Response(502)]
     [vector] = await an_embedder(client, slept, FLAT).embed(["hola"])
     assert len(vector) == 1024
-    assert len(vendor.asked) == 3
+    assert len(vendor.requests) == 3
     first, second = slept
     assert 0.375 <= first <= 0.5
     assert 0.75 <= second <= 1.0
@@ -416,7 +416,7 @@ async def test_an_embedder_that_answers_5xx_three_times_is_unreachable_after_two
     vendor.script = [httpx.Response(503)] * 3
     with pytest.raises(EmbedderUnreachable, match="did not answer: HTTP 503"):
         await an_embedder(client, slept, FLAT).embed(["hola"])
-    assert len(vendor.asked) == 3
+    assert len(vendor.requests) == 3
     assert len(slept) == 2
 
 
@@ -426,7 +426,7 @@ async def test_a_connection_refused_is_retried_then_unreachable_by_name_and_url(
     vendor.script = [httpx.ConnectError("connection refused")] * 3
     with pytest.raises(EmbedderUnreachable, match=f"openrouter at {URL}/embeddings did not answer"):
         await an_embedder(client, slept, FLAT).embed(["hola"])
-    assert len(vendor.asked) == 3
+    assert len(vendor.requests) == 3
 
 
 async def test_a_rate_limit_that_says_when_to_come_back_is_obeyed(

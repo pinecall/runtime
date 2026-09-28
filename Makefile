@@ -13,11 +13,11 @@ DB_PORT  ?= 55432
 LOCAL_DSN = postgresql://pinecall:pinecall@127.0.0.1:$(DB_PORT)/pinecall
 T        ?= tests
 
-check:            ## the rules and every suite that needs no database
-	uv run pytest -q
+check:            ## the rules and every suite that needs no database, on every core
+	uv run pytest -q -n auto
 
-test: db          ## every suite (or T=tests/log), on the local Postgres
-	DATABASE_URL=$(LOCAL_DSN) uv run pytest -q $(T)
+test: db          ## every suite (or T=tests/log), on the local Postgres, on every core
+	DATABASE_URL=$(LOCAL_DSN) uv run pytest -q -n auto $(T)
 
 # Durability is off: a test database that loses its last second on a crash loses nothing.
 db:               ## the local Postgres: colima up, the image built once, the container running

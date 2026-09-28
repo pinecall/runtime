@@ -1,6 +1,6 @@
 # The environment
 
-Every variable the gateway and the worker read. The verbs are [the-runtime-cli.md](the-runtime-cli.md).
+Every variable the gateway and the worker read. The operator's verbs are `pinecall-runtime --help`.
 
 ## Where a variable comes from
 

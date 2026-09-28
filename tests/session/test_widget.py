@@ -6,15 +6,16 @@ from collections.abc import AsyncIterator
 
 from livekit import rtc
 
-from pinecall.domain.types import AgentConfig, Visibility
-from pinecall.log.log import Log
+from pinecall.domain.agent import AgentConfig, Visibility
+from pinecall.log.logs import Log
 from pinecall.log.store import Store
 from pinecall.session.call import Call
 from pinecall.session.widget import EVENT, LOG, REPLAY, SNAPSHOT, Reading, Widget
 from pinecall.wire.frames import Entry
 from pinecall.wire.state import State
 from tests.conftest import postgres
-from tests.fakes import Room, seat
+from tests.fakes.acme import seat
+from tests.fakes.livekit import Room
 from tests.session.conftest import Box, context_of
 
 WIDGET = {"pinecall.scope": "talk"}

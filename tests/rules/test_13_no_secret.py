@@ -20,7 +20,7 @@ SHAPES = tuple(
     )
 )
 READ = ("*.py", "*.md", "*.toml", "*.sql", "*.yaml", "*.yml", "*.service", "*.env.example")
-NOT_READ = (ROOT / ".venv", FIXTURES, TESTS / "fakes.py", ROOT / ".git")
+NOT_READ = (ROOT / ".venv", FIXTURES, TESTS / "fakes", ROOT / ".git")
 
 
 def leaks(paths: list[Path]) -> list[str]:

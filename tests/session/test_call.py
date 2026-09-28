@@ -2,9 +2,10 @@
 
 import asyncio
 
-from pinecall.domain.types import AgentConfig, JsonObject, ToolSpec
+from pinecall.domain.agent import AgentConfig, ToolSpec
+from pinecall.domain.names import JsonObject
 from pinecall.log.store import Store
-from pinecall.session.call import Call, Writing, changed_by, declared
+from pinecall.session.call import Call, Writing, changed_by, with_app_fields
 from pinecall.wire.commands import SessionConfigure, ToolsSet
 from pinecall.wire.events import Custom
 from pinecall.wire.frames import Entry
@@ -140,8 +141,8 @@ def test_a_declaration_changes_only_the_fields_the_app_sent() -> None:
     current = AgentConfig(slug="a", language="es-ES", tools=(A_TOOL,))
     parameters: JsonObject = {"type": "object", "properties": {"phone": {"type": "string"}}}
     wired = WiredTool(name="cancel", description="d", parameters=parameters, pii=["phone"])
-    said = Declared(tools=[wired], uses_knowledge=True)
-    patched = declared(current, said)
+    data = Declared(tools=[wired], uses_knowledge=True)
+    patched = with_app_fields(current, data)
     assert patched.language == "es-ES"
     assert patched.uses_knowledge
     assert [(tool.name, tool.pii) for tool in patched.tools] == [("cancel", frozenset({"phone"}))]
@@ -150,7 +151,7 @@ def test_a_declaration_changes_only_the_fields_the_app_sent() -> None:
 
 def test_what_the_org_sets_per_world_is_never_taken_from_a_declaration() -> None:
     current = AgentConfig(slug="a")
-    patched = declared(current, Declared(voice=VoiceConfig(provider="acme", voice_id="v")))
+    patched = with_app_fields(current, Declared(voice=VoiceConfig(provider="acme", voice_id="v")))
     assert patched == current
 
 

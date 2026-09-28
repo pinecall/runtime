@@ -4,8 +4,10 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
+from pinecall.domain.agent import EventSource
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.types import Channel, Direction, Env, EventSource, JsonObject, QuotaName
+from pinecall.domain.names import Channel, Direction, Env, JsonObject
+from pinecall.domain.org import QuotaName
 from pinecall.wire.frames import Entry, WireModel
 from pinecall.wire.metrics import (
     AgentTurnMetrics,
@@ -42,6 +44,25 @@ from pinecall.wire.parts import (
     UserState,
 )
 from pinecall.wire.state import State
+
+# Events a store may drop and a slow reader may miss: the entry's ephemeral flag defaults to this.
+EPHEMERAL_EVENTS: frozenset[str] = frozenset(
+    {
+        "agent.transcript",
+        "dev.request",
+        "log.caught_up",
+        "log.gap",
+        "metrics.vad",
+        "participant.speaking",
+        "pong",
+        "room.sent",
+        "user.transcript",
+    }
+)
+
+
+# The one event that ends a call: after it nothing more is true and the log is sealed.
+TERMINAL_EVENT = "call.score"
 
 
 class RoomOpened(WireModel):
@@ -486,19 +507,19 @@ class StateCauseEvent(WireModel):
 type StateCause = Annotated[StateCauseTool | StateCauseEvent, Field(discriminator="kind")]
 
 
+class SupervisorEnded(WireModel):
+    """A supervisor hung up the call."""
+
+    by: Supervisor
+    reason: str | None = None
+
+
 class StateChanged(WireModel):
     """The app's declared state changed; the whole state travels."""
 
     state: JsonObject
     changed: list[str]
     cause: StateCause | None = None
-
-
-class SupervisorEnded(WireModel):
-    """A supervisor hung up the call."""
-
-    by: Supervisor
-    reason: str | None = None
 
 
 class SupervisorReleased(WireModel):
@@ -586,8 +607,6 @@ class UserTranscript(WireModel):
     confidence: float | None = None
 
 
-# ── the registry ──
-
 EVENTS: dict[str, type[WireModel]] = {
     "agent.configured": AgentConfigured,
     "agent.detached": AgentDetached,
@@ -659,24 +678,6 @@ EVENTS: dict[str, type[WireModel]] = {
     "user.state": UserStateChanged,
     "user.transcript": UserTranscript,
 }
-
-# Events a store may drop and a slow reader may miss: the entry's ephemeral flag defaults to this.
-EPHEMERAL_EVENTS: frozenset[str] = frozenset(
-    {
-        "agent.transcript",
-        "dev.request",
-        "log.caught_up",
-        "log.gap",
-        "metrics.vad",
-        "participant.speaking",
-        "pong",
-        "room.sent",
-        "user.transcript",
-    }
-)
-
-# The one event that ends a call: after it nothing more is true and the log is sealed.
-TERMINAL_EVENT = "call.score"
 
 
 def event_of(entry: Entry) -> WireModel:

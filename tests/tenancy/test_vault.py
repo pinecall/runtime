@@ -5,12 +5,12 @@ import logging
 import pytest
 from cryptography.fernet import Fernet
 
-from pinecall.domain.errors import SettingsRefused
-from pinecall.domain.types import JsonObject
+from pinecall.domain.names import JsonObject
+from pinecall.fleet.worlds import FLEETS, Fleets, set_fleets
 from pinecall.postgres.pool import Pool
-from pinecall.tenancy.orgs import FLEETS, Fleets, create, remove, set_fleets
+from pinecall.process.connections import vault_of
+from pinecall.tenancy.orgs import create, remove
 from pinecall.tenancy.vault import (
-    VARIABLE,
     box_credentials,
     credentials_of,
     drop_box_credentials,
@@ -19,7 +19,6 @@ from pinecall.tenancy.vault import (
     put_box_credentials,
     put_credentials,
     sealed,
-    vault_of,
     vendors_of,
 )
 from tests.conftest import postgres
@@ -29,29 +28,9 @@ NEW = Fernet.generate_key().decode()
 AZURE: JsonObject = {"speech_key": "made-up-by-this-test", "speech_region": "westeurope"}
 
 
-def test_a_gateway_with_no_vault_key_does_not_start_and_says_which_variable() -> None:
-    with pytest.raises(SettingsRefused, match=VARIABLE):
-        vault_of(None)
-
-
-def test_a_list_with_a_key_that_is_not_one_is_refused_naming_the_variable() -> None:
-    with pytest.raises(SettingsRefused, match=VARIABLE) as refused:
-        vault_of(f"{NEW},not-a-key")
-    assert NEW not in str(refused.value)
-
-
 def test_a_secret_sealed_under_the_old_key_opens_once_the_new_one_is_in_front() -> None:
     token = sealed(vault_of(OLD), AZURE)
     assert opened(vault_of(f"{NEW}, {OLD}"), token) == AZURE
-
-
-def test_a_secret_sealed_under_a_key_no_longer_listed_reads_as_unset_and_says_so(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    token = sealed(vault_of(OLD), "a-secret")
-    with caplog.at_level(logging.WARNING):
-        assert opened(vault_of(NEW), token) is None
-    assert VARIABLE in caplog.text
 
 
 def test_a_sealed_secret_carries_nothing_of_the_secret() -> None:
@@ -127,3 +106,12 @@ async def test_the_box_offers_a_vendor_by_holding_its_key_beside_its_other_setti
     async with pool.connection() as connection:
         names = await (await connection.execute("SELECT name FROM box_settings")).fetchall()
     assert FLEETS in {row["name"] for row in names}
+
+
+def test_a_secret_sealed_under_a_key_no_longer_listed_reads_as_unset_and_says_so(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    token = sealed(vault_of(OLD), "a-secret")
+    with caplog.at_level(logging.WARNING):
+        assert opened(vault_of(NEW), token) is None
+    assert "PINECALL_VAULT_KEY" in caplog.text

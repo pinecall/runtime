@@ -29,24 +29,26 @@ def long_docstrings(path: Path) -> list[str]:
 
 
 def test_ruff_finds_nothing_to_lint_or_format() -> None:
-    status, said = tool("ruff", "check", ".")
-    assert status == 0, said
-    status, said = tool("ruff", "format", "--check", ".")
-    assert status == 0, said
+    status, text = tool("ruff", "check", ".")
+    assert status == 0, text
+    status, text = tool("ruff", "format", "--check", ".")
+    assert status == 0, text
 
 
 def test_pyright_strict_finds_nothing() -> None:
-    status, said = tool("pyright")
-    assert status == 0, said
+    status, text = tool("pyright")
+    assert status == 0, text
 
 
 def test_deptry_finds_every_import_declared_and_every_declaration_imported() -> None:
-    status, said = tool("deptry", ".")
-    assert status == 0, said
+    status, text = tool("deptry", ".")
+    assert status == 0, text
 
 
 def test_every_docstring_is_one_line() -> None:
-    assert [one for path in checked_files() for one in long_docstrings(path)] == []
+    assert [
+        long_docstring for path in checked_files() for long_docstring in long_docstrings(path)
+    ] == []
 
 
 def test_the_rule_catches_what_each_tool_refuses() -> None:

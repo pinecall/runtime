@@ -85,12 +85,19 @@ from pinecall.wire.state import (
 
 logger = logging.getLogger(__name__)
 
+
 UNREADABLE = "unreadable"
+
+
 NOT_THIS_SHAPE = "{type} at seq {seq} is not the shape this reader knows: {why}"
+
 
 # The only metered types. Usage is a projection of the log, never stored beside it.
 METERED_TYPES = ("call.summary", "call.score")
+
+
 UNOWNED = "unowned"
+
 
 # livekit's names, in the order they happen within a turn.
 MEASURES = (
@@ -100,7 +107,69 @@ MEASURES = (
     "tts_node_ttfb",
     "e2e_latency",
 )
+
+
 A_MINUTE_S = 60.0
+
+
+# position is the store's row order across every log; the meter resumes from it.
+@dataclass(frozen=True, slots=True)
+class Metered:
+    """A metered entry with its place in the whole store and the org its log belongs to."""
+
+    position: int
+    org: str | None
+    entry: Entry
+
+
+# cost_eur is the vendors' estimate, what the call cost Pinecall, never what is charged.
+@dataclass(frozen=True, slots=True)
+class Usage:
+    """What was consumed: calls, minutes, turns, tokens, characters, judge calls, the cost."""
+
+    calls: int = 0
+    minutes: float = 0.0
+    messages: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    characters: int = 0
+    judge_calls: int = 0
+    cost_eur: float = 0.0
+
+    def __add__(self, other: Self) -> Self:
+        """Return the two added up, field by field."""
+        return type(self)(
+            calls=self.calls + other.calls,
+            minutes=self.minutes + other.minutes,
+            messages=self.messages + other.messages,
+            input_tokens=self.input_tokens + other.input_tokens,
+            output_tokens=self.output_tokens + other.output_tokens,
+            characters=self.characters + other.characters,
+            judge_calls=self.judge_calls + other.judge_calls,
+            cost_eur=self.cost_eur + other.cost_eur,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class UsageRow:
+    """What one metered entry consumed, and whose it was."""
+
+    cursor: int
+    org: str
+    agent: str
+    call: str
+    type: str
+    at: float
+    used: Usage = field(default_factory=Usage)
+
+
+@dataclass(frozen=True, slots=True)
+class Median:
+    """A measure's median over one call, and how many turns reported it."""
+
+    name: str
+    seconds: float
+    turns: int
 
 
 # Must fold as the TypeScript and Ruby reducers do: the protocol's golden log holds all three.
@@ -184,6 +253,59 @@ def apply(state: State, entry: Entry) -> State:
     if entry.call is not None:
         state.call = entry.call
     return state
+
+
+def usage_row(metered: Metered) -> UsageRow:
+    """Return what a call.summary or a call.score consumed; an entry nobody can read, nothing."""
+    entry = metered.entry
+    row = UsageRow(
+        cursor=metered.position,
+        org=metered.org or UNOWNED,
+        agent=entry.agent,
+        call=entry.call or "",
+        type=entry.type,
+        at=entry.ts,
+    )
+    try:
+        data = event_of(entry)
+    except DeclarationRefused:
+        logger.warning("usage: %s at seq %d is unreadable", entry.type, entry.seq, exc_info=True)
+        return row
+    match data:
+        case CallSummary():
+            return replace(row, used=_used_by_a_call(data))
+        case CallScore():
+            used = Usage(judge_calls=data.judge_calls, cost_eur=data.judge_cost_eur or 0.0)
+            return replace(row, used=used)
+        case _:
+            return row
+
+
+def totals_by_org(rows: Iterable[UsageRow]) -> dict[str, Usage]:
+    """Add the rows up per org, in the order each org first appears."""
+    totals: dict[str, Usage] = {}
+    for row in rows:
+        totals[row.org] = totals.get(row.org, Usage()) + row.used
+    return totals
+
+
+def samples(turns: Iterable[Turn]) -> dict[str, list[float]]:
+    """Return each measure's values in turn order; a measure nobody took is left out."""
+    found: dict[str, list[float]] = {name: [] for name in MEASURES}
+    for turn in turns:
+        for name, value in _measured(turn):
+            if value is not None:
+                found[name].append(value)
+    return {name: values for name, values in found.items() if values}
+
+
+# The median, not the mean: one interrupted turn would move an average.
+def medians(turns: Iterable[Turn]) -> list[Median]:
+    """Return one Median per measure some turn reported, in the order a turn takes them."""
+    return [
+        Median(name=name, seconds=median(values), turns=len(values))
+        for name, values in samples(turns).items()
+    ]
 
 
 def _resumed(state: State, gap: LogGap) -> State:
@@ -279,14 +401,14 @@ def _tools(state: State, entry: Entry, data: WireModel) -> None:
         case ToolsChanged():
             state.tools_visible = list(data.visible)
         case ConfirmRequest():
-            asked = {"tool": data.tool, "call_id": data.call_id, "audience": data.audience}
-            state.confirms.append(Confirm(**asked, phrase=data.phrase, status="pending"))
+            params = {"tool": data.tool, "call_id": data.call_id, "audience": data.audience}
+            state.confirms.append(Confirm(**params, phrase=data.phrase, status="pending"))
         case ConfirmGranted():
             _settled(state.confirms, data.call_id, {"status": "granted", "said": data.said})
         case ConfirmDeclined():
-            said = {} if data.said is None else {"said": data.said}
+            text = {} if data.said is None else {"said": data.said}
             _settled(
-                state.confirms, data.call_id, {"status": "declined", "reason": data.reason, **said}
+                state.confirms, data.call_id, {"status": "declined", "reason": data.reason, **text}
             )
         case _:
             pass
@@ -393,94 +515,6 @@ def _notes(state: State, entry: Entry, data: WireModel) -> None:
             pass
 
 
-# ── usage ──
-
-
-# position is the store's row order across every log; the meter resumes from it.
-@dataclass(frozen=True, slots=True)
-class Metered:
-    """A metered entry with its place in the whole store and the org its log belongs to."""
-
-    position: int
-    org: str | None
-    entry: Entry
-
-
-# cost_eur is the vendors' estimate, what the call cost Pinecall, never what is charged.
-@dataclass(frozen=True, slots=True)
-class Usage:
-    """What was consumed: calls, minutes, turns, tokens, characters, judge calls, the cost."""
-
-    calls: int = 0
-    minutes: float = 0.0
-    messages: int = 0
-    input_tokens: int = 0
-    output_tokens: int = 0
-    characters: int = 0
-    judge_calls: int = 0
-    cost_eur: float = 0.0
-
-    def __add__(self, other: Self) -> Self:
-        """Return the two added up, field by field."""
-        return type(self)(
-            calls=self.calls + other.calls,
-            minutes=self.minutes + other.minutes,
-            messages=self.messages + other.messages,
-            input_tokens=self.input_tokens + other.input_tokens,
-            output_tokens=self.output_tokens + other.output_tokens,
-            characters=self.characters + other.characters,
-            judge_calls=self.judge_calls + other.judge_calls,
-            cost_eur=self.cost_eur + other.cost_eur,
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class UsageRow:
-    """What one metered entry consumed, and whose it was."""
-
-    cursor: int
-    org: str
-    agent: str
-    call: str
-    type: str
-    at: float
-    used: Usage = field(default_factory=Usage)
-
-
-def usage_row(metered: Metered) -> UsageRow:
-    """Return what a call.summary or a call.score consumed; an entry nobody can read, nothing."""
-    entry = metered.entry
-    row = UsageRow(
-        cursor=metered.position,
-        org=metered.org or UNOWNED,
-        agent=entry.agent,
-        call=entry.call or "",
-        type=entry.type,
-        at=entry.ts,
-    )
-    try:
-        data = event_of(entry)
-    except DeclarationRefused:
-        logger.warning("usage: %s at seq %d is unreadable", entry.type, entry.seq, exc_info=True)
-        return row
-    match data:
-        case CallSummary():
-            return replace(row, used=_used_by_a_call(data))
-        case CallScore():
-            used = Usage(judge_calls=data.judge_calls, cost_eur=data.judge_cost_eur or 0.0)
-            return replace(row, used=used)
-        case _:
-            return row
-
-
-def totals_by_org(rows: Iterable[UsageRow]) -> dict[str, Usage]:
-    """Add the rows up per org, in the order each org first appears."""
-    totals: dict[str, Usage] = {}
-    for row in rows:
-        totals[row.org] = totals.get(row.org, Usage()) + row.used
-    return totals
-
-
 # Tokens are counted from the LLM rows and characters from the TTS rows; every other row's
 # audio seconds are already the call's minutes.
 def _used_by_a_call(summary: CallSummary) -> Usage:
@@ -495,37 +529,6 @@ def _used_by_a_call(summary: CallSummary) -> Usage:
         characters=sum(row.characters_count or 0 for row in tts),
         cost_eur=summary.cost.eur,
     )
-
-
-# ── latencies ──
-
-
-@dataclass(frozen=True, slots=True)
-class Median:
-    """A measure's median over one call, and how many turns reported it."""
-
-    name: str
-    seconds: float
-    turns: int
-
-
-def samples(turns: Iterable[Turn]) -> dict[str, list[float]]:
-    """Return each measure's values in turn order; a measure nobody took is left out."""
-    found: dict[str, list[float]] = {name: [] for name in MEASURES}
-    for turn in turns:
-        for name, value in _measured(turn):
-            if value is not None:
-                found[name].append(value)
-    return {name: values for name, values in found.items() if values}
-
-
-# The median, not the mean: one interrupted turn would move an average.
-def medians(turns: Iterable[Turn]) -> list[Median]:
-    """Return one Median per measure some turn reported, in the order a turn takes them."""
-    return [
-        Median(name=name, seconds=median(values), turns=len(values))
-        for name, values in samples(turns).items()
-    ]
 
 
 def _measured(turn: Turn) -> tuple[tuple[str, float | None], ...]:

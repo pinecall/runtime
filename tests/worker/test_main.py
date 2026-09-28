@@ -4,7 +4,7 @@ import pytest
 from livekit.agents import AgentServer
 
 from pinecall.domain.errors import SettingsRefused
-from pinecall.domain.settings import Settings
+from pinecall.process.settings import Settings
 from pinecall.worker.main import CLOSED, OPEN, OverflowGate, overflow_of, server_of
 
 REGISTRABLE = {

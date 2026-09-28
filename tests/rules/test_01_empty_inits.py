@@ -10,7 +10,7 @@ def inits_with_content(package: Path) -> list[str]:
 
 
 def test_every_init_of_the_package_is_empty() -> None:
-    assert [relative(Path(one)) for one in inits_with_content(PACKAGE)] == []
+    assert [relative(Path(item)) for item in inits_with_content(PACKAGE)] == []
 
 
 def test_the_rule_catches_an_init_with_content() -> None:

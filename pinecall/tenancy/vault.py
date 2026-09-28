@@ -3,24 +3,13 @@
 import json
 import logging
 
-from cryptography.fernet import Fernet, InvalidToken, MultiFernet
+from cryptography.fernet import InvalidToken, MultiFernet
 from psycopg.types.json import Jsonb
 
-from pinecall.domain.errors import SettingsRefused
-from pinecall.domain.types import Credentials, Json
+from pinecall.domain.names import Credentials, Json
 from pinecall.postgres.pool import Pool
 
 logger = logging.getLogger(__name__)
-
-VARIABLE = "PINECALL_VAULT_KEY"
-UNSET = (
-    f"{VARIABLE} is unset: every vendor key, mailbox and sign-in secret is sealed under it, "
-    "so the gateway does not start without it. `Fernet.generate_key()` makes one"
-)
-NOT_A_KEY = (
-    f"{VARIABLE} holds something that is not a Fernet key: a comma-separated list of "
-    "32-byte url-safe base64 keys, the newest first"
-)
 
 # The box's own credentials sit beside its other settings, one row per vendor.
 BOX_CREDENTIALS = "credentials/"
@@ -42,17 +31,6 @@ ON CONFLICT (name) DO UPDATE SET ciphertext = excluded.ciphertext, set_at = now(
 DROP_BOX = "DELETE FROM box_settings WHERE name = %(name)s RETURNING name"
 
 
-def vault_of(keys: str | None) -> MultiFernet:
-    """The vault built from the setting: the first key seals, any key listed opens."""
-    if keys is None:
-        raise SettingsRefused(UNSET)
-    listed = [one.strip() for one in keys.split(",") if one.strip()]
-    try:
-        return MultiFernet([Fernet(one) for one in listed])
-    except ValueError:
-        raise SettingsRefused(NOT_A_KEY) from None
-
-
 def sealed(vault: MultiFernet, secret: Json) -> str:
     """The secret as one Fernet token over its JSON."""
     return vault.encrypt(json.dumps(secret).encode()).decode()
@@ -65,7 +43,9 @@ def opened(vault: MultiFernet, token: str) -> Json:
     try:
         return json.loads(vault.decrypt(token.encode()))
     except InvalidToken:
-        logger.warning("a secret sealed under a key %s no longer lists reads as unset", VARIABLE)
+        logger.warning(
+            "a secret sealed under a key PINECALL_VAULT_KEY no longer lists reads as unset"
+        )
         return None
 
 

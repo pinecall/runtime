@@ -2,8 +2,8 @@
 
 import pytest
 
+from pinecall.domain.agent import AgentConfig, Docs, Greeting, MemoryPolicy, ToolSpec
 from pinecall.domain.errors import Conflict
-from pinecall.domain.types import AgentConfig, Docs, Greeting, MemoryPolicy, ToolSpec
 from pinecall.log.store import Store
 from pinecall.session import text
 from pinecall.wire.parts import Supervisor
@@ -20,9 +20,9 @@ async def test_a_message_is_answered_and_both_turns_land_in_the_log(
 ) -> None:
     session = a_session(box, AGENT, ["Hola", ", ¿en qué", " le ayudo?"])
     await session.start()
-    said = await text.hears(session, "hola")
+    sentence = await text.hears(session, "hola")
     await text.end(session, "caller_hung_up", "caller")
-    assert said == "Hola, ¿en qué le ayudo?"
+    assert sentence == "Hola, ¿en qué le ayudo?"
     written = await kinds(store, call)
     assert written.index("turn.user") < written.index("turn.agent")
     entries = await store.whole(call)
@@ -47,9 +47,9 @@ async def test_a_text_call_is_told_what_day_it_is_before_the_caller_says_a_word(
     session = a_session(box, AGENT, ["Hola"])
     await session.start()
     await text.hears(session, "¿qué día es?")
-    asked = model_of(session).asked[0].items
-    names = [getattr(item, "name", None) for item in asked]
-    assert names.index("current_date") < [getattr(item, "role", None) for item in asked].index(
+    params = model_of(session).requests[0].items
+    names = [getattr(item, "name", None) for item in params]
+    assert names.index("current_date") < [getattr(item, "role", None) for item in params].index(
         "user"
     )
     await text.end(session, "caller_hung_up", "caller")
@@ -61,7 +61,7 @@ async def test_the_date_is_seeded_once_a_call_and_never_once_a_turn(box: Box) ->
     await session.start()
     await text.hears(session, "hola")
     await text.hears(session, "otra vez")
-    last = model_of(session).asked[-1].items
+    last = model_of(session).requests[-1].items
     calls = [item for item in last if getattr(item, "type", "") == "function_call"]
     assert [getattr(item, "name", "") for item in calls] == ["current_date"]
     await text.end(session, "caller_hung_up", "caller")
@@ -74,10 +74,10 @@ async def test_a_thread_a_supervisor_holds_logs_what_the_contact_writes_and_answ
     session = a_session(box, AGENT, ["nunca"])
     await session.start()
     session.call.taken_by = A_SUPERVISOR
-    said = await text.hears(session, "¿hay alguien?")
+    sentence = await text.hears(session, "¿hay alguien?")
     await text.end(session, "caller_hung_up", "caller")
-    assert said == ""
-    assert model_of(session).asked == []
+    assert sentence == ""
+    assert model_of(session).requests == []
     turns = [entry for entry in await store.whole(call) if entry.type == "turn.user"]
     assert [entry.data["text"] for entry in turns] == ["¿hay alguien?"]
     assert turns[0].data["speech_id"] == "sp_1"
@@ -91,7 +91,7 @@ async def test_a_thread_waiting_for_a_person_logs_what_the_contact_writes_and_an
     await session.start()
     session.call.waiting_for_a_person = True
     assert await text.hears(session, "sigo acá") == ""
-    assert model_of(session).asked == []
+    assert model_of(session).requests == []
     await text.end(session, "caller_hung_up", "caller")
 
 
@@ -103,13 +103,13 @@ async def test_the_callers_words_are_the_query_and_the_pair_closes_the_request(b
     await session.start()
     await text.hears(session, "necesito un turno para mañana")
     await text.end(session, "caller_hung_up", "caller")
-    assert box.looked == [
+    assert box.lookups == [
         ("recall", {"contact": "+59899123456", "query": "necesito un turno para mañana"})
     ]
-    asked = model_of(session).asked[0].items
+    params = model_of(session).requests[0].items
     outputs = [
         getattr(item, "output", "")
-        for item in asked
+        for item in params
         if getattr(item, "type", "") == "function_call_output"
     ]
     assert any("penicilina" in str(output) for output in outputs)
@@ -122,7 +122,7 @@ async def test_a_written_caller_who_types_one_word_is_still_asked_for(box: Box) 
     await session.start()
     await text.hears(session, "precios")
     await text.end(session, "caller_hung_up", "caller")
-    assert box.looked == [("search", {"query": "precios"})]
+    assert box.lookups == [("search", {"query": "precios"})]
 
 
 @postgres
@@ -132,7 +132,7 @@ async def test_a_turn_that_is_only_digits_asks_nothing_of_either_index(box: Box)
     await session.start()
     await text.hears(session, "4 5 6 7")
     await text.end(session, "caller_hung_up", "caller")
-    assert box.looked == []
+    assert box.lookups == []
 
 
 @postgres
@@ -143,9 +143,9 @@ async def test_a_lookup_that_fails_is_a_recoverable_entry_and_the_turn_goes_on(
     agent = AgentConfig(slug="clinica-norte", bases=(Docs(base="precios"),))
     session = a_session(box, agent, ["Sin datos, pero sigo"])
     await session.start()
-    said = await text.hears(session, "¿cuánto sale una consulta?")
+    sentence = await text.hears(session, "¿cuánto sale una consulta?")
     await text.end(session, "caller_hung_up", "caller")
-    assert said == "Sin datos, pero sigo"
+    assert sentence == "Sin datos, pero sigo"
     errors = [entry.data for entry in await store.whole(call) if entry.type == "error"]
     assert errors[0]["code"] == "search_skipped"
     assert errors[0]["recoverable"] is True
@@ -258,8 +258,8 @@ async def test_a_round_after_a_tool_call_is_its_own_turn_of_the_agent(
         box, booking, ["Le reservo.", {"name": "book", "call_id": "t1"}], ["Listo."]
     )
     await session.start()
-    said = await text.hears(session, "reservá")
+    sentence = await text.hears(session, "reservá")
     await text.end(session, "caller_hung_up", "caller")
     agent = [entry.data["text"] for entry in await store.whole(call) if entry.type == "turn.agent"]
     assert agent == ["Le reservo.", "Listo."]
-    assert said == "Listo."
+    assert sentence == "Listo."

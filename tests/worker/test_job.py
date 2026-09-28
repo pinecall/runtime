@@ -3,11 +3,13 @@
 import pytest
 from livekit import api, rtc
 
-from pinecall.channels.routes import Dispatch
+from pinecall.channels.rooms import Dispatch
+from pinecall.domain.call import Route
 from pinecall.domain.errors import GatewayRefused, NotFound
-from pinecall.domain.types import THE_WIDGET, Corner, Route
+from pinecall.domain.names import THE_WIDGET
+from pinecall.domain.scope import Scope
 from pinecall.session.room import CALLER_NUMBER, DIALLED_NUMBER
-from pinecall.worker.job import (
+from pinecall.worker._job import (
     Arrival,
     arrival_of,
     end_reason_of,
@@ -15,7 +17,8 @@ from pinecall.worker.job import (
     named_by,
     resolve,
 )
-from tests.fakes import Room, seat
+from tests.fakes.acme import seat
+from tests.fakes.livekit import Room
 
 NUMBER = "+15550100"
 CALLER = "+15550199"
@@ -89,7 +92,7 @@ def test_only_an_undispatched_ring_at_a_production_number_may_be_a_developers() 
 def test_the_box_trunk_names_no_corner_and_a_token_names_its_own() -> None:
     assert named_by(Dispatch()) is None
     named = named_by(Dispatch(org="org_a", env="sandbox", holder="m_1"))
-    assert named == Corner("org_a", "sandbox", "m_1")
+    assert named == Scope("org_a", "sandbox", "m_1")
 
 
 @pytest.mark.parametrize(

@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from pinecall.domain.types import Json, JsonObject
+from pinecall.domain.names import Json, JsonObject
 from pinecall.log.reduce import (
     MEASURES,
     METERED_TYPES,
@@ -22,7 +22,7 @@ from pinecall.log.reduce import (
 from pinecall.wire.events import EVENTS
 from pinecall.wire.frames import Entry, read_log
 from pinecall.wire.state import AgentTurn, Gap, State, UserTurn
-from tests.wire.parity import GOLDEN_LOG, GOLDEN_STATE
+from tests.wire.golden import GOLDEN_LOG, GOLDEN_STATE
 
 GOLDEN = read_log(GOLDEN_LOG.read_text(encoding="utf-8"))
 EXPECTED = json.loads(GOLDEN_STATE.read_text(encoding="utf-8"))
@@ -73,14 +73,14 @@ def test_the_golden_log_reduces_to_the_golden_state_whole() -> None:
 
 
 def test_the_golden_carries_both_kinds_of_entry() -> None:
-    assert {one.ephemeral for one in GOLDEN} == {True, False}
+    assert {item.ephemeral for item in GOLDEN} == {True, False}
 
 
 @pytest.mark.parametrize("cut", range(len(GOLDEN) + 1))
 def test_a_state_kept_at_any_cut_folds_the_rest_to_the_same_state(cut: int) -> None:
     state = reduce(GOLDEN[:cut])
-    for one in GOLDEN[cut:]:
-        state = apply(state, one)
+    for item in GOLDEN[cut:]:
+        state = apply(state, item)
     assert state.written() == EXPECTED
 
 
@@ -94,7 +94,7 @@ def test_a_gap_carrying_a_snapshot_of_any_cut_resumes_to_the_same_state(cut: int
     resumed = reduce([gap, *GOLDEN[cut:]])
     ours = Gap(from_seq=1, to_seq=cut)
     assert resumed.gaps.count(ours) == 1
-    assert [one for one in resumed.gaps if one != ours] == State.model_validate(EXPECTED).gaps
+    assert [gap for gap in resumed.gaps if gap != ours] == State.model_validate(EXPECTED).gaps
     assert resumed.model_copy(update={"gaps": []}).written() == {**EXPECTED, "gaps": []}
 
 
@@ -163,12 +163,12 @@ def test_a_finished_turn_clears_the_words_on_screen() -> None:
 
 def test_the_agents_words_on_screen_are_its_deltas_joined() -> None:
     def word(seq: int, text: str, start: float) -> Entry:
-        said: JsonObject = {"speech_id": "a1", "text": text, "final": False, "start": start}
-        return entry(seq, "agent.transcript", said, ephemeral=True)
+        data: JsonObject = {"speech_id": "a1", "text": text, "final": False, "start": start}
+        return entry(seq, "agent.transcript", data, ephemeral=True)
 
     def token(seq: int, text: str) -> Entry:
-        said: JsonObject = {"speech_id": "a2", "text": text, "final": False}
-        return entry(seq, "agent.transcript", said, ephemeral=True)
+        data: JsonObject = {"speech_id": "a2", "text": text, "final": False}
+        return entry(seq, "agent.transcript", data, ephemeral=True)
 
     assert reduce(
         [word(1, "Claro,", 0), word(2, "el", 0.4), word(3, "viernes", 0.6)]
@@ -201,7 +201,7 @@ def test_a_tool_result_closes_its_call_as_done_or_failed() -> None:
 
 
 def test_a_granted_confirm_settles_the_pending_request_with_what_was_said() -> None:
-    asked: JsonObject = {
+    params: JsonObject = {
         "tool": "move",
         "call_id": "tc_2",
         "arguments": {},
@@ -216,12 +216,12 @@ def test_a_granted_confirm_settles_the_pending_request_with_what_was_said() -> N
         "said": "vale",
         "ttl_s": 60,
     }
-    state = reduce([entry(1, "confirm.request", asked), entry(2, "confirm.granted", granted)])
+    state = reduce([entry(1, "confirm.request", params), entry(2, "confirm.granted", granted)])
     assert (state.confirms[0].status, state.confirms[0].said) == ("granted", "vale")
 
 
 def test_a_declined_confirm_says_why_and_keeps_what_was_said_only_when_something_was() -> None:
-    asked: JsonObject = {
+    params: JsonObject = {
         "tool": "move",
         "call_id": "tc_3",
         "arguments": {},
@@ -235,7 +235,7 @@ def test_a_declined_confirm_says_why_and_keeps_what_was_said_only_when_something
         "audience": "sha256:a",
         "reason": "timeout",
     }
-    state = reduce([entry(1, "confirm.request", asked), entry(2, "confirm.declined", lapsed)])
+    state = reduce([entry(1, "confirm.request", params), entry(2, "confirm.declined", lapsed)])
     assert (state.confirms[0].status, state.confirms[0].reason) == ("declined", "timeout")
     assert "said" not in state.confirms[0].model_fields_set
 
@@ -249,7 +249,7 @@ def test_a_gap_with_a_snapshot_replaces_everything_and_is_remembered() -> None:
     gap: JsonObject = {"from_seq": 1, "to_seq": 4, "snapshot": snapshot}
     state = reduce([entry(4, "log.gap", gap, ephemeral=True)])
     assert (state.status, state.seq) == ("active", 4)
-    assert [(one.from_seq, one.to_seq) for one in state.gaps] == [(1, 4)]
+    assert [(gap.from_seq, gap.to_seq) for gap in state.gaps] == [(1, 4)]
 
 
 def test_a_gap_without_a_snapshot_only_moves_the_cursor() -> None:
@@ -294,10 +294,10 @@ def test_a_supervisor_taking_over_and_releasing_leaves_the_line_with_the_agent()
 
 
 def test_a_transfer_a_supervisor_asked_for_stays_theirs_when_it_lands() -> None:
-    asked: JsonObject = {"by": BOSS, "to": "+34955000000"}
+    params: JsonObject = {"by": BOSS, "to": "+34955000000"}
     state = reduce(
         [
-            entry(1, "supervisor.transferred", asked),
+            entry(1, "supervisor.transferred", params),
             entry(2, "call.transferred", {"to": "+34955000000", "ok": True}),
         ]
     )
@@ -382,7 +382,7 @@ def test_an_outside_fact_is_kept_by_name_and_origin_and_its_cause_names_it() -> 
         "cause": {"kind": "event", "name": "slot.freed", "seq": 1},
     }
     state = reduce([entry(1, "event.received", fact), entry(2, "state.changed", moved)])
-    assert [(one.seq, one.name, one.source, one.identity) for one in state.events] == [
+    assert [(event.seq, event.name, event.source, event.identity) for event in state.events] == [
         (1, "slot.freed", "app", None)
     ]
     assert state.app_state == {"free": ["11:30"]}
@@ -395,7 +395,7 @@ FROM_ANOTHER_VERSION = entry(7, "prompt.changed", {"region": "static", "hash": "
 
 def test_an_entry_this_reader_cannot_read_is_one_line_of_the_errors_list() -> None:
     state = apply(initial_state(), FROM_ANOTHER_VERSION)
-    assert [one.code for one in state.errors] == [UNREADABLE]
+    assert [error.code for error in state.errors] == [UNREADABLE]
     assert "prompt.changed at seq 7" in state.errors[0].message
     assert "\n" not in state.errors[0].message
     assert state.prompt == {}
@@ -520,14 +520,17 @@ GOLDEN_TURNS = reduce(GOLDEN).turns
 
 
 def test_the_medians_are_the_five_measures_over_the_turns_that_carried_them() -> None:
-    rows = {one.name: (one.seconds, one.turns) for one in medians(GOLDEN_TURNS)}
+    rows = {median.name: (median.seconds, median.turns) for median in medians(GOLDEN_TURNS)}
     assert list(rows) == list(MEASURES)
     assert rows["e2e_latency"] == (0.94, 5)
 
 
 def test_a_measure_no_turn_carried_gets_no_row_at_all() -> None:
     callers = [turn for turn in GOLDEN_TURNS if isinstance(turn, UserTurn)]
-    assert [one.name for one in medians(callers)] == ["transcription_delay", "end_of_turn_delay"]
+    assert [median.name for median in medians(callers)] == [
+        "transcription_delay",
+        "end_of_turn_delay",
+    ]
 
 
 def test_a_sample_keeps_every_value_in_turn_order_and_drops_the_measures_nobody_took() -> None:

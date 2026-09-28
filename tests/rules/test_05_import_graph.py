@@ -10,17 +10,21 @@ from tests.rules.tree import FIXTURES, PACKAGE, package_of, relative, source_fil
 EDGES: dict[str, frozenset[str]] = {
     "domain": frozenset(),
     "postgres": frozenset({"domain"}),
+    "process": frozenset({"domain", "postgres"}),
     "wire": frozenset({"domain"}),
-    "log": frozenset({"domain", "wire", "postgres"}),
-    "tenancy": frozenset({"domain", "wire", "postgres", "log"}),
-    "providers": frozenset({"domain", "wire", "postgres"}),
-    "session": frozenset({"domain", "wire", "providers", "log"}),
-    "retrieval": frozenset({"domain", "wire", "postgres", "log", "providers"}),
-    "evals": frozenset({"domain", "wire", "postgres", "session", "retrieval", "log", "providers"}),
-    "channels": frozenset({"domain", "wire", "postgres", "tenancy", "log"}),
-    "fleet": frozenset({"domain", "wire", "log"}),
+    "log": frozenset({"process", "domain", "wire", "postgres"}),
+    "tenancy": frozenset({"process", "domain", "wire", "postgres", "log"}),
+    "providers": frozenset({"process", "domain", "wire", "postgres"}),
+    "session": frozenset({"process", "domain", "wire", "providers", "log"}),
+    "retrieval": frozenset({"process", "domain", "wire", "postgres", "log", "providers"}),
+    "evals": frozenset(
+        {"process", "domain", "wire", "postgres", "session", "retrieval", "log", "providers"}
+    ),
+    "channels": frozenset({"process", "domain", "wire", "postgres", "tenancy", "fleet", "log"}),
+    "fleet": frozenset({"process", "domain", "wire", "postgres", "log"}),
     "gateway": frozenset(
         {
+            "process",
             "domain",
             "wire",
             "postgres",
@@ -34,9 +38,12 @@ EDGES: dict[str, frozenset[str]] = {
             "fleet",
         }
     ),
-    "worker": frozenset({"domain", "wire", "session", "providers", "fleet", "channels", "log"}),
+    "worker": frozenset(
+        {"process", "domain", "wire", "session", "providers", "fleet", "channels", "log"}
+    ),
     "cli": frozenset(
         {
+            "process",
             "domain",
             "wire",
             "postgres",
@@ -59,7 +66,7 @@ NOBODY_IMPORTS = "gateway.api"
 
 # The leaves hold data and no framework: what each may import beyond the standard library.
 LIBRARIES_OF_THE_LEAVES: dict[str, frozenset[str]] = {
-    "domain": frozenset({"pydantic", "dotenv"}),
+    "domain": frozenset({"pydantic"}),
     "wire": frozenset({"pydantic"}),
 }
 
@@ -90,7 +97,7 @@ def libraries_of(module: Path) -> set[str]:
             named.add(node.module.split(".")[0])
         if isinstance(node, ast.Import):
             named |= {alias.name.split(".")[0] for alias in node.names}
-    return {one for one in named if one != "pinecall" and one not in sys.stdlib_module_names}
+    return {item for item in named if item != "pinecall" and item not in sys.stdlib_module_names}
 
 
 def offences(module: Path, package: Path = PACKAGE) -> list[str]:
@@ -111,7 +118,9 @@ def offences(module: Path, package: Path = PACKAGE) -> list[str]:
 
 
 def test_every_import_of_ours_is_an_edge_of_the_list() -> None:
-    assert [f"{relative(path)}: {one}" for path in source_files() for one in offences(path)] == []
+    assert [
+        f"{relative(path)}: {offence}" for path in source_files() for offence in offences(path)
+    ] == []
 
 
 def test_every_package_of_the_tree_has_a_row_and_no_row_names_a_package_twice() -> None:

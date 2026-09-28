@@ -1,0 +1,37 @@
+name: check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  rules:
+    name: the rules and the suites with no database
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync
+      - run: uv run pytest -q -n auto
+
+  suites:
+    name: every suite, on Postgres
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync
+      - name: the Postgres of infra/postgres, on tmpfs
+        run: |
+          docker build -t pinecall/postgres infra/postgres
+          docker run -d --name postgres -p 127.0.0.1:5432:5432 --tmpfs /var/lib/postgresql/data \
+            -e POSTGRES_USER=pinecall -e POSTGRES_PASSWORD=pinecall -e POSTGRES_DB=pinecall \
+            pinecall/postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off
+          until docker exec postgres pg_isready -U pinecall -d pinecall; do sleep 1; done
+      - run: uv run pytest -q -n auto
+        env:
+          DATABASE_URL: postgresql://pinecall:pinecall@127.0.0.1:5432/pinecall

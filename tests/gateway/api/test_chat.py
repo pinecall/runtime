@@ -1,0 +1,127 @@
+"""Tests for a written call over the chat socket."""
+
+import asyncio
+import json
+
+from livekit.agents.llm import ChatMessage
+
+from pinecall.gateway._deps import POLICY_VIOLATION
+from pinecall.providers import catalog
+from tests.conftest import (
+    AGENT,
+    Knocking,
+    configured,
+    postgres,
+    received_until,
+)
+from tests.fakes.acme import AcmeLLM
+from tests.gateway.api.conftest import an_app
+
+
+@postgres
+async def test_a_text_call_is_answered_by_the_model_and_ends_sealed(knocking: Knocking) -> None:
+    await catalog.configure(
+        knocking.gateway.connections.pool, configured([["hola, soy la agenda"]])
+    )
+    app = await an_app(knocking)
+    chat = await knocking.socket(f"/v1/chat?agent={AGENT}", knocking.app["sandbox"])
+    started = await received_until(chat, "call.started")
+    await chat.send(json.dumps({"text": "quiero un turno"}))
+    answered = await received_until(chat, "turn.agent")
+    assert answered.data["text"] == "hola, soy la agenda"
+    await chat.close()
+    call = started.call or ""
+    for _ in range(50):
+        if await knocking.gateway.logs.store.sealed(call):
+            break
+        await asyncio.sleep(0.1)
+    kinds = [entry.type for entry in await knocking.gateway.logs.store.whole(call)]
+    assert kinds[-3:] == ["call.ended", "call.summary", "call.score"]
+    await app.close()
+
+
+@postgres
+async def test_a_text_call_to_an_agent_nobody_holds_is_closed_with_the_reason(
+    knocking: Knocking,
+) -> None:
+    chat = await knocking.socket(f"/v1/chat?agent={AGENT}", knocking.app["sandbox"])
+    await chat.wait_closed()
+    assert chat.close_code == POLICY_VIOLATION
+    assert "no app is holding" in (chat.close_reason or "")
+
+
+@postgres
+async def test_a_caller_back_on_a_forgotten_call_carries_on_and_nothing_starts_again(
+    knocking: Knocking,
+) -> None:
+    await catalog.configure(knocking.gateway.connections.pool, configured([["hola"]]))
+    app = await an_app(knocking)
+    chat = await knocking.socket(f"/v1/chat?agent={AGENT}", knocking.app["sandbox"])
+    started = await received_until(chat, "call.started")
+    call = started.call or ""
+    await chat.send(json.dumps({"text": "quiero un turno"}))
+    await received_until(chat, "turn.agent")
+    await chat.close(code=1012)
+    await asyncio.sleep(0.2)
+    knocking.gateway.live.close(call)
+    knocking.gateway.logs.forget(call)
+    back = await knocking.socket(f"/v1/chat?agent={AGENT}&call={call}", knocking.app["sandbox"])
+    attached = await received_until(app, "call.attached")
+    await back.send(json.dumps({"text": "sigo"}))
+    await received_until(back, "turn.agent")
+    session = knocking.gateway.live.calls[call].session
+    assert session is not None
+    (model,) = session.built
+    assert isinstance(model, AcmeLLM)
+    heard = [
+        item.text_content for item in model.requests[-1].items if isinstance(item, ChatMessage)
+    ]
+    await back.close()
+    assert attached.call == call
+    assert "quiero un turno" in heard
+    kinds = [item.type for item in await knocking.gateway.logs.store.whole(call)]
+    assert kinds.count("call.started") == 1
+    assert "call.ended" not in kinds[: kinds.index("call.attached")]
+    await app.close()
+
+
+@postgres
+async def test_a_call_that_is_over_is_not_taken_up(knocking: Knocking) -> None:
+    await catalog.configure(knocking.gateway.connections.pool, configured([["hola"]]))
+    app = await an_app(knocking)
+    chat = await knocking.socket(f"/v1/chat?agent={AGENT}", knocking.app["sandbox"])
+    started = await received_until(chat, "call.started")
+    call = started.call or ""
+    await chat.close()
+    for _ in range(50):
+        if await knocking.gateway.logs.store.sealed(call):
+            break
+        await asyncio.sleep(0.1)
+    back = await knocking.socket(f"/v1/chat?agent={AGENT}&call={call}", knocking.app["sandbox"])
+    await back.wait_closed()
+    assert back.close_code == POLICY_VIOLATION
+    assert "cannot be taken up" in (back.close_reason or "")
+    await app.close()
+
+
+@postgres
+async def test_a_supervisors_end_on_a_chat_seals_the_call_and_closes_the_socket(
+    knocking: Knocking,
+) -> None:
+    await catalog.configure(knocking.gateway.connections.pool, configured([["hola"]]))
+    app = await an_app(knocking)
+    chat = await knocking.socket(f"/v1/chat?agent={AGENT}", knocking.app["sandbox"])
+    started = await received_until(chat, "call.started")
+    call = started.call or ""
+    await chat.send(json.dumps({"text": "quiero un turno"}))
+    await received_until(chat, "turn.agent")
+    async with knocking.http(knocking.app["sandbox"]) as desk:
+        ended = await desk.post(f"/v1/calls/{call}/verbs", json={"verb": "end"})
+    assert ended.status_code == 202
+    await chat.wait_closed()
+    assert "supervisor_ended" in (chat.close_reason or "")
+    kinds = [item.type for item in await knocking.gateway.logs.store.whole(call)]
+    assert "supervisor.ended" in kinds
+    assert kinds[-3:] == ["call.ended", "call.summary", "call.score"]
+    assert await knocking.gateway.logs.store.sealed(call)
+    await app.close()

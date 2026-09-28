@@ -18,15 +18,25 @@ PROTOCOLS_AND_CASTS: tuple[Allowed, ...] = ()
 # Rule 9: noqa, type: ignore, pyright: ignore, pragma: no cover.
 SUPPRESSIONS: tuple[Allowed, ...] = (
     Allowed(
-        "tests/fakes.py",
+        "tests/fakes/livekit.py",
+        "pyright: " + "ignore",
+        "livekit's ParticipantInfo stub types `kind` as its enum and refuses the wire's int",
+    ),
+    Allowed(
+        "tests/fakes/acme.py",
         "pyright: " + "ignore",
         "livekit's ChunkedStream takes its TTS unparameterised, so its constructor is Unknown",
     ),
     Allowed(
-        "pinecall/session/prompt.py",
+        "pinecall/session/_prompt.py",
         "pyright: " + "ignore",
         "livekit's to_provider_format is overloaded and returns a bare list[dict]; the one way to "
         "keep static blocks apart is to override it",
+    ),
+    Allowed(
+        "pinecall/session/_agent.py",
+        "pyright: " + "ignore",
+        "livekit's Agent constructor carries its unparameterised generics",
     ),
     Allowed(
         "pinecall/session/session.py",
@@ -37,8 +47,12 @@ SUPPRESSIONS: tuple[Allowed, ...] = (
     Allowed(
         "pinecall/session/room.py",
         "pyright: " + "ignore",
-        "livekit's Room emits through a bare Callable, and BackgroundAudioPlayer.start takes an "
-        "unparameterised AgentSession",
+        "livekit's Room emits through a bare Callable",
+    ),
+    Allowed(
+        "pinecall/session/hold.py",
+        "pyright: " + "ignore",
+        "BackgroundAudioPlayer.start takes an unparameterised AgentSession",
     ),
     Allowed(
         "pinecall/session/widget.py",
@@ -46,7 +60,7 @@ SUPPRESSIONS: tuple[Allowed, ...] = (
         "livekit's Room emits through a bare Callable",
     ),
     Allowed(
-        "pinecall/worker/job.py",
+        "pinecall/worker/_job.py",
         "pyright: " + "ignore",
         "livekit's Room emits through a bare Callable",
     ),
@@ -73,5 +87,78 @@ IMPORTS_BY_NAME: tuple[Allowed, ...] = (
         "pinecall/providers/voices.py",
         "getattr(",
         "a plugin that lists its voices does it with list_voices; the others have none",
+    ),
+)
+
+# Rule 17: public modules no package reaches yet, each waiting for the door that will.
+NOT_YET_REACHED: tuple[Allowed, ...] = (
+    Allowed(
+        "pinecall/providers/voices.py",
+        "voices",
+        "GET /v1/voices and the voice sample: doors of the last step",
+    ),
+    Allowed(
+        "pinecall/retrieval/embed.py",
+        "embed",
+        "the knowledge and memory doors are on their own branches",
+    ),
+    Allowed(
+        "pinecall/retrieval/search.py",
+        "search",
+        "the knowledge and memory doors are on their own branches",
+    ),
+    Allowed(
+        "pinecall/wire/rest/retrieval.py", "rest.retrieval", "the bodies of those doors, the same"
+    ),
+)
+
+# Rule 14: the files that create a task, and who cancels or awaits it.
+TASK_OWNERS: tuple[Allowed, ...] = (
+    Allowed(
+        "pinecall/gateway/app.py",
+        "create_task",
+        "the lifespan's exit stack cancels the reaper and the rebuild",
+    ),
+    Allowed(
+        "pinecall/gateway/api/chat.py",
+        "create_task",
+        "the socket's finally cancels the sender and the hang-up watch",
+    ),
+    Allowed(
+        "pinecall/gateway/_threads.py",
+        "create_task",
+        "answering_now holds them; closed() awaits the set",
+    ),
+    Allowed(
+        "pinecall/session/session.py", "create_task", "closing and waiting are cancelled in close()"
+    ),
+    Allowed("pinecall/session/call.py", "create_task", "the drain task ends in Writing.close()"),
+    Allowed(
+        "pinecall/session/hold.py", "create_task", "pending is cancelled when the player stops"
+    ),
+    Allowed(
+        "pinecall/session/tools.py",
+        "create_task",
+        "_Running gathers every tool's task or cancels the rest",
+    ),
+    Allowed(
+        "pinecall/session/widget.py",
+        "create_task",
+        "tailing is cancelled in close(); answers are held in the set",
+    ),
+    Allowed(
+        "pinecall/tenancy/_mail.py",
+        "create_task",
+        "in_flight holds every letter; the outbox awaits them at close",
+    ),
+    Allowed(
+        "pinecall/worker/_job.py",
+        "create_task",
+        "commands and the timer are cancelled when the job ends",
+    ),
+    Allowed(
+        "pinecall/worker/main.py",
+        "create_task",
+        "asyncio.wait on the set, then every task cancelled at shutdown",
     ),
 )
