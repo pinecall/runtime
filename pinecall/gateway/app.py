@@ -14,7 +14,13 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from pinecall.channels.telephony.sip import rebuild
-from pinecall.domain.errors import NotAvailable, NotSignedIn, PinecallError, SettingsRefused
+from pinecall.domain.errors import (
+    DeclarationRefused,
+    NotAvailable,
+    NotSignedIn,
+    PinecallError,
+    SettingsRefused,
+)
 from pinecall.fleet.roster import Roster
 from pinecall.gateway import _deps
 from pinecall.gateway._gateway import Gateway
@@ -22,6 +28,7 @@ from pinecall.gateway._served import ServedCalls, Serving, reap_forever
 from pinecall.gateway._sockets import Sockets
 from pinecall.gateway._threads import Threads
 from pinecall.gateway.api import (
+    accounts,
     agents,
     apps,
     callbacks,
@@ -29,11 +36,16 @@ from pinecall.gateway.api import (
     chat,
     desk,
     fleet,
+    keys,
     line,
+    members,
     numbers,
+    ops,
     org,
     relay,
     retrieval,
+    signup,
+    sso_login,
     threads,
     visitors,
     whatsapp,
@@ -45,6 +57,8 @@ from pinecall.process.settings import Settings, load
 from pinecall.providers import catalog
 from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy.codes import Codes
+from pinecall.tenancy.mail import Mailbox, Outbox, parse_mailbox_url
+from pinecall.tenancy.signin import SignIns
 from pinecall.tenancy.tokens import Signer
 from pinecall.tenancy.vault import box_credentials
 
@@ -58,6 +72,9 @@ NO_EMBEDDER_KEY = "the providers row embeds with %s and the box holds no key for
 
 
 NO_LIVEKIT = "LIVEKIT_API_KEY and LIVEKIT_API_SECRET: the gateway signs every room token with them"
+
+
+NO_BOX_MAIL = "PINECALL_SMTP_URL does not read (%s): the box posts no letter of its own"
 
 
 # Capacitor's WebView origins: iOS serves from capacitor://localhost, Android from https://localhost.
@@ -104,6 +121,7 @@ WIDGET_HEADERS = {"Access-Control-Allow-Origin": "*", "Cache-Control": "public, 
 
 
 ROUTERS = (
+    accounts,
     agents,
     apps,
     callbacks,
@@ -111,11 +129,16 @@ ROUTERS = (
     chat,
     desk,
     fleet,
+    keys,
     line,
+    members,
     numbers,
+    ops,
     org,
     relay,
     retrieval,
+    signup,
+    sso_login,
     threads,
     visitors,
     whatsapp,
@@ -214,6 +237,8 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
     await threads.loaded()
     stack.push_async_callback(threads.closed)
     embedder = await _embedder(connections)
+    outbox = Outbox(connections, _box_mailbox(settings))
+    stack.push_async_callback(outbox.drained)
     return Gateway(
         connections=connections,
         logs=logs,
@@ -225,6 +250,8 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
         threads=threads,
         closing=asyncio.Event(),
         embedder=embedder,
+        signins=SignIns.fresh(),
+        outbox=outbox,
     )
 
 
@@ -298,6 +325,17 @@ async def _embedder(connections: Connections) -> Embedder | None:
         logger.warning(NO_EMBEDDER_KEY, embedding.vendor)
         return None
     return Embedder(embedding, key, connections.http)
+
+
+# A box without mail still starts: its letters are not sent, and /.well-known says so.
+def _box_mailbox(settings: Settings) -> Mailbox | None:
+    if settings.smtp_url is None:
+        return None
+    try:
+        return parse_mailbox_url(settings.smtp_url, settings.mail_from or "")
+    except DeclarationRefused as unreadable:
+        logger.warning(NO_BOX_MAIL, unreadable)
+        return None
 
 
 async def _cancelled[T](task: asyncio.Task[T]) -> None:

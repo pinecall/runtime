@@ -86,3 +86,11 @@ The runtime written again from a blank page.
   with its call.
 - A WhatsApp account's number is listed from Meta beside the Twilio numbers and imported on its
   account; an agent answers at as many numbers as the org routes to it, of any kind.
+- The account doors, on the one gateway, at v1's paths and in v1's shapes: `/.well-known/pinecall`,
+  `whoami`, sign-in with a password or a one-use code, the orgs a person opens and the switch
+  between them, a terminal paired from a browser, a forgotten password, an invitation accepted,
+  the org's members and keys, sign-up, the org's identity provider and its mailbox, and
+  `/v1/ops/whoami`. The sandbox asking production who a person is (`POST /v1/login/redeem`) is
+  gone with the second instance; box-wide Google sign-in answers `503`. A key minted for a device
+  is labelled with it, and a login code gives a copy of the key that minted it, the person
+  included, dying when it dies.

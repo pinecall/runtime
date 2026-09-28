@@ -414,12 +414,22 @@ async def post(mailbox: Mailbox, letter: Letter, *, within_s: float = TIMEOUT_S)
 
 
 def an_https_url(written: str) -> bool:
+    """Whether the text is an https URL with a host and nothing an attribute would break on."""
     parts = urlsplit(written)
     return (
         parts.scheme == "https"
         and bool(parts.hostname)
         and not any(char in written for char in " \"'<>\n")
     )
+
+
+def parse_security(word: str) -> Security:
+    """The word as how a mailbox is secured; refused when it is none of the three."""
+    match word:
+        case "starttls" | "tls" | "none":
+            return word
+        case _:
+            raise DeclarationRefused(f"a mailbox is secured by starttls, tls or none, not {word!r}")
 
 
 def _status_of(
@@ -431,7 +441,7 @@ def _status_of(
         mailbox = Mailbox(
             host=str(fields["host"]),
             port=int(str(fields["port"])),
-            security=_security(str(fields["security"])),
+            security=parse_security(str(fields["security"])),
             username=str(fields["username"]),
             password=password,
             sender=str(fields["sender"]),
@@ -449,14 +459,6 @@ def _status_of(
         verified_at=verified if isinstance(verified, datetime) else None,
         last_error=error if isinstance(error, str) else None,
     )
-
-
-def _security(word: str) -> Security:
-    match word:
-        case "starttls" | "tls" | "none":
-            return word
-        case _:
-            raise DeclarationRefused(f"a mailbox is secured by starttls, tls or none, not {word!r}")
 
 
 def _fields(mailbox: Mailbox) -> dict[str, Json]:

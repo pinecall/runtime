@@ -70,18 +70,27 @@ keys at once; the row stays, since the log names who did what. A person has one 
 whatever orgs they belong to. The last active admin of an org cannot be removed.
 
 A role is a preset of scopes (`qa`, `supervisor`, `manager`, `admin`, `developer`), given to the
-keys minted for the person. A key grants only a role whose scopes it holds itself.
+keys minted for the person. A key grants only a role whose scopes it holds itself, and production
+access only when it has it. An invitation's link sets the person's one password, so it is handed
+to the admin only for somebody in no other org; anybody else gets it by mail alone.
 
 ## Signing in
 
-- **Email and password.** Five tries a minute per name; a wrong address and a wrong password are
-  one sentence.
+Every way in ends with a key of the person's own for that device, answered once. The doors, their
+bodies and their refusals are [protocol/accounts.md](protocol/accounts.md).
+
+- **Email and password.** Five tries a minute per address and place; a wrong address and a wrong
+  password are one sentence.
 - **A one-use code** a signed-in page mints for a browser, so a key never rides a URL.
 - **Pairing**: `pinecall login` prints a word, a signed-in browser approves it, the terminal
   collects its key once.
 - **The org's identity provider** (OpenID Connect, with PKCE): the org names its issuer, its
   client and the email domains it admits; it may seat people nobody invited with a role, and it
   may be the only way in.
+- **A sign-up**, where the operator opens them (`PINECALL_SIGNUP`): six digits mailed to the
+  address, and the org is made only when they come back, with the limits the box's admission gives
+  a newborn org.
+- A forgotten password is a one-use link by mail, and the answer is the same whoever asks.
 
 ## Secrets
 

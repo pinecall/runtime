@@ -8,10 +8,17 @@ from hmac import compare_digest
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Query
-from starlette.requests import HTTPConnection
+from starlette.requests import HTTPConnection, Request
 
 from pinecall.domain.agent import AgentConfig
-from pinecall.domain.errors import NotAllowed, NotAvailable, NotFound, NotSignedIn, QuotaExhausted
+from pinecall.domain.errors import (
+    NotAllowed,
+    NotAvailable,
+    NotFound,
+    NotSignedIn,
+    QuotaExhausted,
+    TooManyRequests,
+)
 from pinecall.domain.names import Env, parse_env
 from pinecall.domain.person import HOLDING, THE_FLEET, THE_TEAM, KeyScope
 from pinecall.domain.scope import Scope
@@ -134,6 +141,27 @@ def closing(connection: HTTPConnection) -> asyncio.Event:
 def close_reason(sentence: str) -> str:
     """The sentence cut to what a close frame carries."""
     return sentence.encode("utf-8")[:CLOSE_REASON_BYTES].decode("utf-8", errors="ignore")
+
+
+# uvicorn reads X-Forwarded-For only from the box's own Caddy (forwarded_allow_ips), so the
+# client here is the person's address behind it and nobody else's word.
+def client_of(request: Request) -> str:
+    """The address a request came from, as the throttle counts it."""
+    return request.client.host if request.client is not None else "unknown"
+
+
+def check_knock(gateway: Gateway, name: str, refusal: str) -> None:
+    """Count a knock of the name; TooManyRequests with the refusal past five in a minute."""
+    if not gateway.signins.throttle.allowed(name):
+        raise TooManyRequests(refusal)
+
+
+# Never from the request's own Host when the box has a name: a forged host would send a sign-in
+# or a password link to whoever forged it.
+def public_url(request: Request, gateway: Gateway) -> str:
+    """The name this gateway answers to, without a trailing slash."""
+    domain = gateway.connections.settings.domain
+    return f"https://{domain}" if domain else str(request.base_url).rstrip("/")
 
 
 async def admit_call(gateway: Gateway, scope: Scope, agent: str) -> admission.Ceiling | None:
@@ -284,6 +312,9 @@ CallsKey = Annotated[Acting, Depends(opening("calls"))]
 
 
 AppKey = Annotated[Acting, Depends(opening("app"))]
+
+
+TeamKey = Annotated[Acting, Depends(opening("team"))]
 
 
 # Any other key acts in its own scope, or, an admin's in the sandbox, in the colleague named.

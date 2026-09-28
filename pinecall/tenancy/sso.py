@@ -21,7 +21,15 @@ from pinecall.domain.names import PRODUCTION
 from pinecall.domain.org import Org
 from pinecall.domain.person import ROLES, Member, Role
 from pinecall.postgres.pool import Pool
-from pinecall.tenancy._signin import (
+from pinecall.tenancy.admission import admit_seat, quotas_of
+from pinecall.tenancy.people import (
+    Invitee,
+    by_email,
+    invite,
+    seated,
+    vouched,
+)
+from pinecall.tenancy.signin import (
     A_DOMAIN,
     ALGORITHMS,
     AN_ISSUER,
@@ -50,19 +58,15 @@ from pinecall.tenancy._signin import (
     SSO_WITH_DOMAIN,
     TIMEOUT_S,
     VERIFIER_BYTES,
+    Handshake,
     OneUse,
     an_address,
     why_refused,
 )
-from pinecall.tenancy.admission import admit_seat, quotas_of
-from pinecall.tenancy.people import (
-    Invitee,
-    by_email,
-    invite,
-    seated,
-    vouched,
-)
 from pinecall.tenancy.vault import opened, sealed
+
+# The provider is told to send the browser back here, and the org registers it there by hand.
+CALLBACK = "/v1/login/sso/callback"
 
 
 @dataclass(frozen=True)
@@ -106,20 +110,6 @@ class OrgSso:
     def admits(self, email: str) -> bool:
         """Whether the address is of one of the org's domains."""
         return email.rpartition("@")[2].strip().lower() in self.domains
-
-
-@dataclass(frozen=True)
-class Handshake:
-    """A sign-in at a provider, in flight: its state, nonce, verifier and where it returns."""
-
-    state: str
-    org: str | None
-    nonce: str
-    verifier: str
-    # The token endpoint compares it with the authorization request's, character for character.
-    redirect_uri: str
-    # The terminal a `pinecall login` started from, to hand the key to when it returns.
-    pairing: str | None = None
 
 
 @dataclass(frozen=True)

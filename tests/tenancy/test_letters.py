@@ -7,14 +7,14 @@ import pytest
 from pinecall.domain.errors import DeclarationRefused, UpstreamFailed
 from pinecall.postgres.pool import Pool
 from pinecall.process.connections import Connections
-from pinecall.tenancy._letters import (
+from pinecall.tenancy.letters import (
     Link,
     card_link,
     invitation_letter,
     probe_letter,
     signup_code_letter,
 )
-from pinecall.tenancy._mail import (
+from pinecall.tenancy.mail import (
     Brand,
     Outbox,
     brand_of,

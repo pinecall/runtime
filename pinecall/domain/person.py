@@ -111,6 +111,9 @@ HOLDING: KeyScope = "app"
 THE_TEAM: KeyScope = "team"
 
 
+THE_KEYS: KeyScope = "keys"
+
+
 # Default scopes: every scope except fleet.
 KEY_SCOPES: frozenset[KeyScope] = frozenset(EVERY_SCOPE) - {THE_FLEET}
 
@@ -134,6 +137,14 @@ class Key:
 
 
 ROLES: tuple[Role, ...] = ("qa", "supervisor", "manager", "admin", "developer")
+
+
+STATUSES: tuple[MemberStatus, ...] = ("invited", "active", "disabled")
+
+
+# Serving an agent, its calls, room tokens, knowledge pushes and evals; never the org's people,
+# numbers or money.
+SERVER_SCOPES: frozenset[KeyScope] = frozenset({"app", "calls", "talk", "knowledge", "evals"})
 
 
 ROLE_SCOPES: Mapping[Role, frozenset[KeyScope]] = {
@@ -187,4 +198,11 @@ def parse_role(word: str) -> Role:
     """Return the word as a Role, raising DeclarationRefused when it is none."""
     if word not in ROLES:
         raise DeclarationRefused(f"a role is one of {sorted(ROLES)}, not {word!r}")
+    return word
+
+
+def parse_status(word: str) -> MemberStatus:
+    """Return the word as a member's status, raising DeclarationRefused when it is none."""
+    if word not in STATUSES:
+        raise DeclarationRefused(f"a member's status is one of {sorted(STATUSES)}, not {word!r}")
     return word

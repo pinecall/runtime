@@ -253,12 +253,15 @@ async def issue(pool: Pool, issued: Issued) -> tuple[Key, str]:
     return key, secret
 
 
-async def person_key(pool: Pool, member: Member, *, parent: Key | None = None) -> tuple[Key, str]:
+async def person_key(
+    pool: Pool, member: Member, *, parent: Key | None = None, label: str | None = None
+) -> tuple[Key, str]:
     """A person's one key: the role's scopes, both worlds, never outliving the key it came from."""
     issued = Issued(
         org=member.org,
         env=PRODUCTION,
         scopes=member.scopes,
+        label=label,
         subject=member.id,
         name=member.name,
         created_by=member.id,

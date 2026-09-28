@@ -52,6 +52,12 @@ class QuotaExhausted(PinecallError):
         self.limit = limit
 
 
+class TooManyRequests(PinecallError):
+    """The same name knocked too often in the last minute: a password, a code, a sign-up."""
+
+    status = 429
+
+
 class UpstreamFailed(PinecallError):
     """A vendor, a carrier or an identity provider did not answer as it should."""
 

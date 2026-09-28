@@ -12,11 +12,17 @@ from pinecall.domain.errors import (
 )
 from pinecall.domain.org import Quotas
 from pinecall.postgres.pool import Pool
-from pinecall.tenancy._signin import (
+from pinecall.tenancy.admission import set_quotas
+from pinecall.tenancy.people import (
+    Change,
+    invite,
+    update,
+)
+from pinecall.tenancy.signin import (
     Asking,
     sign_in_with_password,
 )
-from pinecall.tenancy._sso import (
+from pinecall.tenancy.sso import (
     Client,
     OrgSso,
     discovered,
@@ -26,12 +32,6 @@ from pinecall.tenancy._sso import (
     sso_of,
     sso_with_domain,
     vouched_for,
-)
-from pinecall.tenancy.admission import set_quotas
-from pinecall.tenancy.people import (
-    Change,
-    invite,
-    update,
 )
 from tests.conftest import postgres
 from tests.fakes.idp import IdentityProvider

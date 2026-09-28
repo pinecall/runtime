@@ -22,9 +22,9 @@ from pinecall.domain.names import PRODUCTION
 from pinecall.domain.org import Org
 from pinecall.domain.person import KEY_SCOPES, Key, Member
 from pinecall.postgres.pool import Pool
-from pinecall.tenancy._letters import Link, card_link, forgotten_password_letter
-from pinecall.tenancy._mail import Outbox, brand_of
 from pinecall.tenancy.keys import Issued, issue, person_key
+from pinecall.tenancy.letters import Link, card_link, forgotten_password_letter
+from pinecall.tenancy.mail import Outbox, brand_of
 from pinecall.tenancy.orgs import create, find
 from pinecall.tenancy.people import (
     Invitee,
@@ -169,10 +169,10 @@ CODE_TTL_S = 15 * 60.0
 ATTEMPTS = 6
 
 
-LOGGED_IN = "login"
-
-
 A_BROWSER = "console"
+
+
+SIGNED_UP = "signup"
 
 
 SSO = """
@@ -207,6 +207,9 @@ DROP_SSO = "DELETE FROM org_sso WHERE org = %(org)s RETURNING org"
 TRIES = 5
 
 
+TOO_MANY = "too many attempts for {email}: try again in a minute"
+
+
 WINDOW_S = 60.0
 
 
@@ -215,6 +218,8 @@ SWEEP_AT = 1024
 
 
 class ProviderRefusal(BaseModel):
+    """What an identity provider says when it refuses: its error and the words it gives."""
+
     model_config = ConfigDict(extra="ignore")
 
     error: str | None = None
@@ -350,6 +355,21 @@ class Founded:
     admin: Member
     signed_in: SignedIn
     code: str
+    code_expires_at: float
+
+
+@dataclass(frozen=True)
+class Handshake:
+    """A sign-in at a provider, in flight: its state, nonce, verifier and where it returns."""
+
+    state: str
+    org: str | None
+    nonce: str
+    verifier: str
+    # The token endpoint compares it with the authorization request's, character for character.
+    redirect_uri: str
+    # The terminal a `pinecall login` started from, to hand the key to when it returns.
+    pairing: str | None = None
 
 
 class Pairings:
@@ -401,20 +421,20 @@ class Signups:
         self.pending: dict[str, Pending] = {}
 
     # A second sign-up of the address replaces the first: only the newest code works.
-    def begin(self, signup: Signup) -> str:
-        """Keep the sign-up and hand back the code to mail."""
+    def begin(self, signup: Signup) -> tuple[str, float]:
+        """Keep the sign-up and hand back the code to mail, and when it dies."""
         self._forget_the_dead()
         code = f"{secrets.randbelow(10**CODE_DIGITS):0{CODE_DIGITS}d}"
         salt = secrets.token_bytes(16)
         expires_at = self.clock() + CODE_TTL_S
         self.pending[signup.email] = Pending(signup, _hashed(salt, code), salt, expires_at)
-        return code
+        return code, expires_at
 
     def renewed(self, email: str) -> tuple[Signup, str] | None:
         """A new code for a sign-up still waiting, with its time again; None for nobody's."""
         self._forget_the_dead()
         found = self.pending.get(email)
-        return None if found is None else (found.signup, self.begin(found.signup))
+        return None if found is None else (found.signup, self.begin(found.signup)[0])
 
     def verify(self, email: str, code: str) -> Signup | Refusal:
         """The sign-up, taken out, when the code is its own; else why not."""
@@ -465,6 +485,29 @@ class Throttle:
         return True
 
 
+# In memory: each dies with the process, and a restart only makes a person ask again.
+@dataclass(frozen=True)
+class SignIns:
+    """What sign-in keeps between two requests: codes, terminals, sign-ups, handshakes, knocks."""
+
+    codes: OneUse[Holder]
+    pairings: Pairings
+    signups: Signups
+    handshakes: OneUse[Handshake]
+    throttle: Throttle
+
+    @classmethod
+    def fresh(cls, clock: Callable[[], float] = time.time) -> "SignIns":
+        """Nothing kept yet, every word and knock timed by the clock."""
+        return cls(
+            codes=OneUse(LOGIN_CODE, clock),
+            pairings=Pairings(clock),
+            signups=Signups(clock),
+            handshakes=OneUse(HANDSHAKE, clock),
+            throttle=Throttle(clock),
+        )
+
+
 async def sign_in_with_password(pool: Pool, asking: Asking) -> SignedIn:
     """A person's key for the address and password; the org named, or the one a password opens."""
     known = await password_of(pool, asking.email)
@@ -484,7 +527,7 @@ async def sign_in_with_password(pool: Pool, asking: Asking) -> SignedIn:
         if seated_now is None:
             raise NotAllowed(NOT_YET.format(email=member.email))
         member = seated_now
-    key, secret = await person_key(pool, member)
+    key, secret = await person_key(pool, member, label=asking.device)
     return SignedIn(key, secret, member)
 
 
@@ -495,19 +538,26 @@ async def orgs_signed_into(pool: Pool, email: str, password: str) -> list[Member
     return [item for item in await orgs_of(pool, email) if item.status != "disabled"]
 
 
-async def sign_in_with_code(pool: Pool, codes: OneUse[Holder], code: str) -> SignedIn | None:
+# A key's code gives a copy of it, the person it names included, dying when it dies.
+async def sign_in_with_code(
+    pool: Pool, codes: OneUse[Holder], code: str, *, device: str | None = None
+) -> SignedIn | None:
     """The key the code was minted for, spent; None for a code dead, spent or nobody's."""
     holder = codes.spend(code)
     if holder is None:
         return None
+    label = device or A_BROWSER
     if isinstance(holder, Member):
-        key, secret = await person_key(pool, holder)
+        key, secret = await person_key(pool, holder, label=label)
         return SignedIn(key, secret, holder)
     copied = Issued(
         org=holder.org,
         env=holder.env,
         scopes=holder.scopes,
-        label=A_BROWSER,
+        label=label,
+        subject=holder.subject,
+        name=holder.name,
+        created_by=holder.subject,
         expires_at=holder.expires_at,
     )
     key, secret = await issue(pool, copied)
@@ -515,22 +565,24 @@ async def sign_in_with_code(pool: Pool, codes: OneUse[Holder], code: str) -> Sig
 
 
 # The scopes are the member's role today, not the asking key's.
-async def another_key(pool: Pool, key: Key, member: Member | None) -> SignedIn:
+async def another_key(
+    pool: Pool, key: Key, member: Member | None, *, device: str | None = None
+) -> SignedIn:
     """The same person's key for another device, never outliving the key that asked."""
     if key.subject is None or member is None:
         raise NotAllowed(NOT_A_PERSONS)
     if member.status != "active":
         raise NotAllowed(NOT_A_MEMBER)
-    minted, secret = await person_key(pool, member, parent=key)
+    minted, secret = await person_key(pool, member, parent=key, label=device)
     return SignedIn(minted, secret, member)
 
 
 # A person of the box is let into any org, as an admin; anybody else only into an org of theirs.
-async def key_in(pool: Pool, member: Member, org: str) -> SignedIn:
+async def key_in(pool: Pool, member: Member, org: str, *, label: str | None = None) -> SignedIn:
     """The person's key in another org: their membership there, or a visit if they run the box."""
     there = await by_email(pool, org, member.email)
     if there is not None and there.status == "active":
-        key, secret = await person_key(pool, there)
+        key, secret = await person_key(pool, there, label=label)
         return SignedIn(key, secret, there)
     if not member.operator or await find(pool, org) is None:
         raise NotAllowed(NOT_THEIRS.format(org=org))
@@ -538,7 +590,7 @@ async def key_in(pool: Pool, member: Member, org: str) -> SignedIn:
         org=org,
         env=PRODUCTION,
         scopes=KEY_SCOPES,
-        label=A_BROWSER,
+        label=label or A_BROWSER,
         subject=member.id,
         name=member.name,
         created_by=member.id,
@@ -579,13 +631,20 @@ async def found(pool: Pool, signup: Signup, codes: OneUse[Holder]) -> Founded:
     admin = invited.member
     if invited.token is not None:
         admin = await accept(pool, invited.token, signup.hashed) or admin
-    key, secret = await person_key(pool, admin)
-    code, _ = codes.mint(admin)
-    return Founded(org=org, admin=admin, signed_in=SignedIn(key, secret, admin), code=code)
+    key, secret = await person_key(pool, admin, label=signup.device or SIGNED_UP)
+    code, code_expires_at = codes.mint(admin)
+    return Founded(
+        org=org,
+        admin=admin,
+        signed_in=SignedIn(key, secret, admin),
+        code=code,
+        code_expires_at=code_expires_at,
+    )
 
 
 # Never the body whole: a token endpoint that echoes the request would show the client secret.
 def why_refused(answer: httpx.Response) -> str:
+    """The reason a provider gave for refusing, or its HTTP status when it gave none."""
     try:
         payload = ProviderRefusal.model_validate(answer.json())
     except (ValueError, ValidationError):
@@ -594,6 +653,7 @@ def why_refused(answer: httpx.Response) -> str:
 
 
 def an_address(host: str) -> bool:
+    """Whether the host is an IP address rather than a name."""
     try:
         ipaddress.ip_address(host.strip("[]"))
     except ValueError:
