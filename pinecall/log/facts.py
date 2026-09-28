@@ -69,7 +69,7 @@ COLUMNS = (
     "ended_at",
     "end_reason",
     "outcome",
-    "cost_eur",
+    "cost_usd",
     "judged",
     "held",
     "passed",
@@ -259,7 +259,7 @@ class CallFacts:
     ended_at: float | None = None
     end_reason: str | None = None
     outcome: str | None = None
-    cost_eur: float | None = None
+    cost_usd: float | None = None
     judged: int | None = None
     held: int | None = None
     passed: bool | None = None
@@ -333,7 +333,7 @@ select
     count(*) filter (where {day} and f.ended_at is not null) as finished,
     count(*) filter (where {day} and f.ended_at is not null and not f.escalated)
         as unescalated,
-    coalesce(sum(f.cost_eur) filter (where {day}), 0) as spent,
+    coalesce(sum(f.cost_usd) filter (where {day}), 0) as spent,
     count(*) filter (where {day} and f.channel = 'phone') as phone,
     count(*) filter (where {day} and f.channel = 'web') as web,
     count(*) filter (where {day} and f.channel = 'whatsapp') as whatsapp,
@@ -368,7 +368,7 @@ order by calls desc, slug
 
 # A budget is the org's: every env and holder is summed.
 SPENT_BETWEEN = sql.SQL("""
-select coalesce(sum(f.cost_eur), 0) as spent
+select coalesce(sum(f.cost_usd), 0) as spent
 from call_log_head head join call_facts f on f.call = head.log
 where head.org = %(org)s and head.call is not null and {day}
 """).format(day=_ITS_DAY)
@@ -474,7 +474,7 @@ def _over(facts: CallFacts, over: CallEnded | CallSummary) -> CallFacts:
     return replace(
         facts,
         outcome=over.outcome,
-        cost_eur=over.cost.eur,
+        cost_usd=over.cost.usd,
         end_reason=facts.end_reason or over.reason,
     )
 

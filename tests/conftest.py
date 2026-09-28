@@ -142,7 +142,6 @@ def configured(replies: list[list[str | dict[str, object]]] | None = None) -> Pr
             },
             "tuning": {"llm/acme": {"options": {"replies": replies or []}}},
             "rates": {"acme-1": {"input": 1.0, "output": 2.0}},
-            "connections": {"usd_to_eur": 0.9, "as_of": "2026-09-27"},
         }
     )
 
@@ -256,7 +255,8 @@ async def wired(
     http = httpx.AsyncClient(transport=outside(twilio, graph))
     sockets, live = Sockets(logs), ServedCalls()
     connections = Connections(settings=settings, pool=pool, vault=sealed, http=http, server=server)
-    threads = Threads(Serving(connections=connections, logs=logs, live=live), sockets)
+    serving = Serving(connections=connections, logs=logs, live=live, embedder=None)
+    threads = Threads(serving, sockets)
     outbox = Outbox(connections, None)
     yield Gateway(
         connections=connections,

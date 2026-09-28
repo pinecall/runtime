@@ -42,9 +42,9 @@ def test_a_model_is_priced_by_the_longest_prefix_that_matches_it() -> None:
     assert rate_of(rates, "gpt-5") is None
 
 
-def test_the_rate_and_the_date_travel_with_the_number(configured: Providers) -> None:
+def test_nothing_used_costs_nothing_and_lists_nothing(configured: Providers) -> None:
     priced = cost([], configured)
-    assert (priced.eur, priced.rate.usd_to_eur, priced.rate.as_of) == (0.0, 0.92, "2026-09-06")
+    assert (priced.usd, priced.rows, priced.unpriced) == (0.0, [], [])
 
 
 def test_a_unit_with_nothing_counted_is_not_a_line_of_the_bill(configured: Providers) -> None:
@@ -56,13 +56,13 @@ def test_a_unit_with_nothing_counted_is_not_a_line_of_the_bill(configured: Provi
 def test_a_voice_is_priced_by_the_characters_it_spoke(configured: Providers) -> None:
     text = TTSModelUsage(provider="cartesia", model="sonic-3", characters_count=1000)
     (row,) = cost([text], configured).rows
-    assert (row.unit, row.quantity, row.eur) == ("characters", 1000, round(0.03 * 0.92, 6))
+    assert (row.unit, row.quantity, row.usd) == ("characters", 1000, 0.03)
 
 
 def test_the_ears_are_priced_by_the_seconds_they_heard(configured: Providers) -> None:
     heard = STTModelUsage(provider="deepgram", model="flux-general-multi", audio_duration=60.0)
     (row,) = cost([heard], configured).rows
-    assert (row.unit, row.quantity, row.eur) == ("audio_seconds", 60.0, round(0.006 * 0.92, 6))
+    assert (row.unit, row.quantity, row.usd) == ("audio_seconds", 60.0, 0.006)
 
 
 def test_a_voice_nobody_priced_is_unpriced_and_never_free(configured: Providers) -> None:
@@ -89,7 +89,7 @@ def test_one_call_bills_its_three_vendors_together(configured: Providers) -> Non
     ]
     priced = cost(usage, configured)
     assert len(priced.rows) == 4
-    assert priced.eur == round(sum(row.eur for row in priced.rows), 6)
+    assert priced.usd == round(sum(row.usd for row in priced.rows), 6)
 
 
 def test_a_row_labelled_with_the_api_host_is_priced_by_its_model_all_the_same(

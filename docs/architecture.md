@@ -20,7 +20,7 @@ surface is the URL.
 | `tenancy/` | orgs, people, keys, the tokens the gateway signs, the vault, admission (the quotas an org is born with and counted against), per-scope agent tuning (`scopes.py`), the org's carrier accounts (`carriers.py`) and dial policy, caller codes, personas, sign-in (a password, a one-use code, a paired terminal, a sign-up), the org's identity provider, mail and the letters it sends | `domain` `wire` `postgres` `process` `log` |
 | `providers/` | the box's providers configuration: the catalog row in `box_settings`, building a LiveKit plugin by name, the keyring a call runs on (`credentials.py`), prices, voices | `domain` `wire` `postgres` `process` |
 | `session/` | one LiveKit `AgentSession` for voice and text: `session.py`, a voice call's pipeline (`voice.py`), a written one (`text.py`), the call's live state (`call.py`), the room, hold music (`hold.py`), tools, the widget channel; private: the Agent, livekit's shapes read as ours, the prompt, what the ears are told (`_hearing.py`: the turn policy per language, the keyterms) | `domain` `wire` `providers` `log` `process` |
-| `retrieval/` | the embedder (`embed.py`), the hybrid search over one table (`search.py`), knowledge bases with their cutter and goldens (`knowledge.py`), contact memory (`memory.py`), and what a call taught at hang-up (`extraction.py`) | `domain` `wire` `postgres` `log` `providers` `process` |
+| `retrieval/` | the embedder (`embed.py`), knowledge bases with their cutter and goldens (`knowledge.py`), contact memory (`memory.py`), a call's lookups written on its log (`lookups.py`), and what a call taught at hang-up (`extraction.py`); private: the hybrid search over one table (`_search.py`) | `domain` `wire` `postgres` `log` `providers` `process` |
 | `evals/` | the case a judge reads (`case.py`), the judges and the hang-up panel (`judges.py`), the checks by code alone (`checks.py`), a golden played on a written call (`goldens.py`), a run and its matrix (`runs.py`), the simulated caller (`callers.py`) and its spoken line (`spoken.py`); private: what an agent could know and stated (`_evidence.py`) | `session` `retrieval` `log` `providers` and the leaves |
 | `channels/` | by where a conversation comes in: `routes.py` (number or channel to agent, for every channel), `rooms.py` (a call to the fleet of its world), `whatsapp.py` (Meta's API), `telephony/` (Twilio's API, the SIP trunks and rules on LiveKit, numbers imported and bought, dialling out) | `domain` `wire` `postgres` `process` `tenancy` `fleet` `log` |
 | `fleet/` | the fleet each world dispatches to (`worlds.py`), the roster of workers, a worker's heartbeat, the worker's client to the gateway | `domain` `wire` `postgres` `log` `process` |
@@ -51,15 +51,15 @@ core under `_` names.
 | `domain/` | 8 | 1117 | — |
 | `evals/` | 8 | 2225 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
 | `fleet/` | 4 | 642 | `domain`, `postgres`, `process`, `wire` |
-| `gateway/` | 32 | 6812 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `gateway/` | 32 | 6902 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
 | `log/` | 6 | 2308 | `domain`, `postgres`, `wire` |
 | `postgres/` | 2 | 229 | `domain` |
 | `process/` | 3 | 438 | `domain`, `postgres` |
-| `providers/` | 6 | 952 | `domain`, `postgres`, `process`, `wire` |
-| `retrieval/` | 5 | 2140 | `domain`, `postgres`, `providers`, `wire` |
+| `providers/` | 6 | 918 | `domain`, `postgres`, `process`, `wire` |
+| `retrieval/` | 6 | 2332 | `domain`, `log`, `postgres`, `providers`, `wire` |
 | `session/` | 12 | 2968 | `domain`, `log`, `providers`, `wire` |
 | `tenancy/` | 16 | 4749 | `domain`, `log`, `postgres`, `process`, `wire` |
-| `wire/` | 13 | 3563 | `domain` |
+| `wire/` | 13 | 3592 | `domain` |
 | `worker/` | 4 | 906 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
 
 ## The path of a call

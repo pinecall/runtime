@@ -36,8 +36,7 @@ A_SUMMARY: JsonObject = {
     "turns": 2,
     "usage": [],
     "cost": {
-        "eur": 0.01,
-        "rate": {"usd_to_eur": 0.9, "as_of": "2026-09-27"},
+        "usd": 0.01,
         "rows": [],
         "unpriced": [],
     },

@@ -109,8 +109,7 @@ async def logged_call(store: Store, org: str, went: ACall | None = None) -> str:
             "turns": 2,
             "usage": [],
             "cost": {
-                "eur": went.cost,
-                "rate": {"currency": "EUR", "usd_to_eur": 0.9, "as_of": "2026-09-01"},
+                "usd": went.cost,
                 "rows": [],
                 "unpriced": [],
             },

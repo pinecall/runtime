@@ -48,8 +48,8 @@ def test_a_cap_of_one_is_not_switched_off_and_no_cap_is_not_switched_off_either(
 def test_a_quota_is_a_count_and_a_negative_one_is_refused_by_name() -> None:
     with pytest.raises(DeclarationRefused, match="knowledge_chunks cannot be -1"):
         Quotas(knowledge_chunks=-1)
-    with pytest.raises(DeclarationRefused, match="budget is euros"):
-        Quotas(budget_eur=-1)
+    with pytest.raises(DeclarationRefused, match="budget is dollars"):
+        Quotas(budget_usd=-1)
 
 
 def test_the_quota_names_are_spelled_once_and_the_dataclass_has_a_field_for_each() -> None:

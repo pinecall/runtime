@@ -284,3 +284,17 @@ class ExtractionRun(WireModel):
     held: int
     took_ms: float
     results: list[ExtractionJudged]
+
+
+class FoundChunk(WireModel):
+    """One chunk a search found: the file it came from, the heading it sits under, its body."""
+
+    path: str
+    heading: str | None
+    text: str
+
+
+class SearchFound(WireModel):
+    """What search answers a call and an app's `this.knowledge.search`: the best chunks first."""
+
+    chunks: list[FoundChunk]

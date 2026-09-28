@@ -6,10 +6,11 @@ from datetime import UTC, date, datetime
 
 from pinecall.domain.agent import AgentConfig, Versions
 from pinecall.domain.call import CallContext, Route, today_in
-from pinecall.domain.names import CHANNELS_WITH_A_NUMBER
+from pinecall.domain.names import CHANNELS_WITH_A_NUMBER, JsonObject
 from pinecall.domain.scope import Scope
+from pinecall.evals import goldens
 from pinecall.gateway._call_setup import keys_of, tuned
-from pinecall.gateway._served import Served, Serving, attach, nothing_found, sealed, served_call
+from pinecall.gateway._served import Served, Serving, attach, looked_up, sealed, served_call
 from pinecall.gateway._sockets import Registration
 from pinecall.log import queries
 from pinecall.log.store import Claim
@@ -17,7 +18,7 @@ from pinecall.providers import catalog
 from pinecall.providers.build import Running
 from pinecall.providers.credentials import thinking
 from pinecall.session import text
-from pinecall.session.call import Call, Lookup, Platform
+from pinecall.session.call import Call, Platform
 from pinecall.session.session import Session
 from pinecall.session.text import text_session
 from pinecall.tenancy import admission
@@ -27,17 +28,19 @@ from pinecall.wire.events import (
 )
 from pinecall.wire.frames import Entry
 from pinecall.wire.metrics import LLMModelUsage, ModelUsage
-from pinecall.wire.rest.calls import SealCallRequest
+from pinecall.wire.parts import PlatformTool
+from pinecall.wire.rest.calls import LookupRequest, SealCallRequest
 
 
 @dataclass(frozen=True)
 class TextSetup:
-    """What a written call runs on: the tuned config, its versions, the model, the lookups."""
+    """What a written call runs on: the tuned config, its versions, the model, a golden's facts."""
 
     config: AgentConfig
     versions: Versions
     model: Running
-    lookup: Lookup = nothing_found
+    # A golden's facts, which recall answers instead of the contact's memory; None on a real call.
+    recalled: tuple[str, ...] | None = None
 
 
 async def open_text(serving: Serving, registration: Registration, context: CallContext) -> Session:
@@ -60,7 +63,7 @@ async def open_text_as(
         context.call, registration.slug, scope.org, Claim(scope, setup.versions)
     )
     served = served_call(serving, registration.owner, context, setup.config, scope)
-    return _session(serving, served, setup.model, setup.lookup)
+    return _session(serving, served, setup.model, setup.recalled)
 
 
 # A gateway that restarted forgot the call, not the caller: no admission, no second greeting.
@@ -85,7 +88,7 @@ async def resume_text(
     )
     context = _as_it_opened(call, registration, kept.scope, entries, today_in(zone))
     served = served_call(serving, None, context, config, kept.scope)
-    session = _session(serving, served, model, nothing_found)
+    session = _session(serving, served, model, None)
     await text.resume(session, text.taken_up(entries))
     await attach(serving.live, serving.logs.store, call, registration.owner)
     return session
@@ -100,11 +103,18 @@ def tokens_of(usage: Iterable[ModelUsage]) -> int:
     )
 
 
-def _session(serving: Serving, served: Served, model: Running, lookup: Lookup) -> Session:
+def _session(
+    serving: Serving, served: Served, model: Running, recalled: tuple[str, ...] | None
+) -> Session:
+    async def lookup(tool: PlatformTool, arguments: JsonObject, speech: str | None) -> JsonObject:
+        request = LookupRequest(tool=tool, input=arguments, speech_id=speech)
+        return await looked_up(serving, served, request)
+
     async def seal(usage: list[ModelUsage], outcome: str) -> None:
         await sealed(serving, served, SealCallRequest(usage=usage, outcome=outcome))
 
-    platform = Platform(append=served.log.append, tool=served.tools.ran, lookup=lookup, seal=seal)
+    looking = lookup if recalled is None else goldens.golden_lookup(recalled, lookup)
+    platform = Platform(append=served.log.append, tool=served.tools.ran, lookup=looking, seal=seal)
     session = text_session(Call(served.context, served.config, platform), model)
     serving.live.calls[served.call] = replace(served, session=session)
     return session

@@ -1,7 +1,7 @@
 """A golden played on a written call: its state, its lines, its facts injected, its memory."""
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from pinecall.domain.errors import PinecallError
@@ -53,7 +53,7 @@ def events_after(golden: Golden, turn: int) -> tuple[EventStep, ...]:
 
 # recall reads the golden's facts and nothing else; search is the real index, since that is what
 # the golden is asking about.
-def golden_lookup(facts: list[str], search: Lookup) -> Lookup:
+def golden_lookup(facts: Sequence[str], search: Lookup) -> Lookup:
     """The lookup a golden's call runs: recall answered by its facts, search by the index."""
 
     async def lookup(tool: PlatformTool, arguments: JsonObject, speech: str | None) -> JsonObject:

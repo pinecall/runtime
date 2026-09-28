@@ -10,7 +10,6 @@ from pinecall.domain.names import Json, JsonObject
 from pinecall.postgres.pool import Pool
 from pinecall.process import box_settings
 from pinecall.providers.build import MODALITIES, Modality, doing
-from pinecall.wire.parts import CostRate
 
 ROW = "providers"
 
@@ -71,7 +70,7 @@ class Judge(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     llm: Stage
-    ceiling_eur: float
+    ceiling_usd: float
 
 
 class Embedding(BaseModel):
@@ -105,7 +104,6 @@ class Providers(BaseModel):
     hints: tuple[str, ...] = ()
     # A model's price, by the longest prefix of its id: dated snapshots price by family.
     rates: dict[str, Rate] = Field(default_factory=dict[str, Rate])
-    connections: CostRate
     judge: Judge | None = None
     # `es`: the line a voice reads in the picker.
     lines: dict[str, str] = Field(default_factory=dict[str, str])

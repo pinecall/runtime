@@ -27,7 +27,7 @@ async def test_append_folds_what_a_list_draws(store: Store, org: str) -> None:
     ]
     call = await logged_call(store, org, ACall(judges=tuple(broken), took_over=True))
     facts = (await facts_of_calls(store.pool, [call]))[call]
-    assert (facts.channel, facts.contact, facts.outcome, facts.cost_eur, facts.agent) == (
+    assert (facts.channel, facts.contact, facts.outcome, facts.cost_usd, facts.agent) == (
         "phone",
         "+34 600 111 222",
         "booked a visit",

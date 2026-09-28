@@ -100,3 +100,16 @@ The runtime written again from a blank page.
   writing (`/caller`) or on a spoken line (`/voice`). A persona names the agents it may call. Every
   call is judged at hang-up when its org judges, the box names a judge model and the ceiling is
   above zero; the judge's tokens are counted and priced. Eval runs belong to an org and a world.
+- Money is in US dollars, the currency providers price in: a call's cost, each priced line, the
+  judge's cost, a persona run's cost, the org's monthly budget and the judging ceiling
+  (`PINECALL_JUDGE_CEILING_USD`). Nothing is converted at a rate; the providers row carries no
+  exchange rate. A persona names the agents it may call on the wire too.
+- Retrieval in the call: a turn's recall and search run on the gateway for the worker
+  (`POST /v1/calls/{call}/lookup`) and for a written call alike, every attached base searched in
+  one pass, the contact's facts recalled when the agent keeps memory, `docs.sources` and
+  `memory.ops` written on the log where they ran; a lookup that cannot run is a recoverable
+  `<tool>_skipped` and the turn goes on. The seal writes what the call taught into the contact's
+  memory between `call.ended` and `call.summary`, within `PINECALL_REMEMBER_BUDGET_S`, and a
+  hang-up that cannot remember says so and seals all the same (`POST /v1/calls/{call}/remember`
+  does the same on request).
+

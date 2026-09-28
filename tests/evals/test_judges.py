@@ -578,7 +578,7 @@ def with_a_judge(replies: list[Json]) -> Providers:
         {
             **configured().model_dump(mode="json"),
             "tuning": {"llm/acme": {"options": {"replies": replies}}},
-            "judge": {"llm": {"vendor": "acme", "model": "acme-1"}, "ceiling_eur": 0.01},
+            "judge": {"llm": {"vendor": "acme", "model": "acme-1"}, "ceiling_usd": 0.01},
         }
     )
 
@@ -606,8 +606,8 @@ async def test_at_hang_up_the_model_is_asked_counted_and_priced(acme: str) -> No
     score = await at_hangup(log, THE_CLINIC, judge, configured=with_a_judge(replies), unjudged="")
     assert {judgment.name: judgment.verdict for judgment in score.judges}["grounded"] == "held"
     assert score.judge_calls == 1
-    assert score.judge_cost_eur is not None
-    assert score.judge_cost_eur > 0
+    assert score.judge_cost_usd is not None
+    assert score.judge_cost_usd > 0
 
 
 async def test_at_hang_up_a_judge_whose_model_failed_is_skipped_and_the_call_still_scored(

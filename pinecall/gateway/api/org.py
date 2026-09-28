@@ -53,14 +53,14 @@ NOTHING_TO_TEST = (
 async def get_judging(key: CallsKey, gateway: GatewayDep) -> JudgingSettings:
     """Whether hang-up judging is on, and its ceiling per call."""
     on = await orgs.judged(gateway.connections.pool, key.org)
-    return JudgingSettings(on=on, ceiling_eur=gateway.connections.settings.judge_ceiling_eur)
+    return JudgingSettings(on=on, ceiling_usd=gateway.connections.settings.judge_ceiling_usd)
 
 
 @router.put("/v1/org/judging")
 async def put_judging(body: JudgingRequest, key: UsageKey, gateway: GatewayDep) -> JudgingSettings:
     """Hang-up judging on or off, from the next call."""
     await orgs.set_judging(gateway.connections.pool, key.org, on=body.on)
-    return JudgingSettings(on=body.on, ceiling_eur=gateway.connections.settings.judge_ceiling_eur)
+    return JudgingSettings(on=body.on, ceiling_usd=gateway.connections.settings.judge_ceiling_usd)
 
 
 # `team`: the provider decides who the org's people are.

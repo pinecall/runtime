@@ -44,8 +44,7 @@ def _summary(seconds: float, turns: int, tokens: int) -> JsonObject:
         "turns": turns,
         "usage": [llm],
         "cost": {
-            "eur": 0.01,
-            "rate": {"currency": "EUR", "usd_to_eur": 0.9, "as_of": "2026-09-01"},
+            "usd": 0.01,
             "rows": [],
             "unpriced": [],
         },
@@ -192,7 +191,7 @@ async def test_every_quota_round_trips_and_zero_comes_back_as_zero_and_not_as_no
         numbers=6,
         seats=7,
         llm_tokens=8,
-        budget_eur=9,
+        budget_usd=9,
         lends=frozenset({"deepgram", "anthropic/claude-haiku-4-5"}),
     )
     await set_quotas(pool, org.id, "production", every)
@@ -202,7 +201,7 @@ async def test_every_quota_round_trips_and_zero_comes_back_as_zero_and_not_as_no
 @postgres
 async def test_the_set_is_replaced_whole_so_a_limit_left_out_stops_being_one(pool: Pool) -> None:
     org = await create(pool, "clinica-norte", "Clínica Norte")
-    await set_quotas(pool, org.id, "production", Quotas(minutes=30, seats=3, budget_eur=50))
+    await set_quotas(pool, org.id, "production", Quotas(minutes=30, seats=3, budget_usd=50))
     await set_quotas(pool, org.id, "production", Quotas(minutes=60))
     assert await quotas_of(pool, org.id, "production") == Quotas(minutes=60)
 

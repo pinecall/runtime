@@ -1,6 +1,7 @@
 """The call doors a worker writes through and a reader reads: open, append, seal, the log."""
 
 import asyncio
+import time
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Annotated
@@ -15,7 +16,6 @@ from pinecall.domain.errors import (
     Conflict,
     DeclarationRefused,
     NotAllowed,
-    NotAvailable,
     NotFound,
 )
 from pinecall.domain.names import JsonObject
@@ -27,13 +27,14 @@ from pinecall.gateway._deps import Acting, GatewayDep, Reader, ReaderDep, Worker
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import (
     NO_AGENT,
-    NO_LOOKUPS,
     NO_UNCLAIMED,
     NOT_THAT_APP,
     Served,
     attach,
     claim_code,
+    looked_up,
     opened,
+    remembered,
     sealed,
     served_call,
     serving_agent,
@@ -61,8 +62,11 @@ from pinecall.wire.rest.calls import (
     CallList,
     CallRow,
     LogPage,
+    LookupRequest,
+    LookupResponse,
     OpenCallRequest,
     OpenCallResponse,
+    RememberResponse,
     SealCallRequest,
     SessionScore,
 )
@@ -89,9 +93,6 @@ ALREADY_SPENT = "call {call} was opened by its token already: a token opens one 
 
 
 NEVER_MINTED = "call {call} names a token this runtime never minted"
-
-
-NO_MEMORY = "this runtime keeps no memory to write the call into"
 
 
 NOT_RECORDED = "call {call} kept no recording"
@@ -245,21 +246,29 @@ async def call_judging(call: str, key: WorkerKey, gateway: GatewayDep) -> Judgin
     _orgs_call(gateway, key, call)
     served = _orgs_call(gateway, key, call)
     on = await orgs.judged(gateway.connections.pool, served.scope.org)
-    return JudgingSettings(on=on, ceiling_eur=gateway.connections.settings.judge_ceiling_eur)
+    return JudgingSettings(on=on, ceiling_usd=gateway.connections.settings.judge_ceiling_usd)
 
 
+# The gateway writes memory.ops and docs.sources on the log itself: the worker has no database.
 @router.post("/v1/calls/{call}/lookup")
-async def lookup(call: str, key: WorkerKey, gateway: GatewayDep) -> JsonObject:
-    """Recall or search for a call; this runtime keeps neither yet."""
-    _orgs_call(gateway, key, call)
-    raise NotAvailable(NO_LOOKUPS)
+async def lookup(
+    call: str, body: LookupRequest, key: WorkerKey, gateway: GatewayDep
+) -> LookupResponse:
+    """Recall or search for a call served here, answered as the model reads it."""
+    served = _orgs_call(gateway, key, call)
+    started = time.perf_counter()
+    output = await looked_up(gateway.serving, served, body)
+    return LookupResponse(output=output, took_ms=(time.perf_counter() - started) * 1000)
 
 
 @router.post("/v1/calls/{call}/remember")
-async def remember(call: str, key: WorkerKey, gateway: GatewayDep) -> JsonObject:
-    """Write a call into its contact's memory; this runtime keeps none yet."""
-    _orgs_call(gateway, key, call)
-    raise NotAvailable(NO_MEMORY)
+async def remember(call: str, key: WorkerKey, gateway: GatewayDep) -> RememberResponse:
+    """Write what the call taught into its contact's memory now, as the seal would."""
+    served = _orgs_call(gateway, key, call)
+    started = time.perf_counter()
+    op = await remembered(gateway.serving, served)
+    ops = 0 if op is None else len(op.facts)
+    return RememberResponse(ops=ops, took_ms=(time.perf_counter() - started) * 1000)
 
 
 # A code nobody issued is a 404, and an ordinary one: the caller may be dialling an extension.

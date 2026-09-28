@@ -106,11 +106,11 @@ call judged already is `409` unless `?again=true`; a call still going is `409`.
 ## At hang-up
 
 The seal judges every call when three things hold: the org judges its calls (`PUT /v1/org/judging`),
-the box's providers row names a `judge` model, and `PINECALL_JUDGE_CEILING_EUR` is above zero. The
+the box's providers row names a `judge` model, and `PINECALL_JUDGE_CEILING_USD` is above zero. The
 panel is consent, grounded, promises, and persona when the caller wrote a rule. The judge runs on
 the box's key. Without a model the code judges still answer and the ones that needed a model are
 `skipped`, saying why; a judge whose model failed is skipped too, and the call seals all the same.
-`judge_calls` counts the model's requests and `judge_cost_eur` prices them at the row's rates. An
+`judge_calls` counts the model's requests and `judge_cost_usd` prices them at the row's rates. An
 org that judges nothing gets `not_judged` saying so; a call an eval run opened is judged by the run.
 
 ## The simulated caller
@@ -141,4 +141,4 @@ PUT /v1/personas/apurado
 The name is lower-case words joined by hyphens; `was` renames. A vendor this box lacks is refused
 when written, not in the middle of a run. `GET /v1/personas/{name}/runs` pages the calls the
 persona made in the key's world, newest first, each with its turns, how it ended, its cost in
-euros and the judges' score.
+US dollars and the judges' score.

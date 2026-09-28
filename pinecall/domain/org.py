@@ -56,8 +56,8 @@ class Quotas:
     # Invited and active members; disabled members hold no seat.
     seats: int | None = None
     llm_tokens: int | None = None
-    # Monthly budget in whole euros. Informational: nothing is refused over it.
-    budget_eur: int | None = None
+    # Monthly budget in whole US dollars. Informational: nothing is refused over it.
+    budget_usd: int | None = None
     # Box vendor keys the org may use: None all, empty none, else `vendor` or `vendor/model`.
     lends: frozenset[str] | None = None
 
@@ -65,8 +65,8 @@ class Quotas:
         for name, limit in self.limits.items():
             if limit is not None and limit < 0:
                 raise DeclarationRefused(f"a quota is a count, and {name} cannot be {limit}")
-        if self.budget_eur is not None and self.budget_eur < 0:
-            raise DeclarationRefused(f"a budget is euros, and cannot be {self.budget_eur}")
+        if self.budget_usd is not None and self.budget_usd < 0:
+            raise DeclarationRefused(f"a budget is dollars, and cannot be {self.budget_usd}")
 
     @property
     def limits(self) -> Mapping[QuotaName, int | None]:

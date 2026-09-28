@@ -14,8 +14,7 @@ from pinecall.domain.errors import WrongModel
 from pinecall.domain.names import Env
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
-from pinecall.retrieval.embed import Embedder, estimated_tokens, halfvec
-from pinecall.retrieval.search import (
+from pinecall.retrieval._search import (
     CANDIDATES_PER_BRANCH,
     Evidence,
     Figures,
@@ -26,6 +25,7 @@ from pinecall.retrieval.search import (
     relative_to_the_best,
     top_cosine,
 )
+from pinecall.retrieval.embed import Embedder, estimated_tokens, halfvec
 
 # Small enough for eight chunks a turn, large enough for a whole tariff table.
 CHUNK_TOKENS = 350

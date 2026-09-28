@@ -291,7 +291,7 @@ class CallScore(WireModel):
     judges: list[Judgment]
     panel: list[str] | None = None
     judge_calls: int
-    judge_cost_eur: float | None = None
+    judge_cost_usd: float | None = None
 
 
 class CallSummary(WireModel):

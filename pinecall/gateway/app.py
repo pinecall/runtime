@@ -238,10 +238,11 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
     codes = Codes(logs)
     await codes.loaded()
     sockets, live = Sockets(logs), ServedCalls()
-    threads = Threads(Serving(connections=connections, logs=logs, live=live), sockets)
+    embedder = await _embedder(connections)
+    serving = Serving(connections=connections, logs=logs, live=live, embedder=embedder)
+    threads = Threads(serving, sockets)
     await threads.loaded()
     stack.push_async_callback(threads.closed)
-    embedder = await _embedder(connections)
     outbox = Outbox(connections, _box_mailbox(settings))
     stack.push_async_callback(outbox.drained)
     return Gateway(

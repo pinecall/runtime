@@ -295,7 +295,7 @@ class PersonaRunRow(WireModel):
     turns: int
     end_reason: EndReason | None
     outcome: str | None
-    cost_eur: float | None
+    cost_usd: float | None
     score: SessionScore | None
 
 
