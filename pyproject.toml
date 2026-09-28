@@ -87,8 +87,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["pinecall"]
 
-# hatch_build.py puts build/public (scripts/console) in the wheel as pinecall/public.
+# scripts/hatch_build.py puts build/public (scripts/console) in the wheel as pinecall/public.
 [tool.hatch.build.targets.wheel.hooks.custom]
+path = "scripts/hatch_build.py"
 
 # ── pytest ──
 
@@ -142,6 +143,7 @@ convention = "google"
 "tests/**" = ["D103", "INP001", "PLR2004", "S101"]
 "**/__init__.py" = ["D104"]  # rule 1: every __init__.py is empty
 "tests/rules/**" = ["S603", "S607"]  # the rules run the checkers as subprocesses
+"scripts/**" = ["INP001"]  # the build's tools, loaded by path: no package
 # A fake plugin takes the arguments a real one does, and its keys are fakes; livekit's
 # RoomService names its request `list`, and an override keeps the name it overrides.
 "tests/fakes.py" = ["PLR0913", "S105", "S106", "A002"]
@@ -158,4 +160,6 @@ reportImplicitOverride = true
 
 [tool.deptry]
 known_first_party = ["pinecall", "tests"]
-extend_exclude = ["tests/rules/fixtures", "hatch_build.py"]
+extend_exclude = ["tests/rules/fixtures"]
+# The wheel's build hook imports the build backend, which build-system.requires declares.
+per_rule_ignores = { DEP001 = ["hatchling"] }
