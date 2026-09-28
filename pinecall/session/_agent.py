@@ -52,6 +52,8 @@ class CallAgent(Agent):
     ) -> Thought:
         """The model run on the history, this turn's lookups, and the dynamic blocks."""
         params = _prompt.request(chat_ctx, self.blocks, self.lookups.items)
+        if self.call.context.run is not None:
+            self.call.requests.append(_prompt.as_asked(params, tools))
         async for chunk in Agent.default.llm_node(self, params, tools, model_settings):
             if isinstance(chunk, llm.ChatChunk | str):
                 yield chunk

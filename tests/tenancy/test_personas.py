@@ -93,3 +93,41 @@ async def test_one_orgs_callers_are_not_anothers(pool: Pool) -> None:
     org, other = await an_org(pool), await an_org(pool, "northwind")
     await put_persona(pool, org.id, MARTA, author="m_ana")
     assert await personas_of(pool, other.id) == []
+
+
+@postgres
+async def test_a_caller_written_for_some_agents_comes_back_naming_them(pool: Pool) -> None:
+    org = await an_org(pool)
+    written = Persona(name="apurado", goal="g", style="s", agents=frozenset({"front-desk"}))
+    await put_persona(pool, org.id, written, author="m_ana")
+    kept = await persona(pool, org.id, "apurado")
+    assert kept is not None
+    assert kept.persona.agents == frozenset({"front-desk"})
+
+
+@postgres
+async def test_an_agent_reads_the_callers_written_for_it_and_the_ones_written_for_every_agent(
+    pool: Pool,
+) -> None:
+    org = await an_org(pool)
+    for name, agents in (("todos", frozenset[str]()), ("suyo", frozenset({"front-desk"}))):
+        await put_persona(
+            pool, org.id, Persona(name=name, goal="g", style="s", agents=agents), author="m_ana"
+        )
+    await put_persona(
+        pool,
+        org.id,
+        Persona(name="ajeno", goal="g", style="s", agents=frozenset({"back-office"})),
+        author="m_ana",
+    )
+    front = await personas_of(pool, org.id, agent="front-desk")
+    assert [kept.persona.name for kept in front] == ["suyo", "todos"]
+    assert len(await personas_of(pool, org.id)) == 3
+
+
+def test_a_caller_written_for_nobody_in_particular_may_call_any_agent() -> None:
+    anyone = Persona(name="a", goal="g", style="s")
+    only = Persona(name="b", goal="g", style="s", agents=frozenset({"front-desk"}))
+    assert anyone.calls("back-office")
+    assert only.calls("front-desk")
+    assert not only.calls("back-office")

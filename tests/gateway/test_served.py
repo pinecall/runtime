@@ -1,6 +1,7 @@
 """Tests for what the gateway keeps in memory, and for the one seal and the reaper."""
 
 import asyncio
+import dataclasses
 from datetime import date
 
 from pinecall.domain.agent import AgentConfig
@@ -8,14 +9,27 @@ from pinecall.domain.call import CallContext, Route, new_call_id
 from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import attach, handed_on, opened, reaped, sealed, served_call
+from pinecall.gateway._served import (
+    A_RUN_JUDGES_IT,
+    NO_JUDGE,
+    attach,
+    handed_on,
+    opened,
+    reaped,
+    sealed,
+    served_call,
+)
 from pinecall.gateway._sockets import Sockets
 from pinecall.log.logs import Logs, started_entry
 from pinecall.log.store import Store
+from pinecall.providers import catalog
+from pinecall.providers.catalog import Judge
+from pinecall.tenancy import orgs
+from pinecall.wire.events import CallScore
 from pinecall.wire.frames import Command, Entry
 from pinecall.wire.metrics import LLMModelUsage
 from pinecall.wire.rest.calls import SealCallRequest
-from tests.conftest import postgres
+from tests.conftest import configured, postgres
 from tests.fakes.livekit import Server
 
 AGENT = "agenda"
@@ -313,3 +327,86 @@ async def test_a_written_call_this_process_runs_is_left_to_end_itself(wired: Gat
     wired.live.close(context.call)
     assert await reaped(wired.serving, server, 10_000.0) == [context.call]
     await server.aclose()
+
+
+async def sealed_call(
+    wired: Gateway, context: CallContext, *turns: tuple[str, JsonObject]
+) -> list[Entry]:
+    """A call that said these turns, ended and sealed: its whole log."""
+    served = served_call(wired.serving, None, context, AgentConfig(slug=AGENT), OURS)
+    for kind, data in turns:
+        await served.log.append(kind, data)
+    await served.log.append(
+        "call.ended",
+        {"reason": "caller_hung_up", "ended_by": "caller", "ended_at": 5.0, "duration_s": 30.0},
+    )
+    await sealed(wired.serving, served, SealCallRequest(usage=[], outcome="priced"))
+    return await wired.logs.store.whole(context.call)
+
+
+PRICED: tuple[tuple[str, JsonObject], ...] = (
+    ("turn.user", {"speech_id": "sp_1", "text": "¿Cuánto cuesta?", "metrics": {}}),
+    (
+        "turn.agent",
+        {"speech_id": "sp_1", "text": "Son 45 euros.", "interrupted": False, "metrics": {}},
+    ),
+)
+
+
+@postgres
+async def test_a_box_that_names_no_judge_still_judges_by_code_and_skips_the_model_ones(
+    wired: Gateway,
+) -> None:
+    whole = await sealed_call(wired, a_call(), *PRICED)
+    score = CallScore.model_validate(whole[-1].data)
+    verdicts = {judgment.name: judgment.verdict for judgment in score.judges}
+    assert verdicts == {"consent": "held", "grounded": "skipped", "promises": "held"}
+    grounded = next(judgment for judgment in score.judges if judgment.name == "grounded")
+    assert grounded.reason.startswith(NO_JUDGE)
+    assert score.passed is True
+
+
+@postgres
+async def test_a_box_that_names_a_judge_asks_it_on_its_own_key_and_prices_it(
+    wired: Gateway,
+) -> None:
+    verdict: dict[str, object] = {
+        "name": "submit_verdict",
+        "arguments": {"verdict": "fail", "reasoning": "60 €"},
+    }
+    judged_box = configured([[verdict]]).model_copy(
+        update={"judge": Judge.model_validate({"llm": {"vendor": "acme"}, "ceiling_eur": 0.01})}
+    )
+    await catalog.configure(wired.connections.pool, judged_box)
+    whole = await sealed_call(wired, a_call(), *PRICED)
+    score = CallScore.model_validate(whole[-1].data)
+    assert {judgment.name: judgment.verdict for judgment in score.judges}["grounded"] == "broken"
+    assert score.passed is False
+    assert score.judge_calls == 1
+    assert score.judge_cost_eur is not None
+
+
+@postgres
+async def test_an_org_that_judges_nothing_at_hang_up_is_sealed_saying_so(wired: Gateway) -> None:
+    org = await orgs.create(wired.connections.pool, "org-quiet", "Quiet")
+    await orgs.set_judging(wired.connections.pool, org.id, on=False)
+    context = a_call(Scope(org.id, "sandbox"))
+    served = served_call(
+        wired.serving, None, context, AgentConfig(slug=AGENT), Scope(org.id, "sandbox")
+    )
+    await sealed(wired.serving, served, SealCallRequest(usage=[], outcome="none"))
+    whole = await wired.logs.store.whole(context.call)
+    score = CallScore.model_validate(whole[-1].data)
+    assert score.judges == []
+    assert score.not_judged is not None
+    assert "not judged at hang-up" in score.not_judged
+
+
+@postgres
+async def test_a_call_an_eval_run_opened_is_judged_by_the_run_and_not_again_at_hang_up(
+    wired: Gateway,
+) -> None:
+    context = dataclasses.replace(a_call(), run="run_1")
+    whole = await sealed_call(wired, context, *PRICED)
+    score = CallScore.model_validate(whole[-1].data)
+    assert (score.judges, score.not_judged) == ([], A_RUN_JUDGES_IT)

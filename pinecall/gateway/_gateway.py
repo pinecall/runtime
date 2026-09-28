@@ -3,6 +3,7 @@
 import asyncio
 from dataclasses import dataclass
 
+from pinecall.evals.runs import Runner
 from pinecall.fleet.roster import Roster
 from pinecall.gateway._served import ServedCalls, Serving
 from pinecall.gateway._sockets import Sockets
@@ -32,6 +33,7 @@ class Gateway:
     closing: asyncio.Event
     # None when the providers row names no embedding, or the box holds no key for its vendor.
     embedder: Embedder | None
+    evals: Runner
     signins: SignIns
     outbox: Outbox
 

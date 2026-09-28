@@ -1,5 +1,6 @@
 """A call's prompt: its blocks, the request each turn sends, its greeting, its knowledge entry."""
 
+import json
 from collections.abc import Sequence
 from hashlib import sha256
 from typing import override
@@ -8,6 +9,7 @@ from livekit.agents import llm
 
 from pinecall.domain.agent import DEFAULT_LAYOUT, KNOWLEDGE, Greeting, PromptBlock, PromptRegion
 from pinecall.domain.errors import DeclarationRefused
+from pinecall.domain.names import JsonObject
 from pinecall.wire.events import PromptChanged
 
 # Joins the static blocks into livekit's one `instructions` string.
@@ -100,6 +102,16 @@ def request(
     items = _ahead_of_the_caller(history.items, lookups)
     items += [llm.ChatMessage(role="system", content=[text]) for text in blocks.of("dynamic")]
     return Request(items, blocks.of("static"))
+
+
+# The log keeps the prompt's hashes alone; a run keeps what was sent, to reproduce a failure.
+def as_asked(sent: Request, tools: Sequence[llm.Tool]) -> JsonObject:
+    """One request as a failing golden reproduces it: the static blocks, the tools, the items."""
+    schemas = llm.ToolContext(list(tools)).parse_function_tools("openai")
+    items: object = sent.to_dict().get("items", [])
+    return json.loads(
+        json.dumps({"system": list(sent.static), "tools": schemas, "messages": items})
+    )
 
 
 # An eval run starts in the middle of a conversation, so it never greets.

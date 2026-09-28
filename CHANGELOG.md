@@ -94,3 +94,9 @@ The runtime written again from a blank page.
   gone with the second instance; box-wide Google sign-in answers `503`. A key minted for a device
   is labelled with it, and a login code gives a copy of the key that minted it, the person
   included, dying when it dies.
+- Evals: a suite of goldens runs through the app that holds the agent, one written call per
+  golden and model, judged into a matrix stored as it goes (`POST /v1/evals/run`); a finished call
+  is checked by code (`/replay`) or judged again (`/judge`); a persona is played by a model, in
+  writing (`/caller`) or on a spoken line (`/voice`). A persona names the agents it may call. Every
+  call is judged at hang-up when its org judges, the box names a judge model and the ceiling is
+  above zero; the judge's tokens are counted and priced. Eval runs belong to an org and a world.
