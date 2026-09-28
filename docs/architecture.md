@@ -34,6 +34,34 @@ imports only the standard library and pydantic; `wire` only pydantic.
 `tests/rules/test_05_import_graph.py` holds this table as a set of edges and fails the commit
 that adds one without a diff on it.
 
+## The measures
+
+What each folder weighs, and which folders of ours it reaches for. `tests/rules/test_20_measures.py`
+reads this table against the tree on every commit: a folder, its files or its imports out of date
+fail it, and so does a line count more than 100 off; the failure prints the table to paste. The
+gateway is the largest because its `api/` holds every door of the contract; its private modules,
+what the process keeps between doors, have a budget of their own (`test_19_gateway_budget.py`:
+2 000 lines together, 600 each), so the platform's side of a call never grows into a second
+core under `_` names.
+
+| folder | files | lines | imports of ours |
+|---|---|---|---|
+| `channels/` | 7 | 2111 | `domain`, `fleet`, `log`, `postgres`, `process`, `tenancy`, `wire` |
+| `cli/` | 1 | 198 | `domain`, `gateway`, `postgres`, `process`, `tenancy`, `worker` |
+| `domain/` | 8 | 1117 | — |
+| `evals/` | 8 | 2225 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
+| `fleet/` | 4 | 642 | `domain`, `postgres`, `process`, `wire` |
+| `gateway/` | 32 | 6812 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `log/` | 6 | 2308 | `domain`, `postgres`, `wire` |
+| `postgres/` | 2 | 229 | `domain` |
+| `process/` | 3 | 438 | `domain`, `postgres` |
+| `providers/` | 6 | 952 | `domain`, `postgres`, `process`, `wire` |
+| `retrieval/` | 5 | 2140 | `domain`, `postgres`, `providers`, `wire` |
+| `session/` | 12 | 2968 | `domain`, `log`, `providers`, `wire` |
+| `tenancy/` | 16 | 4749 | `domain`, `log`, `postgres`, `process`, `wire` |
+| `wire/` | 13 | 3563 | `domain` |
+| `worker/` | 4 | 906 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
+
 ## The path of a call
 
 1. A carrier or a browser reaches LiveKit; LiveKit dispatches the room to the fleet of the
