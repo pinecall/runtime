@@ -29,6 +29,10 @@ registers with. `outbound_username` without `outbound_password` is refused.
 `?account=` names; with several and none named it is `409` naming them. `GET /v1/carriers` is every
 one of them. `DELETE /v1/carrier` forgets an account; its numbers stay routed until each is let go.
 
+An agent answers at as many numbers as the org routes to it: phone numbers from any of its
+accounts, hooked by the org or bought by the box, and WhatsApp numbers, each one row. A call the
+agent places is shown as one of them, and dials through the account that number lives in.
+
 ## What the accounts own — `GET /v1/numbers/available`
 
 `{kind, numbers: [{number, name, imported, account}]}`: every number every Twilio account of the
