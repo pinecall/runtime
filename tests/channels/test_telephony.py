@@ -1,6 +1,7 @@
 """Tests for carrier accounts, numbers hooked and admitted on the SFU, buying, and dialling out."""
 
 import asyncio
+import base64
 import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -816,3 +817,66 @@ async def test_a_whatsapp_number_is_an_account_that_places_no_call(line: Line) -
     )
     standing = await telephony.standing(line.exchange, line.corner())
     assert "places no call" in standing.steps_missing[0]
+
+
+# ── one agent, numbers of different kinds from different accounts ──
+
+
+def either_account(first: Twilio, second: Twilio) -> httpx.MockTransport:
+    """A transport that answers as whichever of two Twilio accounts the pair names."""
+    theirs = base64.b64encode(f"{second.user}:{second.secret}".encode()).decode()
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        held = second if request.headers.get("authorization") == f"Basic {theirs}" else first
+        return held.transport().handle_request(request)
+
+    return httpx.MockTransport(answer)
+
+
+@postgres
+async def test_an_agent_answers_at_numbers_of_different_kinds_from_different_accounts(
+    pool: Pool,
+) -> None:
+    org = (await orgs.create(pool, "clinica", "Clinica")).id
+    first = Twilio()
+    second = Twilio(account_sid=a_sid("AC", 2), user=a_sid("SK", 2), secret=THE_OTHER_HALF)
+    first.owns(A_NUMBER)
+    second.owns("+13617334134")
+    server = Server()
+    sealed = vault.vault_of(Fernet.generate_key().decode())
+    corner = Corner(org, "production")
+    async with httpx.AsyncClient(transport=either_account(first, second)) as http:
+        exchange = Exchange(pool, sealed, http, server, DOMAIN)
+        for held in (first, second):
+            account = TwilioAccount(
+                account_sid=held.account_sid, user=held.user, secret=held.secret
+            )
+            await telephony.bring(exchange, org, account)
+        with pytest.raises(Conflict, match="2 carrier accounts"):
+            await telephony.import_number(exchange, Import(corner, "recepcion", A_NUMBER))
+        await telephony.import_number(
+            exchange, Import(corner, "recepcion", A_NUMBER, account=first.account_sid)
+        )
+        await telephony.import_number(
+            exchange, Import(corner, "recepcion", "+13617334134", account=second.account_sid)
+        )
+        await telephony.import_number(
+            exchange, Import(corner, "recepcion", "+59899000123", channel="whatsapp", hooked=True)
+        )
+        kind, owned = await telephony.available(exchange, corner)
+        await telephony.provision_outbound(exchange, org, second.account_sid)
+        await telephony.put_guards(pool, org, telephony.Guards(dial_anywhere=True))
+        leg = await telephony.leg_through(
+            exchange, Asking(corner, "recepcion", HER_PHONE, "+13617334134", "m_ana", "call_x")
+        )
+    await server.aclose()
+    answering = await routes.of_org(pool, org, "production")
+    assert [(one.agent, one.channel, one.number) for one in answering] == [
+        ("recepcion", "phone", A_NUMBER),
+        ("recepcion", "phone", "+13617334134"),
+        ("recepcion", "whatsapp", "+59899000123"),
+    ]
+    assert kind == "twilio"
+    assert {one.account for one in owned} == {first.account_sid, second.account_sid}
+    assert len(first.trunks) == len(second.trunks) == 1
+    assert leg.hostname == telephony.termination_host(DOMAIN, second.account_sid)
