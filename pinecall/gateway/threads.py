@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
-from pinecall.channels import routes, whatsapp
+from pinecall.channels import routes, telephony, whatsapp
 from pinecall.channels.whatsapp import IDLE_S, WINDOW_S, Inbound, Waiting
 from pinecall.domain.errors import PinecallError, QuotaExhausted, UpstreamFailed
 from pinecall.domain.types import CallContext, Contact, Corner, Route, new_call_id, today_in
@@ -152,7 +152,7 @@ class Threads:
         self.open.clear()
 
     async def _opened(self, held: Registration, route: Route, inbound: Inbound) -> Thread | None:
-        token = await whatsapp.token_for(
+        token = await telephony.meta_token_for(
             self.gated.pool, self.gated.vault, route.org, inbound.phone_number_id
         )
         if token is None:

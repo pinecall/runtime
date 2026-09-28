@@ -33,13 +33,13 @@ from pinecall.domain.errors import (
     QuotaExhausted,
     UpstreamFailed,
 )
-from pinecall.domain.types import Corner, Env, Quotas
+from pinecall.domain.types import Corner, Env, JsonObject, Quotas
 from pinecall.log.log import Logs
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy import orgs, vault
 from tests.conftest import postgres
-from tests.fakes import Server, Twilio, a_sid
+from tests.fakes import Graph, Server, Twilio, a_sid, outside
 
 DOMAIN = "box.test"
 HERE = "sip:box.test:5060;transport=udp"
@@ -85,12 +85,12 @@ class Line:
 
 
 @pytest.fixture
-async def line(pool: Pool) -> AsyncIterator[Line]:
-    """An org, a Twilio account nobody brought yet, an SFU with nothing on it."""
+async def line(pool: Pool, graph: Graph) -> AsyncIterator[Line]:
+    """An org, a Twilio account nobody brought yet, Meta's Graph, an SFU with nothing on it."""
     org = await orgs.create(pool, "clinica", "Clinica")
     twilio = Twilio()
     server = Server()
-    async with httpx.AsyncClient(transport=twilio.transport()) as http:
+    async with httpx.AsyncClient(transport=outside(twilio, graph)) as http:
         sealed = vault.vault_of(Fernet.generate_key().decode())
         yield Line(Exchange(pool, sealed, http, server, DOMAIN), org.id, twilio, server)
     await server.aclose()
@@ -880,3 +880,49 @@ async def test_an_agent_answers_at_numbers_of_different_kinds_from_different_acc
     assert {one.account for one in owned} == {first.account_sid, second.account_sid}
     assert len(first.trunks) == len(second.trunks) == 1
     assert leg.hostname == telephony.termination_host(DOMAIN, second.account_sid)
+
+
+# ── WhatsApp accounts ──
+
+
+@postgres
+async def test_the_orgs_own_meta_token_answers_and_an_org_with_none_answers_on_the_boxs(
+    line: Line, pool: Pool
+) -> None:
+    other = await orgs.create(pool, "otra", "Otra")
+    assert await telephony.meta_token_for(pool, line.exchange.vault, line.org, "1055") is None
+    meta: JsonObject = {"app_secret": "s", "verify_token": "w", "access_token": "the box's"}
+    await vault.put_box_credentials(pool, line.exchange.vault, "whatsapp", meta)
+    at_meta = WhatsappAccount.model_validate(
+        {"phone_number_id": "1055", "access_token": "the org's"}
+    )
+    await telephony.bring(line.exchange, line.org, at_meta)
+    assert (
+        await telephony.meta_token_for(pool, line.exchange.vault, line.org, "1055") == "the org's"
+    )
+    assert (
+        await telephony.meta_token_for(pool, line.exchange.vault, other.id, "1055") == "the box's"
+    )
+
+
+@postgres
+async def test_a_whatsapp_accounts_number_is_listed_from_meta_and_imported_on_the_account(
+    line: Line, graph: Graph
+) -> None:
+    at_meta = WhatsappAccount.model_validate(
+        {"phone_number_id": "1055", "access_token": "the org's"}
+    )
+    await telephony.bring(line.exchange, line.org, at_meta)
+    kind, owned = await telephony.available(line.exchange, line.corner())
+    assert kind == "whatsapp"
+    assert [(one.number, one.name, one.account, one.imported) for one in owned] == [
+        ("+59829001199", "Clinica", "1055", False)
+    ]
+    wanted = Import(line.corner(), "recepcion", "+59829001199", channel="whatsapp", account="1055")
+    plan = await telephony.import_number(line.exchange, wanted)
+    assert plan.steps == ["route: +59829001199 to recepcion in the production: done"]
+    (routed,) = await routes.of_org(line.exchange.pool, line.org, "production")
+    assert routed.channel == "whatsapp"
+    assert (await telephony.available(line.exchange, line.corner()))[1][0].imported
+    graph.refusal = (401, "Session has expired")
+    assert (await telephony.available(line.exchange, line.corner()))[1] == []

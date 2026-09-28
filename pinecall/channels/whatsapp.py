@@ -9,7 +9,6 @@ import httpx
 from cryptography.fernet import MultiFernet
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from pinecall.channels.telephony import WhatsappAccount, carriers_of
 from pinecall.domain.errors import NotAllowed, NotAvailable, UpstreamFailed
 from pinecall.domain.types import Env, Route
 from pinecall.log.log import Logs
@@ -174,18 +173,6 @@ def messages_in(body: bytes) -> list[Inbound]:
     return found
 
 
-async def token_for(pool: Pool, sealed: MultiFernet, org: str, phone_number_id: str) -> str | None:
-    """The org's own Meta token for the number, else the box's, else None."""
-    for held in await carriers_of(pool, sealed, org):
-        account = held.account
-        if isinstance(account, WhatsappAccount) and account.phone_number_id == phone_number_id:
-            return account.access_token
-    try:
-        return (await the_boxs(pool, sealed)).access_token
-    except NotAvailable:
-        return None
-
-
 class _Refused(BaseModel):
     model_config = ConfigDict(frozen=True, extra="ignore")
 
@@ -196,6 +183,30 @@ class _Refusal(BaseModel):
     model_config = ConfigDict(frozen=True, extra="ignore")
 
     error: _Refused | None = None
+
+
+class _Number(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    display_phone_number: str
+    verified_name: str = ""
+
+
+async def display_number(
+    http: httpx.AsyncClient, token: str, phone_number_id: str
+) -> tuple[str, str]:
+    """The number a WhatsApp account answers at, in E.164, and its name at Meta."""
+    answer = await http.get(
+        f"{GRAPH}/{phone_number_id}",
+        params={"fields": "display_phone_number,verified_name"},
+        headers={"authorization": f"Bearer {token}"},
+        timeout=TIMEOUT_S,
+    )
+    if answer.is_error:
+        raise UpstreamFailed(META_SAID.format(said=_refused_by(answer)))
+    said = _Number.model_validate_json(answer.content)
+    number = "+" + "".join(one for one in said.display_phone_number if one.isdigit())
+    return number, said.verified_name
 
 
 async def send_text(http: httpx.AsyncClient, token: str, inbound: Inbound, text: str) -> None:
@@ -213,14 +224,18 @@ async def send_text(http: httpx.AsyncClient, token: str, inbound: Inbound, text:
         headers={"authorization": f"Bearer {token}"},
         timeout=TIMEOUT_S,
     )
-    if not answer.is_error:
-        return
+    if answer.is_error:
+        raise UpstreamFailed(META_SAID.format(said=_refused_by(answer)))
+
+
+def _refused_by(answer: httpx.Response) -> str:
     try:
         refused = _Refusal.model_validate_json(answer.content).error
     except ValidationError:
         refused = None
-    said = refused.message if refused is not None and refused.message else answer.status_code
-    raise UpstreamFailed(META_SAID.format(said=said))
+    if refused is not None and refused.message:
+        return refused.message
+    return str(answer.status_code)
 
 
 # ── the waiting room: the agent's log is the queue ──

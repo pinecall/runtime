@@ -9,16 +9,15 @@ import pytest
 from cryptography.fernet import Fernet
 
 from pinecall.channels import whatsapp
-from pinecall.channels.telephony import Exchange, WhatsappAccount, bring
 from pinecall.channels.whatsapp import Inbound, Meta
 from pinecall.domain.errors import NotAllowed, NotAvailable, UpstreamFailed
 from pinecall.domain.types import Route
 from pinecall.log.log import Logs
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
-from pinecall.tenancy import orgs, vault
+from pinecall.tenancy import vault
 from tests.conftest import postgres
-from tests.fakes import Graph, Server, Twilio, outside
+from tests.fakes import Graph, Twilio, outside
 
 SIGNING = "the app's own secret"
 OUR_NUMBER = "+59829001199"
@@ -174,28 +173,16 @@ async def test_a_reply_meta_refuses_is_refused_in_metas_own_words() -> None:
 # ── whose token, and the waiting room ──
 
 
-@postgres
-async def test_an_org_that_brought_its_own_token_answers_on_it_and_one_that_did_not_on_the_boxs(
-    pool: Pool,
-) -> None:
-    sealed = vault.vault_of(Fernet.generate_key().decode())
-    org = await orgs.create(pool, "clinica", "Clinica")
-    other = await orgs.create(pool, "otra", "Otra")
-    assert await whatsapp.token_for(pool, sealed, org.id, "1055") is None
-    await vault.put_box_credentials(pool, sealed, "whatsapp", meta().model_dump())
-    server = Server()
-    async with httpx.AsyncClient(transport=outside(Twilio(), Graph())) as http:
-        exchange = Exchange(pool, sealed, http, server, "box.test")
-        await bring(
-            exchange,
-            org.id,
-            WhatsappAccount.model_validate(
-                {"phone_number_id": "1055", "access_token": "the org's"}
-            ),
+async def test_the_number_an_account_answers_at_is_asked_of_meta_in_e164() -> None:
+    graph = Graph(number="+1 555-010-0000", name="Clinica Norte")
+    async with httpx.AsyncClient(transport=outside(Twilio(), graph)) as http:
+        assert await whatsapp.display_number(http, "a token", "1055") == (
+            "+15550100000",
+            "Clinica Norte",
         )
-    await server.aclose()
-    assert await whatsapp.token_for(pool, sealed, org.id, "1055") == "the org's"
-    assert await whatsapp.token_for(pool, sealed, other.id, "1055") == "the box's"
+        graph.refusal = (401, "Error validating access token: Session has expired")
+        with pytest.raises(UpstreamFailed, match="expired"):
+            await whatsapp.display_number(http, "a token", "1055")
 
 
 @postgres

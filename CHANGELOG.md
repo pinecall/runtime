@@ -84,3 +84,5 @@ The runtime written again from a blank page.
   every routed number with its own fence.
 - Fixed: a supervisor's `end` on a WhatsApp conversation left it open; the conversation closes
   with its call.
+- A WhatsApp account's number is listed from Meta beside the Twilio numbers and imported on its
+  account; an agent answers at as many numbers as the org routes to it, of any kind.

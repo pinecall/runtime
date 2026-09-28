@@ -1023,8 +1023,18 @@ class Graph:
     # How Graph answers a send it refuses; None sends.
     refusal: tuple[int, str] | None = None
 
+    # The number the fake account answers at, as Meta shows it.
+    number: str = "+598 29 001 199"
+    name: str = "Clinica"
+
     def answer(self, request: httpx.Request) -> httpx.Response:
-        """A send to a number's messages, kept, or refused as told."""
+        """A send to a number's messages, kept, or refused as told; the account's number on GET."""
+        if request.method == "GET":
+            if self.refusal is not None:
+                status, said = self.refusal
+                return httpx.Response(status, json={"error": {"message": said, "code": 190}})
+            said = {"display_phone_number": self.number, "verified_name": self.name}
+            return httpx.Response(200, json={**said, "id": request.url.path.split("/")[2]})
         if self.refusal is not None:
             status, said = self.refusal
             return httpx.Response(status, json={"error": {"message": said, "code": 131047}})
