@@ -15,7 +15,7 @@ from pinecall.gateway._deps import (
     client_of,
     public_url,
 )
-from pinecall.tenancy import keys, mail, orgs, people, signin
+from pinecall.tenancy import keys, letters, mail, orgs, people, signin
 from pinecall.tenancy.signin import Asking
 from pinecall.wire.rest.accounts import (
     AcceptInvitationRequest,
@@ -80,7 +80,7 @@ async def gateway_info(gateway: GatewayDep) -> GatewayInfoResponse:
     box_mail = await mail.box_mail_of(
         connections.pool, connections.vault, gateway.outbox.environment
     )
-    brand = await mail.brand_of(connections.pool)
+    brand = await letters.brand_of(connections.pool)
     return GatewayInfoResponse(
         version=version("pinecall"),
         signup=connections.settings.signup,

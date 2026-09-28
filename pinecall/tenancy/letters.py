@@ -1,53 +1,95 @@
-"""The five letters the gateway sends, worded and framed in the org's brand."""
+"""The letters the gateway sends, and the brand they are worded and framed in."""
 
+import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from html import escape
+from urllib.parse import urlsplit
 
-from pinecall.tenancy.mail import Brand, Letter
+from pinecall.domain.errors import DeclarationRefused
+from pinecall.domain.names import JsonObject
+from pinecall.postgres.pool import Pool
+from pinecall.process import box_settings
+
+logger = logging.getLogger(__name__)
+
+NAME = "Pinecall"
+
+ACCENT = "#5b3df5"
+
+# Written into a style attribute, so six hex digits and nothing else.
+A_BRAND_COLOUR = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+# The name goes into a subject line, where a line break would start another header.
+LONGEST_NAME = 60
+
+NOT_A_COLOUR = "{said!r} is not an accent: a colour is #rrggbb, six hex digits"
+
+NOT_A_LOGO = (
+    "{said!r} is not a logo: an https:// URL of an image, since a mail client fetches it from "
+    "wherever the reader is and blocks plain http"
+)
+
+BRAND = "brand"
 
 NOBODY_ASKED = "If you did not ask for this, nothing has changed and you can ignore this message."
 
-
 CARD = "/invitations/{token}"
-
 
 ONCE = "This link opens once."
 
-
 FROM_THEM = "Sent by {org} through {brand}"
-
 
 DIES_ON = "{sent} · this link opens once and dies on {date}"
 
-
 OPEN_IT = "Open it in a browser"
-
 
 # Inline styles only: mail clients read little CSS. No webfont and no image but the operator's
 # logo, since a remote request tells the sender when and where a letter was opened.
 WASH = "#f7f6fa"
 
-
 INK = "#101014"
-
 
 MUTED = "#6b6975"
 
-
 HAIRLINE = "#eeedf2"
-
 
 FONT = "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 
-
 MONO = "SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace"
-
 
 WIDTH = 560
 
-
 LOGO_HEIGHT = 28
+
+
+@dataclass(frozen=True)
+class Letter:
+    """A letter ready to go: to whom, its subject, and the same words as text and as HTML."""
+
+    to: str
+    subject: str
+    text: str
+    html: str
+
+
+@dataclass(frozen=True)
+class Brand:
+    """What the letters are called and painted with."""
+
+    name: str = NAME
+    # None fetches no image at all.
+    logo_url: str | None = None
+    accent: str = ACCENT
+
+    def __post_init__(self) -> None:
+        if not self.name.strip() or len(self.name) > LONGEST_NAME or "\n" in self.name:
+            raise DeclarationRefused(NOT_A_NAME)
+        if not A_BRAND_COLOUR.match(self.accent):
+            raise DeclarationRefused(NOT_A_COLOUR.format(said=self.accent))
+        if self.logo_url is not None and not _an_https_url(self.logo_url):
+            raise DeclarationRefused(NOT_A_LOGO.format(said=self.logo_url))
 
 
 @dataclass(frozen=True)
@@ -70,6 +112,9 @@ class Link:
     link: str
     by: str | None = None
     dies: datetime | None = None
+
+
+NOT_A_NAME = f"a brand's name is one line of at most {LONGEST_NAME} characters"
 
 
 def card_link(base: str, token: str) -> str:
@@ -146,6 +191,43 @@ def signup_code_letter(to: str, code: str, person: str, brand: Brand) -> Letter:
     preheader = f"Your {brand.name} verification code is {code}"
     return Letter(
         to, f"Confirm your {brand.name} email", text, _framed(preheader, body, footer, brand)
+    )
+
+
+async def brand_of(pool: Pool) -> Brand:
+    """The box's brand; Pinecall's when nobody set one, or when the row does not read."""
+    async with pool.connection() as connection:
+        value = await box_settings.read(connection, BRAND)
+    if value is None:
+        return Brand()
+    logo = value.get("logo_url")
+    try:
+        return Brand(
+            name=str(value.get("name") or NAME),
+            logo_url=str(logo) if logo else None,
+            accent=str(value.get("accent") or ACCENT),
+        )
+    except DeclarationRefused:
+        logger.warning("the box's brand does not read: letters go out as Pinecall's")
+        return Brand()
+
+
+async def put_brand(pool: Pool, brand: Brand) -> None:
+    """Keep the box's brand."""
+    value: JsonObject = {"name": brand.name, "logo_url": brand.logo_url, "accent": brand.accent}
+    async with pool.connection() as connection:
+        await box_settings.write(connection, BRAND, value)
+
+
+# None keeps a field; an empty string sets it back to the default, the one way to clear a logo.
+def apply_brand(
+    brand: Brand, *, name: str | None = None, logo_url: str | None = None, accent: str | None = None
+) -> Brand:
+    """The brand with what was named replaced."""
+    return Brand(
+        name=brand.name if name is None else (name.strip() or NAME),
+        logo_url=brand.logo_url if logo_url is None else (logo_url.strip() or None),
+        accent=brand.accent if accent is None else (accent.strip().lower() or ACCENT),
     )
 
 
@@ -246,4 +328,14 @@ def _framed(preheader: str, body: str, footer: str, brand: Brand) -> str:
         f'<tr><td style="padding:18px 6px 0;font-family:{FONT};font-size:12px;line-height:1.6;'
         f'color:{MUTED};">{escape(footer)}</td></tr>'
         "</table></td></tr></table></body></html>"
+    )
+
+
+def _an_https_url(written: str) -> bool:
+    """Whether the text is an https URL with a host and nothing an attribute would break on."""
+    parts = urlsplit(written)
+    return (
+        parts.scheme == "https"
+        and bool(parts.hostname)
+        and not any(char in written for char in " \"'<>\n")
     )

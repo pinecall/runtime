@@ -23,8 +23,8 @@ from pinecall.domain.org import Org
 from pinecall.domain.person import KEY_SCOPES, Key, Member
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy.keys import Issued, issue, person_key
-from pinecall.tenancy.letters import Link, card_link, forgotten_password_letter
-from pinecall.tenancy.mail import Outbox, brand_of
+from pinecall.tenancy.letters import Link, brand_of, card_link, forgotten_password_letter
+from pinecall.tenancy.mail import Outbox
 from pinecall.tenancy.orgs import create, find
 from pinecall.tenancy.people import (
     Invitee,

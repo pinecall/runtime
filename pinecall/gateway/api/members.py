@@ -10,9 +10,8 @@ from pinecall.domain.names import AN_ADDRESS, PRODUCTION
 from pinecall.domain.person import parse_role, parse_status
 from pinecall.gateway._deps import Acting, GatewayDep, TeamKey, public_url
 from pinecall.gateway._gateway import Gateway
-from pinecall.tenancy import admission, keys, letters, mail, orgs, people
-from pinecall.tenancy.letters import Link
-from pinecall.tenancy.mail import Brand, Letter
+from pinecall.tenancy import admission, keys, letters, orgs, people
+from pinecall.tenancy.letters import Brand, Letter, Link
 from pinecall.wire.rest.accounts import (
     ChangeMemberRequest,
     InvitationResponse,
@@ -176,5 +175,5 @@ async def _mailed(
         by=key.bearer.key.name or AN_ADMIN,
         dies=invited.expires_at,
     )
-    letter = worded(invited.member.email, link, await mail.brand_of(pool))
+    letter = worded(invited.member.email, link, await letters.brand_of(pool))
     return await gateway.outbox.post(key.org, letter)

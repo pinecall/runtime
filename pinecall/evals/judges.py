@@ -442,7 +442,7 @@ def _grounded_judge(case: Case) -> CaseJudge:
     missing = [
         (extractor, fact)
         for extractor, fact in stated
-        if not carries(evidence, fact, extractor.scope)
+        if not carries(evidence, fact, extractor.source)
     ]
     if not stated:
         return CaseJudge("grounded", GROUNDED, _passing(NOTHING_STATED))

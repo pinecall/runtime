@@ -144,7 +144,7 @@ async def send_test_letter(
     to = mail.address_of(body.to)
     if await gateway.outbox.mailbox_for(key.org) is None:
         raise Conflict(NOTHING_TO_TEST)
-    letter = letters.probe_letter(to, await mail.brand_of(gateway.connections.pool))
+    letter = letters.probe_letter(to, await letters.brand_of(gateway.connections.pool))
     error = await gateway.outbox.sent(key.org, letter)
     return SendTestLetterResponse(sent=error is None, error=error)
 

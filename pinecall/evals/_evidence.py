@@ -26,7 +26,7 @@ A_COMMITMENT = re.compile(
 )
 
 
-class Scope(StrEnum):
+class Source(StrEnum):
     """Where a stated fact may come from: the written text, or what the call itself carried."""
 
     TEXT = "text"
@@ -38,7 +38,7 @@ class Extractor:
     """A kind of fact, where it may come from, and the pattern that finds it in a turn."""
 
     name: str
-    scope: Scope
+    source: Source
     pattern: re.Pattern[str]
 
 
@@ -53,18 +53,18 @@ class Evidence:
 
 
 A_PRICE = Extractor(
-    "price", Scope.TEXT, re.compile(r"\d+(?:[.,]\d+)?\s*(?:€|euros?)", re.IGNORECASE)
+    "price", Source.TEXT, re.compile(r"\d+(?:[.,]\d+)?\s*(?:€|euros?)", re.IGNORECASE)
 )
 
 
 AN_HOUR = Extractor(
-    "hour", Scope.CALL, re.compile(r"\b\d{1,2}[:.]\d{2}\b|\b\d{1,2}\s?h\b", re.IGNORECASE)
+    "hour", Source.CALL, re.compile(r"\b\d{1,2}[:.]\d{2}\b|\b\d{1,2}\s?h\b", re.IGNORECASE)
 )
 
 
 A_DATE = Extractor(
     "date",
-    Scope.CALL,
+    Source.CALL,
     re.compile(
         r"\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b|\b(?:lunes|martes|miércoles|jueves|viernes|sábado"
         r"|domingo)\b",
@@ -76,7 +76,7 @@ A_DATE = Extractor(
 # The group is the fact: `la doctora Vidal` states `Vidal`.
 A_PERSON = Extractor(
     "person",
-    Scope.CALL,
+    Source.CALL,
     re.compile(r"(?:doctora?|dra?\.|señora?|sra?\.)\s+([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)", re.IGNORECASE),
 )
 
@@ -115,19 +115,19 @@ def stated_in(case: Case) -> list[tuple[Extractor, str]]:
 
 
 # Blind to whitespace and case: `10:00` is `10 : 00`, and so is a wrapped line.
-def carries(evidence: Evidence, fact: str, scope: Scope) -> bool:
+def carries(evidence: Evidence, fact: str, source: Source) -> bool:
     """Whether the evidence of the scope holds the fact."""
-    within = evidence.text if scope is Scope.TEXT else (*evidence.calls, *evidence.state)
+    within = evidence.text if source is Source.TEXT else (*evidence.calls, *evidence.state)
     return any(_flattened(fact) in _flattened(source) for source in within)
 
 
 def missing_from(evidence: Evidence, extractor: Extractor, fact: str) -> str:
     """The sentence for a fact no evidence of its scope holds, and whether the other scope does."""
-    where = f"no {extractor.scope} evidence carries the {extractor.name} {fact!r}"
-    other = Scope.CALL if extractor.scope is Scope.TEXT else Scope.TEXT
+    where = f"no {extractor.source} evidence carries the {extractor.name} {fact!r}"
+    other = Source.CALL if extractor.source is Source.TEXT else Source.TEXT
     if not carries(evidence, fact, other):
         return where
-    elsewhere = "a tool answer or the state" if extractor.scope is Scope.TEXT else "the text"
+    elsewhere = "a tool answer or the state" if extractor.source is Source.TEXT else "the text"
     return f"{where}, though {elsewhere} does"
 
 

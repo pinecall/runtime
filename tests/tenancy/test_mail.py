@@ -9,17 +9,17 @@ from pinecall.domain.errors import DeclarationRefused, UpstreamFailed
 from pinecall.postgres.pool import Pool
 from pinecall.process.connections import vault_of
 from pinecall.tenancy.letters import (
+    Brand,
+    Letter,
     Link,
+    apply_brand,
     forgotten_password_letter,
     invitation_letter,
     probe_letter,
     reset_letter,
 )
 from pinecall.tenancy.mail import (
-    Brand,
-    Letter,
     Mailbox,
-    apply_brand,
     box_mail_of,
     drop_box_mail,
     drop_mail,

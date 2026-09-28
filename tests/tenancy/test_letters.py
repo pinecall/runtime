@@ -8,19 +8,19 @@ from pinecall.domain.errors import DeclarationRefused, UpstreamFailed
 from pinecall.postgres.pool import Pool
 from pinecall.process.connections import Connections
 from pinecall.tenancy.letters import (
+    Brand,
     Link,
+    brand_of,
     card_link,
     invitation_letter,
     probe_letter,
+    put_brand,
     signup_code_letter,
 )
 from pinecall.tenancy.mail import (
-    Brand,
     Outbox,
-    brand_of,
     mail_of,
     post,
-    put_brand,
     put_mail,
 )
 from pinecall.tenancy.orgs import create

@@ -44,6 +44,7 @@ from pinecall.providers.credentials import Keyring, thinking
 from pinecall.providers.declared import model_of
 from pinecall.tenancy import personas, tokens
 from pinecall.wire.events import CallScore
+from pinecall.wire.parts import ModelConfig
 from pinecall.wire.rest.evals import (
     CallerPersona,
     EvalRunList,
@@ -343,15 +344,7 @@ async def _every_golden(gateway: Gateway, suite: Suite, judge: llm.LLM[Never] | 
     total = len(body.goldens) * max(len(body.models), 1)
     for model in body.models or [None]:
         column = runs.column_of(model)
-        config = suite.setup.config
-        if model is not None:
-            declared = Model(
-                provider=model.provider, model=model.model, temperature=model.temperature
-            )
-            config = dataclasses.replace(config, llm=declared)
-        setup = dataclasses.replace(
-            suite.setup, config=config, model=thinking(config, suite.configured, suite.keys)
-        )
+        setup = _column_setup(suite, model)
         for golden in body.goldens:
             if not _holds(gateway, registration):
                 return THE_APP_LEFT.format(done=len(suite.cells), total=total, slug=body.agent)
@@ -372,6 +365,17 @@ async def _every_golden(gateway: Gateway, suite: Suite, judge: llm.LLM[Never] | 
             suite.cells.append(runs.cell_of(opened, case, scores, requests))
             await runs.put(gateway.connections.pool, registration.scope, suite.now)
     return None
+
+
+# A column runs the agent's own model, or the one named, on the same tuned config and keys.
+def _column_setup(suite: Suite, model: ModelConfig | None) -> TextSetup:
+    config = suite.setup.config
+    if model is not None:
+        declared = Model(provider=model.provider, model=model.model, temperature=model.temperature)
+        config = dataclasses.replace(config, llm=declared)
+    return dataclasses.replace(
+        suite.setup, config=config, model=thinking(config, suite.configured, suite.keys)
+    )
 
 
 async def _written(

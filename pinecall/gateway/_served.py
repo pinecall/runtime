@@ -392,7 +392,13 @@ async def sealed(
     await summed_up(serving.connections.pool, serving.logs.store, served.log, sealing)
     if lent:
         await facts.lent(serving.connections.pool, served.call, lent)
-    score = await _scored(serving, served)
+    if served.context.run is not None:
+        score = CallScore(judges=[], judge_calls=0, not_judged=A_RUN_JUDGES_IT)
+    elif not await orgs.judged(serving.connections.pool, served.scope.org):
+        score = CallScore(judges=[], judge_calls=0, not_judged=JUDGING_OFF.format(call=served.call))
+    else:
+        entries = await serving.logs.store.whole(served.call)
+        score = await judged_call(serving.connections, entries, served.config)
     await served.log.append("call.score", score.written())
     serving.logs.forget(served.call)
     serving.live.close(served.call)
@@ -483,15 +489,6 @@ async def judge_of(connections: Connections, configured: Providers) -> tuple[Run
     named = configured.judge.llm
     declared = Model(provider=named.vendor, model=named.model or "")
     return credentials.stage("llm", declared, configured, Keyring(box=box)), ""
-
-
-async def _scored(serving: Serving, served: Served) -> CallScore:
-    if served.context.run is not None:
-        return CallScore(judges=[], judge_calls=0, not_judged=A_RUN_JUDGES_IT)
-    if not await orgs.judged(serving.connections.pool, served.scope.org):
-        return CallScore(judges=[], judge_calls=0, not_judged=JUDGING_OFF.format(call=served.call))
-    entries = await serving.logs.store.whole(served.call)
-    return await judged_call(serving.connections, entries, served.config)
 
 
 async def _pumped(entries: Subscription, send: Send) -> None:
