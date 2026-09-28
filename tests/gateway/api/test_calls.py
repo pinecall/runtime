@@ -852,3 +852,26 @@ async def test_the_apps_preflight_is_answered_and_a_page_may_not_write(gateway: 
     assert preflight.status_code == 200
     assert "GET" in preflight.headers["access-control-allow-methods"]
     assert writing.status_code == 400
+
+
+@postgres
+async def test_a_supervisors_end_on_a_chat_seals_the_call_and_closes_the_socket(
+    gateway: Knocking,
+) -> None:
+    await catalog.configure(gateway.box.pool, configured([["hola"]]))
+    app = await an_app(gateway)
+    chat = await gateway.socket(f"/v1/chat?agent={AGENT}", gateway.app["sandbox"])
+    started = await said_until(chat, "call.started")
+    call = started.call or ""
+    await chat.send(json.dumps({"text": "quiero un turno"}))
+    await said_until(chat, "turn.agent")
+    async with gateway.http(gateway.app["sandbox"]) as desk:
+        ended = await desk.post(f"/v1/calls/{call}/verbs", json={"verb": "end"})
+    assert ended.status_code == 202
+    await chat.wait_closed()
+    assert "supervisor_ended" in (chat.close_reason or "")
+    kinds = [one.type for one in await gateway.box.logs.store.whole(call)]
+    assert "supervisor.ended" in kinds
+    assert kinds[-3:] == ["call.ended", "call.summary", "call.score"]
+    assert await gateway.box.logs.store.sealed(call)
+    await app.close()
