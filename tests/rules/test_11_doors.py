@@ -7,6 +7,7 @@ import pytest
 from fastapi.routing import APIRoute, APIWebSocketRoute
 
 from pinecall.gateway.api import (
+    accounts,
     agents,
     apps,
     callbacks,
@@ -14,11 +15,16 @@ from pinecall.gateway.api import (
     chat,
     desk,
     fleet,
+    keys,
     line,
+    members,
     numbers,
+    ops,
     org,
     relay,
     retrieval,
+    signup,
+    sso_login,
     threads,
     visitors,
     whatsapp,
@@ -27,6 +33,12 @@ from pinecall.gateway.app import app
 from tests.rules.tree import FIXTURES, PARITY_MD, V1
 
 EVERY_DOOR = V1 / "docs/protocol/every-door.md"
+
+# Doors of v1 that are not written again: rule 11 skips them when it reads the table whole.
+GONE: tuple[tuple[str, str], ...] = (
+    # The sandbox asked production who a person was; one gateway serves both worlds now.
+    ("POST", "/v1/login/redeem"),
+)
 
 # A row of the table names one path and its methods, or several paths; every pair is a door.
 ROWS_OF_V1 = 133
@@ -37,6 +49,7 @@ def routes_of_the_gateway() -> frozenset[tuple[str, str]]:
     """Return every (method, path) the gateway answers, spelled as the table of v1 spells them."""
     found: set[tuple[str, str]] = set()
     routers = (
+        accounts,
         agents,
         apps,
         callbacks,
@@ -44,11 +57,16 @@ def routes_of_the_gateway() -> frozenset[tuple[str, str]]:
         chat,
         desk,
         fleet,
+        keys,
         line,
+        members,
         numbers,
+        ops,
         org,
         relay,
         retrieval,
+        signup,
+        sso_login,
         threads,
         visitors,
         whatsapp,
@@ -175,3 +193,11 @@ def test_the_parser_reads_every_shape_the_table_uses() -> None:
         ("GET", "/v1/calls/{call}/commands"),
         ("GET", "/{path}"),
     ]
+
+
+@pytest.mark.skipif(not EVERY_DOOR.is_file(), reason="the v1 checkout is not beside this one")
+def test_a_door_of_v1_that_is_gone_is_in_the_table_and_no_route_of_the_gateway() -> None:
+    doors = set(doors_in(EVERY_DOOR))
+    for door in GONE:
+        assert door in doors, f"{door} is not a door of v1"
+        assert door not in ROUTES, f"{door} is gone and still a route"

@@ -147,7 +147,7 @@ TASK_OWNERS: tuple[Allowed, ...] = (
         "tailing is cancelled in close(); answers are held in the set",
     ),
     Allowed(
-        "pinecall/tenancy/_mail.py",
+        "pinecall/tenancy/mail.py",
         "create_task",
         "in_flight holds every letter; the outbox awaits them at close",
     ),

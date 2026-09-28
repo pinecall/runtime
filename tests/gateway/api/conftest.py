@@ -1,17 +1,23 @@
 """What every door test knocks with: a call of the org's agent, and an app socket holding it."""
 
+import smtplib
 from collections.abc import AsyncIterator
 from datetime import date
+from email.message import Message
 
+import pytest
 from websockets.asyncio.client import ClientConnection
 
 from pinecall.domain.call import CallContext, Route, new_call_id
 from pinecall.domain.names import Env
+from pinecall.tenancy import mail
 from tests.conftest import AGENT, Knocking, received_until, sent
+from tests.fakes.mail import MailServer, Postbox
 
 A_NUMBER = "+59829001199"
 THE_CALLER = "+59899123456"
 HER_PHONE = "+59899000001"
+THE_BOXS_SENDER = "Pinecall <no-reply@box.test>"
 
 
 def a_call(knocking: Knocking, *, env: Env = "sandbox", channel: str = "phone") -> CallContext:
@@ -47,4 +53,36 @@ async def first_data(lines: AsyncIterator[str]) -> str:
     async for line in lines:
         if line.startswith("data:"):
             return line[5:].strip()
+    return ""
+
+
+@pytest.fixture
+def postbox(monkeypatch: pytest.MonkeyPatch) -> Postbox:
+    """Every mail server the gateway reaches, answering into one postbox."""
+    kept = Postbox()
+    monkeypatch.setattr(MailServer, "postbox", kept)
+    monkeypatch.setattr(smtplib, "SMTP", MailServer)
+    monkeypatch.setattr(smtplib, "SMTP_SSL", MailServer)
+    return kept
+
+
+async def box_can_mail(knocking: Knocking) -> None:
+    """The box's own mailbox, stored as the operator stores it."""
+    connections = knocking.gateway.connections
+    mailbox = mail.Mailbox("smtp.box.test", 587, "starttls", "box", "box-pass", THE_BOXS_SENDER)
+    await mail.put_box_mail(connections.pool, connections.vault, mailbox)
+
+
+async def delivered(knocking: Knocking, postbox: Postbox) -> list[str]:
+    """The addresses of every letter the gateway sent, once its outbox is empty."""
+    await knocking.gateway.outbox.drained()
+    return [str(letter["To"]) for letter in postbox.sent]
+
+
+def text_of(letter: Message) -> str:
+    """The plain-text half of a letter."""
+    for part in letter.walk():
+        payload = part.get_payload(decode=True)
+        if part.get_content_type() == "text/plain" and isinstance(payload, bytes):
+            return payload.decode()
     return ""

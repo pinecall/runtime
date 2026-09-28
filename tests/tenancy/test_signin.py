@@ -1,6 +1,7 @@
 """Sign-in: a password, a code, a paired terminal, a sign-up that founds an org, a provider."""
 
 from dataclasses import replace
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -15,13 +16,27 @@ from pinecall.domain.org import Org, Quotas
 from pinecall.domain.person import Key, Member
 from pinecall.postgres.pool import Pool
 from pinecall.process.connections import Connections, vault_of
-from pinecall.tenancy._mail import Mailbox, Outbox
-from pinecall.tenancy._signin import (
+from pinecall.tenancy.admission import Admission, quotas_of, set_admission
+from pinecall.tenancy.keys import person_key, verify
+from pinecall.tenancy.mail import Mailbox, Outbox
+from pinecall.tenancy.orgs import create
+from pinecall.tenancy.people import (
+    Change,
+    Invitee,
+    accept,
+    hash_password,
+    invite,
+    make_operator,
+    update,
+)
+from pinecall.tenancy.signin import (
     HANDSHAKE,
     LOGIN_CODE,
     Asking,
+    Handshake,
     Holder,
     OneUse,
+    OneUseValue,
     Pairings,
     Signup,
     Signups,
@@ -34,27 +49,14 @@ from pinecall.tenancy._signin import (
     sign_in_with_code,
     sign_in_with_password,
 )
-from pinecall.tenancy._sso import (
+from pinecall.tenancy.sso import (
     Claims,
     Client,
-    Handshake,
     authorization_url,
     discovered,
     handshake,
     reachable,
     vouched_for,
-)
-from pinecall.tenancy.admission import Admission, quotas_of, set_admission
-from pinecall.tenancy.keys import verify
-from pinecall.tenancy.orgs import create
-from pinecall.tenancy.people import (
-    Change,
-    Invitee,
-    accept,
-    hash_password,
-    invite,
-    make_operator,
-    update,
 )
 from tests.conftest import postgres
 from tests.fakes.idp import IdentityProvider
@@ -91,11 +93,16 @@ def begun_signin(org: str | None = None) -> Handshake:
 async def test_the_right_password_mints_a_key_for_the_person(pool: Pool) -> None:
     org = await org_of(pool)
     member = await seated(pool, org)
-    signed = await sign_in_with_password(pool, Asking("ANA@clinica.test", WHAT_ANA_TYPES))
+    typed = Asking("ANA@clinica.test", WHAT_ANA_TYPES, device="phone")
+    signed = await sign_in_with_password(pool, typed)
     assert signed.member == member
     bearer = await verify(pool, signed.secret)
     assert bearer is not None
-    assert (bearer.key.subject, bearer.key.env) == (member.id, "production")
+    assert (bearer.key.subject, bearer.key.env, bearer.key.label) == (
+        member.id,
+        "production",
+        "phone",
+    )
 
 
 @postgres
@@ -184,6 +191,29 @@ async def test_a_servers_key_minted_a_code_gives_a_browser_a_key_like_its_own(po
     assert (signed.key.env, signed.key.scopes, signed.member) == ("sandbox", server.scopes, None)
 
 
+@postgres
+async def test_a_persons_key_minted_a_code_gives_the_browser_that_person_dying_with_the_key(
+    pool: Pool,
+) -> None:
+    org = await org_of(pool)
+    member = await seated(pool, org)
+    dies = datetime(2030, 1, 1, tzinfo=UTC)
+    parent, _ = await person_key(pool, member, parent=Key("k_p", org.id, expires_at=dies))
+    codes: OneUse[Holder] = OneUse(LOGIN_CODE)
+    code, _ = codes.mint(parent)
+    signed = await sign_in_with_code(pool, codes, code, device="chrome")
+    assert signed is not None
+    assert (signed.key.subject, signed.key.name, signed.key.label) == (
+        member.id,
+        member.name,
+        "chrome",
+    )
+    assert signed.key.expires_at == dies
+    bearer = await verify(pool, signed.secret)
+    assert bearer is not None
+    assert bearer.member == member
+
+
 def test_a_code_dies_on_its_own_and_a_stranger_is_none() -> None:
     now = [100.0]
     codes: OneUse[str] = OneUse(LOGIN_CODE, clock=lambda: now[0])
@@ -214,8 +244,9 @@ def test_a_terminal_prints_a_word_a_browser_answers_and_the_terminal_collects_on
 
 
 def test_the_code_is_six_digits_and_only_its_hash_is_kept() -> None:
-    signups = Signups()
-    code = signups.begin(Signup("ana@c.test", "clinica", "Ana", "h"))
+    signups = Signups(clock=lambda: 100.0)
+    code, expires_at = signups.begin(Signup("ana@c.test", "clinica", "Ana", "h"))
+    assert expires_at == 100.0 + 15 * 60
     assert len(code) == 6
     assert code.isdigit()
     assert code.encode() not in signups.pending["ana@c.test"].code_hash
@@ -224,14 +255,14 @@ def test_the_code_is_six_digits_and_only_its_hash_is_kept() -> None:
 def test_the_right_code_takes_the_sign_up_out_once() -> None:
     signups = Signups()
     signup = Signup("ana@c.test", "clinica", "Ana", "h")
-    code = signups.begin(signup)
+    code, _ = signups.begin(signup)
     assert signups.verify("ana@c.test", code) == signup
     assert signups.verify("ana@c.test", code) == "wrong"
 
 
 def test_six_wrong_codes_burn_it() -> None:
     signups = Signups()
-    code = signups.begin(Signup("ana@c.test", "clinica", "Ana", "h"))
+    code, _ = signups.begin(Signup("ana@c.test", "clinica", "Ana", "h"))
     wrong = "000000" if code != "000000" else "000001"
     outcomes = [signups.verify("ana@c.test", wrong) for _ in range(6)]
     assert outcomes == ["wrong"] * 5 + ["burned"]
@@ -241,7 +272,7 @@ def test_six_wrong_codes_burn_it() -> None:
 def test_a_code_dies_at_fifteen_minutes_and_a_renewed_one_replaces_the_first() -> None:
     now = [0.0]
     signups = Signups(clock=lambda: now[0])
-    first = signups.begin(Signup("ana@c.test", "clinica", "Ana", "h"))
+    first, _ = signups.begin(Signup("ana@c.test", "clinica", "Ana", "h"))
     renewed = signups.renewed("ana@c.test")
     assert renewed is not None
     assert signups.verify("ana@c.test", first) == "wrong"
@@ -263,6 +294,8 @@ async def test_a_verified_sign_up_founds_the_org_seats_its_admin_and_hands_a_key
         "active",
     )
     assert (await verify(pool, founded.signed_in.secret)) is not None
+    assert founded.signed_in.key.label == "signup"
+    assert codes.read(founded.code) == OneUseValue(founded.admin, founded.code_expires_at)
     assert codes.spend(founded.code) == founded.admin
     assert (
         await sign_in_with_password(pool, Asking("ana@c.test", WHAT_ANA_TYPES))
@@ -290,8 +323,8 @@ async def test_the_same_person_gets_a_key_for_another_device_that_dies_with_the_
     org = await org_of(pool)
     member = await seated(pool, org)
     signed = await sign_in_with_password(pool, Asking("ana@clinica.test", WHAT_ANA_TYPES))
-    paired = await another_key(pool, signed.key, member)
-    assert paired.key.subject == member.id
+    paired = await another_key(pool, signed.key, member, device="berna-mbp")
+    assert (paired.key.subject, paired.key.label) == (member.id, "berna-mbp")
     with pytest.raises(NotAllowed, match="a server's token names nobody"):
         await another_key(pool, Key("k_s", org.id), None)
     await update(pool, org.id, member.id, Change(status="disabled"))

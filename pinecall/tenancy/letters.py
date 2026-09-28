@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from html import escape
 
-from pinecall.tenancy._mail import Brand, Letter
+from pinecall.tenancy.mail import Brand, Letter
 
 NOBODY_ASKED = "If you did not ask for this, nothing has changed and you can ignore this message."
 

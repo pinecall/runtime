@@ -39,6 +39,8 @@ from pinecall.providers.build import MODALITIES, Vendor, installed
 from pinecall.providers.catalog import Providers
 from pinecall.tenancy import keys, orgs, people, vault
 from pinecall.tenancy.codes import Codes
+from pinecall.tenancy.mail import Outbox
+from pinecall.tenancy.signin import SignIns
 from pinecall.tenancy.tokens import Signer
 from pinecall.wire.frames import Entry
 from tests.fakes.acme import ACME
@@ -254,6 +256,7 @@ async def wired(
     sockets, live = Sockets(logs), ServedCalls()
     connections = Connections(settings=settings, pool=pool, vault=sealed, http=http, server=server)
     threads = Threads(Serving(connections=connections, logs=logs, live=live), sockets)
+    outbox = Outbox(connections, None)
     yield Gateway(
         connections=connections,
         logs=logs,
@@ -265,7 +268,10 @@ async def wired(
         threads=threads,
         closing=asyncio.Event(),
         embedder=None,
+        signins=SignIns.fresh(store.clock),
+        outbox=outbox,
     )
+    await outbox.drained()
     await threads.closed()
     await http.aclose()
     await server.aclose()

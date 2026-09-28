@@ -9,13 +9,42 @@ from fastapi.routing import APIRoute
 
 from pinecall.domain.errors import Conflict, NotSignedIn
 from pinecall.gateway._deps import SCOPES_OF, operator
-from pinecall.gateway.app import app, origins_allowed, refused
+from pinecall.gateway.app import ROUTERS, app, origins_allowed, refused
 from pinecall.process.settings import Settings
 from tests.conftest import Knocking, postgres
 
 # The doors a key opens without a scope: what the fleet's key and a page's token read are
 # checked inside.
 NO_SCOPE = frozenset({"/{path:path}", "/widget/{file}"})
+
+# The doors nobody holds a key at yet (a sign-in page, a terminal, an invitation, Meta), and the
+# ones that read any key as who it is (whoami, a code, the org switch, one's own keys).
+NO_KEY_OR_ANY_KEY = frozenset(
+    {
+        "/.well-known/pinecall",
+        "/v1/invitations/{token}",
+        "/v1/keys",
+        "/v1/keys/{fingerprint}/revoke",
+        "/v1/login",
+        "/v1/login/codes",
+        "/v1/login/google",
+        "/v1/login/google/callback",
+        "/v1/login/org",
+        "/v1/login/orgs",
+        "/v1/login/pairings",
+        "/v1/login/pairings/{code}",
+        "/v1/login/pairings/{code}/key",
+        "/v1/login/reset",
+        "/v1/login/sso",
+        "/v1/login/sso/callback",
+        "/v1/login/sso/discover",
+        "/v1/signup",
+        "/v1/signup/resend",
+        "/v1/signup/verify",
+        "/v1/whatsapp/webhook",
+        "/v1/whoami",
+    }
+)
 
 
 def scopes_of(dependant: Dependant) -> list[Callable[..., object]]:
@@ -30,13 +59,16 @@ def scopes_of(dependant: Dependant) -> list[Callable[..., object]]:
     return [item for item in found if item is not None]
 
 
+# FastAPI keeps an included router whole, so its doors are walked through ROUTERS.
 def test_every_door_declares_exactly_one_scope() -> None:
-    doors = [route for route in app.routes if isinstance(route, APIRoute)]
+    routes = [*app.routes, *(route for doors in ROUTERS for route in doors.router.routes)]
+    doors = [route for route in routes if isinstance(route, APIRoute)]
     assert doors
     unscoped = [
         f"{sorted(door.methods or set[str]())} {door.path}"
         for door in doors
-        if door.path not in NO_SCOPE and len(set(scopes_of(door.dependant))) != 1
+        if door.path not in NO_SCOPE | NO_KEY_OR_ANY_KEY
+        and len(set(scopes_of(door.dependant))) != 1
     ]
     assert unscoped == []
 

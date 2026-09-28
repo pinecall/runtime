@@ -1,19 +1,51 @@
-"""The org's own settings: whether its calls are judged at hang-up, and the ceiling per call."""
+"""The org's own settings: judging and its ceiling, its identity provider, and its mailbox."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
+from pinecall.domain.errors import Conflict, DeclarationRefused, NotFound, UpstreamFailed
+from pinecall.domain.person import parse_role
 from pinecall.gateway._deps import (
     CallsKey,
     GatewayDep,
+    TeamKey,
     UsageKey,
+    public_url,
 )
-from pinecall.tenancy import orgs
+from pinecall.tenancy import keys, letters, mail, orgs, sso
+from pinecall.tenancy.mail import Mailbox, MailboxStatus
+from pinecall.tenancy.sso import Client, OrgSso
+from pinecall.wire.rest.accounts import (
+    OrgMailRequest,
+    OrgMailResponse,
+    OrgSsoRequest,
+    OrgSsoResponse,
+    SendTestLetterRequest,
+    SendTestLetterResponse,
+)
 from pinecall.wire.rest.agents import (
     JudgingRequest,
     JudgingSettings,
 )
 
 router = APIRouter()
+
+
+# A 404, not a 204: taking away what is not there must not look like it worked.
+NO_SSO = "this org signs in with no identity provider"
+
+
+NO_MAIL = "this org sends its letters through the box's own mail"
+
+
+# The issuer is asked before it is kept, so a typo shows here and not at the first sign-in.
+NOT_KEPT = "{said}: nothing was kept"
+
+
+# A 409, not a 503: the request is fine, and there is nothing to test.
+NOTHING_TO_TEST = (
+    "neither this org nor this box has a mail server: set one at PUT /v1/org/mail, or set "
+    "PINECALL_SMTP_URL on the box"
+)
 
 
 # Per org, not per world: judging is billed to the org across both.
@@ -29,3 +61,117 @@ async def put_judging(body: JudgingRequest, key: UsageKey, gateway: GatewayDep) 
     """Hang-up judging on or off, from the next call."""
     await orgs.set_judging(gateway.connections.pool, key.org, on=body.on)
     return JudgingSettings(on=body.on, ceiling_eur=gateway.connections.settings.judge_ceiling_eur)
+
+
+# `team`: the provider decides who the org's people are.
+@router.get("/v1/org/sso")
+async def get_sso(key: TeamKey, request: Request, gateway: GatewayDep) -> OrgSsoResponse:
+    """The org's provider, never its secret, and the redirect URI to register there."""
+    connections = gateway.connections
+    wired = await sso.sso_of(connections.pool, connections.vault, key.org)
+    return _sso_row(wired, f"{public_url(request, gateway)}{sso.CALLBACK}")
+
+
+# The role the provider seats people with counts as granted by this key: a manager makes no admin.
+@router.put("/v1/org/sso")
+async def put_sso(
+    body: OrgSsoRequest, key: TeamKey, request: Request, gateway: GatewayDep
+) -> OrgSsoResponse:
+    """Replace the org's provider whole, once its issuer answered as one."""
+    connections = gateway.connections
+    role = None if body.role is None else parse_role(body.role)
+    wanted = OrgSso(
+        org=key.org,
+        client=Client(body.issuer.strip(), body.client_id.strip(), body.client_secret),
+        domains=tuple(domain.strip().lower().removeprefix("@") for domain in body.domains),
+        role=role,
+        required=body.required,
+    )
+    keys.check_may_grant(key.bearer, role, production=False)
+    try:
+        await sso.discovered(connections.http, wanted.client.issuer)
+    except UpstreamFailed as unanswered:
+        raise DeclarationRefused(NOT_KEPT.format(said=unanswered)) from unanswered
+    await sso.put_sso(connections.pool, connections.vault, wanted)
+    return _sso_row(wanted, f"{public_url(request, gateway)}{sso.CALLBACK}")
+
+
+@router.delete("/v1/org/sso", status_code=204)
+async def drop_sso(key: TeamKey, gateway: GatewayDep) -> None:
+    """Forget the org's provider: passwords open it again from the next attempt."""
+    if not await sso.drop_sso(gateway.connections.pool, key.org):
+        raise NotFound(NO_SSO)
+
+
+# `team`: these letters carry invitations and password links.
+@router.get("/v1/org/mail")
+async def get_mail(key: TeamKey, gateway: GatewayDep) -> OrgMailResponse:
+    """The org's own mailbox, never its password, and how its last letter went."""
+    connections = gateway.connections
+    return _mail_row(await mail.mail_of(connections.pool, connections.vault, key.org))
+
+
+# Sends nothing: the test door does, and a person watches it.
+@router.put("/v1/org/mail")
+async def put_mail(body: OrgMailRequest, key: TeamKey, gateway: GatewayDep) -> OrgMailResponse:
+    """Replace the org's own mailbox; its letters go through it from the next one."""
+    connections = gateway.connections
+    mailbox = Mailbox(
+        host=body.host.strip(),
+        port=body.port,
+        security=mail.parse_security(body.security),
+        username=body.username.strip(),
+        password=body.password,
+        sender=body.sender.strip(),
+    )
+    await mail.put_mail(connections.pool, connections.vault, key.org, mailbox)
+    return _mail_row(await mail.mail_of(connections.pool, connections.vault, key.org))
+
+
+@router.delete("/v1/org/mail", status_code=204)
+async def drop_mail(key: TeamKey, gateway: GatewayDep) -> None:
+    """Forget the org's own mailbox: its letters go through the box's again."""
+    if not await mail.drop_mail(gateway.connections.pool, key.org):
+        raise NotFound(NO_MAIL)
+
+
+# The one mail door that waits on SMTP; how it went is kept as a real letter's is.
+@router.post("/v1/org/mail/test")
+async def send_test_letter(
+    body: SendTestLetterRequest, key: TeamKey, gateway: GatewayDep
+) -> SendTestLetterResponse:
+    """One test letter, waited for: whether it went, and what the server said when not."""
+    to = mail.address_of(body.to)
+    if await gateway.outbox.mailbox_for(key.org) is None:
+        raise Conflict(NOTHING_TO_TEST)
+    letter = letters.probe_letter(to, await mail.brand_of(gateway.connections.pool))
+    error = await gateway.outbox.sent(key.org, letter)
+    return SendTestLetterResponse(sent=error is None, error=error)
+
+
+def _sso_row(wired: OrgSso | None, redirect_uri: str) -> OrgSsoResponse:
+    return OrgSsoResponse(
+        configured=wired is not None,
+        issuer=None if wired is None else wired.client.issuer,
+        client_id=None if wired is None else wired.client.client_id,
+        domains=[] if wired is None else list(wired.domains),
+        role=None if wired is None else wired.role,
+        required=wired is not None and wired.required,
+        redirect_uri=redirect_uri,
+    )
+
+
+def _mail_row(kept: MailboxStatus | None) -> OrgMailResponse:
+    # By its wire name: `from` is a keyword.
+    return OrgMailResponse.model_validate(
+        {
+            "configured": kept is not None,
+            "host": None if kept is None else kept.mailbox.host,
+            "port": None if kept is None else kept.mailbox.port,
+            "security": None if kept is None else kept.mailbox.security,
+            "username": None if kept is None else kept.mailbox.username,
+            "from": None if kept is None else kept.mailbox.sender,
+            "verified_at": None if kept is None else kept.verified_at,
+            "last_error": None if kept is None else kept.last_error,
+        }
+    )

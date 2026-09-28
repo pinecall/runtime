@@ -8,10 +8,12 @@ from pinecall.domain.person import (
     KEY_SCOPES,
     ROLE_SCOPES,
     ROLES,
+    SERVER_SCOPES,
     Key,
     Member,
     key_scopes,
     parse_role,
+    parse_status,
 )
 from tests.domain.conftest import a_member
 
@@ -33,6 +35,17 @@ def test_a_role_is_read_off_a_word_and_a_word_that_is_none_is_refused_with_the_f
     assert parse_role("supervisor") == "supervisor"
     with pytest.raises(DeclarationRefused, match=r"admin.*developer.*manager.*qa.*supervisor"):
         parse_role("owner")
+
+
+def test_a_status_is_read_off_a_word_and_a_word_that_is_none_is_refused_with_the_three() -> None:
+    assert parse_status("disabled") == "disabled"
+    with pytest.raises(DeclarationRefused, match=r"active.*disabled.*invited"):
+        parse_status("gone")
+
+
+def test_a_servers_token_serves_agents_and_never_the_orgs_people_numbers_or_money() -> None:
+    assert {"app", "calls", "talk", "knowledge", "evals"} == SERVER_SCOPES
+    assert not SERVER_SCOPES & {"team", "keys", "numbers", "usage", "providers"}
 
 
 def test_every_role_presets_scopes_the_runtime_knows_and_admin_has_every_one() -> None:

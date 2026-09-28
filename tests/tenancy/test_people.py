@@ -8,7 +8,6 @@ import pytest
 from pinecall.domain.errors import Conflict, DeclarationRefused, NotFound, QuotaExhausted
 from pinecall.domain.org import Org
 from pinecall.postgres.pool import Pool
-from pinecall.tenancy._signin import Throttle
 from pinecall.tenancy.orgs import create
 from pinecall.tenancy.people import (
     Change,
@@ -31,6 +30,7 @@ from pinecall.tenancy.people import (
     update,
     vouched,
 )
+from pinecall.tenancy.signin import Throttle
 from tests.conftest import postgres
 
 ANA = Invitee(email=" Ana@Clinica.test ", name="Ana García", role="developer")

@@ -11,6 +11,8 @@ from pinecall.log.logs import Logs
 from pinecall.process.connections import Connections
 from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy.codes import Codes
+from pinecall.tenancy.mail import Outbox
+from pinecall.tenancy.signin import SignIns
 from pinecall.tenancy.tokens import Signer
 
 
@@ -30,6 +32,8 @@ class Gateway:
     closing: asyncio.Event
     # None when the providers row names no embedding, or the box holds no key for its vendor.
     embedder: Embedder | None
+    signins: SignIns
+    outbox: Outbox
 
     @property
     def serving(self) -> Serving:
