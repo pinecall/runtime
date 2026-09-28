@@ -14,12 +14,12 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from pinecall.channels.telephony.sip import rebuild
-from pinecall.domain.errors import NotSignedIn, PinecallError, SettingsRefused
+from pinecall.domain.errors import NotAvailable, NotSignedIn, PinecallError, SettingsRefused
 from pinecall.fleet.roster import Roster
 from pinecall.gateway import _deps
+from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import ServedCalls, Serving, reap_forever
 from pinecall.gateway._sockets import Sockets
-from pinecall.gateway._state import Gateway
 from pinecall.gateway._threads import Threads
 from pinecall.gateway.api import (
     agents,
@@ -33,18 +33,28 @@ from pinecall.gateway.api import (
     numbers,
     org,
     relay,
+    retrieval,
     threads,
     visitors,
     whatsapp,
 )
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store
-from pinecall.process.connections import opened
+from pinecall.process.connections import Connections, opened
 from pinecall.process.settings import Settings, load
+from pinecall.providers import catalog
+from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy.codes import Codes
 from pinecall.tenancy.tokens import Signer
+from pinecall.tenancy.vault import box_credentials
 
 logger = logging.getLogger(__name__)
+
+
+NO_EMBEDDER = "no providers row: the gateway starts with no embedder"
+
+
+NO_EMBEDDER_KEY = "the providers row embeds with %s and the box holds no key for it: no embedder"
 
 
 NO_LIVEKIT = "LIVEKIT_API_KEY and LIVEKIT_API_SECRET: the gateway signs every room token with them"
@@ -105,6 +115,7 @@ ROUTERS = (
     numbers,
     org,
     relay,
+    retrieval,
     threads,
     visitors,
     whatsapp,
@@ -202,6 +213,7 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
     threads = Threads(Serving(connections=connections, logs=logs, live=live), sockets)
     await threads.loaded()
     stack.push_async_callback(threads.closed)
+    embedder = await _embedder(connections)
     return Gateway(
         connections=connections,
         logs=logs,
@@ -212,6 +224,7 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
         signer=Signer(settings.livekit_api_key, settings.livekit_api_secret),
         threads=threads,
         closing=asyncio.Event(),
+        embedder=embedder,
     )
 
 
@@ -269,6 +282,22 @@ def console(path: str) -> Response:
 
 
 app.add_api_route("/{path:path}", console, methods=["GET"], include_in_schema=False)
+
+
+# A box with no embedder still starts: every door that embeds says what the operator must set.
+async def _embedder(connections: Connections) -> Embedder | None:
+    try:
+        embedding = (await catalog.providers(connections.pool)).embedding
+    except NotAvailable:
+        logger.warning(NO_EMBEDDER)
+        return None
+    if embedding is None:
+        return None
+    key = (await box_credentials(connections.pool, connections.vault)).get(embedding.vendor)
+    if key is None:
+        logger.warning(NO_EMBEDDER_KEY, embedding.vendor)
+        return None
+    return Embedder(embedding, key, connections.http)
 
 
 async def _cancelled[T](task: asyncio.Task[T]) -> None:

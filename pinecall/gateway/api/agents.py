@@ -15,11 +15,11 @@ from pinecall.domain.names import THE_WIDGET, Channel
 from pinecall.domain.person import THE_FLEET
 from pinecall.domain.scope import Scope
 from pinecall.gateway import _deps
-from pinecall.gateway._agents import keys_of, tuned
+from pinecall.gateway._call_setup import keys_of, tuned
 from pinecall.gateway._deps import CallsKey, DispatchedDep, GatewayDep, ScopeDep, WorkerKey
+from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import NO_AGENT
 from pinecall.gateway._sockets import Registration
-from pinecall.gateway._state import Gateway
 from pinecall.providers import catalog
 from pinecall.providers.credentials import Pipeline, pipeline
 from pinecall.tenancy import agents, keys

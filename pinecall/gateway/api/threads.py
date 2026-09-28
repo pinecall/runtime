@@ -15,7 +15,7 @@ from pinecall.domain.names import THE_WIDGET, parse_channel
 from pinecall.domain.scope import Scope
 from pinecall.gateway import _deps
 from pinecall.gateway._deps import Acting, CallsKey, GatewayDep, ScopeDep, TalkKey
-from pinecall.gateway._state import Gateway
+from pinecall.gateway._gateway import Gateway
 from pinecall.log import facts, queries
 from pinecall.tenancy import keys
 from pinecall.wire.commands import SayVerb, SupervisorVerb

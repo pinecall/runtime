@@ -11,7 +11,7 @@ from pinecall.channels.whatsapp import IDLE_S, WINDOW_S, Inbound, Waiting
 from pinecall.domain.call import CallContext, Contact, Route, new_call_id, today_in
 from pinecall.domain.errors import PinecallError, QuotaExhausted, UpstreamFailed
 from pinecall.domain.scope import Scope
-from pinecall.gateway._agents import exhausted
+from pinecall.gateway._call_setup import exhausted
 from pinecall.gateway._served import Serving
 from pinecall.gateway._sockets import Registration, Sockets
 from pinecall.gateway._text_calls import open_text, resume_text, tokens_of

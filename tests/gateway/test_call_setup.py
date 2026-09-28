@@ -1,9 +1,9 @@
-"""Tests for an agent as a call runs it: tuned by the scope, keyed by the org, a refusal written."""
+"""Tests for what a call is set up with: the config tuned by the scope, the keys, a refusal."""
 
 from pinecall.domain.errors import QuotaExhausted
 from pinecall.domain.scope import Scope
-from pinecall.gateway._agents import exhausted, keys_of
-from pinecall.gateway._state import Gateway
+from pinecall.gateway._call_setup import exhausted, keys_of
+from pinecall.gateway._gateway import Gateway
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store
 from pinecall.tenancy import vault

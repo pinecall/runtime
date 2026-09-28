@@ -9,6 +9,7 @@ from pinecall.gateway._sockets import Sockets
 from pinecall.gateway._threads import Threads
 from pinecall.log.logs import Logs
 from pinecall.process.connections import Connections
+from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy.codes import Codes
 from pinecall.tenancy.tokens import Signer
 
@@ -27,6 +28,8 @@ class Gateway:
     threads: Threads
     # Set when the process is told to stop: every stream ends on it.
     closing: asyncio.Event
+    # None when the providers row names no embedding, or the box holds no key for its vendor.
+    embedder: Embedder | None
 
     @property
     def serving(self) -> Serving:

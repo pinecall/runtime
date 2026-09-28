@@ -23,9 +23,9 @@ from pinecall.domain.org import Org
 from pinecall.domain.person import KEY_SCOPES, THE_FLEET, KeyScope
 from pinecall.fleet import worlds
 from pinecall.fleet.roster import Roster
+from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import ServedCalls, Serving
 from pinecall.gateway._sockets import Sockets
-from pinecall.gateway._state import Gateway
 from pinecall.gateway._threads import Threads
 from pinecall.gateway.app import app
 from pinecall.log.logs import Logs
@@ -264,6 +264,7 @@ async def wired(
         signer=Signer(LIVEKIT_KEY, A_SECRET),
         threads=threads,
         closing=asyncio.Event(),
+        embedder=None,
     )
     await threads.closed()
     await http.aclose()

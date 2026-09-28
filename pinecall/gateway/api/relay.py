@@ -15,12 +15,12 @@ from pinecall.domain.errors import (
 from pinecall.domain.names import JsonObject
 from pinecall.gateway import _deps
 from pinecall.gateway._deps import Acting, CallsKey, GatewayDep
+from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import (
     NO_AGENT,
     NO_UNCLAIMED,
     NOT_THAT_APP,
 )
-from pinecall.gateway._state import Gateway
 from pinecall.tenancy import keys
 from pinecall.wire.events import DevRequest
 from pinecall.wire.parts import DevVerb

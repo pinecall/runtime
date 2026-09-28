@@ -3,8 +3,8 @@
 from pydantic import BaseModel, ConfigDict, Field
 
 from pinecall.domain.names import PRODUCTION, Env
-from pinecall.postgres import box_settings
 from pinecall.postgres.pool import Pool
+from pinecall.process import box_settings
 from pinecall.process.settings import A_FLEET_NAME
 
 FLEETS = "fleets"

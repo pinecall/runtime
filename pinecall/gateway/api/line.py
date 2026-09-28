@@ -14,7 +14,7 @@ from pinecall.domain.scope import Scope
 from pinecall.fleet import worlds
 from pinecall.gateway import _deps
 from pinecall.gateway._deps import Acting, AppKey, CallsKey, FleetKey, GatewayDep, ScopeDep
-from pinecall.gateway._state import Gateway
+from pinecall.gateway._gateway import Gateway
 from pinecall.wire.rest.agents import (
     DeveloperPhones,
     RingHandoff,
