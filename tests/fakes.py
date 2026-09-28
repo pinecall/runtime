@@ -1,9 +1,11 @@
-"""What the suites fake, and only that: livekit plugins, a mail server, an IdP, Twilio, Meta."""
+"""What the suites fake, and only that: livekit plugins, mail, an IdP, Twilio, Meta, an embedder."""
 
+import base64
 import json
 import smtplib
 import time
 import types
+from array import array
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from email.message import Message
@@ -73,6 +75,7 @@ from livekit.protocol.sip import (
 from livekit.rtc._proto import handle_pb2, participant_pb2, track_pb2
 from livekit.rtc._utils import BroadcastQueue
 
+from pinecall.domain.types import JsonObject
 from pinecall.providers.build import a_mapping
 
 ACME = "acme"
@@ -1042,6 +1045,67 @@ class Graph:
         body: dict[str, object] = json.loads(request.content)
         self.sent.append({"from": request.url.path.split("/")[2], **body})
         return httpx.Response(200, json={"messages": [{"id": f"wamid.{len(self.sent)}"}]})
+
+
+# Too big, in the words one vendor refuses a request with.
+TOO_BIG = "Input total size exceeds maximum number of allowed tokens"
+CONTEXTUALIZED = "/contextualizedembeddings"
+
+
+@dataclass
+class Embeddings:
+    """An embeddings vendor on a fake transport: both wire shapes, a script of failures first."""
+
+    width: int = 1024
+    # The value every float, and every signed byte of a contextual vector, carries.
+    value: float = 0.5
+    byte: int = 3
+    # A request with more inputs than this is refused as too big.
+    too_big_over: int | None = None
+    # Answered in order before any request is answered well.
+    script: list[httpx.Response | httpx.TransportError] = field(
+        default_factory=list[httpx.Response | httpx.TransportError]
+    )
+    asked: list[httpx.Request] = field(default_factory=list[httpx.Request])
+
+    def transport(self) -> httpx.MockTransport:
+        """A transport that answers as the vendor does."""
+        return httpx.MockTransport(self._answer)
+
+    def sent(self) -> list[JsonObject]:
+        """Every body the vendor was sent, in order."""
+        return [json.loads(request.content) for request in self.asked]
+
+    def inputs(self) -> list[list[str]]:
+        """The texts of every request, in order: a contextual one's are its one window."""
+        return [_texts_of(request) for request in self.asked]
+
+    def _answer(self, request: httpx.Request) -> httpx.Response:
+        self.asked.append(request)
+        if self.script:
+            scripted = self.script.pop(0)
+            if isinstance(scripted, httpx.TransportError):
+                raise scripted
+            return scripted
+        texts = _texts_of(request)
+        if self.too_big_over is not None and len(texts) > self.too_big_over:
+            return httpx.Response(400, json={"error": {"message": TOO_BIG}})
+        if request.url.path.endswith(CONTEXTUALIZED):
+            vector = int8_vector([self.byte] * self.width)
+            rows = [{"data": [{"embedding": vector} for _ in texts]}]
+            return httpx.Response(200, json={"data": rows})
+        rows = [{"index": at, "embedding": [self.value] * self.width} for at in range(len(texts))]
+        return httpx.Response(200, json={"object": "list", "data": rows})
+
+
+def _texts_of(request: httpx.Request) -> list[str]:
+    said = json.loads(request.content)
+    return said["input"][0] if request.url.path.endswith(CONTEXTUALIZED) else said["input"]
+
+
+def int8_vector(values: list[int]) -> str:
+    """A vector as the contextual shape sends it: signed bytes, base64."""
+    return base64.b64encode(array("b", values).tobytes()).decode("ascii")
 
 
 def outside(twilio: Twilio, graph: Graph) -> httpx.MockTransport:

@@ -6,6 +6,7 @@ from pinecall.domain.errors import (
     AppRefused,
     Conflict,
     DeclarationRefused,
+    EmbedderUnreachable,
     GatewayRefused,
     MigrationsRefused,
     NotAllowed,
@@ -17,6 +18,8 @@ from pinecall.domain.errors import (
     SettingsRefused,
     StoreUnreachable,
     UpstreamFailed,
+    WrongModel,
+    WrongWidth,
 )
 
 STATUSES: list[tuple[type[PinecallError], int]] = [
@@ -33,6 +36,9 @@ STATUSES: list[tuple[type[PinecallError], int]] = [
     (SettingsRefused, 500),
     (StoreUnreachable, 503),
     (MigrationsRefused, 500),
+    (EmbedderUnreachable, 503),
+    (WrongWidth, 503),
+    (WrongModel, 503),
 ]
 
 
@@ -62,3 +68,20 @@ def test_a_gateway_refusal_keeps_the_status_it_answered_and_none_when_unreachabl
 def test_an_apps_refusal_is_passed_on_with_its_own_status_and_sentence() -> None:
     refused = AppRefused(422, "the app has no tool named book")
     assert (refused.status, str(refused)) == (422, "the app has no tool named book")
+
+
+def test_an_unreachable_embedder_names_itself_where_it_was_asked_and_its_own_words() -> None:
+    refused = EmbedderUnreachable("perplexity", "https://embed.test/v1/embeddings", "Invalid model")
+    assert (
+        str(refused)
+        == "perplexity at https://embed.test/v1/embeddings did not answer: Invalid model"
+    )
+    assert refused.words == "Invalid model"
+
+
+def test_a_base_of_another_model_names_both_models_and_the_way_out() -> None:
+    refused = str(WrongModel("clinica-norte", "embed-small", "embed-large"))
+    assert "clinica-norte" in refused
+    assert "embed-small" in refused
+    assert "embed-large" in refused
+    assert "pinecall docs push" in refused

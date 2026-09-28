@@ -82,6 +82,37 @@ class NotAvailable(PinecallError):
     status = 503
 
 
+class EmbedderUnreachable(PinecallError):
+    """The box's embedder did not answer, or answered something that is not its vectors."""
+
+    status = 503
+
+    def __init__(self, vendor: str, url: str, words: str) -> None:
+        """The embedder, where it was asked, and what it said or why it said nothing."""
+        super().__init__(f"{vendor} at {url} did not answer: {words}")
+        self.words = words
+
+
+class WrongWidth(PinecallError):
+    """The embedder answered vectors of a width the vector columns do not hold."""
+
+    status = 503
+
+
+# Two models' vectors can share a width and still not be comparable.
+class WrongModel(PinecallError):
+    """A base's vectors were written by another model than the one this box embeds with."""
+
+    status = 503
+
+    def __init__(self, base: str, pushed: str, embeds: str) -> None:
+        """The base, the model that wrote it, and the model the box embeds with now."""
+        super().__init__(
+            f"base {base} was pushed with {pushed}; this box embeds with {embeds}: "
+            "push it again with `pinecall docs push`"
+        )
+
+
 class SettingsRefused(PinecallError):
     """The process cannot start with the environment it was given."""
 

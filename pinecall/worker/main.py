@@ -65,7 +65,7 @@ def server_of(settings: Settings) -> AgentServer:
         api_secret=settings.livekit_api_secret,
         drain_timeout=DRAIN_S,
         shutdown_process_timeout=SEALING_S,
-        # livekit's 8081 is the embedder's on a full box.
+        # livekit's default health port, 8081, is the SIP service's on the box.
         host="127.0.0.1",
         port=settings.worker_http_port,
         setup_fnc=prewarm,
