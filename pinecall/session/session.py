@@ -258,6 +258,9 @@ class Session:
         self.ended: tuple[EndReason, EndedBy] | None = None
         self.closed_for: CloseReason | None = None
         self.closed = False
+        # Set once close() wrote call.ended and sealed; the chat door closes its socket on it.
+        self.over = asyncio.Event()
+        self.closing: asyncio.Task[None] | None = None
         self.dead_end = False
         self.language: str | None = None
         self.usage: list[measured.ModelUsage] = []
@@ -305,6 +308,8 @@ class Session:
         self.call.writing.open()
         await self._opened(history)
 
+    # In a worker the job's shutdown closes the session; a written call in the gateway has no
+    # job, so the hang-up closes it itself.
     def hang_up(self, reason: EndReason, by: EndedBy = "agent", *, at_once: bool = False) -> None:
         """End the call for this reason: the session, and the job that runs it."""
         self.ended = (reason, by)
@@ -312,6 +317,8 @@ class Session:
         job = get_job_context(required=False)
         if job is not None:
             job.shutdown(reason=reason)
+            return
+        self.closing = asyncio.create_task(self.close())
 
     # The session closes first: its close writes the last turn, which comes before call.ended.
     # The log is flushed before the seal, since the gateway reads the call back from it.
@@ -339,6 +346,7 @@ class Session:
             await self.call.platform.seal(self.usage, self.call.last_said or NOTHING_SAID)
         finally:
             await self.call.writing.close(SEAL_S)
+            self.over.set()
 
     # The limit holds while a supervisor has the line; only the warning is skipped, since a
     # generated turn would talk over them.

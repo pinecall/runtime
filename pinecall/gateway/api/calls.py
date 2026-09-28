@@ -192,6 +192,7 @@ NOT_YOUR_CODE = "this token reads another code"
 NOT_RECORDED = "call {call} kept no recording"
 NOT_HERE = "the recording of {call} is at {path} on the box that took the call, not on this one"
 NOT_TAKEN_UP = "call {call} cannot be taken up: it is over, or not this agent's; open a new one"
+OVER = "the call ended: {reason}"
 READS_ONLY = "this token reads the call and sends no verb: steering it takes a supervise token"
 A_KEY = "key:{org}"
 # 25 s: under the 30 s a proxy lets a request idle.
@@ -610,13 +611,23 @@ async def chat(websocket: WebSocket) -> None:
     served = box.live.calls.get(session.call.context.call)
     heard = served.log.fanout.subscribe() if served is not None else None
     sending = asyncio.create_task(_sent(websocket, heard)) if heard is not None else None
+    # The call can end from the desk or by the model: the socket is closed under the caller.
+    ending = asyncio.create_task(_hung_up(websocket, session))
     try:
         if not again:
             await session.start()
         await _turns(websocket, box, session)
     finally:
+        ending.cancel()
         if sending is not None:
             sending.cancel()
+
+
+async def _hung_up(websocket: WebSocket, session: Session) -> None:
+    await session.over.wait()
+    reason, _ = session.ended or ("error", "platform")
+    if websocket.application_state is WebSocketState.CONNECTED:
+        await websocket.close(reason=deps.close_reason(OVER.format(reason=reason)))
 
 
 async def _chatting(websocket: WebSocket, box: Wired) -> tuple[Registration, str | None]:
@@ -690,7 +701,7 @@ async def _turns(websocket: WebSocket, box: Wired, session: Session) -> None:
                 return
             await text.hears(session, said)
     except WebSocketDisconnect as gone:
-        if gone.code != SERVICE_RESTART:
+        if gone.code != SERVICE_RESTART and not session.closed:
             await text.end(session, "caller_hung_up", "caller")
 
 

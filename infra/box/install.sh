@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The box made from this directory, once and again idempotently, as root on the box:
 #   install.sh <domain>[,<domain>…]   files to their places, the box's secrets drawn, the media plane up
-#   install.sh secret <NAME>          one credential from stdin (SMTP, sign-up key, WhatsApp)
+#   install.sh secret <NAME>          one credential from stdin (SMTP, the sign-up key)
 #   install.sh vault-add              appends a key read from stdin to PINECALL_VAULT_KEY, so rows
 #                                     sealed under it (a restored database) open; the first key seals
 # `make box` copies infra/ to /opt/pinecall/infra and runs the first form. Nothing is printed.
