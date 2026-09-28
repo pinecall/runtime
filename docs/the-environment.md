@@ -24,7 +24,6 @@ unit's)* is written per worker unit, never in the box's `box.env`.
 | `LIVEKIT_URL` · `LIVEKIT_API_KEY` · `LIVEKIT_API_SECRET` | the media plane both processes talk to. The secret also signs call tokens |
 | `LIVEKIT_PUBLIC_URL` | the URL a browser is told to join, when it differs |
 | `DATABASE_URL` | Postgres 17 with pgvector and pg_textsearch: the one stateful service. One database for both worlds |
-| `TEI_URL` · `EMBED_PROVIDER` · `EMBED_MODEL` · `EMBED_BASE_URL` · `PERPLEXITY_API_KEY` · `OPENROUTER_API_KEY` | who embeds (`tei` · `perplexity` · `openrouter`), where, and the key for a vendor that takes one |
 | `PINECALL_WORKER_KEY` | the key the worker knocks with. On a box the fleet's; on a laptop an org's own key, and the worker serves that org |
 | `PINECALL_OPS_KEY` | the box's own key to `/v1/ops/*`. Unset, only a person the box made an operator opens those doors |
 | `PINECALL_VAULT_KEY` | **required by the gateway**: the Fernet key every sealed secret is under (an org's vendor keys, the box's, SMTP, SSO, the carrier). A gateway without it does not start. To rotate: a comma-separated list, the new key first; a secret seals under the first and opens under whichever sealed it |
@@ -83,8 +82,10 @@ model with no rate is listed unpriced, never at zero.
 vendor and model each stage runs when an agent names none, the voice per language, what each
 vendor is told for a stage (the class it builds where it is not `STT`/`TTS`/`LLM`, its keyword
 arguments by the plugin's own names, whether its ears end the turn), the languages the ears
-listen for, the price of each model, and the judge. The first box is seeded from the one before
-it; after that, nothing of it is read from code.
+listen for, the price of each model, the judge, and the one embedder every knowledge base and
+fact is written with (its URL, model, wire shape and width; its key is the box's
+`credentials/<vendor>` row). The first box is seeded from the one before it; after that, nothing
+of it is read from code.
 
 ## A laptop
 

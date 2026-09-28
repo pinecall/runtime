@@ -95,7 +95,7 @@ def test_the_files_read_are_named_in_the_order_the_later_wins(tmp_path: Path) ->
 
 def test_no_env_file_at_all_leaves_the_settings_to_the_environment() -> None:
     assert env_files() == []
-    assert load().tei_url == "http://127.0.0.1:8081"
+    assert load().gateway_url == "http://127.0.0.1:8080"
 
 
 def test_a_credentials_directory_is_read_by_the_environments_own_names(

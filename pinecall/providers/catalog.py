@@ -1,5 +1,7 @@
 """The box's providers configuration: one row in Postgres the operator edits from the console."""
 
+from typing import Literal
+
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,6 +23,9 @@ INSERT INTO box_settings (name, value) VALUES (%(name)s, %(value)s)
 ON CONFLICT (name) DO NOTHING
 RETURNING name
 """
+
+# The width of every halfvec column that holds a vector.
+VECTOR_WIDTH = 1024
 
 UNSET = (
     "this box has no providers configuration yet: the operator writes it from the console, or "
@@ -73,6 +78,20 @@ class Judge(BaseModel):
     ceiling_eur: float
 
 
+class Embedding(BaseModel):
+    """The one embedder this box runs, on its own key; every base and fact is in its space."""
+
+    model_config = ConfigDict(frozen=True)
+
+    # The box's `credentials/<vendor>` row holds its key.
+    vendor: str
+    url: str
+    model: str
+    # Two wire formats: `embeddings` takes texts, `contextual` takes documents of chunks.
+    shape: Literal["embeddings", "contextual"]
+    dimensions: int = VECTOR_WIDTH
+
+
 class Providers(BaseModel):
     """The operator's choices: defaults, what each vendor is told, what a model costs, the judge."""
 
@@ -94,6 +113,7 @@ class Providers(BaseModel):
     judge: Judge | None = None
     # `es`: the line a voice reads in the picker.
     lines: dict[str, str] = Field(default_factory=dict[str, str])
+    embedding: Embedding | None = None
 
 
 async def providers(pool: Pool) -> Providers:
@@ -124,7 +144,7 @@ async def seed(pool: Pool, seeded: Providers) -> None:
 # A row that names a vendor nobody installed, or for a stage it does not do, is refused where it
 # is written, not on the first call that reads it.
 def checked(written: Providers) -> Providers:
-    """The configuration, every vendor it names installed and doing the stage it is named for."""
+    """The configuration: each vendor installed and doing its stage, the embedder at 1024 wide."""
     for modality, stage in written.defaults.items():
         doing(stage.vendor, modality)
     for key in (*written.models, *written.tuning):
@@ -136,6 +156,11 @@ def checked(written: Providers) -> Providers:
         doing(key.partition("/")[0], "tts")
     if written.judge is not None:
         doing(written.judge.llm.vendor, "llm")
+    if written.embedding is not None and written.embedding.dimensions != VECTOR_WIDTH:
+        raise DeclarationRefused(
+            f"the embedder answers {written.embedding.dimensions}-wide vectors; every vector "
+            f"column is halfvec({VECTOR_WIDTH}), so it must be asked for {VECTOR_WIDTH}"
+        )
     return written
 
 

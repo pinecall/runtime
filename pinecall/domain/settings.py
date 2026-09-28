@@ -65,29 +65,12 @@ class Settings(BaseModel):
         description="The box's public name: where a carrier sends a call. Unset, nothing imports.",
     )
 
-    # ── Postgres and the embedder ──
+    # ── Postgres ──
     database_url: str = Field(
         "postgresql://pinecall:pinecall@127.0.0.1:5432/pinecall",
         alias="DATABASE_URL",
         repr=False,
         description="Postgres 17 with pgvector and pg_textsearch: the one stateful service.",
-    )
-    # 8081, because the gateway serves 8080 on the same host.
-    tei_url: str = Field(
-        "http://127.0.0.1:8081", alias="TEI_URL", description="TEI, the embedder on the box."
-    )
-    embed_provider: Literal["tei", "perplexity", "openrouter"] = Field(
-        "tei",
-        alias="EMBED_PROVIDER",
-        description="Who embeds: tei · perplexity · openrouter. The other two need their key.",
-    )
-    embed_model: str | None = Field(
-        None, alias="EMBED_MODEL", description="The embedding model. Unset: the provider's own."
-    )
-    embed_base_url: str | None = Field(
-        None,
-        alias="EMBED_BASE_URL",
-        description="Where it is asked. Unset: the provider's own door, and TEI_URL for TEI.",
     )
 
     # ── recordings ──
@@ -113,7 +96,6 @@ class Settings(BaseModel):
         alias="PINECALL_MAX_JOBS",
         description="Calls this worker holds at once, measured on its machine. Unset: gate on CPU.",
     )
-    # livekit's default health port (8081) collides with TEI when role=all.
     worker_http_port: int = Field(
         8082,
         alias="PINECALL_WORKER_HTTP_PORT",
