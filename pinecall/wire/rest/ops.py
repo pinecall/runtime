@@ -1,0 +1,195 @@
+"""The bodies of the box's own doors: orgs and what they hold, their people and keys, the box."""
+
+from pydantic import Field
+
+from pinecall.domain.names import Channel, Env
+from pinecall.domain.org import QuotaName
+from pinecall.wire.frames import Entry, WireModel
+from pinecall.wire.rest.accounts import MemberRow
+from pinecall.wire.rest.fleet import FleetTotals, WorkerStatus
+from pinecall.wire.rest.numbers import DialGuards
+
+
+class CreateOrgRequest(WireModel):
+    """POST /v1/ops/orgs: the slug, and the name people read; the slug when none."""
+
+    slug: str
+    name: str | None = None
+
+
+class OrgRow(WireModel):
+    """One org: its minted id, its slug and its name."""
+
+    id: str
+    slug: str
+    name: str
+
+
+# The same shape read and written: a limit left out is none, and `lends` null lends everything.
+class OrgQuotas(WireModel):
+    """An org's limits in one world, by name; null is no limit, and `lends` comes back sorted."""
+
+    limits: dict[QuotaName, int | None] = Field(default_factory=dict[QuotaName, int | None])
+    budget_usd: int | None = None
+    lends: list[str] | None = None
+
+
+class PutQuotasRequest(WireModel):
+    """PUT /v1/ops/orgs/{named}/quotas: which world, and the whole set for it."""
+
+    env: Env
+    quotas: OrgQuotas
+
+
+class PutDiallingRequest(WireModel):
+    """PUT /v1/ops/orgs/{named}/dialling: the guards whole; one left out is the default."""
+
+    dial_anywhere: bool | None = None
+    per_minute: int | None = None
+    per_day: int | None = None
+    max_duration_s: int | None = None
+
+
+class OrgHolding(WireModel):
+    """What the org holds right now, across both worlds, against its stock quotas."""
+
+    memory_facts: int
+    knowledge_chunks: int
+    numbers: int
+    seats: int
+
+
+class OrgProfile(WireModel):
+    """GET /v1/ops/orgs/{named}: one org, its quotas per world, its dial guards, its holdings."""
+
+    id: str
+    slug: str
+    name: str
+    quotas: dict[Env, OrgQuotas]
+    dialling: DialGuards
+    holding: OrgHolding
+
+
+class MoveAgentRequest(WireModel):
+    """PUT /v1/ops/orgs/{named}/agents: the agent to move into this org."""
+
+    agent: str
+
+
+class AgentMovedResponse(WireModel):
+    """The move: how many logs came, which numbers came, which stayed where they were."""
+
+    agent: str
+    org: str
+    logs: int
+    numbers: list[str]
+    stayed: list[str]
+
+
+class IssueKeyRequest(WireModel):
+    """POST /v1/ops/orgs/{named}/keys: a key of the org, in a world, with scopes and an owner."""
+
+    env: Env
+    label: str | None = None
+    scopes: list[str] | None = None
+    subject: str | None = None
+    name: str | None = None
+
+
+class OrgMembersResponse(WireModel):
+    """GET /v1/ops/orgs/{named}/members: the org's people, and how many hold a seat."""
+
+    members: list[MemberRow]
+    seated: int
+
+
+class OperatorRequest(WireModel):
+    """PUT /v1/ops/orgs/{named}/members/{id}/operator: whether this member runs the box."""
+
+    operator: bool
+
+
+class SsoRequiredRequest(WireModel):
+    """PUT /v1/ops/orgs/{named}/sso/required: whether a password may still open the org."""
+
+    required: bool
+
+
+class BoxMailResponse(WireModel):
+    """GET and PUT /v1/ops/mail: the box's mailbox and where it came from, never the password."""
+
+    configured: bool
+    source: str | None
+    host: str | None
+    port: int | None
+    security: str | None
+    username: str | None
+    from_: str | None = Field(alias="from")
+    verified_at: str | None
+    last_error: str | None
+
+
+class BoxProvider(WireModel):
+    """One box-wide identity provider: whether it is wired, the client, the URI to register."""
+
+    configured: bool
+    client_id: str | None
+    redirect_uri: str
+
+
+class BoxSignInResponse(WireModel):
+    """GET /v1/ops/signin: every provider the box could offer every org's people."""
+
+    google: BoxProvider
+
+
+class PutSignInRequest(WireModel):
+    """PUT /v1/ops/signin/google: the OAuth client the operator made for this gateway."""
+
+    client_id: str
+    client_secret: str
+
+
+class PutBrandRequest(WireModel):
+    """PUT /v1/ops/brand: a field left out keeps its value; an empty one goes to the default."""
+
+    name: str | None = None
+    logo_url: str | None = None
+    accent: str | None = None
+
+
+class RouteRequest(WireModel):
+    """POST /v1/ops/routes: which org's agent answers a number, on a channel, in a world."""
+
+    org: str
+    number: str
+    agent: str
+    channel: Channel
+    env: Env = "production"
+
+
+class RouteRow(WireModel):
+    """One route as the operator lists it."""
+
+    org: str
+    number: str
+    agent: str
+    channel: Channel
+    env: Env
+    managed: bool
+
+
+class FleetListed(WireModel):
+    """GET /v1/ops/fleet: the box's time, every worker heard from, and each fleet summed."""
+
+    now: float
+    stale_after_s: float
+    workers: list[WorkerStatus]
+    totals: list[FleetTotals]
+
+
+class BoxEvent(WireModel):
+    """One frame of GET /v1/ops/events: an entry of some org's floor, and whose floor it is."""
+
+    org: str
+    entry: Entry

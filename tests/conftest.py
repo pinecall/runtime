@@ -28,6 +28,7 @@ from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import ServedCalls, Serving
 from pinecall.gateway._sockets import Sockets
 from pinecall.gateway._threads import Threads
+from pinecall.gateway.api.providers import SAMPLES_A_MINUTE
 from pinecall.gateway.app import app
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store
@@ -41,7 +42,7 @@ from pinecall.providers.catalog import Providers
 from pinecall.tenancy import keys, orgs, people, vault
 from pinecall.tenancy.codes import Codes
 from pinecall.tenancy.mail import Outbox
-from pinecall.tenancy.signin import SignIns
+from pinecall.tenancy.signin import SignIns, Throttle
 from pinecall.tenancy.tokens import Signer
 from pinecall.wire.frames import Entry
 from tests.fakes.acme import ACME
@@ -272,6 +273,7 @@ async def wired(
         evals=Runner(),
         signins=SignIns.fresh(store.clock),
         outbox=outbox,
+        samples=Throttle(store.clock, tries=SAMPLES_A_MINUTE),
     )
     await outbox.drained()
     await threads.closed()

@@ -302,6 +302,9 @@ WordsKey = Annotated[Acting, Depends(opening("pipeline", "words"))]
 PipelineKey = Annotated[Acting, Depends(opening("pipeline"))]
 
 
+ProvidersKey = Annotated[Acting, Depends(opening("providers"))]
+
+
 SuperviseKey = Annotated[Acting, Depends(opening("supervise"))]
 
 

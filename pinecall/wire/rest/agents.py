@@ -1,9 +1,11 @@
-"""The bodies of the agent doors: held agents, app sockets, the line, judging, the widget."""
+"""The bodies of the agent doors: agents held, sockets, the line, judging, pipeline, widget."""
 
 from typing import Literal
 
 from pinecall.domain.names import Channel, Env
 from pinecall.wire.frames import WireModel
+from pinecall.wire.parts import GreetingConfig, WidgetTheme
+from pinecall.wire.rest.providers import ProviderRow
 
 # ── the agents an org holds, and whose terminal a ring lands in ──
 
@@ -114,3 +116,53 @@ class HoldAudio(WireModel):
     sha256: str | None = None
     seconds: float | None = None
     name: str | None = None
+
+
+class PlayedRequest(WireModel):
+    """PUT /v1/agents/{slug}/pipeline/hold-audio/played: the box's melody back, or silence."""
+
+    played: Literal["default", "off"]
+
+
+class PipelineStage(WireModel):
+    """One stage as the next call would run it: the vendor, its model, the voice or language."""
+
+    vendor: str
+    model: str | None = None
+    voice_id: str | None = None
+    language: str | None = None
+
+
+class Measured(WireModel):
+    """One latency over the agent's recent calls: livekit's name, the median, the turns."""
+
+    name: str
+    seconds: float
+    turns: int
+
+
+class PipelineReport(WireModel):
+    """GET /v1/agents/{slug}/pipeline: what it hears, decides and speaks with, and how fast."""
+
+    agent: str
+    hears: PipelineStage
+    decides: PipelineStage
+    speaks: PipelineStage
+    greeting: GreetingConfig | None
+    providers: list[ProviderRow]
+    defaults: dict[str, str]
+    models: dict[str, list[str]]
+    calls: int
+    medians: list[Measured]
+    unavailable_reasons: dict[str, str]
+
+
+class WidgetSettings(WireModel):
+    """GET and PUT /v1/agents/{slug}/widget: how the widget presents the agent, per world."""
+
+    title: str | None = None
+    tagline: str | None = None
+    greeting: str | None = None
+    accent: str | None = None
+    autostart: bool = False
+    theme: WidgetTheme | None = None

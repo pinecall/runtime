@@ -140,13 +140,13 @@ async def hold_audio(pool: Pool, scope: Scope, agent: str) -> bytes | None:
 async def keep_hold(pool: Pool, scope: Scope, agent: str, clip: Clip) -> Chosen:
     """Play this clip while the agent's tools run in the world."""
     chosen = Chosen("custom", hashlib.sha256(clip.audio).hexdigest(), clip.seconds, clip.name)
-    await _kept_hold(pool, scope, agent, chosen, clip.audio)
+    await _kept_hold(pool, {**_of(scope, agent), **asdict(chosen), "audio": clip.audio})
     return chosen
 
 
 async def silence_hold(pool: Pool, scope: Scope, agent: str) -> None:
     """Play nothing while the agent's tools run; any clip is forgotten."""
-    await _kept_hold(pool, scope, agent, Chosen("off"), None)
+    await _kept_hold(pool, {**_of(scope, agent), **asdict(Chosen("off")), "audio": None})
 
 
 async def forget_hold(pool: Pool, scope: Scope, agent: str) -> None:
@@ -155,10 +155,7 @@ async def forget_hold(pool: Pool, scope: Scope, agent: str) -> None:
         await connection.execute(FORGET_HOLD, _of(scope, agent))
 
 
-async def _kept_hold(
-    pool: Pool, scope: Scope, agent: str, chosen: Chosen, clip: bytes | None
-) -> None:
-    values = {**_of(scope, agent), **asdict(chosen), "audio": clip}
+async def _kept_hold(pool: Pool, values: dict[str, object]) -> None:
     async with pool.connection() as connection:
         await connection.execute(KEEP_HOLD, values)
 

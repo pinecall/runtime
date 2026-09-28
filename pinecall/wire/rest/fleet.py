@@ -1,5 +1,7 @@
 """The bodies of the fleet doors: a worker's heartbeat and what the gateway answers it."""
 
+from pydantic import ConfigDict
+
 from pinecall.wire.frames import WireModel
 
 
@@ -32,3 +34,18 @@ class FleetTotals(WireModel):
     free: int
     accepting: int
     full: bool
+
+
+class WorkerStatus(WireModel):
+    """One worker as its last heartbeat left it, and whether the operator cordoned it."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    fleet: str
+    worker: str
+    active: int
+    max_jobs: int | None
+    load: float
+    draining: bool
+    cordoned: bool
+    seen_at: float

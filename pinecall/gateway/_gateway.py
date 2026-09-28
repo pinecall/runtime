@@ -13,7 +13,7 @@ from pinecall.process.connections import Connections
 from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy.codes import Codes
 from pinecall.tenancy.mail import Outbox
-from pinecall.tenancy.signin import SignIns
+from pinecall.tenancy.signin import SignIns, Throttle
 from pinecall.tenancy.tokens import Signer
 
 
@@ -36,6 +36,8 @@ class Gateway:
     evals: Runner
     signins: SignIns
     outbox: Outbox
+    # Thirty voice samples a minute per key: they cost vendor time and write no usage row.
+    samples: Throttle
 
     @property
     def serving(self) -> Serving:

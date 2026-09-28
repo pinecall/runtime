@@ -1,8 +1,6 @@
 """The roster of workers, one per fleet: who is up, what each holds, and whether a fleet is full."""
 
-from dataclasses import dataclass, replace
-
-from pinecall.wire.rest.fleet import FleetTotals, HeartbeatRequest, HeartbeatResponse
+from pinecall.wire.rest.fleet import FleetTotals, HeartbeatRequest, HeartbeatResponse, WorkerStatus
 
 # livekit-server's DefaultTargetLoad: at or over it a worker gets no dispatch.
 REFUSED_AT = 0.7
@@ -11,33 +9,6 @@ HEARTBEAT_S = 5.0
 STALE_AFTER_S = 30.0
 # A silent worker stays listed, as gone, this long.
 FORGOTTEN_AFTER_S = 3600.0
-
-
-@dataclass(frozen=True)
-class WorkerStatus:
-    """A worker's last heartbeat, and whether the hub cordoned it."""
-
-    fleet: str
-    worker: str
-    active: int
-    max_jobs: int | None
-    load: float
-    draining: bool
-    cordoned: bool
-    seen_at: float
-
-    def heard_lately(self, now: float) -> bool:
-        """Whether its last heartbeat is recent enough to count."""
-        return now - self.seen_at <= STALE_AFTER_S
-
-    def accepting(self, now: float) -> bool:
-        """Whether livekit would dispatch to it: up, not cordoned, not draining, under the line."""
-        return (
-            self.heard_lately(now)
-            and not self.cordoned
-            and not self.draining
-            and self.load < REFUSED_AT
-        )
 
 
 # In memory: after a restart the next round of heartbeats, five seconds, rebuilds it.
@@ -69,7 +40,7 @@ class Roster:
         seat = self.seats.get((fleet, worker))
         if seat is None:
             return False
-        self.seats[(fleet, worker)] = replace(seat, cordoned=on)
+        self.seats[(fleet, worker)] = seat.model_copy(update={"cordoned": on})
         return True
 
     def of(self, fleet: str, now: float) -> list[WorkerStatus]:
@@ -86,9 +57,9 @@ class Roster:
     def totals(self, fleet: str, now: float) -> FleetTotals:
         """A fleet's workers heard from lately, summed."""
         up = [
-            seat for seat in self.seats.values() if seat.fleet == fleet and seat.heard_lately(now)
+            seat for seat in self.seats.values() if seat.fleet == fleet and heard_lately(seat, now)
         ]
-        accepting = sum(1 for seat in up if seat.accepting(now))
+        accepting = sum(1 for seat in up if accepting_now(seat, now))
         return FleetTotals(
             fleet=fleet,
             workers=len(up),
@@ -98,3 +69,18 @@ class Roster:
             accepting=accepting,
             full=bool(up) and accepting == 0,
         )
+
+
+def heard_lately(seat: WorkerStatus, now: float) -> bool:
+    """Whether the worker's last heartbeat is recent enough to count."""
+    return now - seat.seen_at <= STALE_AFTER_S
+
+
+def accepting_now(seat: WorkerStatus, now: float) -> bool:
+    """Whether livekit would dispatch to it: up, not cordoned, not draining, under the line."""
+    return (
+        heard_lately(seat, now)
+        and not seat.cordoned
+        and not seat.draining
+        and seat.load < REFUSED_AT
+    )

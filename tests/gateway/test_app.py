@@ -25,6 +25,7 @@ NO_KEY_OR_ANY_KEY = frozenset(
         "/v1/invitations/{token}",
         "/v1/keys",
         "/v1/keys/{fingerprint}/revoke",
+        "/v1/limits",
         "/v1/login",
         "/v1/login/codes",
         "/v1/login/google",

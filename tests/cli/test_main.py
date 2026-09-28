@@ -4,7 +4,8 @@ import argparse
 
 import pytest
 
-from pinecall.cli.main import doctor, fleet_key, gateway, main, migrate_up
+from pinecall.cli._operator import fleet_key
+from pinecall.cli.main import doctor, gateway, main, migrate_plan, migrate_status, migrate_up
 from pinecall.domain.errors import PinecallError
 from pinecall.process.settings import Settings
 from tests.conftest import DSN, postgres
@@ -53,3 +54,21 @@ def test_a_migrated_database_mints_a_fleet_key_printed_once_and_nothing_else(
     printed = capsys.readouterr().out
     assert printed.startswith("pc_test_")
     assert "\n" not in printed
+
+
+def test_the_plan_names_every_migration_on_the_disk_in_order(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert migrate_plan(Settings.model_validate({}), argparse.Namespace()) == 0
+    names = capsys.readouterr().out.splitlines()
+    assert names[0] == "0001_schema.sql"
+    assert names == sorted(names)
+
+
+@postgres
+def test_the_status_says_up_to_date_once_up_is_run(capsys: pytest.CaptureFixture[str]) -> None:
+    settings = Settings.model_validate({"DATABASE_URL": DSN})
+    migrate_up(settings, argparse.Namespace())
+    capsys.readouterr()
+    assert migrate_status(settings, argparse.Namespace()) == 0
+    assert capsys.readouterr().out == "up to date\n"

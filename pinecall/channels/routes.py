@@ -39,6 +39,15 @@ ON CONFLICT (org, number) DO UPDATE SET agent = excluded.agent, channel = exclud
 REMOVE = "DELETE FROM routes WHERE org = %(org)s AND number = %(number)s RETURNING number"
 MOVE = "UPDATE routes SET env = %(env)s WHERE org = %(org)s AND number = %(number)s RETURNING env"
 MANAGED = "SELECT count(*) AS bought FROM routes WHERE org = %(org)s AND env = %(env)s AND managed"
+# A number the target org already typed stays where it was: one row per number per org.
+WITH_AGENT = """
+UPDATE routes SET org = %(org)s
+WHERE agent = %(agent)s AND org <> %(org)s
+  AND NOT EXISTS (SELECT 1 FROM routes AS theirs WHERE theirs.org = %(org)s
+                  AND theirs.number = routes.number)
+RETURNING number
+"""
+STAYED = "SELECT number FROM routes WHERE agent = %(agent)s AND org <> %(org)s ORDER BY number"
 
 
 async def of_org(pool: Pool, org: str, env: Env) -> list[Route]:
@@ -98,6 +107,16 @@ async def moved(pool: Pool, org: str, number: str, env: Env) -> bool:
     async with pool.connection() as connection:
         done = await connection.execute(MOVE, {"org": org, "number": number, "env": env})
         return await done.fetchone() is not None
+
+
+async def moved_with_agent(pool: Pool, agent: str, org: str) -> tuple[list[str], list[str]]:
+    """Move the agent's numbers into the org; the numbers moved, and the ones that stayed."""
+    async with pool.connection() as connection, connection.transaction():
+        moved = await (
+            await connection.execute(WITH_AGENT, {"agent": agent, "org": org})
+        ).fetchall()
+        stayed = await (await connection.execute(STAYED, {"agent": agent, "org": org})).fetchall()
+    return sorted(str(row["number"]) for row in moved), [str(row["number"]) for row in stayed]
 
 
 async def managed_in(pool: Pool, org: str, env: Env) -> int:

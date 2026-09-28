@@ -2982,6 +2982,7 @@ version = "2.0.0a0"
 source = { editable = "." }
 dependencies = [
     { name = "argon2-cffi" },
+    { name = "av" },
     { name = "cryptography" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -3024,6 +3025,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "argon2-cffi", specifier = ">=25.1,<26" },
+    { name = "av", specifier = ">=15,<19" },
     { name = "cryptography", specifier = ">=46,<51" },
     { name = "fastapi", specifier = ">=0.141,<1" },
     { name = "httpx", specifier = ">=0.28,<1" },

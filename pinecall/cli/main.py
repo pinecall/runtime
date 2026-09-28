@@ -13,16 +13,16 @@ import httpx
 import uvicorn
 from livekit import api
 
-from pinecall.domain.errors import PinecallError
-from pinecall.domain.names import parse_env
-from pinecall.domain.org import DEFAULT_ORG
-from pinecall.domain.person import THE_FLEET
-from pinecall.gateway.app import announce_closing, app
-from pinecall.postgres.migrate import apply_migrations, migrations_behind
+from pinecall.cli import _operator, _sessions
+from pinecall.domain.errors import NotAvailable, PinecallError
+from pinecall.gateway.app import announce_closing, app, embedder_of
+from pinecall.postgres.migrate import apply_migrations, migration_files, migrations_behind
 from pinecall.postgres.pool import open_pool
-from pinecall.process.connections import server_of, vault_of
+from pinecall.process.connections import opened, server_of, vault_of
 from pinecall.process.settings import Settings, load
-from pinecall.tenancy import keys
+from pinecall.providers.build import installed
+from pinecall.retrieval import memory
+from pinecall.tenancy import vault
 from pinecall.worker import main as worker
 
 logger = logging.getLogger(__name__)
@@ -32,9 +32,6 @@ LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
 
 
 NOT_LOOPBACK = "PINECALL_GATEWAY_URL binds {host}: the gateway listens on loopback, behind Caddy"
-
-
-A_FLEET_KEY = "the {env} fleet"
 
 
 # A stream never ends on its own: told nothing, a stop waits out uvicorn's grace and cuts it.
@@ -50,7 +47,7 @@ class Stopping(uvicorn.Server):
 
 def main(argv: Sequence[str] | None = None) -> None:
     """Parse the verb and run it; its exit is the process's."""
-    data = _verbs().parse_args(argv)
+    data = verbs().parse_args(argv)
     settings = load()
     logging.basicConfig(
         level=settings.log_level.upper(), format="%(levelname)s %(name)s: %(message)s"
@@ -94,14 +91,41 @@ def migrate_up(settings: Settings, _args: argparse.Namespace) -> int:
     return 0
 
 
-# Printed to stdout once, where the unit that mints it seals it: never to a terminal on a box.
-def fleet_key(settings: Settings, args: argparse.Namespace) -> int:
-    """Mint the fleet key of a world, in the box's own org."""
-    env = parse_env(str(args.env))
-    issued = keys.Issued(
-        org=DEFAULT_ORG, env=env, scopes=frozenset({THE_FLEET}), label=A_FLEET_KEY.format(env=env)
-    )
-    sys.stdout.write(asyncio.run(_minted(settings, issued)))
+def migrate_status(settings: Settings, _args: argparse.Namespace) -> int:
+    """What the database has not run yet; the exit is 1 while it is behind."""
+    behind = asyncio.run(_behind(settings))
+    if not behind:
+        sys.stdout.write("up to date\n")
+        return 0
+    sys.stdout.write(f"{len(behind)} behind: {', '.join(behind)}\n")
+    return 1
+
+
+def migrate_plan(_settings: Settings, _args: argparse.Namespace) -> int:
+    """Every migration on the disk, in the order a run applies them; no database asked."""
+    for path in migration_files():
+        sys.stdout.write(f"{path.name}\n")
+    return 0
+
+
+def providers(settings: Settings, args: argparse.Namespace) -> int:
+    """Every vendor this build runs, what it does, and whether the box holds its key."""
+    with_a_key = asyncio.run(_box_vendors(settings))
+    rows = sorted(installed().values(), key=lambda vendor: vendor.name)
+    for vendor in rows:
+        does = sorted(vendor.does)
+        if args.does is not None and args.does not in does:
+            continue
+        state = "broken" if vendor.broken else ("ready" if vendor.name in with_a_key else "no key")
+        sys.stdout.write(f"{vendor.name:16} {','.join(does):12} {state}\n")
+    sys.stdout.write(f"{len(rows)} vendors\n")
+    return 0
+
+
+def memory_reembed(settings: Settings, _args: argparse.Namespace) -> int:
+    """Every fact another model embedded, embedded again by the box's; how many there were."""
+    count = asyncio.run(_reembedded(settings))
+    sys.stdout.write(f"{count} facts re-embedded\n")
     return 0
 
 
@@ -115,7 +139,8 @@ def doctor(settings: Settings, _args: argparse.Namespace) -> int:
     return 0 if all(trouble is None for _, trouble in lines) else 1
 
 
-def _verbs() -> argparse.ArgumentParser:
+def verbs() -> argparse.ArgumentParser:
+    """The parser of every group and verb, each bound to the function that runs it."""
     verbs = argparse.ArgumentParser(prog="pinecall-runtime")
     under = verbs.add_subparsers(required=True)
     under.add_parser("gateway", help="the gateway, both worlds").set_defaults(run=gateway)
@@ -127,21 +152,47 @@ def _verbs() -> argparse.ArgumentParser:
     )
     migrate = under.add_parser("migrate", help="the schema").add_subparsers(required=True)
     migrate.add_parser("up", help="apply what the database lacks").set_defaults(run=migrate_up)
-    key_verbs = under.add_parser("keys", help="keys").add_subparsers(required=True)
-    fleet = key_verbs.add_parser("fleet", help="mint a world's fleet key, printed once")
-    fleet.add_argument("env", choices=("production", "sandbox"))
-    fleet.set_defaults(run=fleet_key)
+    migrate.add_parser("status", help="what the database lacks").set_defaults(run=migrate_status)
+    migrate.add_parser("plan", help="every migration, off the disk").set_defaults(run=migrate_plan)
+    _operator.keys_group(under.add_parser("keys", help="keys"))
     under.add_parser("doctor", help="what this box lacks").set_defaults(run=doctor)
+    vendors = under.add_parser("providers", help="every vendor this build runs")
+    vendors.add_argument("--does", choices=("llm", "stt", "tts"), default=None)
+    vendors.set_defaults(run=providers)
+    memory_verbs = under.add_parser("memory", help="contact memory").add_subparsers(required=True)
+    memory_verbs.add_parser("reembed", help="every fact under the box's embedder").set_defaults(
+        run=memory_reembed
+    )
+    _sessions.sessions_group(under.add_parser("sessions", help="the log, off Postgres"))
+    _operator.init_group(under.add_parser("init", help="the first org and person, on a fresh box"))
+    _operator.orgs_group(under.add_parser("orgs", help="the tenants"))
+    _operator.routes_group(under.add_parser("routes", help="which agent answers a number"))
+    _operator.fleet_group(under.add_parser("fleet", help="the workers heard from"))
     return verbs
 
 
-async def _minted(settings: Settings, issued: keys.Issued) -> str:
+async def _behind(settings: Settings) -> tuple[str, ...]:
     pool = await open_pool(settings.database_url)
     try:
-        _, secret = await keys.issue(pool, issued)
+        return await migrations_behind(pool)
     finally:
         await pool.close()
-    return secret
+
+
+async def _box_vendors(settings: Settings) -> frozenset[str]:
+    pool = await open_pool(settings.database_url)
+    try:
+        return frozenset(await vault.box_credentials(pool, vault_of(settings.vault_key)))
+    finally:
+        await pool.close()
+
+
+async def _reembedded(settings: Settings) -> int:
+    async with opened(settings) as connections:
+        embedder = await embedder_of(connections)
+        if embedder is None:
+            raise NotAvailable("this box embeds nothing: no embedding in its providers row")
+        return await memory.reembed(connections.pool, embedder)
 
 
 async def _examined(settings: Settings) -> list[tuple[str, str | None]]:
