@@ -21,7 +21,7 @@ from pinecall.domain.agent import (
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.log.store import Store
 from pinecall.session import text
-from pinecall.session._livekit import BLOCKS
+from pinecall.session._livekit import BLOCKS, end_of_utterance
 from pinecall.wire.commands import (
     PromptSet,
 )
@@ -163,3 +163,17 @@ async def test_a_row_livekit_grew_a_field_for_is_still_the_calls_usage(box: Box)
     await text.end(session, "caller_hung_up", "caller")
     ((usage, _),) = box.sealed
     assert [(row.type, row.model) for row in usage] == [("stt_usage", "acme-ears")]
+
+
+def test_the_end_of_utterance_block_carries_its_type_on_the_wire() -> None:
+    report = {"end_of_turn_delay": 0.5, "transcription_delay": 0.0}
+    block = end_of_utterance(report, "speech_1")
+    assert block is not None
+    assert (block.written()["type"], block.written()["end_of_utterance_delay"]) == (
+        "eou_metrics",
+        0.5,
+    )
+
+
+def test_a_user_turn_report_without_delays_is_no_end_of_utterance_block() -> None:
+    assert end_of_utterance({"other": 1}, "speech_1") is None
