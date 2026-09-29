@@ -118,7 +118,13 @@ def usage_row_response(row: UsageRow) -> UsageRowResponse:
         call=row.call,
         type=row.type,
         at=row.at,
-        used=usage_totals(row.used),
+        minutes=row.used.minutes,
+        messages=row.used.messages,
+        input_tokens=row.used.input_tokens,
+        output_tokens=row.used.output_tokens,
+        characters=row.used.characters,
+        judge_calls=row.used.judge_calls,
+        cost_usd=row.used.cost_usd,
     )
 
 

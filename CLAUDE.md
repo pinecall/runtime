@@ -22,7 +22,7 @@ make check                        the rules (tests/rules/) and the suites with n
 make test [T=tests/log]           every suite on a local Postgres (colima; `make db` starts it)
 make deploy BOX=example-box   console built in, wheel on the box, migrations, live tests
 make logs BOX=example-box     the journal of the three units, whole
-vibecheck check                   the hygiene findings; must say "nothing to fix"
+vibesmell check                   the hygiene findings; must say "nothing to fix"
 ```
 
 Both suites run before a reply says green. No test is skipped or deleted to pass.

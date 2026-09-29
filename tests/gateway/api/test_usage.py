@@ -47,6 +47,9 @@ async def test_the_feed_pages_the_orgs_metered_rows_with_totals_and_a_cursor(
     assert page.status_code == 200
     rows = page.json()["rows"]
     assert [(row["call"], row["type"]) for row in rows] == [(call, "call.summary")]
+    # Flat, as v1 wrote it: the console and any billing layer read these keys at the row's top.
+    assert set(rows[0]) >= {"minutes", "messages", "input_tokens", "cost_usd", "judge_calls"}
+    assert rows[0]["minutes"] == 1.5
     assert page.json()["totals"]["calls"] == 1
     assert page.json()["totals"]["minutes"] == 1.5
     assert [row["type"] for row in rest.json()["rows"]] == ["call.score"]
