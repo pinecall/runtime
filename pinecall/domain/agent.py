@@ -30,6 +30,10 @@ type PromptRegion = Literal["static", "dynamic"]
 type DocsMode = Literal["retrieved", "tool"]
 
 
+# every-call: at every hang-up the org judges. simulations: only a call a persona played.
+type RunsOn = Literal["every-call", "simulations"]
+
+
 # A name every model vendor accepts as a function name.
 _A_NAME_A_MODEL_CAN_CALL = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 
@@ -292,6 +296,15 @@ class Versions:
 
     config: int | None = None
     lexicon: int | None = None
+
+
+@dataclass(frozen=True)
+class AgentJudge:
+    """A question the org wrote about one agent's job, put to the judge model at hang-up."""
+
+    name: str
+    question: str
+    runs_on: RunsOn = "every-call"
 
 
 DEFAULT_LAYOUT: tuple[PromptBlock, ...] = (

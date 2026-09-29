@@ -189,6 +189,28 @@ def test_the_callers_own_rule_comes_off_call_started_and_a_persons_call_has_none
     assert case_of(a_log(("call.started", ruled)), None).persona_rule == ("a price", "")
 
 
+A_PERSONS_CALL: JsonObject = {
+    "channel": "web",
+    "direction": "inbound",
+    "from": "web_1",
+    "to": "clinica-norte",
+    "caller": None,
+    "started_at": 1.0,
+}
+
+
+def test_a_call_a_named_persona_played_is_a_simulation_and_a_persons_call_is_not() -> None:
+    played: JsonObject = {**A_PERSONS_CALL, "persona": "apurado"}
+    assert case_of(a_log(("call.started", played)), None).simulated
+    assert not case_of(a_log(("call.started", A_PERSONS_CALL)), None).simulated
+    assert not case_of(a_log(caller("hola")), None).simulated
+
+
+def test_a_spoken_caller_sent_whole_without_a_name_is_a_simulation_all_the_same() -> None:
+    spoken: JsonObject = {**A_PERSONS_CALL, "from": "simulated_caller"}
+    assert case_of(a_log(("call.started", spoken)), None).simulated
+
+
 def test_an_entry_of_a_shape_it_cannot_read_is_left_out_and_the_rest_is_read() -> None:
     log = a_log(caller("hola"), ("turn.agent", {"words": "old shape"}), agent("buenas", "sp_2"))
     assert [turn.text for turn in case_of(log, None).turns] == ["hola", "buenas"]

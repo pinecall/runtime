@@ -12,6 +12,7 @@ from livekit.agents.llm import ChatContext, ChatItem, ChatMessage, FunctionCall,
 from pinecall.domain.agent import AgentConfig, SideEffect, ToolSpec
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import Json, JsonObject
+from pinecall.evals.spoken import A_SIMULATED_CALLER
 from pinecall.session.tools import result_text
 from pinecall.wire.events import (
     AgentTurnEnded,
@@ -118,6 +119,8 @@ class Case:
     summary: JsonObject | None = None
     # (accepts_when, declines_when) off call.started; None when the caller wrote no rule.
     persona_rule: tuple[str, str] | None = None
+    # A persona played the caller: named on call.started, or the spoken caller's leg.
+    simulated: bool = False
     declared: AgentConfig | None = None
 
 
@@ -173,6 +176,8 @@ def case_of(entries: Sequence[Entry], declared: AgentConfig | None) -> Case:
         evidence=(*knowledge, *recalled),
         summary=None if summary is None else summary.written(),
         persona_rule=None if started is None else _rule_on(started),
+        simulated=started is not None
+        and (started.persona is not None or started.from_ == A_SIMULATED_CALLER),
         declared=declared,
     )
 

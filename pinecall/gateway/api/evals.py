@@ -42,7 +42,7 @@ from pinecall.providers.build import Running, llm_of, tts_of
 from pinecall.providers.catalog import Providers
 from pinecall.providers.credentials import Keyring, thinking
 from pinecall.providers.declared import model_of
-from pinecall.tenancy import personas, tokens
+from pinecall.tenancy import judges, personas, tokens
 from pinecall.wire.events import CallScore
 from pinecall.wire.parts import ModelConfig
 from pinecall.wire.rest.evals import (
@@ -248,7 +248,8 @@ async def judge_call(
         entry.type == "call.score" and entry.data.get("passed") is not None for entry in entries
     ):
         raise Conflict(ALREADY_JUDGED.format(call=call))
-    score = await judged_call(gateway.connections, entries, declared)
+    own = await judges.judges_of(gateway.connections.pool, key.org, entries[0].agent)
+    score = await judged_call(gateway.connections, entries, declared, own)
     await store.rescored(call, entries[0].agent, score.written())
     return score
 
@@ -317,7 +318,7 @@ async def _suite_of(gateway: Gateway, body: RunSuiteRequest, registration: Regis
 
 
 async def _judged_suite(gateway: Gateway, suite: Suite, org: str) -> str | None:
-    judge = (await judge_of(gateway.connections, suite.configured))[0]
+    judge = (await judge_of(gateway.connections, suite.configured)).running
     model = None if judge is None else llm_of(judge)
     try:
         async with asyncio.timeout(runs.A_RUN_MAY_TAKE_S):

@@ -156,3 +156,7 @@ The runtime written again from a blank page.
   `agents`: a row written for some agents becomes one copy each, one written for every agent one
   copy per agent the org has. Fixed by construction: the console and the CLI never sent `agents`,
   so every edit of a persona made it callable by every agent again.
+- An agent's own judges: a question about its job the org writes (`GET /v1/agents/{slug}/judges`,
+  `PUT`·`DELETE /v1/agents/{slug}/judges/{name}`, `pinecall judges`), asked of the judge model at
+  hang-up beside the runtime's panel, on every call or only on simulated ones; its verdict is in
+  `call.score` under its name. `POST /v1/evals/judge/{call}` asks them too.
