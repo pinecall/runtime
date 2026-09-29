@@ -1,4 +1,6 @@
-"""Tests for the persona doors: the org's callers, whom they may call, and what they ran."""
+"""Tests for the persona doors: an agent's callers, and what they ran."""
+
+from dataclasses import dataclass
 
 import httpx
 import pytest
@@ -8,7 +10,10 @@ from pinecall.domain.scope import Scope
 from pinecall.log.store import Claim
 from tests.conftest import Knocking, issued, postgres
 
-PERSONAS = "/v1/personas"
+PERSONAS = "/v1/agents/clinica-norte/personas"
+
+
+THEIRS = "/v1/agents/tienda-sur/personas"
 
 
 DANA: JsonObject = {
@@ -27,7 +32,7 @@ async def written(knocking: Knocking, name: str, body: JsonObject = DANA) -> htt
 
 
 @postgres
-async def test_an_org_with_nobody_written_for_it_lists_none(knocking: Knocking) -> None:
+async def test_an_agent_with_nobody_written_for_it_lists_none(knocking: Knocking) -> None:
     async with knocking.http(knocking.app["sandbox"]) as http:
         listed = await http.get(PERSONAS)
     assert (listed.status_code, listed.json()) == (200, {"personas": []})
@@ -40,7 +45,7 @@ async def test_one_written_comes_back_whole_with_who_wrote_it(knocking: Knocking
     assert row["state"] == {}
     assert row["author"] != ""
     assert row["set_at"] > 0
-    assert row["agents"] == []
+    assert "agents" not in row
 
 
 @postgres
@@ -92,7 +97,7 @@ async def test_a_name_that_is_not_a_name_is_refused(knocking: Knocking, name: st
 
 
 @postgres
-async def test_a_caller_that_says_how_it_is_played_and_whom_it_calls_comes_back_saying_it(
+async def test_a_caller_that_says_how_it_is_played_comes_back_saying_it(
     knocking: Knocking,
 ) -> None:
     played: JsonObject = {
@@ -101,7 +106,6 @@ async def test_a_caller_that_says_how_it_is_played_and_whom_it_calls_comes_back_
         "voice": "carolina",
         "accepts_when": "they gave a price for Friday",
         "declines_when": "they asked to be called back",
-        "agents": ["clinica-norte"],
     }
     [row] = (await written(knocking, "homeowner", {**DANA, **played})).json()["personas"]
     assert {field: row[field] for field in played} == played
@@ -142,9 +146,9 @@ async def test_one_dropped_is_gone_and_a_name_nobody_wrote_is_a_404(knocking: Kn
     assert again.status_code == 404
 
 
-# Per org, not per world: the same callers in the sandbox and in production.
+# Per agent, not per world: the same callers in the sandbox and in production.
 @postgres
-async def test_one_caller_written_once_is_the_whole_orgs_in_both_worlds(knocking: Knocking) -> None:
+async def test_one_caller_written_once_is_the_agents_in_both_worlds(knocking: Knocking) -> None:
     await written(knocking, "homeowner")
     async with knocking.http(knocking.app["production"]) as http:
         listed = await http.get(PERSONAS)
@@ -152,17 +156,32 @@ async def test_one_caller_written_once_is_the_whole_orgs_in_both_worlds(knocking
 
 
 @postgres
-async def test_an_agent_is_shown_the_callers_written_for_it_and_for_every_agent(
-    knocking: Knocking,
-) -> None:
-    await written(knocking, "todos")
-    await written(knocking, "suyo", {**DANA, "agents": ["clinica-norte"]})
-    await written(knocking, "ajeno", {**DANA, "agents": ["tienda-sur"]})
+async def test_an_agent_is_shown_its_own_callers_and_never_anothers(knocking: Knocking) -> None:
+    await written(knocking, "suyo")
     async with knocking.http(knocking.app["sandbox"]) as http:
-        mine = await http.get(PERSONAS, params={"agent": "clinica-norte"})
-        every = await http.get(PERSONAS)
-    assert [row["name"] for row in mine.json()["personas"]] == ["suyo", "todos"]
-    assert len(every.json()["personas"]) == 3
+        theirs = await http.put(f"{THEIRS}/ajeno", json=DANA)
+        mine = await http.get(PERSONAS)
+    assert [row["name"] for row in theirs.json()["personas"]] == ["ajeno"]
+    assert [row["name"] for row in mine.json()["personas"]] == ["suyo"]
+
+
+@postgres
+async def test_two_agents_may_each_have_a_caller_of_the_same_name(knocking: Knocking) -> None:
+    await written(knocking, "homeowner")
+    async with knocking.http(knocking.app["sandbox"]) as http:
+        theirs = await http.put(f"{THEIRS}/homeowner", json={**DANA, "goal": "buy paint"})
+        dropped = await http.delete(f"{THEIRS}/homeowner")
+        mine = await http.get(PERSONAS)
+    assert [row["goal"] for row in theirs.json()["personas"]] == ["buy paint"]
+    assert dropped.json() == {"personas": []}
+    assert [row["goal"] for row in mine.json()["personas"]] == [DANA["goal"]]
+
+
+@postgres
+async def test_the_old_org_wide_door_is_gone(knocking: Knocking) -> None:
+    async with knocking.http(knocking.app["sandbox"]) as http:
+        gone = await http.get("/v1/personas")
+    assert gone.status_code == 404
 
 
 @postgres
@@ -178,36 +197,40 @@ async def test_a_key_without_evals_is_refused(knocking: Knocking) -> None:
 # ── what a caller ran ──
 
 
-async def a_run(
-    knocking: Knocking,
-    call: str,
-    *,
-    persona: str | None = "homeowner",
-    turns: int = 2,
-    judged: bool = False,
-) -> None:
+@dataclass(frozen=True)
+class ARun:
+    """One simulated call to write: its id, who played it, to whom, how long, whether judged."""
+
+    call: str
+    persona: str | None = "homeowner"
+    agent: str = "clinica-norte"
+    turns: int = 2
+    judged: bool = False
+
+
+async def a_run(knocking: Knocking, run: ARun) -> None:
     store = knocking.gateway.logs.store
     scope = Scope(knocking.org.id, "sandbox")
-    await store.claim(call, "clinica-norte", scope.org, Claim(scope))
-    log = knocking.gateway.logs.writing(call, "clinica-norte")
+    await store.claim(run.call, run.agent, scope.org, Claim(scope))
+    log = knocking.gateway.logs.writing(run.call, run.agent)
     started: JsonObject = {
         "channel": "web",
         "direction": "inbound",
         "from": "web_1",
-        "to": "clinica-norte",
+        "to": run.agent,
         "caller": None,
         "started_at": 1.0,
-        "persona": persona,
+        "persona": run.persona,
     }
     await log.append("call.started", started)
-    for turn in range(turns):
+    for turn in range(run.turns):
         user: JsonObject = {"speech_id": f"sp_{turn}", "text": f"line {turn}", "metrics": {}}
         await log.append("turn.user", user)
     await log.append(
         "call.ended",
         {"reason": "caller_hung_up", "ended_by": "caller", "ended_at": 9.0, "duration_s": 8.0},
     )
-    if judged:
+    if run.judged:
         verdict: JsonObject = {
             "name": "consent",
             "verdict": "held",
@@ -227,7 +250,7 @@ async def runs_of(knocking: Knocking, query: str = "") -> httpx.Response:
 @postgres
 async def test_a_caller_nobody_has_called_as_has_run_nothing(knocking: Knocking) -> None:
     await written(knocking, "homeowner")
-    await a_run(knocking, "CA_somebody_elses", persona="price-shopper")
+    await a_run(knocking, ARun("CA_somebody_elses", persona="price-shopper"))
     answer = await runs_of(knocking)
     assert (answer.status_code, answer.json()) == (200, {"runs": [], "total": 0, "next": None})
 
@@ -237,10 +260,11 @@ async def test_only_this_callers_runs_are_listed_and_the_newest_is_first(
     knocking: Knocking,
 ) -> None:
     await written(knocking, "homeowner")
-    await a_run(knocking, "CA_older")
-    await a_run(knocking, "CA_newer")
-    await a_run(knocking, "CA_another_caller", persona="price-shopper")
-    await a_run(knocking, "CA_a_person", persona=None)
+    await a_run(knocking, ARun("CA_older"))
+    await a_run(knocking, ARun("CA_newer"))
+    await a_run(knocking, ARun("CA_another_caller", persona="price-shopper"))
+    await a_run(knocking, ARun("CA_a_person", persona=None))
+    await a_run(knocking, ARun("CA_another_agent", agent="tienda-sur"))
     answer = await runs_of(knocking)
     body = answer.json()
     assert answer.status_code == 200
@@ -253,7 +277,7 @@ async def test_a_row_says_how_long_how_it_ended_and_what_the_judges_said(
     knocking: Knocking,
 ) -> None:
     await written(knocking, "homeowner")
-    await a_run(knocking, "CA_judged", turns=3, judged=True)
+    await a_run(knocking, ARun("CA_judged", turns=3, judged=True))
     [row] = (await runs_of(knocking)).json()["runs"]
     assert (row["call"], row["agent"], row["turns"]) == ("CA_judged", "clinica-norte", 3)
     assert row["ended_at"] is not None
@@ -266,7 +290,7 @@ async def test_a_run_nobody_judged_says_so_rather_than_inventing_a_verdict(
     knocking: Knocking,
 ) -> None:
     await written(knocking, "homeowner")
-    await a_run(knocking, "CA_unjudged")
+    await a_run(knocking, ARun("CA_unjudged"))
     [row] = (await runs_of(knocking)).json()["runs"]
     assert row["score"] is None
 
@@ -277,7 +301,7 @@ async def test_the_page_is_cut_below_a_cursor_and_says_when_it_is_the_last_one(
 ) -> None:
     await written(knocking, "homeowner")
     for number in range(3):
-        await a_run(knocking, f"CA_{number}")
+        await a_run(knocking, ARun(f"CA_{number}"))
     first = (await runs_of(knocking, "?limit=2")).json()
     assert [row["call"] for row in first["runs"]] == ["CA_2", "CA_1"]
     assert (first["total"], first["next"]) == (3, "CA_1")
@@ -287,10 +311,12 @@ async def test_the_page_is_cut_below_a_cursor_and_says_when_it_is_the_last_one(
 
 
 @postgres
-async def test_a_caller_this_org_never_wrote_is_a_404_and_not_an_empty_page(
+async def test_a_caller_nobody_wrote_for_this_agent_is_a_404_and_not_an_empty_page(
     knocking: Knocking,
 ) -> None:
-    await a_run(knocking, "CA_ours")
+    async with knocking.http(knocking.app["sandbox"]) as http:
+        await http.put(f"{THEIRS}/homeowner", json=DANA)
+    await a_run(knocking, ARun("CA_ours"))
     answer = await runs_of(knocking)
     assert answer.status_code == 404
-    assert "homeowner" in answer.json()["detail"]
+    assert answer.json()["detail"] == "no persona called homeowner for clinica-norte"

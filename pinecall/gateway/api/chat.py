@@ -105,8 +105,8 @@ async def _taken_up(gateway: Gateway, registration: Registration, call: str) -> 
     return session
 
 
-# A web caller is a visitor id; the org's own key may name who it is (`?contact=`) and which
-# synthetic caller plays it (`?persona=`), whose rules are frozen into the call here.
+# A web caller is a visitor id; the org's own key may name who it is (`?contact=`) and which of
+# the agent's synthetic callers plays it (`?persona=`), whose rules are frozen into the call here.
 async def _chat_context(
     websocket: WebSocket, gateway: Gateway, registration: Registration
 ) -> CallContext:
@@ -115,7 +115,7 @@ async def _chat_context(
     persona = (
         None
         if named is None
-        else await personas.persona(gateway.connections.pool, scope.org, named)
+        else await personas.persona(gateway.connections.pool, scope.org, registration.slug, named)
     )
     contact = websocket.query_params.get("contact")
     return CallContext(

@@ -7,6 +7,8 @@ from livekit.agents.llm import ChatMessage
 
 from pinecall.gateway._deps import POLICY_VIOLATION
 from pinecall.providers import catalog
+from pinecall.tenancy import personas
+from pinecall.tenancy.personas import Persona, PersonaEdit
 from tests.conftest import (
     AGENT,
     Knocking,
@@ -37,6 +39,29 @@ async def test_a_text_call_is_answered_by_the_model_and_ends_sealed(knocking: Kn
         await asyncio.sleep(0.1)
     kinds = [entry.type for entry in await knocking.gateway.logs.store.whole(call)]
     assert kinds[-3:] == ["call.ended", "call.summary", "call.score"]
+    await app.close()
+
+
+# The rules of the agent's own persona ride the call; another agent's of the same name do not.
+@postgres
+async def test_a_persona_named_on_a_chat_is_the_agents_own_and_its_rules_ride_the_call(
+    knocking: Knocking,
+) -> None:
+    pool = knocking.gateway.connections.pool
+    await catalog.configure(pool, configured([["hola"], ["hola"]]))
+    mine = Persona(name="apurado", goal="g", style="s", accepts_when="a Tuesday slot")
+    theirs = Persona(name="lento", goal="g", style="s", accepts_when="any slot")
+    await personas.put_persona(pool, knocking.org.id, AGENT, mine, PersonaEdit("a"))
+    await personas.put_persona(pool, knocking.org.id, "tienda-sur", theirs, PersonaEdit("a"))
+    app = await an_app(knocking)
+    rules: list[tuple[object, object]] = []
+    for named in ("apurado", "lento"):
+        path = f"/v1/chat?agent={AGENT}&persona={named}"
+        chat = await knocking.socket(path, knocking.app["sandbox"])
+        started = await received_until(chat, "call.started")
+        rules.append((started.data.get("persona"), started.data.get("accepts_when")))
+        await chat.close()
+    assert rules == [("apurado", "a Tuesday slot"), ("lento", None)]
     await app.close()
 
 

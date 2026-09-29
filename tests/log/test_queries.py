@@ -1,10 +1,13 @@
 """Tests for the lists over every call's facts."""
 
+from dataclasses import replace
+
 from pinecall.domain.scope import Scope
 from pinecall.log.facts import A_DAY_S
 from pinecall.log.queries import (
     Inbox,
     ListFilters,
+    PersonaRunFilters,
     calls_with,
     counted_day,
     facts_of_calls,
@@ -81,19 +84,35 @@ async def test_a_personas_own_runs_are_listed_newest_first_and_paged(
     store: Store, org: str
 ) -> None:
     older = await logged_call(store, org, ACall(persona="homeowner"))
-    newer = await logged_call(store, org, ACall(agent="another-agent", persona="homeowner"))
+    newer = await logged_call(store, org, ACall(persona="homeowner"))
+    await logged_call(store, org, ACall(agent="another-agent", persona="homeowner"))
     await logged_call(store, org, ACall(persona="price-shopper"))
     await logged_call(store, org)
     await logged_call(store, org, ACall(persona="homeowner", scope=Scope(org, "sandbox", "m_dev")))
     scope = Scope(org)
-    whole = await runs_of_persona(store.pool, scope, "homeowner", before=None, limit=10)
+    homeowner = PersonaRunFilters(agent=AGENT, persona="homeowner")
+    whole = await runs_of_persona(store.pool, scope, homeowner, limit=10)
     assert [run.facts.call for run in whole.runs] == [newer, older]
     assert (whole.total, whole.next) == (2, None)
     assert [run.turns for run in whole.runs] == [1, 1]
-    first = await runs_of_persona(store.pool, scope, "homeowner", before=None, limit=1)
+    first = await runs_of_persona(store.pool, scope, homeowner, limit=1)
     assert ([run.facts.call for run in first.runs], first.total, first.next) == ([newer], 2, newer)
-    second = await runs_of_persona(store.pool, scope, "homeowner", before=newer, limit=1)
+    after = replace(homeowner, before=newer)
+    second = await runs_of_persona(store.pool, scope, after, limit=1)
     assert ([run.facts.call for run in second.runs], second.next) == ([older], None)
+
+
+@postgres
+async def test_a_personas_runs_are_the_agents_it_called_and_no_other_agents(
+    store: Store, org: str
+) -> None:
+    mine = await logged_call(store, org, ACall(persona="homeowner"))
+    theirs = await logged_call(store, org, ACall(agent="another-agent", persona="homeowner"))
+    scope = Scope(org)
+    for agent, call in ((AGENT, mine), ("another-agent", theirs)):
+        wanted = PersonaRunFilters(agent=agent, persona="homeowner")
+        found = await runs_of_persona(store.pool, scope, wanted, limit=10)
+        assert ([run.facts.call for run in found.runs], found.total) == ([call], 1)
 
 
 @postgres

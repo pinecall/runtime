@@ -201,15 +201,9 @@ async def test_a_v1_database_that_already_counts_in_dollars_keeps_its_dollars_an
     assert kept == []
 
 
-LEXICON_PER_AGENT = "0008_lexicon_per_agent.sql"
-
-
-# The agents of an org: recepcion has settings in the sandbox, turnos a log the org claimed.
-@postgres
-async def test_an_orgs_lexicon_is_copied_to_each_of_its_agents_in_the_world_and_the_original_goes(
-    schema: str,
-) -> None:
-    before = [path for path in migration_files() if path.name < LEXICON_PER_AGENT]
+async def migrated_before(schema: str, number: str) -> None:
+    """Run and record every migration numbered below this one, as a database that stood there."""
+    before = [path for path in migration_files() if path.name[:4] < number]
     await pretend_it_ran(schema, *((path.name, file_hash(path)) for path in before))
     async with await connect(DSN) as connection:
         await connection.execute(
@@ -217,6 +211,18 @@ async def test_an_orgs_lexicon_is_copied_to_each_of_its_agents_in_the_world_and_
         )
         for path in before:
             await connection.execute(path.read_bytes())
+
+
+# The agents of an org: recepcion has settings in the sandbox, turnos a log the org claimed.
+@postgres
+async def test_an_orgs_lexicon_is_copied_to_each_of_its_agents_in_the_world_and_the_original_goes(
+    schema: str,
+) -> None:
+    await migrated_before(schema, "0008")
+    async with await connect(DSN) as connection:
+        await connection.execute(
+            sql.SQL("set search_path to {}, public").format(sql.Identifier(schema))
+        )
         await connection.execute(
             "insert into agent_config (org, env, holder, agent, version, config, author)"
             " values ('default', 'sandbox', '', 'recepcion', 1, '{}', 'm_ana')"
@@ -246,6 +252,64 @@ async def test_an_orgs_lexicon_is_copied_to_each_of_its_agents_in_the_world_and_
         ("sandbox", "recepcion", 3, ["Vidal"]),
         ("sandbox", "turnos", 3, ["Vidal"]),
     ]
+
+
+# An org's agents are the ones it tuned in either world and the ones whose own log it claimed.
+@postgres
+async def test_a_persona_becomes_one_copy_per_agent_it_named_or_per_agent_of_its_org(
+    schema: str,
+) -> None:
+    await migrated_before(schema, "0009")
+    async with await connect(DSN) as connection:
+        await connection.execute(
+            sql.SQL("set search_path to {}, public").format(sql.Identifier(schema))
+        )
+        await connection.execute(
+            "insert into orgs (id, slug, name) values ('acme', 'acme', 'Acme'),"
+            " ('lonely', 'lonely', 'Lonely')"
+        )
+        await connection.execute(
+            "insert into agent_config (org, env, holder, agent, version, config, author) values"
+            " ('acme', 'sandbox', 'm_dev', 'desk', 1, '{}', 'a'),"
+            " ('acme', 'production', '', 'sales', 1, '{}', 'a')"
+        )
+        await connection.execute(
+            "insert into call_log_head (log, agent, call, org) values"
+            " ('@billing', 'billing', null, 'acme'), ('CA_1', 'a-call', 'CA_1', 'acme')"
+        )
+        await connection.execute(
+            "insert into agent_personas (org, name, goal, style, agents) values"
+            " ('acme', 'anyone', 'g', 's', '{}'), ('acme', 'picky', 'g', 's', '{desk,elsewhere}'),"
+            " ('lonely', 'nobody-to-call', 'g', 's', '{}')"
+        )
+
+    await apply_migrations(DSN, schema=schema)
+
+    async with await connect(DSN) as connection:
+        await connection.execute(
+            sql.SQL("set search_path to {}, public").format(sql.Identifier(schema))
+        )
+        rows = await (
+            await connection.execute(
+                "select org, agent, name, goal from agent_personas order by name, agent"
+            )
+        ).fetchall()
+        agents_column = await (
+            await connection.execute(
+                "select 1 from information_schema.columns where table_schema = %s"
+                " and table_name = 'agent_personas' and column_name = 'agents'",
+                (schema,),
+            )
+        ).fetchall()
+    assert [(row["org"], row["agent"], row["name"]) for row in rows] == [
+        ("acme", "billing", "anyone"),
+        ("acme", "desk", "anyone"),
+        ("acme", "sales", "anyone"),
+        ("acme", "desk", "picky"),
+        ("acme", "elsewhere", "picky"),
+    ]
+    assert {row["goal"] for row in rows} == {"g"}
+    assert agents_column == []
 
 
 @postgres

@@ -50,6 +50,11 @@ GONE: tuple[tuple[str, str], ...] = (
     ("GET", "/v1/lexicon"),
     ("PUT", "/v1/lexicon"),
     ("GET", "/v1/lexicon/history"),
+    # A persona is the agent's: its doors are under /v1/agents/{slug}/personas.
+    ("GET", "/v1/personas"),
+    ("PUT", "/v1/personas/{name}"),
+    ("DELETE", "/v1/personas/{name}"),
+    ("GET", "/v1/personas/{name}/runs"),
 )
 
 # Two doors of v1 the gateway spells otherwise: one route per dev family, and the widget's files

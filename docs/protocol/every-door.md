@@ -28,6 +28,10 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `GET` | `/v1/agents/{slug}/memory` | memory | The current facts the agent's calls taught, across contacts, newest first, a page. |
 | `POST` | `/v1/agents/{slug}/memory/extraction` | memory | One hang-up per case on the agent's own model and keys, each answer judged by code. |
 | `GET` | `/v1/agents/{slug}/outbound-trunk` | app · fleet | The leg's trunk inline, after the shape and the pace; a dial's own first leg passes. |
+| `GET` | `/v1/agents/{slug}/personas` | evals | The agent's callers, by name. |
+| `DELETE` | `/v1/agents/{slug}/personas/{name}` | evals | Forget one of the agent's callers; its list after it, 404 for a name nobody wrote. |
+| `PUT` | `/v1/agents/{slug}/personas/{name}` | evals | Write one of the agent's callers whole, or rename one from `was`; its list after it. |
+| `GET` | `/v1/agents/{slug}/personas/{name}/runs` | evals | The calls the persona made to the agent in the key's world and scope, newest first. |
 | `GET` | `/v1/agents/{slug}/pipeline` | pipeline | The agent's three stages, the catalogue, and the latencies of its last calls. |
 | `GET` | `/v1/agents/{slug}/pipeline/hold-audio` | pipeline | What the agent plays while a tool runs: the box's melody, silence, or a clip of its own. |
 | `PUT` | `/v1/agents/{slug}/pipeline/hold-audio` | pipeline | A file of the org's as the agent's melody, from the next call on. |
@@ -183,10 +187,6 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `DELETE` | `/v1/org/sso` | team | Forget the org's provider: passwords open it again from the next attempt. |
 | `GET` | `/v1/org/sso` | team | The org's provider, never its secret, and the redirect URI to register there. |
 | `PUT` | `/v1/org/sso` | team | Replace the org's provider whole, once its issuer answered as one. |
-| `GET` | `/v1/personas` | evals | The org's callers, by name: every one, or those an agent may be called by. |
-| `DELETE` | `/v1/personas/{name}` | evals | Forget a caller; the org's list after it, 404 for a name nobody wrote. |
-| `PUT` | `/v1/personas/{name}` | evals | Write a caller whole, or rename one from `was`; the org's list after it. |
-| `GET` | `/v1/personas/{name}/runs` | evals | The calls the persona made in the key's world and scope, newest first, a page. |
 | `GET` | `/v1/provider-keys` | providers | The vendors the org brought its own credentials for. |
 | `DELETE` | `/v1/provider-keys/{vendor}` | providers | Forget the org's credentials for a vendor; its calls run on the box's from the next one. |
 | `PUT` | `/v1/provider-keys/{vendor}` | providers | Keep the org's own credentials for a vendor; its calls run on them from the next one. |

@@ -99,9 +99,6 @@ NO_PINNED_DAY_OUT_LOUD = (
 )
 
 
-NOT_THIS_AGENTS = "persona {name} is written for {agents}, not for {agent}"
-
-
 NO_LINE = "the simulated call could not be held: {broke}"
 
 
@@ -266,7 +263,8 @@ async def next_line(
         return await improvise_line(model, body)
 
 
-# The persona's row decides whom it may call; one sent whole and never written names nobody.
+# A persona is the agent's: a name nobody wrote for this agent is refused; one sent without a
+# name is played as sent.
 @router.post("/v1/evals/voice")
 async def place_voice_call(
     body: PlaceVoiceCallRequest, key: EvalsKey, scope: ScopeDep, gateway: GatewayDep
@@ -274,12 +272,8 @@ async def place_voice_call(
     """Dispatch the agent into a room, play the persona as a spoken caller, and hang up."""
     pool = gateway.connections.pool
     persona = body.persona
-    kept = None if not persona.name else await personas.persona(pool, key.org, persona.name)
-    if kept is not None and not kept.persona.calls(body.agent):
-        agents = ", ".join(sorted(kept.persona.agents))
-        raise DeclarationRefused(
-            NOT_THIS_AGENTS.format(name=persona.name, agents=agents, agent=body.agent)
-        )
+    if persona.name and await personas.persona(pool, key.org, body.agent, persona.name) is None:
+        raise NotFound(personas.NOBODY.format(name=persona.name, agent=body.agent))
     line = spoken.Line(interferer_db=body.interferer_db, packet_loss=body.packet_loss)
     dispatch = rooms.Dispatch(
         agent=body.agent,

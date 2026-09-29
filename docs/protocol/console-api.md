@@ -14,7 +14,7 @@ or of the pages beside it. This page is the doors that exist for a screen and no
 | `GET` · `PUT /v1/agents/{slug}/settings`, `/v1/agents/{slug}/lexicon` | `pipeline` · `words` | [settings-api.md](settings-api.md) |
 | `GET /v1/providers`, `/v1/provider-keys`, `/v1/voices`, `/v1/voices/sample` | `providers` · `pipeline` | [provider-keys.md](provider-keys.md) |
 | `POST /v1/agents/{slug}/dev/{family}/{verb}` | the family's | [dev-verbs.md](dev-verbs.md) |
-| `/v1/personas`, `/v1/evals/*` | `evals` | [evals.md](evals.md) |
+| `/v1/agents/{slug}/personas`, `/v1/evals/*` | `evals` | [evals.md](evals.md) |
 | `/v1/knowledge`, `/v1/contacts/{contact}/memory`, `/v1/agents/{slug}/memory` | `knowledge` · `memory` | [../retrieval/spec.md](../retrieval/spec.md) |
 | the threads, the line, the numbers, the accounts | | [whatsapp.md](whatsapp.md) · [numbers.md](numbers.md) · [people.md](people.md) |
 
