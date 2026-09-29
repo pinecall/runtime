@@ -362,8 +362,18 @@ def result_text(result: ToolResult) -> str:
         return result.summary
     if result.output is None:
         return ""
-    output = result.output
-    return output if isinstance(output, str) else json.dumps(output, ensure_ascii=False)
+    return output_text(result.output)
+
+
+# livekit sends an output that parses as a JSON list to Anthropic as content blocks, and the
+# request fails on the first block with no type: a list travels inside an object.
+def output_text(output: Json) -> str:
+    """A tool's output as the model reads it: a string as it is, anything else as JSON."""
+    if isinstance(output, str):
+        return output
+    if isinstance(output, list):
+        output = {"items": output}
+    return json.dumps(output, ensure_ascii=False)
 
 
 # `{{slot.when}}` reads `when` of the argument `slot`; a placeholder nothing fills stays as it

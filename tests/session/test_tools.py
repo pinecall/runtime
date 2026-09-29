@@ -10,7 +10,7 @@ from livekit.agents import RunContext, llm
 
 from pinecall.domain.agent import AgentConfig, Docs, MemoryPolicy, ToolSpec
 from pinecall.domain.call import Contact
-from pinecall.domain.names import JsonObject
+from pinecall.domain.names import Json, JsonObject
 from pinecall.log.store import Store
 from pinecall.session._prompt import Blocks, request
 from pinecall.session.call import Call, ToolUse
@@ -49,6 +49,13 @@ def test_the_text_the_model_reads_is_the_error_then_the_summary_then_the_output(
     )
     assert result_text(ToolResult(call_id="c", name="t", output="listo")) == "listo"
     assert result_text(ToolResult(call_id="c", name="t")) == ""
+
+
+def test_a_list_output_travels_inside_an_object_or_anthropic_refuses_the_blocks() -> None:
+    slots: list[Json] = [{"id": "s-1", "when": "el martes a las nueve"}]
+    assert result_text(ToolResult(call_id="c", name="t", output=slots)) == (
+        '{"items": [{"id": "s-1", "when": "el martes a las nueve"}]}'
+    )
 
 
 def test_a_confirm_is_rendered_from_the_call_and_the_result() -> None:
