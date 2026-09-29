@@ -1,7 +1,12 @@
 """A call's usage priced from the box's rates: never at zero when unknown, never free."""
 
+from pathlib import Path
+
+import pytest
+
+from pinecall.domain.errors import DeclarationRefused
 from pinecall.providers.catalog import Providers, Rate
-from pinecall.providers.prices import cost, rate_of
+from pinecall.providers.prices import cost, rate_of, rates_changed, rates_from_csv
 from pinecall.wire.metrics import (
     EOTModelUsage,
     InterruptionModelUsage,
@@ -97,3 +102,66 @@ def test_a_row_labelled_with_the_api_host_is_priced_by_its_model_all_the_same(
 ) -> None:
     used = LLMModelUsage(provider="api.anthropic.com", model="claude-haiku-4-5", output_tokens=10)
     assert [row.provider for row in cost([used], configured).rows] == ["api.anthropic.com"]
+
+
+HEADER = "vendor,model,unit,usd,as_of,source\n"
+
+
+def test_a_prices_file_gathers_a_models_units_into_one_rate_dated_by_its_newest_row() -> None:
+    rates = rates_from_csv(
+        "# a note\n"
+        + HEADER
+        + "anthropic,claude-haiku-4-5,input_tokens,1,2026-09-01,https://x\n"
+        + "anthropic,claude-haiku-4-5,output_tokens,5,2026-09-29,https://x\n"
+        + "cartesia,sonic-3,characters,0.00005,2026-08-21,https://y\n"
+    )
+    assert rates == {
+        "claude-haiku-4-5": Rate(input=1.0, output=5.0, as_of="2026-09-29"),
+        "sonic-3": Rate(characters=0.00005, as_of="2026-08-21"),
+    }
+
+
+@pytest.mark.parametrize(
+    ("row", "refusal"),
+    [
+        ("acme,acme-1,minutes,1,2026-09-29,s", "not a unit"),
+        ("acme,acme-1,characters,free,2026-09-29,s", "not a price"),
+        ("acme,acme-1,characters,-1,2026-09-29,s", "below zero"),
+    ],
+)
+def test_a_row_that_prices_nothing_is_refused_by_its_line(row: str, refusal: str) -> None:
+    with pytest.raises(DeclarationRefused, match=f"line 2: .*{refusal}"):
+        rates_from_csv(HEADER + row + "\n")
+
+
+def test_a_model_priced_twice_or_by_two_vendors_is_refused() -> None:
+    twice = "acme,acme-1,characters,1,d,s\nacme,acme-1,characters,2,d,s\n"
+    with pytest.raises(DeclarationRefused, match="priced twice"):
+        rates_from_csv(HEADER + twice)
+    two_vendors = "acme,acme-1,characters,1,d,s\nzeta,acme-1,audio_seconds,2,d,s\n"
+    with pytest.raises(DeclarationRefused, match="priced once"):
+        rates_from_csv(HEADER + two_vendors)
+
+
+def test_a_file_without_the_columns_is_refused() -> None:
+    with pytest.raises(DeclarationRefused, match="columns"):
+        rates_from_csv("model,usd\nacme-1,1\n")
+
+
+def test_the_change_names_what_is_new_changed_the_same_and_only_on_the_box() -> None:
+    box = {"a": Rate(input=1.0), "b": Rate(input=1.0), "c": Rate(input=1.0)}
+    written = {"a": Rate(input=1.0), "b": Rate(input=2.0), "d": Rate(input=1.0)}
+    change = rates_changed(box, written)
+    assert (change.added, change.changed, change.unchanged, change.only_on_the_box) == (
+        ("d",),
+        ("b",),
+        ("a",),
+        ("c",),
+    )
+
+
+def test_the_prices_file_the_box_ships_with_reads_whole() -> None:
+    shipped = Path(__file__).parents[2] / "infra" / "box" / "prices.csv"
+    rates = rates_from_csv(shipped.read_text(encoding="utf-8"))
+    assert rates["flux-general-multi"].audio_seconds == 0.00013
+    assert rates["claude-haiku-4-5"].output == 5.0

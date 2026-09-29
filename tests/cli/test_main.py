@@ -16,6 +16,7 @@ from pinecall.cli.main import (
     migrate_plan,
     migrate_status,
     migrate_up,
+    providers_prices,
     providers_seed,
 )
 from pinecall.domain.errors import Conflict, PinecallError
@@ -107,3 +108,34 @@ async def test_the_providers_row_is_seeded_once_and_the_second_time_refused(
     assert (first, "is written" in capsys.readouterr().out) == (0, True)
     with pytest.raises(Conflict, match="configured already"):
         await asyncio.to_thread(providers_seed, settings, seeding)
+
+
+@postgres
+async def test_a_prices_file_is_shown_until_applied_and_then_joins_the_boxs_rates(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    schema: str,
+    acme: str,
+) -> None:
+    del acme
+    monkeypatch.setattr(cli, "open_pool", partial(open_pool, schema=schema))
+    settings = Settings.model_validate({"DATABASE_URL": DSN})
+    row = tmp_path / "providers.json"
+    row.write_text(configured().model_dump_json())
+    await asyncio.to_thread(providers_seed, settings, argparse.Namespace(file=str(row)))
+    prices_file = tmp_path / "prices.csv"
+    prices_file.write_text(
+        "vendor,model,unit,usd,as_of,source\nacme,acme-voice,characters,0.00005,2026-09-29,s\n"
+    )
+    capsys.readouterr()
+    shown = argparse.Namespace(file=str(prices_file), apply=False)
+    await asyncio.to_thread(providers_prices, settings, shown)
+    first = capsys.readouterr().out
+    applied = argparse.Namespace(file=str(prices_file), apply=True)
+    await asyncio.to_thread(providers_prices, settings, applied)
+    await asyncio.to_thread(providers_prices, settings, shown)
+    last = capsys.readouterr().out.splitlines()[-2]
+    assert "+ acme-voice" in first
+    assert "nothing written" in first
+    assert last == "0 new, 0 changed, 1 the same, 1 only on the box and kept"

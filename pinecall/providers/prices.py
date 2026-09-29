@@ -1,8 +1,11 @@
 """What a call's usage cost in US dollars, from the rates of the box's configuration."""
 
+import csv
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from typing import Literal
 
+from pinecall.domain.errors import DeclarationRefused
 from pinecall.providers.catalog import Providers, Rate
 from pinecall.wire.metrics import LLMModelUsage, ModelUsage, STTModelUsage, TTSModelUsage
 from pinecall.wire.parts import Cost, CostRow, UnpricedRow
@@ -11,6 +14,29 @@ type Unit = Literal["input_tokens", "cached_input_tokens", "cache_creation_token
 
 
 A_MILLION = 1_000_000
+
+# A prices file's unit, and the field of `Rate` it fills.
+FIELD_OF_UNIT = {
+    "input_tokens": "input",
+    "output_tokens": "output",
+    "cached_input_tokens": "cached_input",
+    "cache_creation_tokens": "cache_creation",
+    "characters": "characters",
+    "audio_seconds": "audio_seconds",
+}
+
+COLUMNS = ("vendor", "model", "unit", "usd", "as_of", "source")
+
+
+@dataclass(frozen=True)
+class RatesChange:
+    """What writing a prices file would do to the box's rates, model by model."""
+
+    added: tuple[str, ...]
+    changed: tuple[str, ...]
+    unchanged: tuple[str, ...]
+    # Kept as they are: a file adds and replaces, it never removes.
+    only_on_the_box: tuple[str, ...]
 
 
 def cost(usage: Iterable[ModelUsage], configured: Providers) -> Cost:
@@ -30,6 +56,45 @@ def rate_of(rates: Mapping[str, Rate], model: str) -> Rate | None:
     """The rate whose key is the longest prefix of the model id, so snapshots price by family."""
     listed = [name for name in rates if model.startswith(name)]
     return rates[max(listed, key=len)] if listed else None
+
+
+def rates_from_csv(text: str) -> dict[str, Rate]:
+    """The rates of a prices file, one row per model and unit; `#` lines are notes."""
+    lines = [line for line in text.splitlines() if not line.startswith("#")]
+    reader = csv.DictReader(lines)
+    if tuple(reader.fieldnames or ()) != COLUMNS:
+        raise DeclarationRefused(f"a prices file has the columns {','.join(COLUMNS)}")
+    fields: dict[str, dict[str, float | str]] = {}
+    vendors: dict[str, str] = {}
+    for number, row in enumerate(reader, start=2):
+        model, unit = row["model"], row["unit"]
+        field = FIELD_OF_UNIT.get(unit)
+        if field is None:
+            raise DeclarationRefused(
+                f"line {number}: {unit!r} is not a unit; one of {', '.join(FIELD_OF_UNIT)}"
+            )
+        if vendors.setdefault(model, row["vendor"]) != row["vendor"]:
+            raise DeclarationRefused(
+                f"line {number}: {model} is {vendors[model]}'s already: a model is priced once"
+            )
+        priced = fields.setdefault(model, {"as_of": ""})
+        if field in priced:
+            raise DeclarationRefused(f"line {number}: {model} {unit} is priced twice")
+        priced[field] = _usd(row["usd"], number)
+        priced["as_of"] = max(str(priced["as_of"]), row["as_of"])
+    return {model: Rate.model_validate(priced) for model, priced in fields.items()}
+
+
+def rates_changed(box: Mapping[str, Rate], written: Mapping[str, Rate]) -> RatesChange:
+    """Each model of the file as new, changed or the same, and what only the box holds."""
+    return RatesChange(
+        added=tuple(sorted(model for model in written if model not in box)),
+        changed=tuple(
+            sorted(model for model in written if model in box and box[model] != written[model])
+        ),
+        unchanged=tuple(sorted(model for model in written if box.get(model) == written[model])),
+        only_on_the_box=tuple(sorted(model for model in box if model not in written)),
+    )
 
 
 # Interruption and end-of-turn models run inside livekit and cost nothing: no row, not unpriced.
@@ -101,3 +166,13 @@ def _row(
         unit_price_usd=per,
         usd=round(usd, 6),
     )
+
+
+def _usd(text: str, number: int) -> float:
+    try:
+        usd = float(text)
+    except ValueError:
+        raise DeclarationRefused(f"line {number}: {text!r} is not a price in dollars") from None
+    if usd < 0:
+        raise DeclarationRefused(f"line {number}: a price is never below zero")
+    return usd
