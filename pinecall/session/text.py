@@ -134,11 +134,9 @@ def _called(entry: Entry) -> llm.FunctionCall:
 def _answered(entry: Entry) -> llm.FunctionCallOutput:
     error = entry.data.get("error")
     output = entry.data.get("output")
-    data = error if error is not None else output
-    text = data if isinstance(data, str) else json.dumps(data, ensure_ascii=False)
     return llm.FunctionCallOutput(
         call_id=str(entry.data.get("call_id", "")),
         name=str(entry.data.get("name", "")),
-        output=text,
+        output=tools.output_text(error if error is not None else output),
         is_error=error is not None,
     )
