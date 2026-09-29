@@ -163,3 +163,8 @@ The goldens, the replay and the judges, the simulated callers: [evals.md](evals.
 People, keys, sign-in, sign-up, the org's provider and mailbox: [people.md](people.md). Numbers
 and carriers: [numbers.md](numbers.md). Usage, insights, limits and judging:
 [console-api.md](console-api.md).
+
+The org's compliance settings are one row, replaced whole (`team`): `GET /v1/org/policy` answers
+`{policy: {retention_days}, set_by, set_at}`, and `PUT /v1/org/policy {retention_days}` sets how
+many days a sealed call is kept before the nightly run erases it through the erasure path (§3);
+`null` keeps everything, which is also an org nobody set. The trail is `GET /v1/org/erasures`.

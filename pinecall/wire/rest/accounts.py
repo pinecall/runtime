@@ -1,7 +1,7 @@
-"""The bodies of the account doors: sign-in, keys, people, sign-up, SSO, mail, who a key is."""
+"""The account doors' bodies: sign-in, keys, people, sign-up, SSO, mail, who a key is, policy."""
 
 from datetime import datetime
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import Field
 
@@ -461,3 +461,17 @@ class SendTestLetterResponse(WireModel):
 
     sent: bool
     error: str | None
+
+
+class OrgPolicy(WireModel):
+    """GET and PUT /v1/org/policy: the org's compliance settings, replaced whole."""
+
+    retention_days: Annotated[int, Field(gt=0)] | None = None
+
+
+class OrgPolicyRow(WireModel):
+    """GET /v1/org/policy: the settings, who set them last, and when."""
+
+    policy: OrgPolicy
+    set_by: str | None
+    set_at: float | None

@@ -217,3 +217,18 @@ async def test_an_org_with_its_own_mailbox_never_posts_through_the_boxs(
     assert await delivered(knocking, postbox) == ["bo@clinica.test"]
     assert postbox.hosts == [("smtp.clinica.test", 587)]
     assert str(postbox.sent[0]["From"]) == THE_ORGS_SENDER
+
+
+@postgres
+async def test_the_orgs_policy_is_read_then_replaced_whole_and_says_who(knocking: Knocking) -> None:
+    async with knocking.http(knocking.app["production"]) as http:
+        first = await http.get("/v1/org/policy")
+        put = await http.put("/v1/org/policy", json={"retention_days": 365})
+        cleared = await http.put("/v1/org/policy", json={})
+        refused = await http.put("/v1/org/policy", json={"retention_days": 0})
+    assert first.json() == {"policy": {"retention_days": None}, "set_by": None, "set_at": None}
+    assert put.status_code == 200
+    assert put.json()["policy"] == {"retention_days": 365}
+    assert put.json()["set_by"]
+    assert cleared.json()["policy"] == {"retention_days": None}
+    assert refused.status_code == 422

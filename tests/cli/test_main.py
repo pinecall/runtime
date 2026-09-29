@@ -18,11 +18,17 @@ from pinecall.cli.main import (
     migrate_up,
     providers_prices,
     providers_seed,
+    retention_due,
+    retention_run,
 )
 from pinecall.domain.errors import Conflict, PinecallError
+from pinecall.log.store import Store
 from pinecall.postgres.pool import open_pool
 from pinecall.process.settings import Settings
+from pinecall.tenancy import orgs, retention
+from pinecall.wire.rest.accounts import OrgPolicy
 from tests.conftest import DSN, configured, postgres
+from tests.log.conftest import logged_call
 
 
 def test_a_verb_nobody_declared_is_refused_with_the_list() -> None:
@@ -139,3 +145,30 @@ async def test_a_prices_file_is_shown_until_applied_and_then_joins_the_boxs_rate
     assert "+ acme-voice" in first
     assert "nothing written" in first
     assert last == "0 new, 0 changed, 1 the same, 1 only on the box and kept"
+
+
+@postgres
+async def test_retention_says_what_is_due_then_erases_it_and_says_how_many(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    schema: str,
+) -> None:
+    monkeypatch.setattr(cli, "open_pool", partial(open_pool, schema=schema))
+    pool = await open_pool(DSN, schema=schema)
+    try:
+        org = await orgs.create(pool, "clinica", "Clinica")
+        call = await logged_call(Store(pool, clock=lambda: 1.0), org.id)
+        await retention.put_policy(pool, org.id, OrgPolicy(retention_days=1), by="m_1")
+    finally:
+        await pool.close()
+    settings = Settings.model_validate({"DATABASE_URL": DSN, "PINECALL_RECORDINGS": str(tmp_path)})
+    capsys.readouterr()
+    assert await asyncio.to_thread(retention_due, settings, argparse.Namespace()) == 0
+    listed = capsys.readouterr().out
+    assert call in listed
+    assert listed.endswith("1 calls past their org's days\n")
+    assert await asyncio.to_thread(retention_run, settings, argparse.Namespace()) == 0
+    assert capsys.readouterr().out == "1 calls erased past their org's days\n"
+    assert await asyncio.to_thread(retention_due, settings, argparse.Namespace()) == 0
+    assert capsys.readouterr().out == "0 calls past their org's days\n"

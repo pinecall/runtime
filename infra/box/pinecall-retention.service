@@ -1,0 +1,16 @@
+# The nightly erasure of the sealed calls past their org's days (tenancy/retention.py), started by
+# pinecall-retention.timer. An org with no retention_days keeps everything: nothing runs for it.
+[Unit]
+Description=Pinecall: erase the calls past their org's retention
+After=pinecall-postgres.service
+
+[Service]
+Type=oneshot
+User=pinecall
+Group=pinecall
+WorkingDirectory=/opt/pinecall
+Environment=PINECALL_RECORDINGS=/var/lib/pinecall/recordings
+EnvironmentFile=/etc/pinecall/box.env
+ImportCredential=DATABASE_URL
+ReadWritePaths=/var/lib/pinecall/recordings
+ExecStart=/opt/pinecall/venv/bin/pinecall-runtime retention run

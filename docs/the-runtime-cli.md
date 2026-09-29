@@ -10,7 +10,7 @@ writes an agent, nothing there issues a key.
 | group | speaks to |
 |---|---|
 | `gateway` · `worker` · `doctor` · `providers` | this machine: its settings, its database, its LiveKit |
-| `migrate` · `sessions` · `memory` | Postgres, straight, over `DATABASE_URL` |
+| `migrate` · `sessions` · `memory` · `retention` | Postgres, straight, over `DATABASE_URL` |
 | `init` · `orgs` · `keys` · `routes` · `fleet` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` alone is minted on the database, before any gateway answers |
 
 ## `gateway` · `worker start` · `worker overflow`
@@ -77,11 +77,14 @@ when it was heard, then each fleet summed. `loop` keeps a fleet at its target ([
 `--cloud` is a script with three verbs, `create <name>`, `delete <name>`, `list`; `infra/fleet/`
 holds one per cloud. `--once --dry-run` prints one tick's verdict and touches nothing.
 
-## `sessions` · `memory` · `migrate` · `providers` · `doctor`
+## `sessions` · `memory` · `retention` · `migrate` · `providers` · `doctor`
 
 `sessions list [--agent] [--limit]`, `sessions show <call> [--json]`, `sessions tail [<call>]`,
 `sessions recording <call>`: the log read back off Postgres, every tenant's. `memory reembed`
-embeds every fact another model wrote under the box's embedder. `migrate up` applies what the
+embeds every fact another model wrote under the box's embedder. `retention due` lists the sealed
+calls past their org's `retention_days` (`PUT /v1/org/policy`), oldest first; `retention run`
+erases them, each through the erasure path with `retention` as who asked, 5 000 a run at most;
+`pinecall-retention.timer` runs it at 04:00 every night. `migrate up` applies what the
 database lacks, `migrate status` says what it lacks (exit 1 while behind), `migrate plan` names
 every migration on the disk. `providers list [--does llm|stt|tts]` lists every vendor this build
 runs and whether the box holds its key; `providers seed <file>` writes the providers row a box
