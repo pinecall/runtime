@@ -1,0 +1,11 @@
+# Once a night at 03:00 on the box's clock, before retention's 04:00; a missed night runs at boot.
+[Unit]
+Description=Pinecall: back up the database and the recordings, nightly
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target

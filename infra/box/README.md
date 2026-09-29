@@ -16,6 +16,7 @@ fleets/<world>.env     PINECALL_FLEET and the worker's health port, per world
 pinecall-gateway.service · pinecall-worker@.service · pinecall-overflow@.service
 pinecall-migrate.service · pinecall-doctor.service · pinecall-fleet-key@.service
 pinecall-retention.service · pinecall-retention.timer   the nightly erasure of calls past their org's days
+pinecall-backup.service · pinecall-backup.timer · backup.sh · backup.age.pub   the nightly encrypted backup
 pinecall-postgres-image.service · hardening.conf · polkit/ · sysusers.d/ · tmpfiles.d/ · journald.conf.d/
 ```
 
