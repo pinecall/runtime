@@ -102,6 +102,8 @@ filterwarnings = [
   "error",
   # A plugin's own import, not ours: clova's pydub imports audioop, gone in Python 3.13.
   "ignore:'audioop' is deprecated:DeprecationWarning",
+  # pydub, the same plugin's: a regex in a plain string, warned when Python compiles it afresh.
+  "ignore:invalid escape sequence:SyntaxWarning",
 ]
 markers = [
   "postgres: needs DATABASE_URL, the local Postgres `make test` starts",
