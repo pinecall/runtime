@@ -23,8 +23,10 @@ from pinecall.tenancy.tokens import Visit
 from tests.conftest import postgres
 
 
-def a_request(client: tuple[str, int] | None = ("203.0.113.7", 5060)) -> Request:
-    """A request to the gateway at gateway.test, from the client given."""
+def a_request(
+    client: tuple[str, int] | None = ("203.0.113.7", 5060), host: str = "gateway.test"
+) -> Request:
+    """A request to the gateway at the host given, from the client given."""
     return Request(
         {
             "type": "http",
@@ -32,7 +34,7 @@ def a_request(client: tuple[str, int] | None = ("203.0.113.7", 5060)) -> Request
             "scheme": "http",
             "server": ("gateway.test", 80),
             "path": "/",
-            "headers": [(b"host", b"gateway.test")],
+            "headers": [(b"host", host.encode())],
             "client": client,
         }
     )
@@ -86,3 +88,14 @@ def test_the_public_url_is_the_boxs_name_and_the_requests_only_where_it_has_none
     nameless = wired.connections.settings.model_copy(update={"domain": None})
     unnamed = replace(wired, connections=replace(wired.connections, settings=nameless))
     assert public_url(a_request(), unnamed) == "http://gateway.test"
+
+
+@postgres
+def test_the_public_url_is_the_sandboxs_name_for_a_request_that_came_in_by_it(
+    wired: Gateway,
+) -> None:
+    named = wired.connections.settings.model_copy(update={"sandbox_domain": "sandbox.box.test"})
+    both = replace(wired, connections=replace(wired.connections, settings=named))
+    assert public_url(a_request(host="sandbox.box.test"), both) == "https://sandbox.box.test"
+    assert public_url(a_request(host="box.test"), both) == "https://box.test"
+    assert public_url(a_request(host="forged.test"), both) == "https://box.test"
