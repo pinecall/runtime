@@ -51,7 +51,7 @@ What a request sees is a **corner**: the org, the world, and in the sandbox the 
 | a person's | production | the org's production |
 | a person's | the sandbox | that person's own copy |
 
-Tuning, the lexicon and knowledge are kept per corner; a person's sandbox corner falls back,
+An agent's tuning and lexicon, and knowledge, are kept per corner; a person's sandbox corner falls back,
 knob by knob, to the org's own. An admin may open a colleague's sandbox corner to look at it.
 
 ## Keeping test calls off production

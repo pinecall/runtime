@@ -19,6 +19,9 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `POST` | `/v1/agents/{slug}/dial` | talk | Place a call as the agent, after its guards: the call it became, before anything rings. |
 | `GET` | `/v1/agents/{slug}/hold-audio` | app · fleet | What a caller of the agent hears while a tool runs. |
 | `GET` | `/v1/agents/{slug}/hold-audio/audio` | app · fleet | The org's own clip, Ogg Opus. |
+| `GET` | `/v1/agents/{slug}/lexicon` | pipeline · words | The agent's words as this key sees them: yours, the team's and production's. |
+| `PUT` | `/v1/agents/{slug}/lexicon` | pipeline · words | The agent's next lexicon in this scope or the team's. |
+| `GET` | `/v1/agents/{slug}/lexicon/history` | pipeline · words | One scope's versions of the agent's lexicon, newest first. |
 | `DELETE` | `/v1/agents/{slug}/line` | app | Let the line go, to the newest other scope that could take it. |
 | `GET` | `/v1/agents/{slug}/line` | calls | Who holds the agent's line, and who else could take it. |
 | `POST` | `/v1/agents/{slug}/line` | app | Take the agent's line for this scope. |
@@ -102,9 +105,6 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `DELETE` | `/v1/knowledge/{base}/files/{path:path}` | knowledge | Take one file and its chunks out of the base, and the base with its last file. |
 | `GET` | `/v1/knowledge/{base}/files/{path:path}` | knowledge | One file of the base, text and all. |
 | `PUT` | `/v1/knowledge/{base}/files/{path:path}` | knowledge | Put one file into the base, beginning the base when there is none; only it is cut. |
-| `GET` | `/v1/lexicon` | pipeline · words | The org's words as this key sees them: yours, the team's and production's. |
-| `PUT` | `/v1/lexicon` | pipeline · words | The org's next lexicon in this scope or the team's. |
-| `GET` | `/v1/lexicon/history` | pipeline · words | One scope's versions of the lexicon, newest first. |
 | `GET` | `/v1/limits` | — | Each quota of the key's world as {limit, used}, the lends, and where to buy more. |
 | `DELETE` | `/v1/line/from` | app | Stop sending this person's phones to their scope, and say which were forgotten. |
 | `PUT` | `/v1/line/from` | app | Send rings from this phone to the key's person's own scope. |

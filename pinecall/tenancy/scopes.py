@@ -1,4 +1,4 @@
-"""An agent's tuning and the org's lexicon, versioned per scope, and what is current."""
+"""An agent's tuning and lexicon, versioned per scope, and what is current."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
@@ -29,7 +29,7 @@ TUNING: TypeAdapter[Tuning] = TypeAdapter(Tuning)
 
 HISTORY = sql.SQL("""
 SELECT holder, version, {value} AS value, author, note, set_at FROM {table}
-WHERE org = %(org)s AND env = %(env)s AND holder = %(holder)s {agent}
+WHERE org = %(org)s AND env = %(env)s AND holder = %(holder)s AND agent = %(agent)s
 ORDER BY version DESC LIMIT %(limit)s
 """)
 
@@ -37,7 +37,7 @@ ORDER BY version DESC LIMIT %(limit)s
 # The version a call ran on is the holder's or, when it fell through, the org's own.
 AT = sql.SQL("""
 SELECT holder, version, {value} AS value, author, note, set_at FROM {table}
-WHERE org = %(org)s AND env = %(env)s AND holder IN (%(holder)s, '') {agent}
+WHERE org = %(org)s AND env = %(env)s AND holder IN (%(holder)s, '') AND agent = %(agent)s
   AND version = %(version)s
 ORDER BY holder DESC LIMIT 1
 """)
@@ -45,7 +45,7 @@ ORDER BY holder DESC LIMIT 1
 
 NEWEST = sql.SQL("""
 SELECT coalesce(max(version), 0) AS newest FROM {table}
-WHERE org = %(org)s AND env = %(env)s AND holder = %(holder)s {agent}
+WHERE org = %(org)s AND env = %(env)s AND holder = %(holder)s AND agent = %(agent)s
 """)
 
 
@@ -63,13 +63,13 @@ RETURNING version
 
 
 PUT_LEXICON = """
-INSERT INTO lexicon (org, env, holder, version, said, heard, author, note)
-SELECT %(org)s, %(env)s, %(holder)s, coalesce(max(version), 0) + 1, %(said)s, %(heard)s,
-       %(author)s, %(note)s
+INSERT INTO lexicon (org, env, holder, agent, version, said, heard, author, note)
+SELECT %(org)s, %(env)s, %(holder)s, %(agent)s, coalesce(max(version), 0) + 1, %(said)s,
+       %(heard)s, %(author)s, %(note)s
 FROM lexicon
-WHERE org = %(org)s AND env = %(env)s AND holder = %(holder)s
+WHERE org = %(org)s AND env = %(env)s AND holder = %(holder)s AND agent = %(agent)s
 HAVING %(if_version)s::integer IS NULL OR coalesce(max(version), 0) = %(if_version)s
-ON CONFLICT (org, env, holder, version) DO NOTHING
+ON CONFLICT (org, env, holder, agent, version) DO NOTHING
 RETURNING version
 """
 
@@ -89,7 +89,7 @@ SELECT * FROM (
     SELECT DISTINCT ON (holder) 'lexicon', holder, version,
            jsonb_build_object('said', said, 'heard', heard), author, note, set_at
     FROM lexicon
-    WHERE org = %(org)s AND env = %(env)s AND holder IN (%(holder)s, '')
+    WHERE org = %(org)s AND env = %(env)s AND holder IN (%(holder)s, '') AND agent = %(agent)s
     ORDER BY holder DESC, version DESC
 ) lexicon
 ORDER BY kind, holder DESC
@@ -138,13 +138,6 @@ VALUE: dict[VersionedTable, sql.Composable] = {
 }
 
 
-# The tuning is an agent's; the lexicon is the scope's, over every agent.
-OF_THE_AGENT: dict[VersionedTable, sql.Composable] = {
-    "agent_config": sql.SQL("AND agent = %(agent)s"),
-    "lexicon": sql.SQL(""),
-}
-
-
 async def tuning_history(
     pool: Pool, scope: Scope, agent: str, *, limit: int = HISTORY_LIMIT
 ) -> list[Version[Tuning]]:
@@ -154,10 +147,10 @@ async def tuning_history(
 
 
 async def lexicon_history(
-    pool: Pool, scope: Scope, *, limit: int = HISTORY_LIMIT
+    pool: Pool, scope: Scope, agent: str, *, limit: int = HISTORY_LIMIT
 ) -> list[Version[Lexicon]]:
-    """The scope's own versions of the lexicon, newest first."""
-    return [_lexicon(row) for row in await _history(pool, "lexicon", scope, None, limit)]
+    """The scope's own versions of the agent's lexicon, newest first."""
+    return [_lexicon(row) for row in await _history(pool, "lexicon", scope, agent, limit)]
 
 
 async def tuning_at(pool: Pool, scope: Scope, agent: str, version: int) -> Version[Tuning] | None:
@@ -166,9 +159,9 @@ async def tuning_at(pool: Pool, scope: Scope, agent: str, version: int) -> Versi
     return None if row is None else _tuning(row)
 
 
-async def lexicon_at(pool: Pool, scope: Scope, version: int) -> Version[Lexicon] | None:
-    """One version of the lexicon, the scope's own or the org's it fell through to."""
-    row = await _at(pool, "lexicon", scope, None, version)
+async def lexicon_at(pool: Pool, scope: Scope, agent: str, version: int) -> Version[Lexicon] | None:
+    """One version of the agent's lexicon, the scope's own or the org's it fell through to."""
+    row = await _at(pool, "lexicon", scope, agent, version)
     return None if row is None else _lexicon(row)
 
 
@@ -184,10 +177,12 @@ async def put_tuning(pool: Pool, scope: Scope, agent: str, tuning: Tuning, writt
     return await _put(pool, "agent_config", PUT_TUNING, values)
 
 
-async def put_lexicon(pool: Pool, scope: Scope, lexicon: Lexicon, written: Written) -> int:
-    """Write the scope's next lexicon; a scope moved since it was read refuses."""
+async def put_lexicon(
+    pool: Pool, scope: Scope, agent: str, lexicon: Lexicon, written: Written
+) -> int:
+    """Write the agent's next lexicon in the scope; a scope moved since it was read refuses."""
     values: dict[str, object] = {
-        **_where(scope, None),
+        **_where(scope, agent),
         "said": Jsonb(dict(lexicon.said)),
         "heard": Jsonb(list(lexicon.heard)),
         "author": written.author,
@@ -233,12 +228,12 @@ async def tuning_side_by_side(pool: Pool, scope: Scope, agent: str) -> SideBySid
     )
 
 
-async def lexicon_side_by_side(pool: Pool, scope: Scope) -> SideBySide[Lexicon]:
-    """The lexicon as yours, the team's and production's, none falling through."""
+async def lexicon_side_by_side(pool: Pool, scope: Scope, agent: str) -> SideBySide[Lexicon]:
+    """The agent's lexicon as yours, the team's and production's, none falling through."""
     return SideBySide(
-        yours=await _newest_lexicon(pool, scope) if scope.holder else None,
-        team=await _newest_lexicon(pool, replace(scope, holder=THE_ORGS_OWN)),
-        production=await _newest_lexicon(pool, Scope(scope.org, PRODUCTION)),
+        yours=await _newest_lexicon(pool, scope, agent) if scope.holder else None,
+        team=await _newest_lexicon(pool, replace(scope, holder=THE_ORGS_OWN), agent),
+        production=await _newest_lexicon(pool, Scope(scope.org, PRODUCTION), agent),
     )
 
 
@@ -261,13 +256,13 @@ async def _newest_tuning(pool: Pool, scope: Scope, agent: str) -> Version[Tuning
     return _tuning(rows[0]) if rows else None
 
 
-async def _newest_lexicon(pool: Pool, scope: Scope) -> Version[Lexicon] | None:
-    rows = await _history(pool, "lexicon", scope, None, 1)
+async def _newest_lexicon(pool: Pool, scope: Scope, agent: str) -> Version[Lexicon] | None:
+    rows = await _history(pool, "lexicon", scope, agent, 1)
     return _lexicon(rows[0]) if rows else None
 
 
 async def _history(
-    pool: Pool, table: VersionedTable, scope: Scope, agent: str | None, limit: int
+    pool: Pool, table: VersionedTable, scope: Scope, agent: str, limit: int
 ) -> list[DictRow]:
     query = HISTORY.format(**_parts(table))
     async with pool.connection() as connection:
@@ -276,7 +271,7 @@ async def _history(
 
 
 async def _at(
-    pool: Pool, table: VersionedTable, scope: Scope, agent: str | None, version: int
+    pool: Pool, table: VersionedTable, scope: Scope, agent: str, version: int
 ) -> DictRow | None:
     query = AT.format(**_parts(table))
     async with pool.connection() as connection:
@@ -300,7 +295,7 @@ async def _newest(connection: Connection, table: VersionedTable, values: dict[st
 
 
 def _parts(table: VersionedTable) -> dict[str, sql.Composable]:
-    return {"table": sql.Identifier(table), "value": VALUE[table], "agent": OF_THE_AGENT[table]}
+    return {"table": sql.Identifier(table), "value": VALUE[table]}
 
 
 def _where(scope: Scope, agent: str | None) -> dict[str, object]:

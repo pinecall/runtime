@@ -260,10 +260,9 @@ class Tuning:
             check_call_limit(self.max_duration_s)
 
 
-# Org-wide, applied on top of every agent's own pronunciations.
 @dataclass(frozen=True)
 class Lexicon:
-    """The org's lexicon: TTS pronunciations and STT keyterms."""
+    """An agent's lexicon: TTS pronunciations and STT keyterms."""
 
     said: Mapping[str, str] = field(default_factory=dict[str, str])
     heard: tuple[str, ...] = ()

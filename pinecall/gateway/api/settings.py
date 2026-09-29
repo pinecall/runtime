@@ -1,4 +1,4 @@
-"""The settings doors: an agent's tuning per world and scope, the org's lexicon, a call's own."""
+"""The settings doors: an agent's tuning and lexicon per world and scope, and a call's own."""
 
 import dataclasses
 from dataclasses import replace
@@ -40,8 +40,8 @@ from pinecall.wire.rest.settings import (
 router = APIRouter()
 
 
-# A `words` key (a supervisor's) sets the opening's words, what is remembered and the org's
-# words; the rest is the pipeline's, and the key is refused by the fields it touched.
+# A `words` key (a supervisor's) sets the opening's words, what is remembered and the agent's
+# lexicon; the rest is the pipeline's, and the key is refused by the fields it touched.
 PIPELINE_ONLY = (
     "voice",
     "tts",
@@ -164,7 +164,7 @@ async def call_settings(call: str, key: CallsKey, gateway: GatewayDep) -> CallSe
     words = (
         None
         if versions.lexicon is None
-        else await scopes.lexicon_at(pool, kept.scope, versions.lexicon)
+        else await scopes.lexicon_at(pool, kept.scope, kept.agent, versions.lexicon)
     )
     return CallSettingsResponse(
         config_version=versions.config,
@@ -174,37 +174,42 @@ async def call_settings(call: str, key: CallsKey, gateway: GatewayDep) -> CallSe
     )
 
 
-@router.get("/v1/lexicon")
-async def get_lexicon(key: WordsKey, scope: ScopeDep, gateway: GatewayDep) -> LexiconResponse:
-    """The org's words as this key sees them: yours, the team's and production's."""
-    return await _lexicon_side_by_side(gateway, scope, world=key.env)
+@router.get("/v1/agents/{slug}/lexicon")
+async def get_lexicon(
+    slug: str, key: WordsKey, scope: ScopeDep, gateway: GatewayDep
+) -> LexiconResponse:
+    """The agent's words as this key sees them: yours, the team's and production's."""
+    return await _lexicon_side_by_side(gateway, scope, slug, world=key.env)
 
 
 # A supervisor's key may write it: the words are theirs to fix.
-@router.put("/v1/lexicon")
+@router.put("/v1/agents/{slug}/lexicon")
 async def put_lexicon(
-    body: PutLexiconRequest, key: WordsKey, scope: ScopeDep, gateway: GatewayDep
+    slug: str, body: PutLexiconRequest, key: WordsKey, scope: ScopeDep, gateway: GatewayDep
 ) -> LexiconResponse:
-    """The org's next lexicon in this scope or the team's."""
+    """The agent's next lexicon in this scope or the team's."""
     written_to = _written_to(scope, team=body.team)
     wanted = Lexicon(
         said={item.word: item.spoken for item in body.lexicon.said}, heard=tuple(body.lexicon.heard)
     )
     written = Written(author=_author(key), note=body.note, if_version=body.if_version)
-    await scopes.put_lexicon(gateway.connections.pool, written_to, wanted, written)
-    return await _lexicon_side_by_side(gateway, scope, world=key.env)
+    await scopes.put_lexicon(gateway.connections.pool, written_to, slug, wanted, written)
+    return await _lexicon_side_by_side(gateway, scope, slug, world=key.env)
 
 
-@router.get("/v1/lexicon/history")
+@router.get("/v1/agents/{slug}/lexicon/history")
 async def lexicon_history(
+    slug: str,
     _key: WordsKey,
     scope: ScopeDep,
     gateway: GatewayDep,
     query: Annotated[HistoryQuery, Query()],
 ) -> LexiconHistoryResponse:
-    """One scope's versions of the lexicon, newest first."""
+    """One scope's versions of the agent's lexicon, newest first."""
     written_to = _written_to(scope, team=query.team)
-    rows = await scopes.lexicon_history(gateway.connections.pool, written_to, limit=query.limit)
+    rows = await scopes.lexicon_history(
+        gateway.connections.pool, written_to, slug, limit=query.limit
+    )
     return LexiconHistoryResponse(
         world=scope.env, holder=written_to.holder, rows=[lexicon_row(row) for row in rows]
     )
@@ -253,7 +258,7 @@ def lexicon_row(kept: Version[Lexicon]) -> LexiconRow:
 
 
 # The settings are checked as a call would be built from them: the declaration when an app
-# holds the agent, a bare one otherwise, the lexicon of the scope, and the vendors on the org's
+# holds the agent, a bare one otherwise, its lexicon in the scope, and the vendors on the org's
 # keys, so a vendor the box does not lend is refused here and not on the next call.
 async def _checked(gateway: Gateway, scope: Scope, slug: str, wanted: Tuning) -> None:
     pool = gateway.connections.pool
@@ -305,8 +310,10 @@ async def _side_by_side(
     )
 
 
-async def _lexicon_side_by_side(gateway: Gateway, scope: Scope, *, world: Env) -> LexiconResponse:
-    kept = await scopes.lexicon_side_by_side(gateway.connections.pool, scope)
+async def _lexicon_side_by_side(
+    gateway: Gateway, scope: Scope, slug: str, *, world: Env
+) -> LexiconResponse:
+    kept = await scopes.lexicon_side_by_side(gateway.connections.pool, scope, slug)
     return LexiconResponse(
         world=world,
         yours=None if kept.yours is None else lexicon_row(kept.yours),

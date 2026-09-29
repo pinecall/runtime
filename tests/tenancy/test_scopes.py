@@ -1,4 +1,4 @@
-"""Corners: versions per scope, knob by knob from the nearest that sets it, read in one query."""
+"""Tuning and lexicon: versions per agent and scope, knob by knob from the nearest that sets it."""
 
 import asyncio
 
@@ -132,19 +132,43 @@ async def test_history_is_the_corners_own_newest_first_and_at_reads_one_back(poo
 
 
 @postgres
-async def test_the_lexicon_is_kept_the_same_way_without_an_agent(pool: Pool) -> None:
+async def test_the_lexicon_is_kept_per_agent_the_same_way_as_the_tuning(pool: Pool) -> None:
     mine, team, _ = await _corners(pool)
     words = Lexicon(said={"Pinecall": "páin col"}, heard=("Pinecall",))
-    await put_lexicon(pool, team, words, BY_ANA)
+    await put_lexicon(pool, team, AGENT, words, BY_ANA)
     assert (await current(pool, mine, AGENT)).lexicon == words
-    await put_lexicon(pool, mine, Lexicon(heard=("turno",)), BY_ANA)
-    is_standing = await current(pool, mine, "any-agent")
+    await put_lexicon(pool, mine, AGENT, Lexicon(heard=("turno",)), BY_ANA)
+    is_standing = await current(pool, mine, AGENT)
     assert is_standing.lexicon == Lexicon(heard=("turno",))
     assert is_standing.versions == Versions(config=None, lexicon=1)
-    assert [kept.version for kept in await lexicon_history(pool, mine)] == [1]
-    kept = await lexicon_at(pool, mine, 1)
+    assert [kept.version for kept in await lexicon_history(pool, mine, AGENT)] == [1]
+    kept = await lexicon_at(pool, mine, AGENT, 1)
     assert kept is not None
     assert kept.value.heard == ("turno",)
+
+
+@postgres
+async def test_one_agents_lexicon_is_not_heard_by_another_and_counts_its_own_versions(
+    pool: Pool,
+) -> None:
+    _, team, _ = await _corners(pool)
+    await put_lexicon(pool, team, AGENT, Lexicon(heard=("ortodoncia",)), BY_ANA)
+    await put_lexicon(pool, team, AGENT, Lexicon(heard=("Vidal",)), BY_ANA)
+    other = await current(pool, team, "turnos")
+    assert (other.lexicon, other.versions.lexicon) == (Lexicon(), None)
+    assert await put_lexicon(pool, team, "turnos", Lexicon(heard=("turno",)), BY_ANA) == 1
+    assert await lexicon_at(pool, team, "turnos", 2) is None
+    assert (await current(pool, team, AGENT)).lexicon == Lexicon(heard=("Vidal",))
+
+
+@postgres
+async def test_a_stale_lexicon_version_is_refused_with_where_the_agents_lexicon_is_now(
+    pool: Pool,
+) -> None:
+    mine, _, _ = await _corners(pool)
+    await put_lexicon(pool, mine, AGENT, Lexicon(heard=("a",)), BY_ANA)
+    with pytest.raises(Conflict, match="at v1 now"):
+        await put_lexicon(pool, mine, AGENT, Lexicon(heard=("b",)), Written("m_ana", if_version=0))
 
 
 @postgres
@@ -169,8 +193,8 @@ async def test_each_corner_is_its_own_newest_and_never_the_fallback(pool: Pool) 
     assert shown.team is not None
     assert shown.production is not None
     assert (shown.team.value.voice, shown.production.value.voice) == ("team", "live")
-    await put_lexicon(pool, mine, Lexicon(heard=("mío",)), BY_ANA)
-    words = await lexicon_side_by_side(pool, mine)
+    await put_lexicon(pool, mine, AGENT, Lexicon(heard=("mío",)), BY_ANA)
+    words = await lexicon_side_by_side(pool, mine, AGENT)
     assert words.yours is not None
     assert words.yours.value.heard == ("mío",)
     assert (words.team, words.production) == (None, None)

@@ -131,7 +131,7 @@ Where a ring lands, a developer's own phone and the agent's line: `PUT`·`DELETE
 
 ## 5. What an agent runs on, knows and remembers
 
-The settings and the org's lexicon: [settings-api.md](settings-api.md). The pipeline and its hold
+An agent's settings and its lexicon: [settings-api.md](settings-api.md). The pipeline and its hold
 melody: [pipeline-api.md](pipeline-api.md). The knowledge bases and a contact's memory, and when a
 call looks either up: [../retrieval/spec.md](../retrieval/spec.md). The vendors, the org's own
 keys, the voices: [provider-keys.md](provider-keys.md). The widget: [console-api.md](console-api.md).

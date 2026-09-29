@@ -46,6 +46,10 @@ EVERY_DOOR = V1 / "docs/protocol/every-door.md"
 GONE: tuple[tuple[str, str], ...] = (
     # The sandbox asked production who a person was; one gateway serves both worlds now.
     ("POST", "/v1/login/redeem"),
+    # The lexicon is one agent's: its doors are under /v1/agents/{slug}/lexicon.
+    ("GET", "/v1/lexicon"),
+    ("PUT", "/v1/lexicon"),
+    ("GET", "/v1/lexicon/history"),
 )
 
 # Two doors of v1 the gateway spells otherwise: one route per dev family, and the widget's files

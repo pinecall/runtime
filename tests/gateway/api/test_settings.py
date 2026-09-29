@@ -1,11 +1,11 @@
-"""Tests for the settings doors: an agent's tuning per scope, the org's lexicon, a call's own."""
+"""Tests for the settings doors: an agent's tuning and lexicon per scope, and a call's own."""
 
 from pinecall.wire.rest.calls import OpenCallRequest
 from tests.conftest import AGENT, Knocking, a_developer, issued, postgres
 from tests.gateway.api.conftest import a_call, an_app
 
 SETTINGS = f"/v1/agents/{AGENT}/settings"
-LEXICON = "/v1/lexicon"
+LEXICON = f"/v1/agents/{AGENT}/lexicon"
 A_SET = {"config": {"llm": "acme/acme-1", "greeting": {"say": "Hola"}, "record": True}}
 
 
@@ -150,3 +150,26 @@ async def test_the_lexicon_is_set_read_and_kept_as_versions(knocking: Knocking) 
         "",
         [1],
     )
+
+
+@postgres
+async def test_a_lexicon_is_one_agents_and_another_agent_reads_none(knocking: Knocking) -> None:
+    words = {"said": [], "heard": ["Vidal"]}
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        await org.put(LEXICON, json={"lexicon": words})
+        other = await org.get("/v1/agents/turnos/lexicon")
+        history = await org.get("/v1/agents/turnos/lexicon/history")
+        written = await org.put("/v1/agents/turnos/lexicon", json={"lexicon": words})
+    assert (other.json()["team"], other.json()["yours"]) == (None, None)
+    assert history.json()["rows"] == []
+    assert written.json()["team"]["version"] == 1
+
+
+@postgres
+async def test_a_words_key_writes_the_agents_lexicon(knocking: Knocking) -> None:
+    pool = knocking.gateway.connections.pool
+    words = await issued(pool, knocking.org.id, "sandbox", frozenset({"words"}))
+    async with knocking.http(words) as supervisor:
+        written = await supervisor.put(LEXICON, json={"lexicon": {"said": [], "heard": ["GSA"]}})
+    assert written.status_code == 200
+    assert written.json()["team"]["lexicon"]["heard"] == ["GSA"]
