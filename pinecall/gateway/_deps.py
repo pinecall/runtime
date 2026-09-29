@@ -158,12 +158,14 @@ def check_knock(gateway: Gateway, name: str, refusal: str) -> None:
         raise TooManyRequests(refusal)
 
 
-# Never from the request's own Host when the box has a name: a forged host would send a sign-in
-# or a password link to whoever forged it.
+# The request's own Host only when it is one of the box's names: a forged host would send a
+# sign-in or a password link to whoever forged it.
 def public_url(request: Request, gateway: Gateway) -> str:
-    """The name this gateway answers to, without a trailing slash."""
-    domain = gateway.connections.settings.domain
-    return f"https://{domain}" if domain else str(request.base_url).rstrip("/")
+    """The box's name the request came in by, else production's, without a trailing slash."""
+    settings = gateway.connections.settings
+    world = settings.world_named(request.headers.get(HOST))
+    name = settings.domain if world is None else settings.name_of(world)
+    return f"https://{name}" if name else str(request.base_url).rstrip("/")
 
 
 async def admit_call(gateway: Gateway, scope: Scope, agent: str) -> admission.Ceiling | None:
