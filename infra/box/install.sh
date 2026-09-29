@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The box made from this directory, once and again idempotently, as root on the box:
-#   install.sh <domain>[,<domain>…]   files to their places, the box's secrets drawn, the media plane up
+#   install.sh <production>[,<sandbox>]   files to their places, the box's secrets drawn, the media plane up
 #   install.sh secret <NAME>          one credential from stdin (SMTP, the sign-up key)
 #   install.sh vault-add              appends a key read from stdin to PINECALL_VAULT_KEY, so rows
 #                                     sealed under it (a restored database) open; the first key seals
@@ -29,11 +29,13 @@ vault-add)
     echo "PINECALL_VAULT_KEY now opens what the added key sealed; restart the gateway"
     exit 0 ;;
 ""|-*)
-    echo "install.sh <domain>[,<domain>…] | secret <NAME> | vault-add" >&2; exit 2 ;;
+    echo "install.sh <production>[,<sandbox>] | secret <NAME> | vault-add" >&2; exit 2 ;;
 esac
 
 DOMAINS="$1"
 FIRST="${DOMAINS%%,*}"
+# The second name is the sandbox's; a box of one name serves both worlds at it.
+SECOND="${DOMAINS#*,}"; [ "$SECOND" = "$DOMAINS" ] && SECOND=""
 id deploy >/dev/null 2>&1 || { echo "no deploy account: boot the machine from cloud-init.yaml" >&2; exit 2; }
 
 # The users and directories first: everything below is owned by them.
@@ -47,9 +49,10 @@ nft -f /etc/nftables.conf
 install -d /etc/systemd/journald.conf.d
 install -m 0644 "$HERE/journald.conf.d/pinecall.conf" /etc/systemd/journald.conf.d/pinecall.conf
 
-# What is this box's and not a secret.
+# What is this box's and not a secret: a name per world, and every name Caddy answers to.
 cat > /etc/pinecall/box.env <<ENV
 PINECALL_DOMAIN=$FIRST
+PINECALL_SANDBOX_DOMAIN=$SECOND
 PINECALL_DOMAINS=${DOMAINS//,/, }
 LIVEKIT_PUBLIC_URL=wss://$FIRST
 ENV
@@ -93,4 +96,4 @@ systemctl restart caddy
 # Started by the first deploy, which brings the code they run.
 systemctl enable pinecall-migrate pinecall-gateway pinecall-worker@production \
     pinecall-worker@sandbox pinecall-overflow@production
-echo "the box stands at $DOMAINS: run \`make deploy BOX=…\` from the checkout"
+echo "the box stands at $DOMAINS (production $FIRST, sandbox ${SECOND:-$FIRST}): run \`make deploy BOX=…\` from the checkout"

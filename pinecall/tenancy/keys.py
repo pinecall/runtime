@@ -55,6 +55,9 @@ ONE_WORLD = (
 NO_PRODUCTION = "{name} has no production access: an admin gives it in Team"
 
 
+NOT_AT_THIS_NAME = "this name is the {world}'s: {asked} answers at its own name"
+
+
 NOT_OPENED = "this key does not open {scope}: it opens {opens}"
 
 
@@ -304,15 +307,19 @@ async def revoke(pool: Pool, key_fingerprint: str) -> bool:
         return await revoked.fetchone() is not None
 
 
-def world_of(bearer: Bearer, params: str | None) -> Env:
-    """The world a request acts in: a server key's own; a person's, the one asked or the sandbox."""
+def world_of(bearer: Bearer, params: str | None, *, at: Env | None = None) -> Env:
+    """The world a request acts in: the name it came in by, the one it asked for, never two."""
     if params is not None and params not in ENVS:
         raise NotAllowed(NOT_A_WORLD.format(asked=params))
+    in_header = None if params is None else parse_env(params)
+    if at is not None and in_header is not None and in_header != at:
+        raise NotAllowed(NOT_AT_THIS_NAME.format(world=at, asked=in_header))
+    wanted = in_header or at
     if bearer.member is None:
-        if params is not None and params != bearer.key.env:
-            raise NotAllowed(ONE_WORLD.format(world=bearer.key.env, asked=params))
+        if wanted is not None and wanted != bearer.key.env:
+            raise NotAllowed(ONE_WORLD.format(world=bearer.key.env, asked=wanted))
         return bearer.key.env
-    world = SANDBOX if params is None else parse_env(params)
+    world = SANDBOX if wanted is None else wanted
     if world == PRODUCTION and not bearer.member.opens_production:
         raise NotAllowed(NO_PRODUCTION.format(name=bearer.member.name))
     return world

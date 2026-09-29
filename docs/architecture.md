@@ -51,7 +51,7 @@ core under `_` names.
 | `domain/` | 8 | 1117 | — |
 | `evals/` | 8 | 2225 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
 | `fleet/` | 5 | 904 | `domain`, `postgres`, `process`, `wire` |
-| `gateway/` | 38 | 8589 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `gateway/` | 38 | 8716 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
 | `log/` | 6 | 2326 | `domain`, `postgres`, `wire` |
 | `postgres/` | 2 | 229 | `domain` |
 | `process/` | 3 | 438 | `domain`, `postgres` |

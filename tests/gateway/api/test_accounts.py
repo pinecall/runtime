@@ -54,7 +54,17 @@ async def test_a_sign_in_page_is_told_the_gateway_before_it_holds_a_key(
         before = (await page.get("/.well-known/pinecall")).json()
         await box_can_mail(knocking)
         after = (await page.get("/.well-known/pinecall")).json()
-    assert set(before) == {"version", "signup", "min_password", "mail", "brand", "google"}
+    assert set(before) == {
+        "version",
+        "signup",
+        "min_password",
+        "mail",
+        "brand",
+        "google",
+        "world",
+        "elsewhere",
+    }
+    assert (before["world"], before["elsewhere"]) == (None, None)
     assert (before["signup"], before["min_password"], before["mail"], before["google"]) == (
         False,
         8,

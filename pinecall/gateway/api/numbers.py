@@ -213,9 +213,9 @@ async def provision_outbound(
 ) -> ProvisionOutboundResponse:
     """Make an account dialable: Twilio's termination and a credential; a peer needs nothing."""
     done = (
-        await dialing.plan_outbound(gateway.connections, key.org, account)
+        await dialing.plan_outbound(gateway.connections, key.org, key.env, account)
         if dry_run
-        else await dialing.provision_outbound(gateway.connections, key.org, account)
+        else await dialing.provision_outbound(gateway.connections, key.org, key.env, account)
     )
     if done.dry_run:
         return ProvisionOutboundResponse(steps=done.steps, dry_run=True, ready=False)

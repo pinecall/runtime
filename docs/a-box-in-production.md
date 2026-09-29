@@ -13,8 +13,12 @@ key in it, and an ssh alias for it. Each name the box answers at is a DNS record
 ## 2. The box, once
 
 ```bash
-make box BOX=my-box DOMAINS=voice.example.com
+make box BOX=my-box DOMAINS=voice.example.com,sandbox.voice.example.com
 ```
+
+Two names, one box: the first is production's and the second the sandbox's, and the name a request
+comes in by is its world (the console at the second name is the sandbox's; a number imported in the
+sandbox points its carrier there). One name alone serves both worlds, and the console there is production's.
 
 `infra/` is copied to `/opt/pinecall/infra/` and `install.sh` run as root: the units, Caddy, the
 nftables fence, the containers of the media plane, and the box's own secrets drawn once and sealed
@@ -25,7 +29,7 @@ PINECALL_SMTP_URL`.
 ## 3. Deploy
 
 ```bash
-make deploy BOX=my-box DOMAINS=voice.example.com
+make deploy BOX=my-box DOMAINS=voice.example.com,sandbox.voice.example.com
 ```
 
 The console is built in, a wheel is built and copied to `/opt/pinecall/wheels/<sha>/`, and

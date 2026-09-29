@@ -31,6 +31,7 @@ from pinecall.domain.errors import (
     NotFound,
     UpstreamFailed,
 )
+from pinecall.domain.names import Env
 from pinecall.domain.scope import Scope
 from pinecall.fleet import worlds
 from pinecall.log.logs import Logs, arrival_entry
@@ -196,25 +197,25 @@ async def outbound_readiness(
 
 
 async def plan_outbound(
-    connections: Connections, org: str, account: str | None = None
+    connections: Connections, org: str, world: Env, account: str | None = None
 ) -> Provisioned:
     """What provisioning would write, and nothing written."""
     carrier = await carrier_named(connections.pool, connections.vault, org, account)
-    survey = await _surveyed(connections, carrier)
+    survey = await _surveyed(connections, carrier, world)
     return Provisioned(
         steps=survey.steps, dry_run=True, ready=survey.twilio is None, address=survey.address
     )
 
 
 async def provision_outbound(
-    connections: Connections, org: str, account: str | None = None
+    connections: Connections, org: str, world: Env, account: str | None = None
 ) -> Provisioned:
     """Make the account dialable: Twilio's termination and a credential; a peer needs nothing."""
     carrier = await carrier_named(connections.pool, connections.vault, org, account)
-    survey = await _surveyed(connections, carrier)
+    survey = await _surveyed(connections, carrier, world)
     if survey.twilio is None:
         return Provisioned(steps=survey.steps, dry_run=False, ready=True, address=survey.address)
-    trunk = await _twilio_provisioned(connections, carrier, survey.twilio)
+    trunk = await _twilio_provisioned(connections, carrier, survey.twilio, world)
     return Provisioned(
         steps=survey.steps, dry_run=False, ready=True, trunk=trunk, address=survey.address
     )
@@ -326,10 +327,10 @@ def _missing_to_dial(carrier: Carrier) -> list[str]:
 
 
 # This box makes nothing on somebody else's switch: a peer is dialled where it said.
-async def _surveyed(connections: Connections, carrier: Carrier) -> OutboundSurvey:
+async def _surveyed(connections: Connections, carrier: Carrier, world: Env) -> OutboundSurvey:
     match carrier.account:
         case TwilioAccount():
-            return await _twilio_surveyed(connections, carrier, carrier.account)
+            return await _twilio_surveyed(connections, carrier, carrier.account, world)
         case SipPeer() if carrier.account.outbound_host:
             peer = carrier.account
             where = f"{peer.outbound_host} over {peer.outbound_transport}"
@@ -342,9 +343,9 @@ async def _surveyed(connections: Connections, carrier: Carrier) -> OutboundSurve
 
 # Read before anything is written, so a plan and a provisioning see the same account.
 async def _twilio_surveyed(
-    connections: Connections, carrier: Carrier, account: TwilioAccount
+    connections: Connections, carrier: Carrier, account: TwilioAccount, world: Env
 ) -> OutboundSurvey:
-    domain = domain_of(connections)
+    domain = domain_of(connections, world)
     twilio = twilio_of(connections.http, account)
     trunk = await twilio.trunk_pointing_at(origination_uri(domain))
     host = termination_host(domain, account.account_sid)
@@ -384,9 +385,9 @@ async def _twilio_surveyed(
 
 
 async def _twilio_provisioned(
-    connections: Connections, carrier: Carrier, survey: TwilioSurvey
+    connections: Connections, carrier: Carrier, survey: TwilioSurvey, world: Env
 ) -> str:
-    domain = domain_of(connections)
+    domain = domain_of(connections, world)
     twilio = survey.twilio
     trunk = survey.trunk or await twilio.trunk_made(domain, origination_uri(domain))
     if trunk.domain_name != survey.host:

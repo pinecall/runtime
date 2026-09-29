@@ -76,11 +76,12 @@ class Rebuilt:
     refused: list[str]
 
 
-def domain_of(connections: Connections) -> str:
-    """PINECALL_DOMAIN, or NotAvailable: a carrier has nowhere to send a call."""
-    if not connections.settings.domain:
+def domain_of(connections: Connections, world: Env) -> str:
+    """The box's name in that world, or NotAvailable: a carrier has nowhere to send a call."""
+    name = connections.settings.name_of(world)
+    if not name:
         raise NotAvailable(NO_DOMAIN)
-    return connections.settings.domain
+    return name
 
 
 # The kind of an account is read here, where it decides the fence, and nowhere else on the SFU.

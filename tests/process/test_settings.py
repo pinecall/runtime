@@ -216,3 +216,27 @@ def test_nothing_in_the_runtime_writes_into_the_environment() -> None:
         if any(written in module.read_text("utf-8") for written in THE_WAYS_TO_WRITE_ONE)
     ]
     assert not offenders, f"these modules write an environment variable: {offenders}"
+
+
+def test_a_box_names_a_world_per_domain_and_knows_neither_name_it_was_not_given() -> None:
+    settings = Settings.model_validate(
+        {"PINECALL_DOMAIN": "box.example", "PINECALL_SANDBOX_DOMAIN": "sandbox.example"}
+    )
+    assert settings.world_named("box.example") == "production"
+    assert settings.world_named("Sandbox.Example:443") == "sandbox"
+    assert settings.world_named("127.0.0.1:8080") is None
+    assert settings.world_named(None) is None
+    assert (settings.name_of("production"), settings.name_of("sandbox")) == (
+        "box.example",
+        "sandbox.example",
+    )
+    assert settings.livekit_url_for("sandbox") == "wss://sandbox.example"
+
+
+def test_a_box_of_one_name_serves_both_worlds_at_it_and_its_console_is_productions() -> None:
+    named = Settings.model_validate({"PINECALL_DOMAIN": "one.example"})
+    assert named.world_named("one.example") == "production"
+    assert named.name_of("sandbox") == "one.example"
+    unnamed = Settings.model_validate({"LIVEKIT_URL": "ws://127.0.0.1:7880"})
+    assert unnamed.world_named("anything.example") is None
+    assert unnamed.livekit_url_for("production") == "ws://127.0.0.1:7880"

@@ -315,8 +315,8 @@ app.add_api_route("/widget/{file}", widget_file, methods=["GET"], include_in_sch
 
 # The last route: a built file is itself, any other path is the page, so a reload lands where it
 # was. Never cached: a rebuild names new hashed assets in a new index.html.
-def console(path: str) -> Response:
-    """The console: an asset of its build, or its page."""
+def console(path: str, request: Request, gateway: _deps.GatewayDep) -> Response:
+    """The console: an asset of its build, or its page marked with the world its name is."""
     if path.startswith(API_PREFIXES):
         raise HTTPException(404, "Not Found")
     root = (BUILT / "console").resolve()
@@ -326,7 +326,22 @@ def console(path: str) -> Response:
     if path and root in params.parents and params.is_file() and params.name != THE_PAGE:
         return FileResponse(params)
     page = (root / THE_PAGE).read_text(encoding="utf-8")
-    return HTMLResponse(page, headers={"cache-control": "no-store"})
+    settings = gateway.connections.settings
+    marked = page_marked(page, settings, request.headers.get("host"))
+    return HTMLResponse(marked, headers={"cache-control": "no-store"})
+
+
+# The page reads them once: which world this name is, and the other's address for its switch.
+def page_marked(page: str, settings: Settings, host: str | None) -> str:
+    """The page with the world its name is written into its head; unmarked on an unknown name."""
+    world = settings.world_named(host)
+    if world is None:
+        return page
+    other = settings.name_of("sandbox" if world == "production" else "production")
+    marks = f'<meta name="pinecall-world" content="{world}">'
+    if other:
+        marks += f'<meta name="pinecall-elsewhere" content="https://{other}">'
+    return page.replace("<head>", f"<head>{marks}", 1)
 
 
 app.add_api_route("/{path:path}", console, methods=["GET"], include_in_schema=False)

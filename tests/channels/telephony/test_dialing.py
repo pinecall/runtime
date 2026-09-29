@@ -55,10 +55,10 @@ async def test_provisioning_twilio_is_written_once_and_a_second_run_finds_it_sta
     await brought(line)
     line.twilio.owns(A_NUMBER)
     await numbers.import_number(line.connections, NumberImport(line.scope(), "recepcion", A_NUMBER))
-    plan = await dialing.plan_outbound(line.connections, line.org)
+    plan = await dialing.plan_outbound(line.connections, line.org, "production")
     assert plan.dry_run
     assert [step.endswith("to do") for step in plan.steps] == [False, True, True, True, True]
-    done = await dialing.provision_outbound(line.connections, line.org)
+    done = await dialing.provision_outbound(line.connections, line.org, "production")
     (trunk,) = line.twilio.trunks.values()
     assert trunk.domain_name == done.address
     assert str(done.address).endswith(".pstn.twilio.com")
@@ -66,7 +66,7 @@ async def test_provisioning_twilio_is_written_once_and_a_second_run_finds_it_sta
     assert trunk.credential_lists == [listed]
     assert f"{name}.pstn.twilio.com" == done.address
     assert [username for username, _ in credentials] == [credential_of(line.org)]
-    again = await dialing.provision_outbound(line.connections, line.org)
+    again = await dialing.provision_outbound(line.connections, line.org, "production")
     assert all(step.endswith("stands") for step in again.steps)
     assert len(line.twilio.credential_lists) == 1
     assert (await dialing.outbound_readiness(line.connections, line.scope())).ready
@@ -86,8 +86,8 @@ async def test_two_orgs_on_one_account_dial_one_trunk_each_with_a_credential_of_
     await carriers.put_carrier(
         line.connections.pool, line.connections.vault, other.id, line.account()
     )
-    await dialing.provision_outbound(line.connections, line.org)
-    await dialing.provision_outbound(line.connections, other.id)
+    await dialing.provision_outbound(line.connections, line.org, "production")
+    await dialing.provision_outbound(line.connections, other.id, "production")
     (trunk,) = line.twilio.trunks.values()
     ((listed, (_, credentials)),) = line.twilio.credential_lists.items()
     assert trunk.credential_lists == [listed]
@@ -106,7 +106,7 @@ async def test_a_credential_whose_password_the_box_lost_is_refused_naming_it(
     lost = [(credential_of(line.org), "a password nobody here kept")]
     line.twilio.credential_lists[a_sid("CL", 9)] = (label, lost)
     with pytest.raises(Conflict, match="no longer has"):
-        await dialing.provision_outbound(line.connections, line.org)
+        await dialing.provision_outbound(line.connections, line.org, "production")
 
 
 def test_a_peers_networks_are_networks_and_its_outbound_pair_is_whole() -> None:
@@ -129,13 +129,13 @@ async def test_a_peer_is_dialled_where_it_said_and_one_that_said_nowhere_is_refu
         line.org,
         a_peer(outbound_host="sip.pbx.test", outbound_transport="tls"),
     )
-    done = await dialing.provision_outbound(line.connections, line.org)
+    done = await dialing.provision_outbound(line.connections, line.org, "production")
     assert (done.ready, done.address) == (True, "sip.pbx.test")
     await carriers.put_carrier(
         line.connections.pool, line.connections.vault, line.org, a_peer(username="deaf")
     )
     with pytest.raises(Conflict, match="no outbound_host"):
-        await dialing.provision_outbound(line.connections, line.org, "deaf")
+        await dialing.provision_outbound(line.connections, line.org, "production", "deaf")
 
 
 # ── placing a call ──
@@ -146,7 +146,7 @@ async def ready_to_dial(line: Line) -> None:
     await brought(line)
     line.twilio.owns(A_NUMBER)
     await numbers.import_number(line.connections, NumberImport(line.scope(), "recepcion", A_NUMBER))
-    await dialing.provision_outbound(line.connections, line.org)
+    await dialing.provision_outbound(line.connections, line.org, "production")
     await dial_policy.put_guards(
         line.connections.pool, line.org, dial_policy.Guards(dial_anywhere=True)
     )
