@@ -17,7 +17,7 @@ surface is the URL.
 | `wire/` | every frame, event, command, part, state, metric as pydantic models, one file per family; `rest/` holds the doors' bodies per family (`accounts`, `agents`, `calls`, `evals`, `fleet`, `numbers`, `retrieval`) | `domain` |
 | `postgres/` | the pool and the migration runner, with `migrations/0001_schema.sql` beside it | `domain` |
 | `log/` | a call's log: the store, the facts folded at write (`facts.py`), the queries over them (`queries.py`), the logs open in this process and their live readers (`logs.py`), the reducer, the two read projections | `domain` `wire` `postgres` `process` |
-| `tenancy/` | orgs, people, keys, the tokens the gateway signs, the vault, admission (the quotas an org is born with and counted against), per-scope agent tuning (`scopes.py`), the org's carrier accounts (`carriers.py`) and dial policy, erasure (`erasure.py`: a call, a contact or an org deleted through the one path `call_log`'s trigger admits, and its trail), the org's policy and the nightly retention run (`retention.py`), caller codes, personas, an agent's own judges (`judges.py`), sign-in (a password, a one-use code, a paired terminal, a sign-up), the org's identity provider, mail and the letters it sends | `domain` `wire` `postgres` `process` `log` |
+| `tenancy/` | orgs, people, keys, the tokens the gateway signs, the vault, admission (the quotas an org is born with and counted against), per-scope agent tuning (`scopes.py`), the org's carrier accounts (`carriers.py`) and dial policy, erasure (`erasure.py`: a call, a contact or an org deleted through the one path `call_log`'s trigger admits, and its trail), the org's policy and the nightly retention run (`retention.py`), the org's world exported as JSON Lines (`export.py`), caller codes, personas, an agent's own judges (`judges.py`), sign-in (a password, a one-use code, a paired terminal, a sign-up), the org's identity provider, mail and the letters it sends | `domain` `wire` `postgres` `process` `log` |
 | `providers/` | the box's providers configuration: the catalog row in `box_settings`, building a LiveKit plugin by name, the keyring a call runs on (`credentials.py`), prices, voices | `domain` `wire` `postgres` `process` |
 | `session/` | one LiveKit `AgentSession` for voice and text: `session.py`, a voice call's pipeline (`voice.py`), a written one (`text.py`), the call's live state (`call.py`), the room, hold music (`hold.py`), tools, the widget channel; private: the Agent, livekit's shapes read as ours, the prompt, what the ears are told (`_hearing.py`: the turn policy per language, the keyterms) | `domain` `wire` `providers` `log` `process` |
 | `retrieval/` | the embedder (`embed.py`), knowledge bases with their cutter and goldens (`knowledge.py`), contact memory (`memory.py`), a call's lookups written on its log (`lookups.py`), and what a call taught at hang-up (`extraction.py`); private: the hybrid search over one table (`_search.py`) | `domain` `wire` `postgres` `log` `providers` `process` |
@@ -51,14 +51,14 @@ core under `_` names.
 | `domain/` | 8 | 1145 | — |
 | `evals/` | 8 | 2264 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
 | `fleet/` | 5 | 897 | `domain`, `postgres`, `process`, `wire` |
-| `gateway/` | 41 | 8946 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `gateway/` | 41 | 8965 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
 | `log/` | 6 | 2397 | `domain`, `postgres`, `wire` |
 | `postgres/` | 2 | 229 | `domain` |
 | `process/` | 3 | 462 | `domain`, `postgres` |
 | `providers/` | 6 | 1062 | `domain`, `postgres`, `process`, `wire` |
 | `retrieval/` | 6 | 2351 | `domain`, `log`, `postgres`, `providers`, `wire` |
 | `session/` | 12 | 3072 | `domain`, `log`, `providers`, `wire` |
-| `tenancy/` | 19 | 5129 | `domain`, `log`, `postgres`, `process`, `wire` |
+| `tenancy/` | 20 | 5218 | `domain`, `log`, `postgres`, `process`, `wire` |
 | `wire/` | 17 | 4253 | `domain` |
 | `worker/` | 4 | 907 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
 
