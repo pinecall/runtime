@@ -216,6 +216,14 @@ async def test_another_orgs_key_reads_nothing_of_the_call(knocking: Knocking) ->
 
 
 @postgres
+async def test_a_call_nobody_wrote_yet_is_an_empty_live_page_not_a_404(knocking: Knocking) -> None:
+    async with knocking.http(knocking.app["sandbox"]) as reader:
+        page = await reader.get("/v1/calls/call_minted_by_the_client/events")
+    assert page.status_code == 200
+    assert (page.json()["entries"], page.json()["live"]) == ([], True)
+
+
+@postgres
 async def test_a_log_token_reads_its_own_call_and_no_other(knocking: Knocking) -> None:
     context = a_call(knocking)
     async with knocking.http(knocking.fleet["sandbox"]) as worker:

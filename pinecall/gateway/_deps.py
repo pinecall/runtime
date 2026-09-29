@@ -372,16 +372,18 @@ def is_the_fleet(reading: Reader) -> bool:
     return reading.acting is not None and THE_FLEET in reading.acting.bearer.key.scopes
 
 
-# A key reads a call of its org in its world; a token, its own call alone.
+# A key reads a call of its org in its world; a token, its own call alone. A call nobody wrote
+# yet is empty, not another org's: a client that minted the id tails it before the room opens.
 async def check_readable(gateway: Gateway, reading: Reader, call: str) -> AgentConfig | None:
     """Refuse a reader the call is not theirs; the declaration of its agent, when held."""
     if reading.visit is not None and reading.visit.call != call:
         raise NotAllowed(NOT_YOURS)
     kept = await queries.scope_of_call(gateway.connections.pool, call)
-    owner = None if kept is None else kept.scope
-    if not _sees(reading, owner):
+    if kept is None:
+        return None
+    if not _sees(reading, kept.scope):
         raise NotFound(NO_SUCH_CALL.format(call=call))
-    return None if kept is None else gateway.sockets.declared(kept.agent)
+    return gateway.sockets.declared(kept.agent)
 
 
 # The org's own calls and the reader's own scope; a token is checked by its call, the fleet's
