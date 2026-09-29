@@ -76,9 +76,11 @@ measures; `docs/wire/` describes every field.
 
 ## The box
 
-`ssh pinecall-runtime-v2` (GCP, 34.59.165.79), serving `sandbox.pinecall.io`. `box.pinecall.io`
-still points at v1 until the cutover (`../internal-docs/runtime-v2/CUTOVER-PLAN.md`). Everything
-is tested against the box, never a local gateway; local is for the suites. `pinecall-notify` runs
+`ssh pinecall-runtime-v2` (GCP, 34.59.165.79) is **production**: `box.pinecall.io` is its production
+name and `sandbox.pinecall.io` its sandbox name, one gateway, since the cutover of 2026-09-29
+(`../internal-docs/runtime-v2/CUTOVER-PLAN.md`; the old box, `pinecall-v2-box`, 34.68.177.78, runs
+v1 stopped and the tenant apps under `/opt/pinecall/apps`). Everything is tested against the box,
+never a local gateway; local is for the suites. `pinecall-notify` runs
 beside the runtime (it pushes calls of both worlds to phones and browsers).
 
 ## Secrets and what never gets committed
@@ -91,7 +93,7 @@ beside the runtime (it pushes calls of both worlds to phones and browsers).
 
 ## Open, waiting on Bernardo
 
-- The first real phone call to the sandbox number, then the cutover.
+- The first real phone call on the new box, and `pinecall` 0.9.9 published (the apps run it from a tarball).
 - Android pushes: the new VM needs the `pinecall-fleet` service account (a VM stop).
 - `notify.pinecall.io` DNS to the new box; WhatsApp needs a Meta token.
 - Publishing the `pinecall` CLI and `@pinecall/room` to npm (their GitHub repos do not exist yet).

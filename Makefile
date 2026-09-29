@@ -2,7 +2,7 @@
 
 # The new box's ssh alias; the old box (v1) is never a target of this file.
 BOX      ?= pinecall-runtime-v2
-DOMAINS  ?= sandbox.pinecall.io
+DOMAINS  ?= box.pinecall.io,sandbox.pinecall.io
 TUNNEL   ?= 15432
 WHEEL    ?= $(shell git rev-parse --short HEAD)$(shell git diff --quiet HEAD || echo -dirty)
 
