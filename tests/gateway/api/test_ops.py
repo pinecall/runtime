@@ -1,4 +1,4 @@
-"""Tests for the box's own doors over its orgs: who runs it, the orgs, their people and keys."""
+"""Tests for the box's own doors over its orgs: who runs it, the orgs, people, keys, tracebacks."""
 
 from dataclasses import replace
 
@@ -11,7 +11,7 @@ from pinecall.wire.rest.calls import OpenCallRequest
 from tests.conftest import AGENT, Knocking, a_developer, postgres
 from tests.fakes.acme import ACME
 from tests.gateway.api.conftest import a_call
-from tests.log.conftest import logged_call
+from tests.log.conftest import ACall, logged_call
 
 THE_OPS_KEY = "the-operators-own-key-of-this-box"
 ORGS = "/v1/ops/orgs"
@@ -259,3 +259,22 @@ async def test_forgetting_an_org_erases_its_calls_too_and_leaves_the_trail(
     assert await store.whole(call) == []
     trail = await erasure.trail(knocking.gateway.connections.pool, org)
     assert [(row.what, row.calls, row.asked_by) for row in trail] == [("org", 1, "operator")]
+
+
+@postgres
+async def test_a_traceback_finds_a_call_whose_org_was_erased_by_its_record(
+    knocking: Knocking,
+) -> None:
+    with_an_ops_key(knocking)
+    store = knocking.gateway.logs.store
+    async with knocking.http(THE_OPS_KEY) as operator:
+        made = await operator.post(ORGS, json={"slug": "tienda", "name": "La Tienda"})
+        call = await logged_call(store, made.json()["id"], ACall(caller="+34600777888"))
+        await operator.delete(f"{ORGS}/tienda")
+        # The store's clock starts calls in 1970, before the default 24 months.
+        query = {"number": "+34600777888", "since": 0}
+        found = await operator.get("/v1/ops/traceback", params=query)
+        refused = await operator.get("/v1/ops/traceback", params={"number": "tomorrow"})
+    assert found.status_code == 200
+    assert [(row["call"], row["erased"]) for row in found.json()["calls"]] == [(call, True)]
+    assert refused.status_code == 400

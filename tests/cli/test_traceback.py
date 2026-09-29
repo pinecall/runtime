@@ -7,14 +7,14 @@ import pytest
 from pinecall.cli._traceback import lines_of, traced
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.process.settings import Settings
-from pinecall.tenancy.traceback import CallRecord, DialRecord, Traceback
+from pinecall.wire.rest.ops import Traceback, TracebackCall, TracebackDial
 from tests.conftest import DSN
 
 DANA = "+14155550142"
 
 A_DAY = 1790208000.0  # 2026-09-24 00:00 UTC
 
-ERASED = CallRecord(
+ERASED = TracebackCall(
     call="CA_1",
     org="org_a",
     env="production",
@@ -27,7 +27,7 @@ ERASED = CallRecord(
     erased=True,
 )
 
-REFUSED = DialRecord(
+REFUSED = TracebackDial(
     org="org_a",
     env="production",
     agent="agenda",
@@ -40,7 +40,7 @@ REFUSED = DialRecord(
 
 
 def test_a_traceback_prints_each_call_and_each_dial_with_who_and_how_it_ended() -> None:
-    lines = lines_of(Traceback(DANA, [ERASED], [REFUSED]), A_DAY)
+    lines = lines_of(Traceback(number=DANA, since=A_DAY, calls=[ERASED], dials=[REFUSED]))
     assert lines[0] == f"{DANA} since 2026-09-24"
     assert "+14155550100 -> +14155550142" in lines[2]
     assert "72s" in lines[2]
@@ -49,7 +49,7 @@ def test_a_traceback_prints_each_call_and_each_dial_with_who_and_how_it_ended() 
 
 
 def test_a_number_with_nothing_says_so() -> None:
-    assert lines_of(Traceback(DANA, [], []), A_DAY) == [
+    assert lines_of(Traceback(number=DANA, since=A_DAY, calls=[], dials=[])) == [
         f"no call with {DANA} and no dial to it since 2026-09-24"
     ]
 
