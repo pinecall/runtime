@@ -1,4 +1,4 @@
-"""The box's own doors over its orgs: who runs the box, the orgs, their quotas, people and keys."""
+"""The box's own doors over its orgs: the box, the orgs, quotas, people, keys, tracebacks."""
 
 import pathlib
 from dataclasses import replace
@@ -28,6 +28,7 @@ from pinecall.tenancy import (
     orgs,
     people,
     sso,
+    traceback,
     vault,
 )
 from pinecall.tenancy.dial_policy import Guards
@@ -57,6 +58,7 @@ from pinecall.wire.rest.ops import (
     PutDiallingRequest,
     PutQuotasRequest,
     SsoRequiredRequest,
+    Traceback,
 )
 from pinecall.wire.rest.providers import ProviderKeyRequest, VendorsResponse
 
@@ -377,6 +379,15 @@ async def drop_org_vendor_key(named: str, vendor: str, gateway: GatewayDep) -> N
     named_vendor = installed_vendor(vendor)
     if not await vault.drop_credentials(gateway.connections.pool, org.id, named_vendor):
         raise NotFound(NO_SUCH_VENDOR_KEY.format(slug=org.slug, vendor=named_vendor))
+
+
+# A carrier asks within days of a call; the records reach 24 months back, the default here.
+@router.get("/v1/ops/traceback")
+async def number_traceback(
+    gateway: GatewayDep, number: str, since: float | None = None
+) -> Traceback:
+    """Every phone call with a number, kept or erased, and every dial to it, of every org."""
+    return await traceback.of_number(gateway.connections.pool, number, since)
 
 
 def _org_row(org: Org) -> OrgRow:

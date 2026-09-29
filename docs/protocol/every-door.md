@@ -181,6 +181,7 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `GET` | `/v1/ops/routes` | operator | Every number the org answers at in the world, oldest first. |
 | `POST` | `/v1/ops/routes` | operator | A number answered by this org's agent, in this world, on this channel. |
 | `DELETE` | `/v1/ops/routes/{number}` | operator | The org's route at the number forgotten; 404 for a number nobody typed. |
+| `GET` | `/v1/ops/traceback` | operator | Every phone call with a number, kept or erased, and every dial to it, of every org. |
 | `GET` | `/v1/ops/signin` | operator | Every provider the box could offer every org's people: none wired in this version. |
 | `DELETE` | `/v1/ops/signin/google` | operator | Refused: box-wide Google sign-in is not in this version. |
 | `PUT` | `/v1/ops/signin/google` | operator | Refused: box-wide Google sign-in is not in this version. |

@@ -91,6 +91,16 @@ mean is [limits.md](../limits.md).
 `DELETE …/provider-keys/{vendor}`: the org's own vendor keys, set for it by the operator, the same
 rows the org sets at `/v1/provider-keys` ([provider-keys.md](provider-keys.md)).
 
+## Traceback
+
+`GET /v1/ops/traceback?number=<E.164>&since=<epoch>` answers a carrier's traceback, of every org:
+`{number, since, calls, dials}`. `calls` is every phone call with the number, oldest first, as
+`{call, org, env, direction, from_number, to_number, started_at, ended_at, end_reason, erased}`:
+a call still kept, from its facts, or an erased one, from the detail record its erasure left
+(`erased: true`; the nightly run forgets it 24 months after the call started). `dials` is every
+dial to the number, placed or refused: `{org, env, agent, call, shown, asked_by, refused, at}`.
+`since` defaults to 24 months back. The terminal's twin is `pinecall-runtime traceback`.
+
 ## Routes
 
 `GET /v1/ops/routes?org=&env=` (production unless asked), `POST /v1/ops/routes {org, number, agent,

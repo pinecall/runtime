@@ -194,3 +194,41 @@ class BoxEvent(WireModel):
     org: str
     env: Env | None = None
     entry: Entry
+
+
+class TracebackCall(WireModel):
+    """One phone call with the number: whose, which way, when, how it ended, whether erased."""
+
+    call: str
+    org: str | None
+    env: str | None
+    direction: str | None
+    from_number: str | None
+    to_number: str | None
+    started_at: float | None
+    ended_at: float | None
+    end_reason: str | None
+    # The call's log is gone and only its detail record is left (0016_call_records.sql).
+    erased: bool
+
+
+class TracebackDial(WireModel):
+    """One dial to the number: whose, the call it placed, the number shown, who asked, the guard."""
+
+    org: str
+    env: str
+    agent: str
+    call: str | None
+    shown: str | None
+    asked_by: str
+    refused: str | None
+    at: float
+
+
+class Traceback(WireModel):
+    """GET /v1/ops/traceback: what the box keeps of one number since a day, oldest first."""
+
+    number: str
+    since: float
+    calls: list[TracebackCall]
+    dials: list[TracebackDial]

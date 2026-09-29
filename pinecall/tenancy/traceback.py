@@ -1,12 +1,14 @@
 """A number's calls for a carrier's traceback: the calls kept, the calls erased, every dial."""
 
-from dataclasses import dataclass
+import time
 from datetime import datetime
 
 from psycopg.rows import DictRow
 
 from pinecall.domain.names import parse_e164
 from pinecall.postgres.pool import Pool
+from pinecall.tenancy.retention import RECORDS_KEPT_S
+from pinecall.wire.rest.ops import Traceback, TracebackCall, TracebackDial
 
 # A kept call's facts, then an erased call's record: the same columns, oldest first.
 CALLS = """
@@ -30,64 +32,22 @@ ORDER BY at
 """
 
 
-@dataclass(frozen=True)
-class CallRecord:
-    """One phone call with the number: whose, which way, when, how it ended, whether erased."""
-
-    call: str
-    org: str | None
-    env: str | None
-    direction: str | None
-    from_number: str | None
-    to_number: str | None
-    started_at: float | None
-    ended_at: float | None
-    end_reason: str | None
-    erased: bool
-
-
-@dataclass(frozen=True)
-class DialRecord:
-    """One dial to the number: whose, the call it placed, the number shown, who asked, the guard."""
-
-    org: str
-    env: str
-    agent: str
-    call: str | None
-    shown: str | None
-    asked_by: str
-    refused: str | None
-    at: float
-
-
-@dataclass(frozen=True)
-class Traceback:
-    """What the box keeps of one number since a day."""
-
-    number: str
-    calls: list[CallRecord]
-    dials: list[DialRecord]
-
-
-async def of_number(pool: Pool, number: str, since: float) -> Traceback:
-    """Every phone call with the number and every dial to it, since the epoch second given."""
+async def of_number(pool: Pool, number: str, since: float | None = None) -> Traceback:
+    """Every phone call with the number and every dial to it, since an epoch second or 24 months."""
     kept = parse_e164(number)
-    params = {"number": kept, "since": since}
+    start = time.time() - RECORDS_KEPT_S if since is None else since
+    params = {"number": kept, "since": start}
     async with pool.connection() as connection:
         calls = await (await connection.execute(CALLS, params)).fetchall()
         dials = await (await connection.execute(DIALS, params)).fetchall()
-    return Traceback(kept, [CallRecord(**row) for row in calls], [_dial(row) for row in dials])
-
-
-def _dial(row: DictRow) -> DialRecord:
-    at: datetime = row["at"]
-    return DialRecord(
-        org=row["org"],
-        env=row["env"],
-        agent=row["agent"],
-        call=row["call"],
-        shown=row["shown"],
-        asked_by=row["asked_by"],
-        refused=row["refused"],
-        at=at.timestamp(),
+    return Traceback(
+        number=kept,
+        since=start,
+        calls=[TracebackCall.model_validate(row) for row in calls],
+        dials=[_dial(row) for row in dials],
     )
+
+
+def _dial(row: DictRow) -> TracebackDial:
+    at: datetime = row["at"]
+    return TracebackDial.model_validate({**row, "at": at.timestamp()})
