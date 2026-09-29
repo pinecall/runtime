@@ -143,8 +143,13 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
 
     call = Call(context, config, _platform(gateway, context.call, config, ended))
     session = text_session(call, pipeline.llm) if typed else voice_session(call, pipeline)
+
     # Registered before anything else can fail: a call that dies in its setup still seals.
-    ctx.add_shutdown_callback(partial(_closed, session))
+    # livekit reads a shutdown callback's `__code__`, which a `partial` has not.
+    async def closed(_reason: str) -> None:
+        await session.close()
+
+    ctx.add_shutdown_callback(closed)
     where = room.CallRoom(
         call,
         ctx.room,
@@ -162,12 +167,19 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
     widget = _widget(gateway, call, ctx.room) if route.channel == THE_WIDGET else None
     logger.info(ANSWERED_IN, time.monotonic() - began)
     commands = asyncio.create_task(_commands(gateway, session, context.call))
-    ctx.add_shutdown_callback(partial(_let_go, commands, where, widget))
     limit = config.max_duration_s if route.channel in CHANNELS_WITH_A_NUMBER or not typed else 0
     ceiling = 0 if opened.seconds_left is None else opened.seconds_left
     kept = min(item for item in (limit, ceiling) if item) if limit or ceiling else 0
     timer = asyncio.create_task(session.keep_time(kept, exhausted=None))
-    ctx.add_shutdown_callback(partial(_cancelled, timer))
+
+    async def let_go(_reason: str) -> None:
+        commands.cancel()
+        timer.cancel()
+        where.stop()
+        if widget is not None:
+            widget.stop()
+
+    ctx.add_shutdown_callback(let_go)
 
 
 async def arrival_of(dispatch: Dispatch, where: rtc.Room) -> Arrival:
@@ -341,10 +353,6 @@ async def _kept(server: api.LiveKitAPI, recording: str | None, audio: Path | Non
     return str(audio) if await file_written(server, recording, audio) else None
 
 
-async def _closed(session: Session, _reason: str) -> None:
-    await session.close()
-
-
 # The platform wants a claim that answers nothing; the client's says whether a page was waiting.
 async def _claimed(gateway: GatewayClient, call: str, code: str) -> None:
     await gateway.claim(call, code)
@@ -497,16 +505,3 @@ async def _applied(gateway: GatewayClient, session: Session, call: str, command:
         )
         with contextlib.suppress(GatewayRefused):
             await gateway.append(call, "error", text.written())
-
-
-async def _let_go(
-    commands: asyncio.Task[None], where: room.CallRoom, widget: Widget | None, _reason: str
-) -> None:
-    commands.cancel()
-    where.stop()
-    if widget is not None:
-        widget.stop()
-
-
-async def _cancelled(task: asyncio.Task[None], _reason: str) -> None:
-    task.cancel()
