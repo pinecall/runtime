@@ -76,6 +76,7 @@ async def pipeline_report(
         decides=stages["decides"],
         speaks=stages["speaks"],
         greeting=_greeting(config.greeting),
+        voices=listed.voices,
         providers=listed.providers,
         defaults=listed.defaults,
         models=listed.models,

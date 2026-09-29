@@ -8,15 +8,25 @@ from pinecall.wire.frames import WireModel
 type Availability = Literal["yours", "offered", "bring your own", "broken"]
 
 
+type Standing = Literal["ready", "no plugin", "no key", "its own"]
+
+
+# v1's row, which the console reads, and `availability` and `broken` beside it: `standing` is
+# `availability` in v1's words, and the fields v1 read off a table in code are empty here.
 class ProviderRow(WireModel):
     """One installed vendor: what it does, whose key runs it for this org, and why not."""
 
     name: str
     does: list[Literal["llm", "stt", "tts"]]
-    availability: Availability
+    aliases: list[str]
+    note: str
+    standing: Standing
     ready: bool
-    broken: str | None
+    env: str | None
+    extra: str
     voices_listed: bool
+    availability: Availability
+    broken: str | None
 
 
 class Catalogue(WireModel):
@@ -24,6 +34,8 @@ class Catalogue(WireModel):
 
     providers: list[ProviderRow]
     defaults: dict[str, str]
+    # The picker reads GET /v1/voices; no names are curated in code.
+    voices: list[str]
     models: dict[str, list[str]]
 
 

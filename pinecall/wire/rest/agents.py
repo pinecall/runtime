@@ -149,6 +149,7 @@ class PipelineReport(WireModel):
     decides: PipelineStage
     speaks: PipelineStage
     greeting: GreetingConfig | None
+    voices: list[str]
     providers: list[ProviderRow]
     defaults: dict[str, str]
     models: dict[str, list[str]]

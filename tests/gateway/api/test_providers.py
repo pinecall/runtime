@@ -35,9 +35,11 @@ async def test_the_catalogue_says_how_this_org_may_run_each_vendor(knocking: Kno
     acme = next(row for row in offered.json()["providers"] if row["name"] == ACME)
     assert (acme["availability"], acme["ready"], acme["voices_listed"]) == ("offered", True, True)
     assert acme["does"] == ["llm", "stt", "tts"]
+    assert (acme["standing"], acme["aliases"], acme["env"]) == ("ready", [], None)
     assert offered.json()["defaults"]["llm"] == ACME
     again = next(row for row in yours.json()["providers"] if row["name"] == ACME)
     assert again["availability"] == "yours"
+    assert offered.json()["voices"] == []
     assert brought.json() == {"vendors": [ACME]}
     assert gone.status_code == 404
     assert nobody.status_code == 400
