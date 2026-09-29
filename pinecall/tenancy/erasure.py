@@ -25,10 +25,21 @@ WHERE head.org = %(org)s AND head.env = %(env)s AND facts.contact = %(contact)s
 # Every log of the org: its calls, and its agents' own logs ("@<agent>"), which carry no call.
 LOGS_OF_ORG = "SELECT log, call, agent FROM call_log_head WHERE org = %(org)s"
 
-# What a call left: its entries, its head, its facts, its tokens, the memories it taught. The
-# dials ledger stays: it names numbers and times, never what was said, and a traceback asks for it.
+# What a call left: its entries, its head, its facts, its tokens, the memories it taught. A phone
+# call's numbers, times and end stay in call_records, and the dials ledger stays: they name numbers
+# and times, never what was said, and a traceback asks for them (0016_call_records.sql). Every
+# statement of the WITH reads the rows as they were before it, so the record reads the facts.
 ERASE_LOGS = """
-WITH entries AS (DELETE FROM call_log WHERE log = ANY(%(logs)s) RETURNING 1),
+WITH recorded AS (
+    INSERT INTO call_records (call, org, env, direction, from_number, to_number, started_at,
+                              ended_at, end_reason)
+    SELECT facts.call, head.org, head.env, facts.direction, facts.from_number, facts.to_number,
+           head.started_at, facts.ended_at, facts.end_reason
+    FROM call_facts facts JOIN call_log_head head ON head.call = facts.call
+    WHERE facts.call = ANY(%(calls)s) AND facts.channel = 'phone'
+    ON CONFLICT (call) DO NOTHING
+),
+     entries AS (DELETE FROM call_log WHERE log = ANY(%(logs)s) RETURNING 1),
      heads AS (DELETE FROM call_log_head WHERE log = ANY(%(logs)s) RETURNING 1),
      facts AS (DELETE FROM call_facts WHERE call = ANY(%(calls)s) RETURNING 1),
      spent AS (DELETE FROM tokens WHERE call = ANY(%(calls)s) RETURNING 1),
