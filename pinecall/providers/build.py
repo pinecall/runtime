@@ -21,6 +21,7 @@ from typing_extensions import TypeIs
 from pinecall.domain.agent import Turn
 from pinecall.domain.errors import DeclarationRefused, NotAvailable
 from pinecall.domain.names import Credentials, Json, JsonObject
+from pinecall.wire.metrics import LLMModelUsage
 
 type Modality = Literal["llm", "stt", "tts"]
 
@@ -166,6 +167,23 @@ def primary(language: str | None) -> str | None:
 def llm_of(running: Running) -> llm.LLM[Never]:
     """The LLM a stage runs: the plugin's class called with the key, the model and the options."""
     return _built("llm", _AN_LLM, running, {})
+
+
+# A model the runtime asks itself, outside a call's session: livekit meters none of it.
+def completion_usage(
+    model: llm.LLM[Never], used: llm.CompletionUsage | None
+) -> LLMModelUsage | None:
+    """What one answer of a model cost in tokens, as the call's usage writes it."""
+    if used is None:
+        return None
+    return LLMModelUsage(
+        provider=model.provider,
+        model=model.model,
+        input_tokens=used.prompt_tokens,
+        input_cached_tokens=used.prompt_cached_tokens,
+        input_cache_creation_tokens=used.cache_creation_tokens,
+        output_tokens=used.completion_tokens,
+    )
 
 
 def tts_of(running: Running) -> tts.TTS[Never]:

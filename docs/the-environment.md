@@ -75,8 +75,9 @@ Offering a vendor is holding its key: whoever runs the runtime loads the keys of
 offers, and any other installed vendor is the org's to bring.
 
 **The bill.** livekit counts each stage's usage (tokens with their cache, characters, seconds
-heard) whatever key it ran on, and `call.summary` carries the rows priced at the row's rates. A
-model with no rate is listed unpriced, never at zero.
+heard) whatever key it ran on; the memory model's tokens and each phone leg's minutes join it, and
+`call.summary` carries the rows priced at the row's rates ([charging-for-it.md](charging-for-it.md)).
+A model or a leg with no rate is listed unpriced, never at zero.
 
 **The box's choices** are one row of the database, edited from the console's box screen: the
 vendor and model each stage runs when an agent names none, the voice per language, what each

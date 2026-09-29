@@ -1,6 +1,8 @@
-# What each model costs, in US dollars: tokens per million, characters and seconds each.
-# `model` is a prefix of the model id a call reports. Rows from voice-prices
-# (github.com/mahimailabs/voice-prices, MIT, notice in prices.LICENSE), checked on `as_of`.
+# What each model and phone leg costs, in US dollars: tokens per million; characters, seconds
+# and minutes each. `model` is a prefix of the model id a call reports; a phone leg is
+# `<carrier>-<inbound|outbound>/<number>`, priced by the longest prefix, minutes begun billed whole.
+# Model rows from voice-prices (github.com/mahimailabs/voice-prices, MIT, notice in
+# prices.LICENSE); every row was checked against its source on `as_of`.
 vendor,model,unit,usd,as_of,source
 anthropic,claude-haiku-4-5,input_tokens,1,2026-09-29,https://claude.com/pricing
 anthropic,claude-haiku-4-5,cached_input_tokens,0.1,2026-09-29,https://claude.com/pricing
@@ -187,3 +189,20 @@ perplexity,sonar-reasoning-pro,input_tokens,2,2025-07-03,https://docs.perplexity
 perplexity,sonar-reasoning-pro,output_tokens,8,2025-07-03,https://docs.perplexity.ai/guides/pricing
 soniox,stt-async,audio_seconds,0.0000277778,2026-09-29,https://soniox.com/pricing
 soniox,stt-rt,audio_seconds,0.0000333333,2026-09-29,https://soniox.com/pricing
+twilio,twilio-inbound/+1,minutes,0.0034,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us
+twilio,twilio-inbound/+1800,minutes,0.013,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us
+twilio,twilio-inbound/+1833,minutes,0.013,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us
+twilio,twilio-inbound/+1844,minutes,0.013,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us
+twilio,twilio-inbound/+1855,minutes,0.013,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us
+twilio,twilio-inbound/+1866,minutes,0.013,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us
+twilio,twilio-inbound/+1877,minutes,0.013,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us
+twilio,twilio-inbound/+1888,minutes,0.013,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us
+twilio,twilio-outbound/+1,minutes,0.01,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us
+twilio,twilio-outbound/+1800,minutes,0.0011,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us
+twilio,twilio-outbound/+1833,minutes,0.0011,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us
+twilio,twilio-outbound/+1844,minutes,0.0011,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us
+twilio,twilio-outbound/+1855,minutes,0.0011,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us
+twilio,twilio-outbound/+1866,minutes,0.0011,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us
+twilio,twilio-outbound/+1877,minutes,0.0011,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us
+twilio,twilio-outbound/+1888,minutes,0.0011,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us
+twilio,twilio-outbound/+1907,minutes,0.0862,2026-09-29,https://www.twilio.com/en-us/sip-trunking/pricing/us

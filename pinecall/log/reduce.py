@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, replace
 from statistics import median
 from typing import Self
 
+from pinecall.domain.call import PhoneLeg
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.wire.events import (
     AgentRegistered,
@@ -110,6 +111,14 @@ MEASURES = (
 
 
 A_MINUTE_S = 60.0
+
+# livekit-sip's attributes on a participant that is a phone leg.
+SIP_CALL = "sip.callID"
+# Only a leg that came in through a dispatch rule carries one.
+SIP_RULE = "sip.ruleID"
+TWILIO_CALL = "sip.twilio.callSid"
+OWN_NUMBER = "sip.trunkPhoneNumber"
+FAR_NUMBER = "sip.phoneNumber"
 
 
 # position is the store's row order across every log; the meter resumes from it.
@@ -306,6 +315,28 @@ def medians(turns: Iterable[Turn]) -> list[Median]:
         Median(name=name, seconds=median(values), turns=len(values))
         for name, values in samples(turns).items()
     ]
+
+
+# A leg still up when the log ends is up until the call's last entry.
+def phone_legs(entries: Iterable[Entry]) -> list[PhoneLeg]:
+    """Each leg of the call on the phone network, from when it joined the room until it left."""
+    joined: dict[str, tuple[float, PhoneLeg]] = {}
+    legs: list[PhoneLeg] = []
+    last = 0.0
+    for entry in entries:
+        last = entry.ts
+        if entry.type == "participant.joined":
+            arrived = ParticipantJoined.model_validate(entry.data)
+            leg = _leg_of(arrived.attributes)
+            if leg is not None:
+                joined[arrived.identity] = (entry.ts, leg)
+        elif entry.type == "participant.left":
+            gone = ParticipantLeft.model_validate(entry.data)
+            if gone.identity in joined:
+                began, leg = joined.pop(gone.identity)
+                legs.append(replace(leg, seconds=entry.ts - began))
+    legs += [replace(leg, seconds=last - began) for began, leg in joined.values()]
+    return legs
 
 
 def _resumed(state: State, gap: LogGap) -> State:
@@ -546,3 +577,16 @@ def _measured(turn: Turn) -> tuple[tuple[str, float | None], ...]:
                 ("tts_node_ttfb", took.tts_node_ttfb),
                 ("e2e_latency", took.e2e_latency),
             )
+
+
+def _leg_of(attributes: Mapping[str, object]) -> PhoneLeg | None:
+    if SIP_CALL not in attributes:
+        return None
+    inbound = SIP_RULE in attributes
+    number = attributes.get(OWN_NUMBER if inbound else FAR_NUMBER)
+    return PhoneLeg(
+        carrier="twilio" if TWILIO_CALL in attributes else "sip",
+        direction="inbound" if inbound else "outbound",
+        number=number if isinstance(number, str) else "",
+        seconds=0.0,
+    )

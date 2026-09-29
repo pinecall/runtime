@@ -130,4 +130,8 @@ The runtime written again from a blank page.
   smallest app, people, the operator's doors, the box's settings and floor, settings, pipeline,
   providers, dev verbs, the console's reads, retrieval, scaling, charging for it, a box in
   production, from zero, prompt injection.
+- A call's cost counts everything it billed: each leg on the phone network in minutes begun,
+  priced by the longest prefix of its number (`CostRow.unit` takes `minutes`), and the tokens of
+  the model that writes memory at hang-up. The box's prices ship as `infra/box/prices.csv`, the
+  operator's to edit, applied with `pinecall-runtime providers prices`.
 

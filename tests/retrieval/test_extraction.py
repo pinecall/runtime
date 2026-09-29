@@ -176,7 +176,7 @@ async def test_the_model_is_shown_the_categories_the_known_facts_and_the_turns(
         ),
     ]
     call = heard(Spoken("user", "ahora prefiero la tarde"), Spoken("agent", "anotado"))
-    ops = await extraction.ask_model(scripted(CLEAN), call, known)
+    ops = (await extraction.ask_model(scripted(CLEAN), call, known)).ops
     system, shown = said_to(models[0])
     assert "preference, health" in system
     assert "Never write anything about: religion" in system
@@ -190,7 +190,7 @@ async def test_with_nothing_known_the_model_is_told_so_and_no_forget_line_is_wri
     models: list[AcmeLLM],
 ) -> None:
     policy = MemoryPolicy(remember=("preference",))
-    assert await extraction.ask_model(scripted("[]"), heard(policy=policy), []) == []
+    assert (await extraction.ask_model(scripted("[]"), heard(policy=policy), [])).ops == []
     system, shown = said_to(models[0])
     assert "Never write anything about" not in system
     assert shown.startswith("Nothing is known")
@@ -323,12 +323,12 @@ async def test_remember_adds_supersedes_and_invalidates_as_the_model_asked(
     )
     call = heard(Spoken("user", "me mudé, y ahora prefiero la tarde"), Spoken("agent", "anotado"))
     done = await extraction.remember(pool, embedder, scripted(answer), scope, call)
-    assert (done.op, done.contact) == ("remember", CONTACT)
-    assert [(fact.text, fact.category, fact.source) for fact in done.facts] == [
+    assert (done.op.op, done.op.contact) == ("remember", CONTACT)
+    assert [(fact.text, fact.category, fact.source) for fact in done.op.facts] == [
         ("es alérgico a la penicilina", "health", "CA_1"),
         ("prefiere turnos por la tarde", "preference", "CA_1"),
     ]
-    assert done.took_ms >= 0
+    assert done.op.took_ms >= 0
     history = await memory.history(pool, scope, CONTACT)
     current = {fact.text for fact in history if fact.invalidated_at is None}
     assert current == {"es alérgico a la penicilina", "prefiere turnos por la tarde"}
@@ -341,6 +341,21 @@ async def test_remember_adds_supersedes_and_invalidates_as_the_model_asked(
 
 
 @postgres
+async def test_the_tokens_the_memory_model_took_come_back_with_what_it_wrote(
+    pool: Pool, embedder: Embedder, scope: Scope, models: list[AcmeLLM]
+) -> None:
+    answer = '[{"op": "add", "text": "prefiere la mañana", "category": "preference"}]'
+    done = await extraction.remember(pool, embedder, scripted(answer), scope, heard())
+    assert done.usage is not None
+    assert (done.usage.model, done.usage.input_tokens, done.usage.output_tokens) == (
+        "acme-1",
+        20,
+        5,
+    )
+    assert len(models) == 1
+
+
+@postgres
 async def test_a_forget_category_never_reaches_the_table_and_a_fence_is_forgiven(
     pool: Pool, embedder: Embedder, scope: Scope, models: list[AcmeLLM]
 ) -> None:
@@ -349,7 +364,7 @@ async def test_a_forget_category_never_reaches_the_table_and_a_fence_is_forgiven
         ' {"op": "add", "text": "prefiere que le hablen de usted", "category": "preference"}]\n```'
     )
     done = await extraction.remember(pool, embedder, scripted(answer), scope, heard())
-    assert [fact.text for fact in done.facts] == ["prefiere que le hablen de usted"]
+    assert [fact.text for fact in done.op.facts] == ["prefiere que le hablen de usted"]
     assert await history_of(pool, scope) == ["prefiere que le hablen de usted"]
     assert len(models) == 1
 
@@ -360,7 +375,7 @@ async def test_a_tenant_that_named_nothing_to_remember_asks_no_model_and_writes_
 ) -> None:
     call = heard(Spoken("user", "soy alérgico a la penicilina"), policy=MemoryPolicy())
     done = await extraction.remember(pool, embedder, scripted(CLEAN), scope, call)
-    assert done.facts == []
+    assert done.op.facts == []
     assert models == []
     assert vendor.requests == []
     assert await history_of(pool, scope) == []
@@ -371,7 +386,7 @@ async def test_a_model_that_answers_garbage_writes_nothing_and_raises_nothing(
     pool: Pool, embedder: Embedder, scope: Scope, models: list[AcmeLLM]
 ) -> None:
     done = await extraction.remember(pool, embedder, scripted(GARBAGE), scope, heard())
-    assert done.facts == []
+    assert done.op.facts == []
     assert await history_of(pool, scope) == []
     assert len(models) == 1
 
@@ -393,6 +408,6 @@ async def test_an_update_of_a_fact_that_already_ended_writes_nothing(
     ended = await written(pool, scope, ARow("prefiere la mañana", invalidated=LEARNED))
     answer = f'[{{"op": "update", "of": "{ended}", "text": "prefiere la tarde"}}]'
     done = await extraction.remember(pool, embedder, scripted(answer), scope, heard())
-    assert done.facts == []
+    assert done.op.facts == []
     assert await history_of(pool, scope) == ["prefiere la mañana"]
     assert len(models) == 1

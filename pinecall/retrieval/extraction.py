@@ -16,7 +16,7 @@ from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import Channel
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
-from pinecall.providers.build import Running, a_list, a_mapping, llm_of
+from pinecall.providers.build import Running, a_list, a_mapping, completion_usage, llm_of
 from pinecall.retrieval.embed import Embedder
 from pinecall.retrieval.memory import (
     NAMES_A_FACT,
@@ -30,6 +30,7 @@ from pinecall.retrieval.memory import (
     current,
     folded,
 )
+from pinecall.wire.metrics import LLMModelUsage
 from pinecall.wire.parts import MemoryFact, MemoryOp
 from pinecall.wire.rest.retrieval import (
     ExtractionBroke,
@@ -101,19 +102,37 @@ class Heard:
     at: datetime
 
 
+@dataclass(frozen=True)
+class ExtractionAnswer:
+    """The ops the model asked for over a call, and the tokens asking it took."""
+
+    ops: list[Op]
+    usage: LLMModelUsage | None
+
+
+@dataclass(frozen=True)
+class MemoryWrite:
+    """What one call wrote into its contact's memory, and the tokens the model took to find it."""
+
+    op: MemoryOp
+    usage: LLMModelUsage | None
+
+
 async def remember(
     pool: Pool, embedder: Embedder, model: Running, scope: Scope, heard: Heard
-) -> MemoryOp:
+) -> MemoryWrite:
     """What one call taught, asked of the model once, admitted, embedded and written as one."""
     started = time.perf_counter()
     written: list[Fact] = []
+    usage = None
     if heard.policy.remember:
         known = await current(pool, scope, heard.contact)
         answered = await ask_model(model, heard, known)
-        ops = admitted(answered, heard.policy, heard.tools, {fact.id for fact in known})
+        usage = answered.usage
+        ops = admitted(answered.ops, heard.policy, heard.tools, {fact.id for fact in known})
         taught = Taught(contact=heard.contact, call=heard.call, at=heard.at)
         written = await apply_ops(pool, embedder, scope, taught, ops)
-    return MemoryOp(
+    op = MemoryOp(
         op="remember",
         contact=heard.contact,
         facts=[
@@ -122,16 +141,19 @@ async def remember(
         ],
         took_ms=(time.perf_counter() - started) * 1000,
     )
+    return MemoryWrite(op=op, usage=usage)
 
 
-async def ask_model(model: Running, heard: Heard, known: Sequence[Fact]) -> list[Op]:
-    """The ops the model asks for over the call, before any admission."""
+async def ask_model(model: Running, heard: Heard, known: Sequence[Fact]) -> ExtractionAnswer:
+    """The ops the model asks for over the call, before any admission, and what it took."""
     thinking = llm_of(model)
     try:
         answered = await thinking.chat(chat_ctx=_asking(heard, known)).collect()
     finally:
         await thinking.aclose()
-    return parse_ops(answered.text)
+    return ExtractionAnswer(
+        ops=parse_ops(answered.text), usage=completion_usage(thinking, answered.usage)
+    )
 
 
 def parse_ops(answer: str) -> list[Op]:
@@ -188,8 +210,8 @@ async def extract_case(
         spoken=said_in(case),
         at=at,
     )
-    ops = await ask_model(model, heard, held_in(case, at=at))
-    return judge_extraction(case, ops, policy=policy, tools=tools)
+    answered = await ask_model(model, heard, held_in(case, at=at))
+    return judge_extraction(case, answered.ops, policy=policy, tools=tools)
 
 
 def said_in(case: ExtractionGolden) -> list[Spoken]:

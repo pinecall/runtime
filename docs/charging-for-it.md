@@ -50,13 +50,32 @@ and counts nothing twice. `cost_usd` is what the vendors charged the operator, a
 row's rates price it; what the operator charges is the layer's own business. An org reads its own
 rows at `GET /v1/usage`.
 
-The rates are the operator's, and a model without one is listed `unpriced` on the call, never
-priced at zero. The repository ships `infra/box/prices.csv`, one row per model and unit
-(`vendor,model,unit,usd,as_of,source`: tokens per million, characters and audio seconds each),
-taken from [voice-prices](https://github.com/mahimailabs/voice-prices) and checked against each
-vendor's page on the date its row says. They are list prices: a plan or a contract that pays less
-is an edit of the file, then `pinecall-runtime providers prices infra/box/prices.csv --apply`.
-Telephony minutes are not priced yet.
+What a call's `cost` counts, a row per unit billed:
+
+- **the model, the ears and the voice**, as livekit metered them: tokens with their cache reads
+  and writes, characters spoken, seconds heard;
+- **the model that writes memory at hang-up**: its tokens join the call's usage, so they are billed
+  and counted with it;
+- **each leg on the phone network**: one row per leg, from when it joined the room until it
+  left, in minutes begun billed whole, as a carrier bills. A leg is priced by the longest prefix
+  of its number, as a carrier's own table is: the box's number when the call came in
+  (`twilio-inbound/+1` is a local number, `twilio-inbound/+1800` a toll-free one), the dialled
+  one when it went out (`twilio-outbound/+1907` is Alaska). The row names the prefix it matched,
+  never the number. A transfer is a second leg, priced on its own.
+
+The judges' tokens are on `call.score` (`judge_cost_usd`), apart from the call's. Not in any row:
+a WhatsApp message (Meta charges for templates only, and the runtime answers inside the 24 hours a
+person opens), a number's monthly rental, the embeddings of a lookup or a push.
+
+The rates are the operator's, and a model or a leg without one is listed `unpriced` on the call,
+never priced at zero. The repository ships `infra/box/prices.csv`, one row per model and unit
+(`vendor,model,unit,usd,as_of,source`: tokens per million; characters, seconds and minutes each),
+the models taken from [voice-prices](https://github.com/mahimailabs/voice-prices), Twilio's
+Elastic SIP Trunking from its US page, each checked against its source on the date its row says.
+They are list prices: a plan or a contract that pays less is an edit of the file, then
+`pinecall-runtime providers prices infra/box/prices.csv --apply`. A trunk the box reaches only by
+its address (a `sip` carrier account) is priced by rows named `sip-inbound/…` and
+`sip-outbound/…` the operator writes.
 
 ## 4. Where your orgs pay
 

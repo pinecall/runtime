@@ -38,7 +38,7 @@ class Stage(BaseModel):
 
 
 class Rate(BaseModel):
-    """What a model costs in US dollars: per million tokens, per character, or per second heard."""
+    """What a model costs in US dollars: per million tokens, per character, second or minute."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -49,6 +49,8 @@ class Rate(BaseModel):
     cache_creation: float | None = None
     characters: float | None = None
     audio_seconds: float | None = None
+    # A phone leg's minute, each one begun billed whole.
+    minutes: float | None = None
     as_of: str = ""
 
 

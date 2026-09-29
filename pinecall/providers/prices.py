@@ -1,10 +1,12 @@
 """What a call's usage cost in US dollars, from the rates of the box's configuration."""
 
 import csv
-from collections.abc import Iterable, Mapping
+import math
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
+from pinecall.domain.call import PhoneLeg
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.providers.catalog import Providers, Rate
 from pinecall.wire.metrics import LLMModelUsage, ModelUsage, STTModelUsage, TTSModelUsage
@@ -15,6 +17,8 @@ type Unit = Literal["input_tokens", "cached_input_tokens", "cache_creation_token
 
 A_MILLION = 1_000_000
 
+A_MINUTE_S = 60
+
 # A prices file's unit, and the field of `Rate` it fills.
 FIELD_OF_UNIT = {
     "input_tokens": "input",
@@ -23,6 +27,7 @@ FIELD_OF_UNIT = {
     "cache_creation_tokens": "cache_creation",
     "characters": "characters",
     "audio_seconds": "audio_seconds",
+    "minutes": "minutes",
 }
 
 COLUMNS = ("vendor", "model", "unit", "usd", "as_of", "source")
@@ -39,8 +44,10 @@ class RatesChange:
     only_on_the_box: tuple[str, ...]
 
 
-def cost(usage: Iterable[ModelUsage], configured: Providers) -> Cost:
-    """Price every usage row; a model with no rate is listed unpriced, never priced at zero."""
+def cost(
+    usage: Iterable[ModelUsage], configured: Providers, *, legs: Sequence[PhoneLeg] = ()
+) -> Cost:
+    """Price every usage row and phone leg; what has no rate is listed unpriced, never at zero."""
     rows: list[CostRow] = []
     unpriced: list[UnpricedRow] = []
     for used in usage:
@@ -49,13 +56,19 @@ def cost(usage: Iterable[ModelUsage], configured: Providers) -> Cost:
             unpriced.append(UnpricedRow(provider=used.provider, model=used.model))
         else:
             rows += priced
+    for leg in legs:
+        billed = _leg_row(leg, configured.rates)
+        if billed is None:
+            unpriced.append(UnpricedRow(provider=leg.carrier, model=_leg_name(leg)))
+        elif billed.quantity > 0:
+            rows.append(billed)
     return Cost(usd=round(sum(row.usd for row in rows), 6), rows=rows, unpriced=unpriced)
 
 
 def rate_of(rates: Mapping[str, Rate], model: str) -> Rate | None:
     """The rate whose key is the longest prefix of the model id, so snapshots price by family."""
-    listed = [name for name in rates if model.startswith(name)]
-    return rates[max(listed, key=len)] if listed else None
+    key = _longest_prefix(rates, model)
+    return None if key is None else rates[key]
 
 
 def rates_from_csv(text: str) -> dict[str, Rate]:
@@ -166,6 +179,33 @@ def _row(
         unit_price_usd=per,
         usd=round(usd, 6),
     )
+
+
+# A carrier prices a leg by the longest prefix of its number, as its own rate tables do; the row
+# names the prefix it matched, never the number.
+def _leg_row(leg: PhoneLeg, rates: Mapping[str, Rate]) -> CostRow | None:
+    key = _longest_prefix(rates, f"{_leg_name(leg)}/{leg.number}")
+    per = None if key is None else rates[key].minutes
+    if key is None or per is None:
+        return None
+    minutes = math.ceil(leg.seconds / A_MINUTE_S) if leg.seconds > 0 else 0
+    return CostRow(
+        provider=leg.carrier,
+        model=key,
+        unit="minutes",
+        quantity=minutes,
+        unit_price_usd=per,
+        usd=round(minutes * per, 6),
+    )
+
+
+def _leg_name(leg: PhoneLeg) -> str:
+    return f"{leg.carrier}-{leg.direction}"
+
+
+def _longest_prefix(rates: Mapping[str, Rate], name: str) -> str | None:
+    listed = [key for key in rates if name.startswith(key)]
+    return max(listed, key=len) if listed else None
 
 
 def _usd(text: str, number: int) -> float:

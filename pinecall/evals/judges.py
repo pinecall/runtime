@@ -36,7 +36,7 @@ from pinecall.evals.case import (
 )
 from pinecall.evals.checks import consent_of
 from pinecall.providers import prices
-from pinecall.providers.build import Running, a_mapping, llm_of
+from pinecall.providers.build import Running, a_mapping, completion_usage, llm_of
 from pinecall.providers.catalog import Providers
 from pinecall.wire.events import CallScore, Judgment, JudgmentEvidence
 from pinecall.wire.frames import Entry
@@ -389,20 +389,7 @@ async def _ask_judge(model: llm.LLM[Never], criteria: str, chat: ChatContext) ->
         verdict=_verdict_of(fields.get("verdict")), reasoning=str(fields.get("reasoning", ""))
     )
     result.instructions = criteria
-    used = response.usage
-    usage = (
-        None
-        if used is None
-        else LLMModelUsage(
-            provider=model.provider,
-            model=model.model,
-            input_tokens=used.prompt_tokens,
-            input_cached_tokens=used.prompt_cached_tokens,
-            input_cache_creation_tokens=used.cache_creation_tokens,
-            output_tokens=used.completion_tokens,
-        )
-    )
-    return Answer(result=result, usage=usage)
+    return Answer(result=result, usage=completion_usage(model, response.usage))
 
 
 def _consent_judge(case: Case) -> CaseJudge:

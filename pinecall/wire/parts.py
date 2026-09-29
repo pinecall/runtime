@@ -174,6 +174,7 @@ class CostRow(WireModel):
         "audio_seconds",
         "requests",
         "session_seconds",
+        "minutes",
     ]
     quantity: float
     unit_price_usd: float

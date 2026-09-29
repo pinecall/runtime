@@ -266,8 +266,8 @@ async def remember(call: str, key: WorkerKey, gateway: GatewayDep) -> RememberRe
     """Write what the call taught into its contact's memory now, as the seal would."""
     served = _orgs_call(gateway, key, call)
     started = time.perf_counter()
-    op = await remembered(gateway.serving, served)
-    ops = 0 if op is None else len(op.facts)
+    written = await remembered(gateway.serving, served)
+    ops = 0 if written is None else len(written.op.facts)
     return RememberResponse(ops=ops, took_ms=(time.perf_counter() - started) * 1000)
 
 

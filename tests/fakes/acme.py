@@ -216,6 +216,12 @@ class AcmeLLM(llm.LLM[Never]):
         ]
         self.requests: list[ModelRequest] = []
 
+    @property
+    @override
+    def model(self) -> str:
+        """The model it was built with, as a real plugin names the one it runs."""
+        return str(self.given["model"])
+
     @override
     def chat(
         self,

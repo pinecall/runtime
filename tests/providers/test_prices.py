@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from pinecall.domain.call import PhoneLeg
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.providers.catalog import Providers, Rate
 from pinecall.providers.prices import cost, rate_of, rates_changed, rates_from_csv
@@ -124,7 +125,7 @@ def test_a_prices_file_gathers_a_models_units_into_one_rate_dated_by_its_newest_
 @pytest.mark.parametrize(
     ("row", "refusal"),
     [
-        ("acme,acme-1,minutes,1,2026-09-29,s", "not a unit"),
+        ("acme,acme-1,hours,1,2026-09-29,s", "not a unit"),
         ("acme,acme-1,characters,free,2026-09-29,s", "not a price"),
         ("acme,acme-1,characters,-1,2026-09-29,s", "below zero"),
     ],
@@ -165,3 +166,37 @@ def test_the_prices_file_the_box_ships_with_reads_whole() -> None:
     rates = rates_from_csv(shipped.read_text(encoding="utf-8"))
     assert rates["flux-general-multi"].audio_seconds == 0.00013
     assert rates["claude-haiku-4-5"].output == 5.0
+    assert rates["twilio-inbound/+1"].minutes == 0.0034
+
+
+TRUNK = {
+    "twilio-inbound/+1": Rate(minutes=0.0034),
+    "twilio-inbound/+1800": Rate(minutes=0.013),
+}
+
+
+def test_a_phone_leg_is_priced_by_the_longest_prefix_of_its_number_in_minutes_begun() -> None:
+    configured = Providers(defaults={}, rates=TRUNK)
+    leg = PhoneLeg(carrier="twilio", direction="inbound", number="+18005550100", seconds=61.0)
+    (row,) = cost([], configured, legs=[leg]).rows
+    assert (row.model, row.unit, row.quantity, row.unit_price_usd, row.usd) == (
+        "twilio-inbound/+1800",
+        "minutes",
+        2,
+        0.013,
+        0.026,
+    )
+
+
+def test_a_leg_no_rate_prices_is_unpriced_by_its_carrier_and_way_never_by_its_number() -> None:
+    configured = Providers(defaults={}, rates=TRUNK)
+    leg = PhoneLeg(carrier="twilio", direction="outbound", number="+14155550100", seconds=30.0)
+    priced = cost([], configured, legs=[leg])
+    assert priced.rows == []
+    assert [(row.provider, row.model) for row in priced.unpriced] == [("twilio", "twilio-outbound")]
+
+
+def test_a_leg_that_never_lasted_a_second_costs_no_row() -> None:
+    configured = Providers(defaults={}, rates=TRUNK)
+    leg = PhoneLeg(carrier="twilio", direction="inbound", number="+15550100133", seconds=0.0)
+    assert cost([], configured, legs=[leg]) == cost([], configured)
