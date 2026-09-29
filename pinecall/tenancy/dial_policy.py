@@ -1,8 +1,12 @@
-"""What an org may dial and how often: the destination's shape, strangers, the pace, the ledger."""
+"""What an org may dial, when and how often: shape, strangers, the callee's hours, the pace."""
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
+import phonenumbers
+from phonenumbers import timezone
 from pydantic import BaseModel, ConfigDict, Field
 
 from pinecall.domain.country_codes import CALLING_CODES, NEVER_DIALLED, SHORTEST_NATIONAL
@@ -11,6 +15,7 @@ from pinecall.domain.names import parse_e164
 from pinecall.domain.scope import Scope
 from pinecall.log.queries import ever_reached
 from pinecall.postgres.pool import Pool
+from pinecall.tenancy import policy
 
 NOT_A_COUNTRY = "{number} starts with no country calling code E.164 assigns"
 
@@ -44,6 +49,44 @@ TOO_FAST = "too_fast"
 TOO_MANY = "too_many"
 
 
+QUIET_HOURS = "quiet_hours"
+
+
+TOO_OFTEN = "too_often"
+
+
+# The Telemarketing Sales Rule (16 CFR 310.4(c)): not before 8 a.m. or after 9 p.m. at the called
+# person's location. It binds a call to the US; Canada's rules sit inside the same hours.
+NORTH_AMERICA = "+1"
+
+
+US_HOURS = (8, 21)
+
+
+# Florida's "mini-TCPA" caps three calls in 24 hours to one person on one subject: the default for
+# a +1 number, which the org may change. Elsewhere nothing, unless the org sets one.
+US_PER_NUMBER_DAY = 3
+
+
+NO_ZONE = "Etc/Unknown"
+
+
+# How many of a number's zones a refusal names before it says "…".
+ZONES_SAID = 3
+
+
+OUT_OF_HOURS = (
+    "{number} is outside the hours it may be rung ({window}) in {zones} ({guard}); "
+    "the sandbox and your own phone are not held to them"
+)
+
+
+UNPLACED = "{number} has no zone this box can place it in, so its hours cannot be kept ({guard})"
+
+
+A_NUMBERS_DAY = "{number} was rung {used} times in the last day, of {limit} ({guard})"
+
+
 NOT_ONE_OF_OURS = (
     "{number} never called or wrote to this org in the {env}: a call back goes back to somebody "
     "({guard}); an operator lifts it with dial_anywhere"
@@ -74,21 +117,27 @@ ON CONFLICT (org) DO UPDATE SET dial_anywhere = excluded.dial_anywhere,
 LOCKED = "SELECT pg_advisory_xact_lock(hashtext('dials:' || %(org)s))"
 
 
+# A number's own count is of the calls placed to it, not the refusals: a refused dial rang nobody.
 PACED = """
 WITH counted AS (
     SELECT count(*) FILTER (WHERE at > now() - interval '1 minute') AS minute,
-           count(*) AS day
+           count(*) AS day,
+           count(*) FILTER (WHERE dialled = %(dialled)s AND refused IS NULL) AS number_day
     FROM dials WHERE org = %(org)s AND at > now() - interval '1 day'
 ), judged AS (
-    SELECT minute, day, CASE WHEN minute >= %(per_minute)s THEN 'too_fast'
-                             WHEN day >= %(per_day)s THEN 'too_many' END AS refused
+    SELECT minute, day, number_day,
+           CASE WHEN minute >= %(per_minute)s THEN 'too_fast'
+                WHEN day >= %(per_day)s THEN 'too_many'
+                WHEN %(per_number_day)s::int IS NOT NULL AND number_day >= %(per_number_day)s::int
+                    THEN 'too_often' END AS refused
     FROM counted
 )
 INSERT INTO dials (org, env, agent, call, dialled, shown, asked_by, refused)
 SELECT %(org)s, %(env)s, %(agent)s, CASE WHEN judged.refused IS NULL THEN %(call)s END,
        %(dialled)s, %(shown)s, %(asked_by)s, judged.refused
 FROM judged
-RETURNING refused, (SELECT minute FROM judged) AS minute, (SELECT day FROM judged) AS day
+RETURNING refused, (SELECT minute FROM judged) AS minute, (SELECT day FROM judged) AS day,
+          (SELECT number_day FROM judged) AS number_day
 """
 
 
@@ -118,7 +167,7 @@ class Guards(BaseModel):
 
 @dataclass(frozen=True)
 class Dial:
-    """One dial asked for: whose, to whom, shown as what, by whom, as which call."""
+    """One dial asked for: whose, to whom, shown as what, by whom, as which call, and when."""
 
     scope: Scope
     agent: str
@@ -126,6 +175,17 @@ class Dial:
     shown: str | None
     asked_by: str
     call: str
+    at: datetime
+    # The number is a phone the person who asked verified as their own: testing, not calling out.
+    own_phone: bool = False
+
+
+@dataclass(frozen=True)
+class Rules:
+    """What the called number's destination and the org's policy hold a dial to."""
+
+    hours: tuple[int, int] | None
+    per_number_day: int | None
 
 
 def destination_of(number: str) -> str:
@@ -159,7 +219,7 @@ async def put_guards(pool: Pool, org: str, guards: Guards) -> None:
 
 
 async def guard_dial(pool: Pool, dial: Dial) -> Guards:
-    """Every guard on a call placed cold: shape, a stranger, the pace; one ledger row whatever."""
+    """Every guard on a call placed cold: shape, a stranger, hours, the pace; one ledger row."""
     destination = await _shaped(pool, dial)
     guards = await guards_of(pool, dial.scope.org)
     reached = guards.dial_anywhere or await ever_reached(
@@ -170,8 +230,23 @@ async def guard_dial(pool: Pool, dial: Dial) -> Guards:
         raise NotAllowed(
             NOT_ONE_OF_OURS.format(number=destination, env=dial.scope.env, guard=STRANGER)
         )
-    await _paced(pool, dial, guards)
+    rules = await _rules_for(pool, dial, destination)
+    if rules.hours is not None:
+        await _in_hours(pool, dial, destination, rules.hours)
+    await _paced(pool, dial, guards, rules.per_number_day)
     return guards
+
+
+def zones_of(number: str) -> tuple[str, ...]:
+    """Every time zone the number could be in; empty when none is known."""
+    zones = timezone.time_zones_for_number(phonenumbers.parse(number))
+    return tuple(zone for zone in zones if zone != NO_ZONE)
+
+
+def within(zones: tuple[str, ...], at: datetime, hours: tuple[int, int]) -> bool:
+    """Whether it is inside the hours in every zone: a number in two zones is held to both."""
+    start, end = hours
+    return all(start <= at.astimezone(ZoneInfo(zone)).hour < end for zone in zones)
 
 
 # A transfer target need not have called: the stranger fence stays off, the pace caps a loop.
@@ -186,7 +261,7 @@ async def guard_second_leg(pool: Pool, dial: Dial) -> None:
     if placed is not None:
         return
     await _shaped(pool, dial)
-    await _paced(pool, dial, await guards_of(pool, dial.scope.org))
+    await _paced(pool, dial, await guards_of(pool, dial.scope.org), None)
 
 
 async def _shaped(pool: Pool, dial: Dial) -> str:
@@ -202,12 +277,45 @@ async def _refused(pool: Pool, dial: Dial, guard: str) -> None:
         await connection.execute(REFUSED, {**_ledger(dial), "refused": guard})
 
 
-async def _paced(pool: Pool, dial: Dial, guards: Guards) -> None:
+# The rules bind a call out to a person. The sandbox is where an org tries its agent, and a
+# person's own verified phone is them testing: neither is held to a caller's hours or count.
+async def _rules_for(pool: Pool, dial: Dial, destination: str) -> Rules:
+    """The hours and the daily count this dial is held to, by destination and the org's policy."""
+    if dial.scope.env == "sandbox" or dial.own_phone:
+        return Rules(hours=None, per_number_day=None)
+    kept = (await policy.policy_of(pool, dial.scope.org)).policy
+    window = (
+        None if kept.calling_hours is None else (kept.calling_hours.from_, kept.calling_hours.until)
+    )
+    if destination.startswith(NORTH_AMERICA):
+        floor, top = US_HOURS
+        start, end = window if window is not None else US_HOURS
+        window = (max(floor, start), min(top, end))
+        return Rules(hours=window, per_number_day=kept.per_number_day or US_PER_NUMBER_DAY)
+    return Rules(hours=window, per_number_day=kept.per_number_day)
+
+
+async def _in_hours(pool: Pool, dial: Dial, destination: str, hours: tuple[int, int]) -> None:
+    zones = zones_of(destination)
+    if not zones:
+        await _refused(pool, dial, QUIET_HOURS)
+        raise NotAllowed(UNPLACED.format(number=destination, guard=QUIET_HOURS))
+    if not within(zones, dial.at, hours):
+        await _refused(pool, dial, QUIET_HOURS)
+        window = f"{hours[0]}:00 to {hours[1]}:00"
+        named = ", ".join(zones[:ZONES_SAID]) + ("…" if len(zones) > ZONES_SAID else "")
+        raise NotAllowed(
+            OUT_OF_HOURS.format(number=destination, window=window, zones=named, guard=QUIET_HOURS)
+        )
+
+
+async def _paced(pool: Pool, dial: Dial, guards: Guards, per_number_day: int | None) -> None:
     params = {
         **_ledger(dial),
         "call": dial.call,
         "per_minute": guards.per_minute,
         "per_day": guards.per_day,
+        "per_number_day": per_number_day,
     }
     async with pool.connection() as connection, connection.transaction():
         await connection.execute(LOCKED, {"org": dial.scope.org})
@@ -216,6 +324,10 @@ async def _paced(pool: Pool, dial: Dial, guards: Guards) -> None:
         return
     if row["refused"] == TOO_FAST:
         sentence = A_BURST.format(used=row["minute"], limit=guards.per_minute, guard=TOO_FAST)
+    elif row["refused"] == TOO_OFTEN:
+        sentence = A_NUMBERS_DAY.format(
+            number=dial.to, used=row["number_day"], limit=per_number_day, guard=TOO_OFTEN
+        )
     else:
         sentence = A_DAYS_WORTH.format(used=row["day"], limit=guards.per_day, guard=TOO_MANY)
     raise QuotaExhausted(sentence)

@@ -227,12 +227,24 @@ async def test_the_orgs_policy_is_read_then_replaced_whole_and_says_who(knocking
         put = await http.put("/v1/org/policy", json={"retention_days": 365})
         cleared = await http.put("/v1/org/policy", json={})
         refused = await http.put("/v1/org/policy", json={"retention_days": 0})
-    assert first.json() == {"policy": {"retention_days": None}, "set_by": None, "set_at": None}
+    nothing_set = {"retention_days": None, "calling_hours": None, "per_number_day": None}
+    assert first.json() == {"policy": nothing_set, "set_by": None, "set_at": None}
     assert put.status_code == 200
-    assert put.json()["policy"] == {"retention_days": 365}
+    assert put.json()["policy"] == {**nothing_set, "retention_days": 365}
     assert put.json()["set_by"]
-    assert cleared.json()["policy"] == {"retention_days": None}
+    assert cleared.json()["policy"] == nothing_set
     assert refused.status_code == 422
+
+
+@postgres
+async def test_the_calling_hours_go_in_as_from_and_until_and_a_window_of_no_hour_is_refused(
+    knocking: Knocking,
+) -> None:
+    async with knocking.http(knocking.app["production"]) as http:
+        put = await http.put("/v1/org/policy", json={"calling_hours": {"from": 9, "until": 20}})
+        empty = await http.put("/v1/org/policy", json={"calling_hours": {"from": 20, "until": 9}})
+    assert put.json()["policy"]["calling_hours"] == {"from": 9, "until": 20}
+    assert empty.status_code == 422
 
 
 @postgres

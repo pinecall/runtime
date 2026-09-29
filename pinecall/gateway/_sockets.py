@@ -209,6 +209,10 @@ class Sockets:
             del self.phones[(env, number)]
         return gone
 
+    def phone_of(self, env: Env, number: str) -> str | None:
+        """Whose own phone the number is in the world, or None."""
+        return self.phones.get((env, number.strip()))
+
     def calling(self, env: Env, holder: str) -> list[str]:
         """The phones this person rings from."""
         return sorted(

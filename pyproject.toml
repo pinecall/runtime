@@ -45,6 +45,7 @@ dependencies = [
   "python-dotenv>=1.1,<2",
   # TypeIs reaches `typing` in 3.13; the box runs 3.12.
   "typing-extensions>=4.12,<5",
+  "phonenumbers>=9,<10",
 ]
 
 # Every livekit plugin that exports an STT, a TTS or an LLM is a vendor once installed; the box

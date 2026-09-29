@@ -25,7 +25,7 @@ from pinecall.domain.errors import Conflict, PinecallError
 from pinecall.log.store import Store
 from pinecall.postgres.pool import open_pool
 from pinecall.process.settings import Settings
-from pinecall.tenancy import orgs, retention
+from pinecall.tenancy import orgs, policy
 from pinecall.wire.rest.accounts import OrgPolicy
 from tests.conftest import DSN, configured, postgres
 from tests.log.conftest import logged_call
@@ -159,7 +159,7 @@ async def test_retention_says_what_is_due_then_erases_it_and_says_how_many(
     try:
         org = await orgs.create(pool, "clinica", "Clinica")
         call = await logged_call(Store(pool, clock=lambda: 1.0), org.id)
-        await retention.put_policy(pool, org.id, OrgPolicy(retention_days=1), by="m_1")
+        await policy.put_policy(pool, org.id, OrgPolicy(retention_days=1), by="m_1")
     finally:
         await pool.close()
     settings = Settings.model_validate({"DATABASE_URL": DSN, "PINECALL_RECORDINGS": str(tmp_path)})

@@ -17,7 +17,7 @@ from pinecall.gateway._deps import (
 )
 from pinecall.providers import catalog
 from pinecall.providers.catalog import judge_ceiling
-from pinecall.tenancy import erasure, export, keys, letters, mail, orgs, retention, sso
+from pinecall.tenancy import erasure, export, keys, letters, mail, orgs, policy, sso
 from pinecall.tenancy.mail import Mailbox, MailboxStatus
 from pinecall.tenancy.sso import Client, OrgSso
 from pinecall.wire.rest.accounts import (
@@ -187,15 +187,15 @@ async def erasures(key: TeamKey, gateway: GatewayDep) -> ErasureTrail:
 @router.get("/v1/org/policy")
 async def get_policy(key: TeamKey, gateway: GatewayDep) -> OrgPolicyRow:
     """The org's compliance settings: how many days a sealed call is kept, and who set it."""
-    return await retention.policy_of(gateway.connections.pool, key.org)
+    return await policy.policy_of(gateway.connections.pool, key.org)
 
 
 @router.put("/v1/org/policy")
 async def put_policy(body: OrgPolicy, key: TeamKey, gateway: GatewayDep) -> OrgPolicyRow:
     """Replace the org's compliance settings whole, from the next nightly run."""
     pool = gateway.connections.pool
-    await retention.put_policy(pool, key.org, body, by=asked_by(key))
-    return await retention.policy_of(pool, key.org)
+    await policy.put_policy(pool, key.org, body, by=asked_by(key))
+    return await policy.policy_of(pool, key.org)
 
 
 @router.get("/v1/org/export", response_model=None)

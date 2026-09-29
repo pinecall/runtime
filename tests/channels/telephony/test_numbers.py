@@ -2,6 +2,7 @@
 
 import base64
 from dataclasses import replace
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -362,7 +363,10 @@ async def test_an_agent_answers_at_numbers_of_different_kinds_from_different_acc
         await dialing.provision_outbound(connections, org, scope.env, second.account_sid)
         await dial_policy.put_guards(pool, org, dial_policy.Guards(dial_anywhere=True))
         leg = await dialing.leg_trunk(
-            connections, Dial(scope, "recepcion", HER_PHONE, "+15550100134", "m_ana", "call_x")
+            connections,
+            Dial(
+                scope, "recepcion", HER_PHONE, "+15550100134", "m_ana", "call_x", datetime.now(UTC)
+            ),
         )
     await server.aclose()
     answering = await routes.of_org(pool, org, "production")

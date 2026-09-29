@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Annotated, Literal, Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from pinecall.domain.names import Env
 from pinecall.domain.person import Key, Member, MemberStatus, Role
@@ -463,10 +463,25 @@ class SendTestLetterResponse(WireModel):
     error: str | None
 
 
+class CallingHours(WireModel):
+    """The hours of the called number's own day a call may ring: from, until (exclusive)."""
+
+    from_: Annotated[int, Field(ge=0, le=23)] = Field(alias="from")
+    until: Annotated[int, Field(ge=1, le=24)]
+
+    @model_validator(mode="after")
+    def _a_window(self) -> Self:
+        if self.from_ >= self.until:
+            raise ValueError(f"calling hours from {self.from_} until {self.until} leave no hour")
+        return self
+
+
 class OrgPolicy(WireModel):
     """GET and PUT /v1/org/policy: the org's compliance settings, replaced whole."""
 
     retention_days: Annotated[int, Field(gt=0)] | None = None
+    calling_hours: CallingHours | None = None
+    per_number_day: Annotated[int, Field(gt=0)] | None = None
 
 
 class OrgPolicyRow(WireModel):

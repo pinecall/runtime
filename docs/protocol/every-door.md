@@ -187,7 +187,7 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `GET` | `/v1/ops/usage` | operator | Every org's metered rows after the cursor, totals per org; or the same as a stream. |
 | `GET` | `/v1/ops/whoami` | operator | The box this key opens, and the person holding it; nobody for the box's own key. |
 | `GET` | `/v1/org/erasures` | team | The org's erasures, newest first: what went, when, and who asked. |
-| `GET` | `/v1/org/policy` | team | The org's compliance settings: how many days a sealed call is kept, and who set them. |
+| `GET` | `/v1/org/policy` | team | The org's compliance settings: retention, calling hours, calls a day per number, and who set them. |
 | `PUT` | `/v1/org/policy` | team | The org's compliance settings replaced whole, from the next nightly run. |
 | `GET` | `/v1/org/export` | team | The org's data in the key's world as JSON Lines: calls and their logs, memories, settings, words, documents. |
 | `GET` | `/v1/org/judging` | calls | Whether hang-up judging is on, and its ceiling per call. |

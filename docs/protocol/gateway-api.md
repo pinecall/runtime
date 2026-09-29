@@ -165,9 +165,13 @@ and carriers: [numbers.md](numbers.md). Usage, insights, limits and judging:
 [console-api.md](console-api.md).
 
 The org's compliance settings are one row, replaced whole (`team`): `GET /v1/org/policy` answers
-`{policy: {retention_days}, set_by, set_at}`, and `PUT /v1/org/policy {retention_days}` sets how
-many days a sealed call is kept before the nightly run erases it through the erasure path (§3);
-`null` keeps everything, which is also an org nobody set. The trail is `GET /v1/org/erasures`.
+`{policy: {retention_days, calling_hours: {from, until} | null, per_number_day}, set_by, set_at}`
+and `PUT /v1/org/policy` takes the policy. `retention_days` is how many days a sealed call is kept
+before the nightly run erases it through the erasure path (§3); `null` keeps everything, which is
+also an org nobody set. `calling_hours` and `per_number_day` are the org's outbound calling rules,
+applied by destination at the dial ([numbers.md](numbers.md)): a `+1` number keeps the US hours and
+three calls a day whatever the org sets wider. A client that changes one field reads the row and
+writes it back whole. The trail is `GET /v1/org/erasures`.
 
 `GET /v1/org/export` (`team`) is everything the org keeps in the key's world, as a download of JSON
 Lines (`application/x-ndjson`): a header `{kind: "export", org, env, exported_at}`, then one line
