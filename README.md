@@ -39,9 +39,15 @@ What the rewrite gives you:
   no layers.
 
 Running today: the call's log, voice and text on one session, tenants and sign-in, the gateway
-and the worker, numbers from any carrier account, outbound calls, WhatsApp. Coming: local models end to
-end (the model, the ears and the voice on your own hardware), retrieval and memory, evals, the
-operator CLI, the docs.
+and the worker, numbers from any carrier account, outbound calls, WhatsApp, knowledge bases and
+contact memory looked up in the call, goldens and judges at hang-up, every operator door and verb,
+and a fleet per world that grows through a cloud script. Coming: local models end to end (the
+model, the ears and the voice on your own hardware).
+
+Where to start reading: `docs/from-zero.md` walks a box to its first call;
+`docs/protocol/gateway-api.md` is every door a tenant's code knocks at, and
+`docs/protocol/every-door.md` all of them in one table; `docs/the-runtime-cli.md` is the operator's
+terminal.
 
 ## Working on it
 

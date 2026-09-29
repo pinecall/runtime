@@ -1,4 +1,4 @@
-# Accounts — how a person gets a key, what a key is, and the org's people
+# People — how a person gets a key, what a key is, and the org's people
 
 A person has one key per device, minted when they sign in, and it acts as them: the scopes of
 their role, the org they signed into, and the world each request names (`pinecall-env`, the

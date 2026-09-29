@@ -16,6 +16,6 @@ or of the pages beside it. This page is the doors that exist for a screen and no
 | `POST /v1/agents/{slug}/dev/{family}/{verb}` | the family's | [dev-verbs.md](dev-verbs.md) |
 | `/v1/personas`, `/v1/evals/*` | `evals` | [evals.md](evals.md) |
 | `/v1/knowledge`, `/v1/contacts/{contact}/memory`, `/v1/agents/{slug}/memory` | `knowledge` · `memory` | [../retrieval/spec.md](../retrieval/spec.md) |
-| the threads, the line, the numbers, the accounts | | [whatsapp.md](whatsapp.md) · [numbers.md](numbers.md) · [accounts.md](accounts.md) |
+| the threads, the line, the numbers, the accounts | | [whatsapp.md](whatsapp.md) · [numbers.md](numbers.md) · [people.md](people.md) |
 
 Money is US dollars everywhere: a call's cost, the judge's, a budget.

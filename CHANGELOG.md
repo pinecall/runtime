@@ -121,4 +121,13 @@ The runtime written again from a blank page.
   mail and brand. The fleet loop (`fleet/hub.py`) grows and shrinks a fleet through a cloud script.
   `pinecall-runtime` gained `init`, `orgs`, `keys`, `routes`, `fleet`, `sessions`, `providers`,
   `memory reembed`, `migrate status` and `migrate plan`. Box-wide Google sign-in answers 503.
+- The box's own configuration has doors: the providers row (`/v1/ops/providers`), the box's vendor
+  keys (`/v1/ops/provider-keys/{vendor}`), admission (`/v1/ops/admission`) and the fleet of each
+  world (`/v1/ops/fleets`); `pinecall-runtime providers seed` writes a box's first providers row.
+  `infra/fleet/` holds the clouds a fleet grows on (gcp, aws, hetzner).
+- The pages, every one under the name the site syncs: the gateway API and every door in one table,
+  tokens, codes, projections (PII masked when read), the line, a deploy that never cuts a call, the
+  smallest app, people, the operator's doors, the box's settings and floor, settings, pipeline,
+  providers, dev verbs, the console's reads, retrieval, scaling, charging for it, a box in
+  production, from zero, prompt injection.
 

@@ -1,4 +1,4 @@
-"""The box's own settings and floor: mailbox, brand, sign-in, routes, fleet, events, usage."""
+"""The box's own settings and floor: providers, admission, mail, brand, routes, fleet, events."""
 
 import asyncio
 import time
@@ -14,17 +14,22 @@ from pinecall.domain.errors import Conflict, NotAvailable, NotFound
 from pinecall.domain.names import PRODUCTION, Env
 from pinecall.fleet import worlds
 from pinecall.fleet.roster import STALE_AFTER_S
+from pinecall.fleet.worlds import Fleets
 from pinecall.gateway import _streams
 from pinecall.gateway._deps import GatewayDep, operator, public_url
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._streams import frame, paced, streamed, wants_sse
 from pinecall.gateway.api.org import mailbox_of
+from pinecall.gateway.api.providers import credentials_of, installed_vendor
 from pinecall.gateway.api.sso_login import NO_BOX_WIDE
 from pinecall.gateway.api.usage import usage_row_response, usage_totals
 from pinecall.log import queries
 from pinecall.log.reduce import totals_by_org
 from pinecall.log.store import DEFAULT_LIMIT, Store
-from pinecall.tenancy import letters, mail, orgs
+from pinecall.providers import catalog
+from pinecall.providers.catalog import Providers
+from pinecall.tenancy import admission, letters, mail, orgs, vault
+from pinecall.tenancy.admission import Admission
 from pinecall.tenancy.mail import MailboxStatus
 from pinecall.wire.frames import Entry
 from pinecall.wire.rest.accounts import (
@@ -44,6 +49,7 @@ from pinecall.wire.rest.ops import (
     RouteRequest,
     RouteRow,
 )
+from pinecall.wire.rest.providers import ProviderKeyRequest, VendorsResponse
 from pinecall.wire.rest.usage import BoxUsagePage
 
 router = APIRouter(dependencies=[Depends(operator)])
@@ -62,6 +68,9 @@ NOTHING_TO_TEST = (
 NO_SUCH_ORG = "no org named {named}: by id or by slug"
 
 
+NO_BOX_KEY = "this box holds no key for {vendor}"
+
+
 NO_SUCH_ROUTE = "no route for {number} in org {slug}"
 
 
@@ -73,6 +82,76 @@ GOOGLE_CALLBACK = "/v1/login/google/callback"
 
 # The usage stream polls: a summary is a row of the store, not a topic.
 POLL_S = 1.0
+
+
+# ── what the box runs, and what a new org is given ──
+
+
+# The console's box screens read and write these rows whole; code holds no list of them.
+@router.get("/v1/ops/providers")
+async def get_providers(gateway: GatewayDep) -> Providers:
+    """The providers row: defaults, models, voices, tuning, rates, the judge, the embedder."""
+    return await catalog.providers(gateway.connections.pool)
+
+
+@router.put("/v1/ops/providers")
+async def put_providers(body: Providers, gateway: GatewayDep) -> Providers:
+    """The providers row replaced whole; a vendor not installed or not doing its stage refused."""
+    await catalog.configure(gateway.connections.pool, body)
+    return body
+
+
+# Offering a vendor is holding its key: the box's credentials, sealed, never read back.
+@router.get("/v1/ops/provider-keys")
+async def box_vendors(gateway: GatewayDep) -> VendorsResponse:
+    """The vendors the box holds a key for, never the key."""
+    connections = gateway.connections
+    credentials = await vault.box_credentials(connections.pool, connections.vault)
+    return VendorsResponse(vendors=sorted(credentials))
+
+
+@router.put("/v1/ops/provider-keys/{vendor}", status_code=204)
+async def put_box_key(vendor: str, body: ProviderKeyRequest, gateway: GatewayDep) -> None:
+    """The box's own credentials for a vendor; orgs it lends to run on them from the next call."""
+    connections = gateway.connections
+    await vault.put_box_credentials(
+        connections.pool, connections.vault, installed_vendor(vendor), credentials_of(body)
+    )
+
+
+@router.delete("/v1/ops/provider-keys/{vendor}", status_code=204)
+async def drop_box_key(vendor: str, gateway: GatewayDep) -> None:
+    """The box stops offering the vendor on its key; 404 when it held none."""
+    named = installed_vendor(vendor)
+    if not await vault.drop_box_credentials(gateway.connections.pool, named):
+        raise NotFound(NO_BOX_KEY.format(vendor=named))
+
+
+@router.get("/v1/ops/admission")
+async def get_admission(gateway: GatewayDep) -> Admission:
+    """What a newborn org is given in each world; nothing limited on a box that never said."""
+    return await admission.admission(gateway.connections.pool)
+
+
+# Read at the moment an org is made: the orgs already made keep their quotas.
+@router.put("/v1/ops/admission")
+async def put_admission(body: Admission, gateway: GatewayDep) -> Admission:
+    """What a newborn org is given, replaced whole."""
+    await admission.set_admission(gateway.connections.pool, body)
+    return body
+
+
+@router.get("/v1/ops/fleets")
+async def get_fleets(gateway: GatewayDep) -> Fleets:
+    """The fleet of workers each world's calls are dispatched to."""
+    return await worlds.fleets(gateway.connections.pool)
+
+
+@router.put("/v1/ops/fleets")
+async def put_fleets(body: Fleets, gateway: GatewayDep) -> Fleets:
+    """The fleet of each world, replaced whole; the next dispatch reads it."""
+    await worlds.set_fleets(gateway.connections.pool, body)
+    return body
 
 
 # ── the box's mailbox ──

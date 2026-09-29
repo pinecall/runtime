@@ -168,3 +168,55 @@ async def test_the_boxs_usage_pages_every_org_with_totals_per_org(knocking: Knoc
     assert page.json()["totals"][knocking.org.id]["calls"] == 1
     assert len(filtered.json()["rows"]) == 2
     assert (other.json()["rows"], other.json()["next"]) == ([], page.json()["next"])
+
+
+@postgres
+async def test_the_providers_row_is_read_and_written_whole_and_a_stranger_vendor_refused(
+    knocking: Knocking,
+) -> None:
+    with_an_ops_key(knocking)
+    async with knocking.http(THE_OPS_KEY) as operator:
+        read = await operator.get("/v1/ops/providers")
+        row = read.json()
+        row["hints"] = ["es", "pt"]
+        written = await operator.put("/v1/ops/providers", json=row)
+        again = await operator.get("/v1/ops/providers")
+        row["defaults"]["llm"] = {"vendor": "nobody"}
+        refused = await operator.put("/v1/ops/providers", json=row)
+    assert read.json()["defaults"]["llm"]["vendor"] == "acme"
+    assert written.status_code == 200
+    assert again.json()["hints"] == ["es", "pt"]
+    assert refused.status_code == 400
+
+
+@postgres
+async def test_the_box_holds_and_drops_a_vendors_key_and_never_shows_it(knocking: Knocking) -> None:
+    with_an_ops_key(knocking)
+    async with knocking.http(THE_OPS_KEY) as operator:
+        listed = await operator.get("/v1/ops/provider-keys")
+        dropped = await operator.delete("/v1/ops/provider-keys/acme")
+        again = await operator.delete("/v1/ops/provider-keys/acme")
+        put = await operator.put("/v1/ops/provider-keys/acme", json={"key": "the-boxs-own"})
+        after = await operator.get("/v1/ops/provider-keys")
+    assert listed.json() == {"vendors": ["acme"]}
+    assert (dropped.status_code, again.status_code, put.status_code) == (204, 404, 204)
+    assert "the-boxs-own" not in after.text
+
+
+@postgres
+async def test_admission_and_the_fleets_are_the_boxs_rows_set_whole(knocking: Knocking) -> None:
+    with_an_ops_key(knocking)
+    allowed = {"first": {"sandbox": {"minutes": 60}}, "later": {"sandbox": {"minutes": 0}}}
+    async with knocking.http(THE_OPS_KEY) as operator:
+        empty = await operator.get("/v1/ops/admission")
+        put = await operator.put("/v1/ops/admission", json=allowed)
+        made = await operator.post("/v1/ops/orgs", json={"slug": "nueva"})
+        fleets = await operator.put(
+            "/v1/ops/fleets", json={"production": "pinecall", "sandbox": "pinecall-dev"}
+        )
+        read = await operator.get("/v1/ops/fleets")
+        profile = await operator.get(f"/v1/ops/orgs/{made.json()['id']}")
+    assert empty.json() == {"first": {}, "later": None}
+    assert put.json()["first"]["sandbox"]["minutes"] == 60
+    assert profile.json()["quotas"]["sandbox"]["limits"]["minutes"] == 60
+    assert (fleets.status_code, read.json()["sandbox"]) == (200, "pinecall-dev")

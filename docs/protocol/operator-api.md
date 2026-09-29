@@ -15,6 +15,24 @@ domain, name, org}`: the console opens its Box screens when it answers 200.
 
 An org is named by its **id or its slug** wherever a path says `{named}`.
 
+## What the box runs, and what a new org is given
+
+Four rows of `box_settings`, each read and written whole, the console's box screens their editor:
+
+- `GET` · `PUT /v1/ops/providers`: the providers row: the default vendor and model of each stage,
+  the models a vendor named alone runs, the voice per vendor and language, what each vendor is told
+  (`tuning`), the language hints, the rates a call is priced at in dollars, the judge model, the
+  embedder. A vendor not installed, or not doing the stage it is named for, is `400` where it is
+  written. No vendor is listed in code: every livekit plugin installed is one.
+- `GET /v1/ops/provider-keys`, `PUT` · `DELETE /v1/ops/provider-keys/{vendor} {key | credentials}`:
+  the box's own vendor keys, sealed and never read back. Offering a vendor is holding its key; an
+  org runs on it where its `lends` allow.
+- `GET` · `PUT /v1/ops/admission`: what a newborn org is given in each world, `{first: {env:
+  quotas}, later: {env: quotas} | null}`: `first` for a person's first org, `later`, when set, for
+  any other (one trial per person). Read when an org is made; a box that never said gives none.
+- `GET` · `PUT /v1/ops/fleets`: the fleet of workers each world's calls are dispatched to,
+  `{production, sandbox}`.
+
 ## Orgs
 
 - `GET /v1/ops/orgs`: every org, oldest first, `[{id, slug, name}]`.

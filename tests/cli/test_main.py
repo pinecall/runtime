@@ -1,14 +1,27 @@
 """Tests for pinecall-runtime: the verbs, the gateway's bind, the doctor, the fleet key."""
 
 import argparse
+import asyncio
+from functools import partial
+from pathlib import Path
 
 import pytest
 
+from pinecall.cli import main as cli
 from pinecall.cli._operator import fleet_key
-from pinecall.cli.main import doctor, gateway, main, migrate_plan, migrate_status, migrate_up
-from pinecall.domain.errors import PinecallError
+from pinecall.cli.main import (
+    doctor,
+    gateway,
+    main,
+    migrate_plan,
+    migrate_status,
+    migrate_up,
+    providers_seed,
+)
+from pinecall.domain.errors import Conflict, PinecallError
+from pinecall.postgres.pool import open_pool
 from pinecall.process.settings import Settings
-from tests.conftest import DSN, postgres
+from tests.conftest import DSN, configured, postgres
 
 
 def test_a_verb_nobody_declared_is_refused_with_the_list() -> None:
@@ -72,3 +85,25 @@ def test_the_status_says_up_to_date_once_up_is_run(capsys: pytest.CaptureFixture
     capsys.readouterr()
     assert migrate_status(settings, argparse.Namespace()) == 0
     assert capsys.readouterr().out == "up to date\n"
+
+
+# On the test's own schema, so a second run of the suite finds no row.
+@postgres
+async def test_the_providers_row_is_seeded_once_and_the_second_time_refused(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    schema: str,
+    acme: str,
+) -> None:
+    del acme
+    monkeypatch.setattr(cli, "open_pool", partial(open_pool, schema=schema))
+    settings = Settings.model_validate({"DATABASE_URL": DSN})
+    row = tmp_path / "providers.json"
+    row.write_text(configured().model_dump_json())
+    capsys.readouterr()
+    seeding = argparse.Namespace(file=str(row))
+    first = await asyncio.to_thread(providers_seed, settings, seeding)
+    assert (first, "is written" in capsys.readouterr().out) == (0, True)
+    with pytest.raises(Conflict, match="configured already"):
+        await asyncio.to_thread(providers_seed, settings, seeding)
