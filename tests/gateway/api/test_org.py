@@ -227,7 +227,12 @@ async def test_the_orgs_policy_is_read_then_replaced_whole_and_says_who(knocking
         put = await http.put("/v1/org/policy", json={"retention_days": 365})
         cleared = await http.put("/v1/org/policy", json={})
         refused = await http.put("/v1/org/policy", json={"retention_days": 0})
-    nothing_set = {"retention_days": None, "calling_hours": None, "per_number_day": None}
+    nothing_set = {
+        "retention_days": None,
+        "calling_hours": None,
+        "per_number_day": None,
+        "consent_everywhere": False,
+    }
     assert first.json() == {"policy": nothing_set, "set_by": None, "set_at": None}
     assert put.status_code == 200
     assert put.json()["policy"] == {**nothing_set, "retention_days": 365}

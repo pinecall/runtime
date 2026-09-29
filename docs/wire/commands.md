@@ -19,6 +19,7 @@ What reaches the gateway: the commands an app sends over its socket, each with t
 | `call.hold` | call | `call.line` | Put the caller on hold: they hear hold audio, the agent hears nothing. |
 | `call.log` | call | `custom` | Write a line of the app's own into the call's log. |
 | `call.mute` | call | `call.line` | Mute the agent: it keeps listening and thinking, produces no audio. |
+| `call.opt_out` | call | nothing | The caller asked never to be called again: their number joins the org's do-not-call list. |
 | `call.transfer` | call | `call.transferred` | Send the caller to another number, or bring that number into the call. |
 | `call.unhold` | call | `call.line` | Take the caller off hold. |
 | `call.unmute` | call | `call.line` | Unmute the agent. |
@@ -189,6 +190,16 @@ Mute the agent: it keeps listening and thinking, produces no audio.
 Lands in the log as: `call.line`.
 
 No fields.
+
+### `call.opt_out`
+
+The caller asked never to be called again: their number joins the org's do-not-call list. The gateway writes it, whichever process runs the call, as an opt-out of the org's world with the call's id beside it (`GET /v1/org/consents/{number}`); no call of the org reaches the number again until a consent is recorded at `POST /v1/org/consents`. Nothing lands in the log: an SDK that predates the command would refuse an entry it has no shape for. Refused with `no_session` when the call is not running here.
+
+Lands in the log as: nothing.
+
+| field | type | required | meaning |
+|---|---|---|---|
+| `note` | `string` | no | What the caller said, in their words, kept with the opt-out. |
 
 ### `call.transfer`
 

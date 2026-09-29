@@ -1,9 +1,9 @@
-# The line: hold, transfer, a person, a call back
+# The line: hold, transfer, a person, a call back, never again
 
-Six commands act on a call already running, and they are how an agent hands what it is doing to
+Seven commands act on a call already running, and they are how an agent hands what it is doing to
 somebody else. They travel down the app socket like every call-scoped command (`"call": "<id>"`,
-refused with `no_session` when that call is not running), and every one answers in the call's own
-log: the outcome is an entry, never a return value.
+refused with `no_session` when that call is not running), and every one but `call.opt_out`
+answers in the call's own log: the outcome is an entry, never a return value.
 
 | command | what happens |
 |---|---|
@@ -11,6 +11,7 @@ log: the outcome is an entry, never a return value.
 | `call.attention` | a person is wanted: the caller holds until a supervisor takes the line or `wait_s` runs out; `attention.requested`, then `attention.answered` |
 | `call.hold` · `call.unhold` | the caller waits with the hold melody and the agent goes mute and deaf, and back; `call.line` |
 | `call.dtmf` | touch tones down the caller's own leg, for an IVR on the far end: `0-9`, `*`, `#`, a comma for a pause |
+| `call.opt_out` | the caller asked never to be called again: the number joins the org's do-not-call list, with the call beside it; nothing lands in the log, so an SDK that predates it reads the call as before |
 | `call.callback` | the caller wants ringing back; `callback.requested` with `via: "agent"`, which `GET /v1/callbacks` lists beside the widget's and the overflow's |
 
 ## A transfer is two different things

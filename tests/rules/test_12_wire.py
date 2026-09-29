@@ -21,12 +21,13 @@ HANDLERS = (
 def matched_classes(path: Path) -> set[str]:
     """Return every class a `case Name()` arm or an `isinstance(x, Name)` of the module names."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
+    # `case A() | B():` is two arms in one.
     arms = {
-        node.pattern.cls.id
+        pattern.cls.id
         for node in ast.walk(tree)
         if isinstance(node, ast.match_case)
-        and isinstance(node.pattern, ast.MatchClass)
-        and isinstance(node.pattern.cls, ast.Name)
+        for pattern in _classes_in(node.pattern)
+        if isinstance(pattern.cls, ast.Name)
     }
     checks = {
         name
@@ -38,6 +39,14 @@ def matched_classes(path: Path) -> set[str]:
         for name in _names_in(node.args[1])
     }
     return arms | checks
+
+
+def _classes_in(pattern: ast.pattern) -> list[ast.MatchClass]:
+    if isinstance(pattern, ast.MatchClass):
+        return [pattern]
+    if isinstance(pattern, ast.MatchOr):
+        return [found for one_of in pattern.patterns for found in _classes_in(one_of)]
+    return []
 
 
 def _names_in(node: ast.expr) -> list[str]:

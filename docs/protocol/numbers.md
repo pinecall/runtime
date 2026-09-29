@@ -122,14 +122,17 @@ org's `dials` ledger, taken or refused:
 |---|---|---|
 | `to` is not E.164, has no country calling code, is a satellite or global-service range (`+870`, `+878`, `+881`, `+882`, `+883`, `+888`, `+979`), or has fewer than five national digits | `400` | a number somebody could answer |
 | the number never called or wrote to this org **in this world** | `403` | an operator's `dial_anywhere` |
+| the number is on the org's **do-not-call list** in this world (`do_not_call`): its newest fact is an opt-out — the caller asked the agent (`call.opt_out`), a person put it there, or the org imported it. A consent sent with the dial never lifts it | `403` | a consent recorded at `POST /v1/org/consents` |
+| no **consent** on file for a `+1` number (`no_consent`), nor one sent with the dial as `consent: {kind: express\|written, source, text?, evidence?}`; any country when the org's policy says `consent_everywhere` | `403` | the consent, recorded or sent |
 | outside the called number's hours in **every** zone it could be in (`quiet_hours`): for a `+1` number 8:00 to 21:00 local (the Telemarketing Sales Rule), narrowed by the org's `calling_hours` and never widened, and a `+1` number with no zone (toll-free) always; elsewhere the org's `calling_hours`, when it set some | `403` | the hour |
 | more dials this minute than `per_minute` (6), refusals counted | `429` | a wait |
 | more dials today than `per_day` (200) | `429` | a wait |
 | the number itself rung `per_number_day` times in 24 hours (`too_often`): 3 for a `+1` number unless the org sets its own, none elsewhere unless it does | `429` | a wait |
 
-The hours and the per-number count bind a call to somebody: the **sandbox** is held to neither, and
-neither is a number the person who asked verified as **their own phone** (`PUT /v1/line/from`) —
-that is them testing. The zones come from libphonenumber (`phonenumbers`); the org sets its hours
+The list, consent, the hours and the per-number count bind a call to somebody: the **sandbox** is
+held to none of them, and neither is a number the person who asked verified as **their own phone**
+(`PUT /v1/line/from`) — that is them testing. A consent sent with a dial is written down with the
+call's id before anything rings, so the next call to the number needs none. The zones come from libphonenumber (`phonenumbers`); the org sets its hours
 and count at `PUT /v1/org/policy` ([gateway-api.md](gateway-api.md) §7). The count and the row are one transaction under the org's lock: two dials at once cannot both take
 the last slot. A placed call runs at most `max_duration_s` (600), which the media plane enforces.
 A far end that is busy, declines or never answers ends the call `busy` or `no_answer`; anything
@@ -150,3 +153,23 @@ A SIP peer that calls the box from networks of its own needs the operator to add
 LiveKit keeps its trunks and rules in Redis, which can be emptied; the tables are the truth. At
 start the gateway admits every routed phone number again with its fence and its world's rule, one
 org's refusal logged and the others going on. It deletes nothing and never touches the carrier.
+
+
+## Consent and the do-not-call list
+
+Every fact about a number is a row, never changed: a consent given (`express` or `written`, where it
+came from, the words the person agreed to, a proof) or an opt-out, by whom and on which call. What
+stands is the newest row, so a person who opted out and later consented is called again, and the
+history of both is kept. An erasure of the contact leaves these rows: an opt-out has to outlive the
+person's data, or the next list the org imports calls them again.
+
+| door | scope | what |
+|---|---|---|
+| `POST /v1/org/consents {number, kind, source, text?, evidence?}` | talk | one fact written; what stands for the number after |
+| `GET /v1/org/consents/{number}` | calls | `{number, standing: consented\|opted_out\|unknown, rows}`, newest first |
+| `DELETE /v1/org/consents/{number}` | talk | the number put on the list: an opt-out written, the history kept |
+| `GET /v1/org/dnc?after=` | calls | the numbers whose newest fact is an opt-out, newest first, `next` for the page after |
+| `POST /v1/org/dnc {numbers, source}` | talk | the org's own list, or its scrub of the National Do Not Call Registry, onto the list at once: `{added, refused}` |
+
+The runtime does not query the National Registry: its subscription is the seller's by law. The org
+scrubs and imports what it found.

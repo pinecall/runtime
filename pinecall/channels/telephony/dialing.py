@@ -51,7 +51,7 @@ from pinecall.tenancy.carriers import (
 )
 from pinecall.tenancy.dial_policy import Dial, Guards, guard_dial, guard_second_leg, guards_of
 from pinecall.wire.events import CallEnded
-from pinecall.wire.rest.numbers import LegTrunk
+from pinecall.wire.rest.numbers import Consent, LegTrunk
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +160,7 @@ class Placement:
     at: datetime
     # The far end is the asker's own verified phone: a test, held to no caller's hours.
     own_phone: bool = False
+    consent: Consent | None = None
 
 
 @dataclass(frozen=True)
@@ -253,6 +254,7 @@ async def place_call(
         call,
         placement.at,
         own_phone=placement.own_phone,
+        consent=placement.consent,
     )
     guards = await guard_dial(connections.pool, dial)
     await admission.admit_call(connections.pool, scope.org, scope.env, running=running)

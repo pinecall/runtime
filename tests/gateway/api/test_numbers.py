@@ -216,3 +216,35 @@ async def test_the_worker_is_told_the_legs_trunk_inline_after_the_guards(
     assert trunk["hostname"].endswith(".pstn.twilio.com")
     assert (trunk["shown"], trunk["transport"]) == (A_NUMBER, "auto")
     assert bad.status_code == 400
+
+
+@postgres
+async def test_a_consent_is_recorded_read_back_and_an_opt_out_outranks_it(
+    knocking: Knocking,
+) -> None:
+    async with knocking.http(knocking.app["production"]) as http:
+        given = await http.post(
+            "/v1/org/consents",
+            json={"number": HER_PHONE, "kind": "express", "source": "the booking form"},
+        )
+        dropped = await http.delete(f"/v1/org/consents/{HER_PHONE}")
+        read = await http.get(f"/v1/org/consents/{HER_PHONE}")
+        listed = await http.get("/v1/org/dnc")
+    assert (given.status_code, given.json()["standing"]) == (200, "consented")
+    assert dropped.json()["standing"] == "opted_out"
+    assert [row["kind"] for row in read.json()["rows"]] == ["opt_out", "express"]
+    assert [opted["number"] for opted in listed.json()["numbers"]] == [HER_PHONE]
+
+
+@postgres
+async def test_a_list_is_imported_whole_and_a_line_that_is_no_number_is_said(
+    knocking: Knocking,
+) -> None:
+    async with knocking.http(knocking.app["production"]) as http:
+        imported = await http.post(
+            "/v1/org/dnc",
+            json={"numbers": [HER_PHONE, "+59899000002", "call me"], "source": "our own list"},
+        )
+        listed = await http.get("/v1/org/dnc")
+    assert imported.json() == {"added": 2, "refused": ["call me"]}
+    assert len(listed.json()["numbers"]) == 2

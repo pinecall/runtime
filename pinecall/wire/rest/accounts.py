@@ -482,6 +482,7 @@ class OrgPolicy(WireModel):
     retention_days: Annotated[int, Field(gt=0)] | None = None
     calling_hours: CallingHours | None = None
     per_number_day: Annotated[int, Field(gt=0)] | None = None
+    consent_everywhere: bool = False
 
 
 class OrgPolicyRow(WireModel):

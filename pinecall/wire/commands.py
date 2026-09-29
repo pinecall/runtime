@@ -29,6 +29,7 @@ PRODUCES: dict[str, tuple[str, ...]] = {
     "call.claim": ("call.claimed",),
     "call.dial": ("call.dialing",),
     "call.dtmf": (),
+    "call.opt_out": (),
     "call.event": ("event.received",),
     "call.hangup": ("call.ended",),
     "call.hold": ("call.line",),
@@ -167,6 +168,12 @@ class CallDial(WireModel):
     from_: str | None = Field(None, alias="from")
     caller: Contact | None = None
     metadata: JsonObject | None = None
+
+
+class CallOptOut(WireModel):
+    """The caller asked never to be called again: their number joins the org's do-not-call list."""
+
+    note: str | None = Field(default=None, max_length=500)
 
 
 class CallDtmf(WireModel):
@@ -309,6 +316,7 @@ COMMANDS: dict[str, type[WireModel]] = {
     "call.claim": CallClaim,
     "call.dial": CallDial,
     "call.dtmf": CallDtmf,
+    "call.opt_out": CallOptOut,
     "call.event": CallEvent,
     "call.hangup": CallHangup,
     "call.hold": CallHold,
