@@ -10,6 +10,7 @@ from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from pinecall.domain.errors import SettingsRefused
+from pinecall.domain.names import PRODUCTION, SANDBOX, Env
 
 # Checked in each directory up to the repository root; `runtime/.env` serves a process started
 # from the checkout root. When both exist the later wins.
@@ -59,10 +60,16 @@ class Settings(BaseModel):
         alias="PINECALL_EGRESS_URL",
         description="Where the box's recorder answers its health check.",
     )
+    # A box has a name per world: the request's Host says which world it is for.
     domain: str | None = Field(
         None,
         alias="PINECALL_DOMAIN",
-        description="The box's public name: where a carrier sends a call. Unset, nothing imports.",
+        description="Production's name: where the public and a carrier reach the box.",
+    )
+    sandbox_domain: str | None = Field(
+        None,
+        alias="PINECALL_SANDBOX_DOMAIN",
+        description="The sandbox's name, a second name of the same box. Unset, the box has one.",
     )
 
     # ── Postgres ──
@@ -280,6 +287,25 @@ class Settings(BaseModel):
         except (ZoneInfoNotFoundError, ValueError):
             raise ValueError(f"{zone!r} is not an IANA time zone (Europe/Madrid, UTC)") from None
         return zone
+
+    def world_named(self, host: str | None) -> Env | None:
+        """The world a request's Host names, or None where the box does not know the name."""
+        name = "" if host is None else host.partition(":")[0].lower()
+        if name and name == self.sandbox_domain:
+            return SANDBOX
+        if name and name == self.domain:
+            return PRODUCTION
+        return None
+
+    # A box of one name serves both worlds at it; the console there is production's.
+    def name_of(self, world: Env) -> str | None:
+        """The box's name for that world, or None where it has none."""
+        return (self.sandbox_domain or self.domain) if world == SANDBOX else self.domain
+
+    def livekit_url_for(self, world: Env) -> str:
+        """The LiveKit URL a browser in that world is told to join: its own name, else the box's."""
+        name = self.name_of(world)
+        return f"wss://{name}" if name else (self.livekit_public_url or self.livekit_url)
 
 
 def load() -> Settings:

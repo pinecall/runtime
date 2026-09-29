@@ -359,7 +359,7 @@ async def test_an_agent_answers_at_numbers_of_different_kinds_from_different_acc
             NumberImport(scope, "recepcion", "+59899000123", channel="whatsapp", hooked=True),
         )
         kind, owned = await numbers.owned_numbers(connections, scope)
-        await dialing.provision_outbound(connections, org, second.account_sid)
+        await dialing.provision_outbound(connections, org, scope.env, second.account_sid)
         await dial_policy.put_guards(pool, org, dial_policy.Guards(dial_anywhere=True))
         leg = await dialing.leg_trunk(
             connections, Dial(scope, "recepcion", HER_PHONE, "+15550100134", "m_ana", "call_x")

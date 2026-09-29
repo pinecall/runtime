@@ -80,8 +80,7 @@ async def _seated(gateway: Gateway, key: Acting, call: str, scope: RoomScope) ->
         raise Conflict(IS_OVER.format(call=call))
     seat = tokens.seat(gateway.signer, call, scope, key.bearer)
     return SeatResponse(
-        server_url=gateway.connections.settings.livekit_public_url
-        or gateway.connections.settings.livekit_url,
+        server_url=gateway.connections.settings.livekit_url_for(kept.scope.env),
         participant_token=seat.token,
         call=call,
         identity=seat.identity,

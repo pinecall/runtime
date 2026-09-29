@@ -5,7 +5,7 @@ from importlib.metadata import version
 from fastapi import APIRouter, Request, Response
 
 from pinecall.domain.errors import Conflict, DeclarationRefused, NotAllowed, NotFound, NotSignedIn
-from pinecall.domain.names import PRODUCTION
+from pinecall.domain.names import PRODUCTION, SANDBOX, Env
 from pinecall.domain.person import Member
 from pinecall.gateway._deps import (
     ActingDep,
@@ -74,9 +74,11 @@ FIRST_KEY = "invitation"
 
 
 @router.get("/.well-known/pinecall")
-async def gateway_info(gateway: GatewayDep) -> GatewayInfoResponse:
+async def gateway_info(request: Request, gateway: GatewayDep) -> GatewayInfoResponse:
     """What this gateway is and how it signs people in, before anybody holds a key."""
     connections = gateway.connections
+    world = connections.settings.world_named(request.headers.get("host"))
+    other = None if world is None else connections.settings.name_of(_other(world))
     box_mail = await mail.box_mail_of(
         connections.pool, connections.vault, gateway.outbox.environment
     )
@@ -88,6 +90,8 @@ async def gateway_info(gateway: GatewayDep) -> GatewayInfoResponse:
         mail=box_mail is not None,
         brand=BrandRow(name=brand.name, logo_url=brand.logo_url, accent=brand.accent),
         google=False,
+        world=world,
+        elsewhere=None if other is None else f"https://{other}",
     )
 
 
@@ -310,3 +314,7 @@ def _person_of(member: Member | None) -> Member:
     if member is None:
         raise NotAllowed(signin.NOT_A_PERSONS)
     return member
+
+
+def _other(world: Env) -> Env:
+    return SANDBOX if world == PRODUCTION else PRODUCTION

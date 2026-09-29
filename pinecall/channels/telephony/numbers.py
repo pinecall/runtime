@@ -267,8 +267,8 @@ async def _survey_import(connections: Connections, wanted: NumberImport) -> Surv
     number = parse_e164(wanted.number)
     if wanted.channel not in {"phone", "whatsapp"}:
         raise DeclarationRefused(NOT_A_PHONE.format(channel=wanted.channel))
-    domain = domain_of(connections)
     org, env = wanted.scope.org, wanted.scope.env
+    domain = domain_of(connections, env)
     route = Route(org=org, agent=wanted.agent, channel=wanted.channel, number=number, env=env)
     fleets = await worlds.fleets(connections.pool)
     carrier = (
@@ -293,13 +293,15 @@ async def _survey_import(connections: Connections, wanted: NumberImport) -> Surv
         and isinstance(carrier.account, TwilioAccount)
         and wanted.channel == "phone"
     ):
-        survey.at_twilio = await _at_twilio(connections, carrier.account, number, move=wanted.move)
+        survey.at_twilio = await _at_twilio(
+            connections, carrier.account, number, env, move=wanted.move
+        )
     return await _survey_sfu(connections, survey)
 
 
 async def _survey_purchase(connections: Connections, wanted: NumberPurchase) -> Survey:
-    domain = domain_of(connections)
     org, env = wanted.scope.org, wanted.scope.env
+    domain = domain_of(connections, env)
     boxs = await box_twilio(connections.pool, connections.vault)
     await admission.admit_number(
         connections.pool, org, env, bought=await routes.managed_in(connections.pool, org, env)
@@ -331,13 +333,13 @@ async def _survey_purchase(connections: Connections, wanted: NumberPurchase) -> 
 
 
 async def _at_twilio(
-    connections: Connections, account: TwilioAccount, number: str, *, move: bool
+    connections: Connections, account: TwilioAccount, number: str, world: Env, *, move: bool
 ) -> AtTwilio:
     twilio = twilio_of(connections.http, account)
     owned = await twilio.number(number)
     if owned is None:
         raise NotFound(NOT_ON_ACCOUNT.format(number=number, account=account.account_sid))
-    trunk = await twilio.trunk_pointing_at(origination_uri(domain_of(connections)))
+    trunk = await twilio.trunk_pointing_at(origination_uri(domain_of(connections, world)))
     elsewhere = owned.trunk_sid is not None and (trunk is None or owned.trunk_sid != trunk.sid)
     if elsewhere and owned.trunk_sid is not None and not move:
         where = await twilio.originations(owned.trunk_sid)

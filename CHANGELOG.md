@@ -134,4 +134,10 @@ The runtime written again from a blank page.
   priced by the longest prefix of its number (`CostRow.unit` takes `minutes`), and the tokens of
   the model that writes memory at hang-up. The box's prices ship as `infra/box/prices.csv`, the
   operator's to edit, applied with `pinecall-runtime providers prices`.
+- A name per world: `PINECALL_DOMAIN` is production's and `PINECALL_SANDBOX_DOMAIN` the sandbox's,
+  both one gateway. The name a request comes in by is its world: the console served at the
+  sandbox's name is the sandbox's (the page carries `pinecall-world` and `pinecall-elsewhere`),
+  `pinecall-env` may only agree, `/.well-known/pinecall` says `world` and `elsewhere`, a browser
+  joins LiveKit at its own name, and a number imported in a world points its carrier at that
+  world's name.
 

@@ -36,6 +36,8 @@ from pinecall.wire.rest.agents import ScopeHolder
 # The world a person's key acts in; a server's key is its own world whatever this says.
 WORLD = "pinecall-env"
 
+HOST = "host"
+
 
 # An admin, in the sandbox, looking into a colleague's scope.
 LOOKING_AT = "pinecall-corner"
@@ -238,9 +240,15 @@ def sees_every_scope(key: Acting) -> bool:
     return {THE_TEAM, HOLDING} <= key.bearer.key.scopes
 
 
-async def acting(connection: HTTPConnection, key: BearerDep) -> Acting:
+async def acting(connection: HTTPConnection, key: BearerDep, gateway: GatewayDep) -> Acting:
     """The key as it acts here: a server's key in its world, a person's in the world asked."""
-    return Acting(bearer=key, env=keys.world_of(key, connection.headers.get(WORLD)))
+    return Acting(bearer=key, env=world_of_request(connection, key, gateway))
+
+
+def world_of_request(connection: HTTPConnection, key: Bearer, gateway: Gateway) -> Env:
+    """The world a request is for: the name it came in by and the header it carries, agreeing."""
+    at = gateway.connections.settings.world_named(connection.headers.get(HOST))
+    return keys.world_of(key, connection.headers.get(WORLD), at=at)
 
 
 ActingDep = Annotated[Acting, Depends(acting)]
@@ -356,7 +364,7 @@ async def reader(
     verified = None if data == token else await keys.verify(gateway.connections.pool, data)
     if verified is None:
         raise NotSignedIn(READ_WITH_A_KEY)
-    key = Acting(bearer=verified, env=keys.world_of(verified, connection.headers.get(WORLD)))
+    key = Acting(bearer=verified, env=world_of_request(connection, verified, gateway))
     keys.check_opens(verified, "calls")
     return Reader(acting=key, scope=await scope(connection, key, gateway, named))
 
