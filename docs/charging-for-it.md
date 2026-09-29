@@ -43,9 +43,9 @@ says. What each quota counts and when it bites: [limits.md](limits.md).
 ## 3. What an org consumed — the usage feed
 
 `GET /v1/ops/usage?after=&org=&limit=`, or the same as a stream with `Accept: text/event-stream`:
-one row per `call.summary` and `call.score`, each `{cursor, org, agent, call, type, at, used:
-{calls, minutes, messages, input_tokens, output_tokens, characters, judge_calls, cost_usd}}`, and
-the totals per org. The cursor is the store's position: a consumer that keeps the last one resumes
+one row per `call.summary` and `call.score`, each `{cursor, org, agent, call, type, at, minutes,
+messages, input_tokens, output_tokens, characters, judge_calls, cost_usd}` (v1's shape, flat), and
+the totals per org, which count `calls` too. The cursor is the store's position: a consumer that keeps the last one resumes
 and counts nothing twice. `cost_usd` is what the vendors charged the operator, as the providers
 row's rates price it; what the operator charges is the layer's own business. An org reads its own
 rows at `GET /v1/usage`.

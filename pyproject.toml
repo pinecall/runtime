@@ -167,54 +167,54 @@ extend_exclude = ["tests/rules/fixtures"]
 # The wheel's build hook imports the build backend, which build-system.requires declares.
 per_rule_ignores = { DEP001 = ["hatchling"] }
 
-[tool.vibecheck]
+[tool.vibesmell]
 # Calling these is the effect a door exists for: its hops are counted up to them.
 sinks = ["log.logs:Log.append", "Twilio._get", "providers.build:installed"]
 # The folders from the bottom up, as the imports stand today: one may import only from those before it.
 layers = ["domain", "postgres", "wire", "process", "log", "fleet", "providers", "tenancy", "retrieval", "session", "channels", "evals", "worker", "gateway", "cli"]
 
-# Every skip below is a finding read and kept on purpose; vibecheck prints each why on every run.
-[[tool.vibecheck.skip]]
+# Every skip below is a finding read and kept on purpose; vibesmell prints each why on every run.
+[[tool.vibesmell.skip]]
 path = "pinecall/domain/call.py"
 checks = ["unread_field"]
 why = "the domain's Contact mirrors the wire's field by field, and tests/domain/test_names.py holds it so"
 
-[[tool.vibecheck.skip]]
+[[tool.vibesmell.skip]]
 path = "pinecall/tenancy/scopes.py"
 checks = ["clump"]
 why = "pool first, then whose: the shape of every tenancy module's functions, not an object waiting to be written"
 
-[[tool.vibecheck.skip]]
+[[tool.vibesmell.skip]]
 path = "pinecall/gateway/api/judges.py"
 checks = ["clump"]
 why = "pool, org, agent is the tenancy call every door family makes; one object here and not in the others reads worse"
 
-[[tool.vibecheck.skip]]
+[[tool.vibesmell.skip]]
 path = "pinecall/fleet/client.py"
 checks = ["clump"]
 why = "method, path, body and timeout are httpx.request's own arguments, handed to it"
 
-[[tool.vibecheck.skip]]
+[[tool.vibesmell.skip]]
 path = "pinecall/**"
 checks = ["scattered_api"]
 why = "psycopg's Jsonb is how a JSON column is written; a function of ours around it would be a pass-through (rule 2)"
 
-[[tool.vibecheck.skip]]
+[[tool.vibesmell.skip]]
 path = "pinecall/gateway/_deps.py"
 checks = ["hub"]
 why = "each request's dependencies: every door takes the few it needs, which is what the module is for"
 
-[[tool.vibecheck.skip]]
+[[tool.vibesmell.skip]]
 path = "pinecall/session/call.py"
 checks = ["hub"]
 why = "the Call every part of a session shares; each reads the part of it that is its own"
 
-[[tool.vibecheck.skip]]
+[[tool.vibesmell.skip]]
 path = "pinecall/channels/telephony/dialing.py"
 checks = ["tunnel"]
 why = "the world is what the door knows; the box's name is read where a Twilio trunk needs it, and a SIP peer never does"
 
-[[tool.vibecheck.skip]]
+[[tool.vibesmell.skip]]
 path = "pinecall/gateway/_gateway.py"
 checks = ["unstable_dependency"]
 why = "Gateway is the process's state: it holds each part, the WhatsApp threads among them"

@@ -17,6 +17,7 @@ class UsageTotals(WireModel):
     cost_usd: float
 
 
+# Flat, as v1 wrote it: a billing layer that reads the feed today reads it unchanged at the cutover.
 class UsageRow(WireModel):
     """One metered entry: whose it was, which call, what it consumed, and where the feed is."""
 
@@ -26,7 +27,13 @@ class UsageRow(WireModel):
     call: str
     type: str
     at: float
-    used: UsageTotals
+    minutes: float
+    messages: int
+    input_tokens: int
+    output_tokens: int
+    characters: int
+    judge_calls: int
+    cost_usd: float
 
 
 class UsagePage(WireModel):
