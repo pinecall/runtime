@@ -85,5 +85,8 @@ embeds every fact another model wrote under the box's embedder. `migrate up` app
 database lacks, `migrate status` says what it lacks (exit 1 while behind), `migrate plan` names
 every migration on the disk. `providers list [--does llm|stt|tts]` lists every vendor this build
 runs and whether the box holds its key; `providers seed <file>` writes the providers row a box
-starts from, once: after it, the console edits it at `/v1/ops/providers`. `doctor` asks each thing the box needs one question, a line
+starts from, once: after it, the console edits it at `/v1/ops/providers`. `providers prices
+<file.csv> [--apply]` says what a prices file changes in the row's rates (new, changed, the same,
+and the models only the box holds, which it keeps) and writes nothing until `--apply`; the box
+ships `infra/box/prices.csv`. `doctor` asks each thing the box needs one question, a line
 each, and exits 1 when one is missing; it is the last line of every deploy.

@@ -21,7 +21,7 @@ from pinecall.postgres.migrate import apply_migrations, migration_files, migrati
 from pinecall.postgres.pool import open_pool
 from pinecall.process.connections import opened, server_of, vault_of
 from pinecall.process.settings import Settings, load
-from pinecall.providers import catalog
+from pinecall.providers import catalog, prices
 from pinecall.providers.build import installed
 from pinecall.providers.catalog import Providers
 from pinecall.retrieval import memory
@@ -134,6 +134,26 @@ def providers_seed(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+# Shown by default: a file written by mistake replaces what the console set.
+def providers_prices(settings: Settings, args: argparse.Namespace) -> int:
+    """What a prices file changes in the box's rates, and with --apply, the rates written."""
+    written = prices.rates_from_csv(Path(args.file).read_text(encoding="utf-8"))
+    box = asyncio.run(_box_providers(settings))
+    change = prices.rates_changed(box.rates, written)
+    if args.apply:
+        rates = {**box.rates, **written}
+        asyncio.run(_configured(settings, box.model_copy(update={"rates": rates})))
+    for mark, models in (("+", change.added), ("~", change.changed)):
+        sys.stdout.writelines(f"{mark} {model}\n" for model in models)
+    sys.stdout.write(
+        f"{len(change.added)} new, {len(change.changed)} changed, {len(change.unchanged)} the "
+        f"same, {len(change.only_on_the_box)} only on the box and kept\n"
+    )
+    done = "written" if args.apply else "nothing written: --apply writes them"
+    sys.stdout.write(f"{done}\n")
+    return 0
+
+
 def memory_reembed(settings: Settings, _args: argparse.Namespace) -> int:
     """Every fact another model embedded, embedded again by the box's; how many there were."""
     count = asyncio.run(_reembedded(settings))
@@ -177,6 +197,10 @@ def verbs() -> argparse.ArgumentParser:
     seed = vendors.add_parser("seed", help="the providers row a box starts from, once")
     seed.add_argument("file", help="a JSON file of the row")
     seed.set_defaults(run=providers_seed)
+    pricing = vendors.add_parser("prices", help="the rates a prices file sets, shown or written")
+    pricing.add_argument("file", help="a CSV: vendor,model,unit,usd,as_of,source")
+    pricing.add_argument("--apply", action="store_true", help="write them into the box's row")
+    pricing.set_defaults(run=providers_prices)
     memory_verbs = under.add_parser("memory", help="contact memory").add_subparsers(required=True)
     memory_verbs.add_parser("reembed", help="every fact under the box's embedder").set_defaults(
         run=memory_reembed
@@ -209,6 +233,22 @@ async def _seeded(settings: Settings, seeded: Providers) -> None:
     pool = await open_pool(settings.database_url)
     try:
         await catalog.seed(pool, seeded)
+    finally:
+        await pool.close()
+
+
+async def _box_providers(settings: Settings) -> Providers:
+    pool = await open_pool(settings.database_url)
+    try:
+        return await catalog.providers(pool)
+    finally:
+        await pool.close()
+
+
+async def _configured(settings: Settings, edited: Providers) -> None:
+    pool = await open_pool(settings.database_url)
+    try:
+        await catalog.configure(pool, edited)
     finally:
         await pool.close()
 

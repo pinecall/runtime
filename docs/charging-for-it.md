@@ -50,6 +50,14 @@ and counts nothing twice. `cost_usd` is what the vendors charged the operator, a
 row's rates price it; what the operator charges is the layer's own business. An org reads its own
 rows at `GET /v1/usage`.
 
+The rates are the operator's, and a model without one is listed `unpriced` on the call, never
+priced at zero. The repository ships `infra/box/prices.csv`, one row per model and unit
+(`vendor,model,unit,usd,as_of,source`: tokens per million, characters and audio seconds each),
+taken from [voice-prices](https://github.com/mahimailabs/voice-prices) and checked against each
+vendor's page on the date its row says. They are list prices: a plan or a contract that pays less
+is an edit of the file, then `pinecall-runtime providers prices infra/box/prices.csv --apply`.
+Telephony minutes are not priced yet.
+
 ## 4. Where your orgs pay
 
 `PINECALL_BILLING_URL` is answered to every org in `GET /v1/limits`: the page where it buys more.
