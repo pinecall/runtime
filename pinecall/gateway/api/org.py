@@ -1,4 +1,4 @@
-"""The org's own settings: judging and its ceiling, its identity provider, and its mailbox."""
+"""The org's own: judging, identity provider, mailbox, policy, erasures, reads and export."""
 
 from collections.abc import AsyncIterator
 from typing import Annotated
@@ -187,10 +187,10 @@ async def erasures(key: TeamKey, gateway: GatewayDep) -> ErasureTrail:
 
 @router.get("/v1/org/reads")
 async def who_read(
-    key: TeamKey, gateway: GatewayDep, call: Annotated[str | None, Query()] = None
+    key: TeamKey, gateway: GatewayDep, subject: Annotated[str | None, Query()] = None
 ) -> ReadsResponse:
     """Who read the org's calls and recordings, newest first; of one call or number when named."""
-    rows = await reads.of_org(gateway.connections.pool, key.org, subject=call)
+    rows = await reads.of_org(gateway.connections.pool, key.org, subject=subject)
     return ReadsResponse(reads=rows)
 
 

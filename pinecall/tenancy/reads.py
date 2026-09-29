@@ -25,7 +25,7 @@ ORDER BY at DESC, id DESC
 LIMIT %(limit)s
 """
 
-# Who reads on the box's own behalf, off the box or in its console.
+# Who reads, or erases, on the box's own behalf: off the box, or through its own doors.
 OPERATOR = "operator"
 
 A_PAGE = 200

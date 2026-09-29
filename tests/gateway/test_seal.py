@@ -2,6 +2,7 @@
 
 import dataclasses
 from collections.abc import AsyncIterator
+from dataclasses import replace
 
 import httpx
 import pytest
@@ -19,14 +20,15 @@ from pinecall.providers import catalog
 from pinecall.providers.catalog import Embedding, Judge, Rate
 from pinecall.retrieval import memory
 from pinecall.retrieval.embed import Embedder
-from pinecall.tenancy import admission, judges, orgs
+from pinecall.tenancy import admission, consents, judges, orgs
+from pinecall.tenancy.consents import Given
 from pinecall.wire.events import CallScore
 from pinecall.wire.frames import Entry
 from pinecall.wire.metrics import LLMModelUsage
 from pinecall.wire.rest.calls import SealCallRequest
 from tests.conftest import configured, postgres
 from tests.fakes.embeddings import Embeddings
-from tests.gateway.conftest import AGENT, OURS, a_call
+from tests.gateway.conftest import AGENT, OURS, a_call, a_start
 
 # ── the summary and its cost ──
 
@@ -276,6 +278,52 @@ async def hung_up(embedding: Gateway, scope: Scope, config: AgentConfig) -> list
     )
     await sealed(embedding.serving, served, SealCallRequest(usage=[], outcome="noted"))
     return await embedding.logs.store.whole(context.call)
+
+
+STOPPED: tuple[tuple[str, JsonObject], ...] = (
+    ("turn.user", {"speech_id": "sp_1", "text": "Please stop calling me.", "metrics": {}}),
+    (
+        "turn.agent",
+        {"speech_id": "sp_1", "text": "Understood.", "interrupted": False, "metrics": {}},
+    ),
+)
+
+OPENING = "This is an automated assistant calling on behalf of Lawful."
+
+NAMED: tuple[str, JsonObject] = (
+    "turn.agent",
+    {"speech_id": "sp_0", "text": OPENING, "interrupted": False, "metrics": {}},
+)
+
+
+@postgres
+async def test_the_seal_judges_compliance_from_the_orgs_own_facts(wired: Gateway) -> None:
+    pool = wired.connections.pool
+    org = await orgs.create(pool, "org-lawful", "Lawful")
+    where = Scope(org.id, "sandbox")
+    outbound = replace(a_call(where, channel="phone"), direction="outbound")
+    whole = await sealed_call(wired, outbound, ("call.started", a_start(outbound)), NAMED, *GREETED)
+    score = CallScore.model_validate(whole[-1].data)
+    verdicts = {judgment.name: judgment.verdict for judgment in score.judges}
+    assert (verdicts["identified"], verdicts["disclosed"]) == ("held", "held")
+
+    listed = a_call(where, channel="phone")
+    await consents.give(
+        pool,
+        where,
+        listed.caller,
+        Given("opt_out", "the caller asked", "agent:x", call=listed.call),
+    )
+    honoured = await sealed_call(wired, listed, *STOPPED)
+    ignored = await sealed_call(wired, a_call(where), *STOPPED)
+    assert stop_verdict(honoured) == "held"
+    assert stop_verdict(ignored) == "broken"
+
+
+def stop_verdict(whole: list[Entry]) -> str:
+    """What honoured_stop said of the sealed call."""
+    score = CallScore.model_validate(whole[-1].data)
+    return next(judgment.verdict for judgment in score.judges if judgment.name == "honoured_stop")
 
 
 @postgres

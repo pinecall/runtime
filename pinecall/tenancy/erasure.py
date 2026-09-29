@@ -8,7 +8,7 @@ from pathlib import Path
 from psycopg import AsyncConnection
 from psycopg.rows import DictRow
 
-from pinecall.domain.errors import StoreUnreachable
+from pinecall.domain.errors import Conflict, StoreUnreachable
 from pinecall.domain.names import Env
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
@@ -18,7 +18,8 @@ from pinecall.wire.rest.calls import Erasure, ErasureSubject
 ERASING = "SET LOCAL pinecall.erasing = 'on'"
 
 CALLS_OF_CONTACT = """
-SELECT head.call FROM call_log_head head JOIN call_facts facts ON facts.call = head.call
+SELECT head.call, head.sealed
+FROM call_log_head head JOIN call_facts facts ON facts.call = head.call
 WHERE head.org = %(org)s AND head.env = %(env)s AND facts.contact = %(contact)s
 """
 
@@ -59,12 +60,14 @@ WITH kept AS (
 SELECT count(*) AS memories FROM kept
 """
 
-# What has no foreign key to the org: its agents' eval runs and hold melodies, and what each reader
-# read of a thread. Then the org, and the quotas, keys, carriers, settings and memories cascade.
+# What has no foreign key to the org: its agents' eval runs and hold melodies, what each reader
+# read of a thread, and its keys, revoked ones included. Then the org, and the quotas, carriers,
+# settings and memories cascade.
 ERASE_ORG = """
 WITH runs AS (DELETE FROM eval_runs WHERE agent = ANY(%(agents)s)),
      melodies AS (DELETE FROM hold_audio WHERE org = %(org)s),
-     reads AS (DELETE FROM thread_reads WHERE org = %(org)s)
+     reads AS (DELETE FROM thread_reads WHERE org = %(org)s),
+     keys AS (DELETE FROM api_keys WHERE org = %(org)s)
 DELETE FROM orgs WHERE id = %(org)s
 """
 
@@ -81,6 +84,8 @@ FROM erasures WHERE org = %(org)s ORDER BY at DESC, id DESC LIMIT %(limit)s
 """
 
 NO_TRAIL = "the erasure of {subject} was not written down, so it was undone"
+
+STILL_ON_A_CALL = "{contact} is on call {call} right now: erase them once it has ended"
 
 
 @dataclass(frozen=True)
@@ -122,6 +127,9 @@ async def contact(
     async with pool.connection() as connection, connection.transaction():
         await connection.execute(ERASING)
         rows = await (await connection.execute(CALLS_OF_CONTACT, params)).fetchall()
+        live = next((str(row["call"]) for row in rows if not row["sealed"]), None)
+        if live is not None:
+            raise Conflict(STILL_ON_A_CALL.format(contact=contact_id, call=live))
         calls = [str(row["call"]) for row in rows]
         entries, taught = await _logs(connection, calls, calls)
         kept = await (await connection.execute(ERASE_CONTACT, params)).fetchone()

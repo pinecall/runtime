@@ -11,9 +11,12 @@ from pinecall.cli._sessions import sessions_list, sessions_recording, sessions_s
 from pinecall.domain.errors import NotFound
 from pinecall.domain.names import JsonObject
 from pinecall.log.store import Store
-from pinecall.postgres.pool import open_pool
+from pinecall.postgres.pool import Pool, open_pool
 from pinecall.process.settings import Settings
+from pinecall.tenancy import reads
 from tests.conftest import DSN, postgres
+from tests.log.conftest import logged_call
+from tests.tenancy.conftest import an_org
 
 AGENT = "agenda"
 
@@ -62,3 +65,30 @@ async def test_a_call_is_listed_shown_whole_and_folded(
     nobody = argparse.Namespace(call="CA_nobody", as_json=False)
     with pytest.raises(NotFound, match="no call"):
         await asyncio.to_thread(sessions_show, settings, nobody)
+
+
+@postgres
+async def test_the_operators_read_of_an_orgs_call_is_in_its_access_log(
+    pool: Pool,
+    store: Store,
+    schema: str,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    org = await an_org(pool)
+    call = await logged_call(store, org.id)
+    monkeypatch.setattr(_sessions, "open_pool", partial(open_pool, schema=schema))
+    settings = Settings.model_validate({"DATABASE_URL": DSN})
+    assert (
+        await asyncio.to_thread(
+            sessions_show, settings, argparse.Namespace(call=call, as_json=False)
+        )
+        == 0
+    )
+    assert await asyncio.to_thread(sessions_recording, settings, argparse.Namespace(call=call)) == 1
+    capsys.readouterr()
+    rows = await reads.of_org(pool, org.id)
+    assert sorted((row.what, row.reader) for row in rows) == [
+        ("log", reads.OPERATOR),
+        ("recording", reads.OPERATOR),
+    ]

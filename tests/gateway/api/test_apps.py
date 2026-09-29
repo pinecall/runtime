@@ -240,4 +240,11 @@ async def test_an_opt_out_puts_the_calls_number_on_the_list_and_lands_nothing_in
     assert "call.opt_out" not in kinds
     await sent(app, "call.opt_out", {}, call="call_gone")
     assert (await received(app)).data["code"] == "no_session"
+    typed = a_call(knocking, channel="web")
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=typed).written())
+    await sent(app, "call.opt_out", {}, call=typed.call)
+    refused = await received_until(app, "error")
+    assert refused.data["code"] == "bad_shape"
+    assert "no phone number" in str(refused.data["message"])
     await app.close()

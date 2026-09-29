@@ -97,8 +97,9 @@ rows the org sets at `/v1/provider-keys` ([provider-keys.md](provider-keys.md)).
 `{number, since, calls, dials}`. `calls` is every phone call with the number, oldest first, as
 `{call, org, env, direction, from_number, to_number, started_at, ended_at, end_reason, erased}`:
 a call still kept, from its facts, or an erased one, from the detail record its erasure left
-(`erased: true`; the nightly run forgets it 24 months after the call started). `dials` is every
-dial to the number, placed or refused: `{org, env, agent, call, shown, asked_by, refused, at}`.
+(`erased: true`; the nightly run forgets it 24 months on). `dials` is every
+dial to the number, placed or refused, forgotten by the same run after 24 months:
+`{org, env, agent, call, shown, asked_by, refused, at}`.
 `since` defaults to 24 months back. The terminal's twin is `pinecall-runtime traceback`.
 
 ## Routes

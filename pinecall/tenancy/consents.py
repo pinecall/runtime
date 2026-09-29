@@ -32,17 +32,15 @@ WHERE org = %(org)s AND env = %(env)s AND number = %(number)s
 ORDER BY given_at DESC, id DESC LIMIT 1
 """
 
-# The numbers whose newest row is an opt-out, newest first, after a cursor of "<epoch>:<number>".
+# The numbers whose newest row is an opt-out, newest row first, after the row id a page ended on.
 OPTED_OUT = """
-SELECT number, given_at, source, given_by FROM (
+SELECT id, number, given_at, source, given_by FROM (
     SELECT DISTINCT ON (number) number, kind, given_at, source, given_by, id
     FROM contact_consents WHERE org = %(org)s AND env = %(env)s
     ORDER BY number, given_at DESC, id DESC
 ) newest
-WHERE kind = 'opt_out'
-  AND (%(after_at)s::float8 IS NULL
-       OR (extract(epoch FROM given_at), number) < (%(after_at)s, %(after_number)s))
-ORDER BY given_at DESC, number DESC
+WHERE kind = 'opt_out' AND (%(after)s::bigint IS NULL OR id < %(after)s)
+ORDER BY id DESC
 LIMIT %(limit)s
 """
 
@@ -50,7 +48,7 @@ OPTED_OUT_ON = """
 SELECT EXISTS (SELECT 1 FROM contact_consents WHERE call = %(call)s AND kind = 'opt_out') AS opted
 """
 
-NOT_A_CURSOR = "{after} is no cursor of this list: it is <epoch>:<number>, as the last page said"
+NOT_A_CURSOR = "{after} is no cursor of this list: the last page said it"
 
 A_PAGE = 200
 
@@ -100,14 +98,7 @@ async def do_not_call(
     pool: Pool, scope: Scope, *, after: str | None = None, limit: int = A_PAGE
 ) -> DoNotCall:
     """The world's do-not-call list, newest first, a page after the cursor."""
-    after_at, after_number = _cursor(after)
-    params = {
-        "org": scope.org,
-        "env": scope.env,
-        "after_at": after_at,
-        "after_number": after_number,
-        "limit": limit,
-    }
+    params = {"org": scope.org, "env": scope.env, "after": _cursor(after), "limit": limit}
     async with pool.connection() as connection:
         rows = await (await connection.execute(OPTED_OUT, params)).fetchall()
     numbers = [
@@ -119,8 +110,8 @@ async def do_not_call(
         )
         for row in rows
     ]
-    last = numbers[-1] if len(numbers) == limit else None
-    return DoNotCall(numbers=numbers, next=None if last is None else f"{last.since}:{last.number}")
+    last = rows[-1] if len(rows) == limit else None
+    return DoNotCall(numbers=numbers, next=None if last is None else str(last["id"]))
 
 
 async def opted_out_on(pool: Pool, call: str) -> bool:
@@ -167,11 +158,10 @@ def _epoch(at: datetime) -> float:
     return at.timestamp()
 
 
-def _cursor(after: str | None) -> tuple[float | None, str]:
+def _cursor(after: str | None) -> int | None:
     if after is None:
-        return None, ""
-    at, _, number = after.partition(":")
+        return None
     try:
-        return float(at), number
+        return int(after)
     except ValueError:
         raise DeclarationRefused(NOT_A_CURSOR.format(after=after)) from None

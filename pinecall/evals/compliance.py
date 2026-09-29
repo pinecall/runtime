@@ -26,8 +26,16 @@ SAID_BY_TURN = 2
 # A phone's keyboard types a curly apostrophe; the phrases are written with a straight one.
 CURLY_APOSTROPHE = "\u2019"
 
-# Lowercase; matched inside a turn's words. English and Spanish, the languages agents run in today.
+# Lowercase, whole words inside a turn. First what the platform's own sentence says in every
+# language it speaks (tenancy/disclosure.py; tests/evals/test_compliance.py holds the two
+# together), then what an agent's own greeting says in English and Spanish.
 AUTOMATED = (
+    "automated assistant",
+    "asistente automático",
+    "assistente automático",
+    "assistant automatique",
+    "automatischer assistent",
+    "assistente automatico",
     "automated",
     "virtual assistant",
     "ai assistant",

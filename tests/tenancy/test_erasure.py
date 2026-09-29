@@ -5,11 +5,12 @@ from pathlib import Path
 import pytest
 from psycopg import errors
 
+from pinecall.domain.person import KEY_SCOPES
 from pinecall.domain.scope import Scope
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy import erasure
-from tests.conftest import postgres
+from tests.conftest import issued, postgres
 from tests.log.conftest import AGENT, ACall, logged_call
 from tests.tenancy.conftest import an_org
 
@@ -150,6 +151,7 @@ async def test_an_org_erased_takes_every_log_and_its_row_and_its_trail_outlives_
     await store.append(None, AGENT, "agent.registered", {"routes": [], "app": "a"}, ephemeral=False)
     await store.claim(None, AGENT, org.id)
     recording = a_recording(tmp_path, call)
+    await issued(pool, org.id, "production", KEY_SCOPES)
 
     async with pool.connection() as connection:
         await connection.execute(A_RUN, (AGENT,))
@@ -173,6 +175,18 @@ async def test_an_org_erased_takes_every_log_and_its_row_and_its_trail_outlives_
         reads = await (
             await connection.execute("SELECT count(*) AS n FROM thread_reads")
         ).fetchone()
+        keys = await (
+            await connection.execute("SELECT count(*) AS n FROM api_keys WHERE org = %s", (org.id,))
+        ).fetchone()
+        records = await (
+            await connection.execute(
+                "SELECT org, env, from_number FROM call_records WHERE call = %s", (call,)
+            )
+        ).fetchone()
+    assert keys is not None
+    assert keys["n"] == 0
+    assert records is not None
+    assert (records["org"], records["env"], records["from_number"]) == (org.id, "production", ANA)
     assert runs is not None
     assert runs["n"] == 0
     assert reads is not None
