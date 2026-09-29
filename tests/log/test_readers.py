@@ -19,10 +19,10 @@ from pinecall.log.readers import (
     project_state,
 )
 from pinecall.log.reduce import reduce
-from pinecall.wire.frames import Entry, read_log
-from tests.wire.golden import GOLDEN_LOG
+from pinecall.wire.frames import Entry
+from tests.wire.golden import golden_entries
 
-GOLDEN = read_log(GOLDEN_LOG.read_text(encoding="utf-8"))
+GOLDEN = golden_entries()
 STATE = reduce(GOLDEN)
 DECLARED = AgentConfig(
     "clinica-norte",

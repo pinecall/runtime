@@ -404,10 +404,10 @@ async def attach(live: ServedCalls, store: Store, call: str, app: SocketId) -> E
 
 async def parked_calls_of(
     live: ServedCalls, store: Store, scope: Scope, slug: str, app: SocketId
-) -> list[str]:
+) -> None:
     """Give every parked call of the agent in the scope to this socket."""
-    parked = live.parked(scope, slug)
-    return [call for call in parked if await attach(live, store, call, app) is not None]
+    for call in live.parked(scope, slug):
+        await attach(live, store, call, app)
 
 
 # Each call of a leaving socket goes where a new call would, or waits parked.
@@ -449,7 +449,7 @@ async def sealed(
     # The memory model's tokens are the call's: they are billed with it.
     if written is not None and written.usage is not None:
         sealing = sealing.model_copy(update={"usage": [*sealing.usage, written.usage]})
-    await summed_up(serving.connections.pool, serving.logs.store, served.log, sealing)
+    await _summed_up(serving.connections.pool, serving.logs.store, served.log, sealing)
     if lent:
         await facts.lent(serving.connections.pool, served.call, lent)
     if served.context.run is not None:
@@ -463,24 +463,6 @@ async def sealed(
     await served.log.append("call.score", score.written())
     serving.logs.forget(served.call)
     serving.live.close(served.call)
-
-
-async def summed_up(pool: Pool, store: Store, log: Log, sealing: SealCallRequest) -> None:
-    """call.summary: how the call ended, what it used, what that cost."""
-    entries = await store.whole(log.name)
-    ended = next((entry for entry in reversed(entries) if entry.type == "call.ended"), None)
-    over = None if ended is None else CallEnded.model_validate(ended.data)
-    state = reduce(entries)
-    summary = CallSummary(
-        reason="error" if over is None else over.reason,
-        outcome=sealing.outcome,
-        duration_s=0.0 if over is None else over.duration_s,
-        turns=sum(1 for turn in state.turns if isinstance(turn, AgentTurn)),
-        usage=sealing.usage,
-        cost=prices.cost(sealing.usage, await catalog.providers(pool), legs=phone_legs(entries)),
-        recording=sealing.recording,
-    )
-    await log.append("call.summary", summary.written())
 
 
 # A killed job writes no call.ended, and nothing else would close its log.
@@ -583,7 +565,7 @@ async def _finished(serving: Serving, orphan: queries.Unsealed, reason: EndReaso
             )
             await log.append("call.ended", ended.written())
         if "call.summary" not in written_types:
-            await summed_up(
+            await _summed_up(
                 serving.connections.pool,
                 store,
                 log,
@@ -598,3 +580,21 @@ async def _finished(serving: Serving, orphan: queries.Unsealed, reason: EndReaso
         serving.logs.forget(orphan.call)
     serving.live.close(orphan.call)
     return True
+
+
+async def _summed_up(pool: Pool, store: Store, log: Log, sealing: SealCallRequest) -> None:
+    """call.summary: how the call ended, what it used, what that cost."""
+    entries = await store.whole(log.name)
+    ended = next((entry for entry in reversed(entries) if entry.type == "call.ended"), None)
+    over = None if ended is None else CallEnded.model_validate(ended.data)
+    state = reduce(entries)
+    summary = CallSummary(
+        reason="error" if over is None else over.reason,
+        outcome=sealing.outcome,
+        duration_s=0.0 if over is None else over.duration_s,
+        turns=sum(1 for turn in state.turns if isinstance(turn, AgentTurn)),
+        usage=sealing.usage,
+        cost=prices.cost(sealing.usage, await catalog.providers(pool), legs=phone_legs(entries)),
+        recording=sealing.recording,
+    )
+    await log.append("call.summary", summary.written())

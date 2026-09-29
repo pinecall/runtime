@@ -21,11 +21,11 @@ from pinecall.log.reduce import (
     usage_row,
 )
 from pinecall.wire.events import EVENTS
-from pinecall.wire.frames import Entry, read_log
+from pinecall.wire.frames import Entry
 from pinecall.wire.state import AgentTurn, Gap, State, UserTurn
-from tests.wire.golden import GOLDEN_LOG, GOLDEN_STATE
+from tests.wire.golden import GOLDEN_STATE, golden_entries
 
-GOLDEN = read_log(GOLDEN_LOG.read_text(encoding="utf-8"))
+GOLDEN = golden_entries()
 EXPECTED = json.loads(GOLDEN_STATE.read_text(encoding="utf-8"))
 
 CALL = "CA_7d1e"

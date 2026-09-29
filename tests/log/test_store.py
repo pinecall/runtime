@@ -24,9 +24,9 @@ from pinecall.log.store import (
     log_name,
 )
 from pinecall.postgres.pool import Pool, connect
-from pinecall.wire.frames import Entry, read_log
+from pinecall.wire.frames import Entry
 from tests.conftest import DSN, postgres
-from tests.wire.golden import GOLDEN_LOG, GOLDEN_STATE
+from tests.wire.golden import GOLDEN_STATE, golden_entries
 
 pytestmark = postgres
 
@@ -193,28 +193,17 @@ async def test_the_agents_own_log_has_a_seq_of_its_own(store: Store, call: str) 
     assert [entry.seq for entry in await store.since(log_name(None, AGENT), after=1)] == [2]
 
 
-async def test_list_calls_names_every_call_the_agent_handled_oldest_first(
-    store: Store, call: str
-) -> None:
-    second = f"{call}-b"
-    for item in (call, second, call):
-        await store.append(item, AGENT, "custom", {}, ephemeral=False)
-    await store.append(f"{call}-other", f"{AGENT}-other", "custom", {}, ephemeral=False)
-    assert await store.list_calls(AGENT) == [call, second]
-    assert await store.list_calls(f"{AGENT}-nobody") == []
-
-
 # ── owners ──
 
 
 async def test_a_log_is_the_first_orgs_that_claims_it_and_never_moves(
     store: Store, call: str
 ) -> None:
-    assert await store.owner(call, AGENT) is None
+    assert await store.claimant(call, AGENT) is None
     await store.claim(call, AGENT, "clinica")
     await store.claim(call, AGENT, "tienda")
     await store.append(call, AGENT, "call.started", {}, ephemeral=False)
-    assert await store.owner(call, AGENT) == "clinica"
+    assert await store.claimant(call, AGENT) == Claimant("clinica", None)
 
 
 async def test_a_claim_may_come_before_the_first_entry_and_carries_the_corner(
@@ -236,8 +225,8 @@ async def test_a_claim_may_come_before_the_first_entry_and_carries_the_corner(
 
 async def test_the_agents_own_log_has_an_owner_of_its_own(store: Store, call: str) -> None:
     await store.claim(None, AGENT, "clinica")
-    assert await store.owner(None, AGENT) == "clinica"
-    assert await store.owner(call, AGENT) is None
+    assert await store.owner(AGENT) == "clinica"
+    assert await store.claimant(call, AGENT) is None
 
 
 async def test_a_logs_claimant_is_its_org_and_world_and_an_agents_log_has_no_world(
@@ -256,7 +245,8 @@ async def test_the_operator_moves_every_log_of_an_agent_to_another_org(
     await store.claim(call, AGENT, "wrong")
     await store.claim(None, AGENT, "wrong")
     assert await store.moved(AGENT, "right") == 2
-    assert await store.owner(call, AGENT) == "right"
+    assert await store.owner(AGENT) == "right"
+    assert await store.claimant(call, AGENT) == Claimant("right", None)
     assert await store.moved(f"{AGENT}-nobody", "right") == 0
 
 
@@ -316,7 +306,7 @@ async def test_the_table_refuses_an_update_and_a_delete(
 async def test_the_golden_log_replays_to_the_same_state_through_postgres(
     pool: Pool, call: str
 ) -> None:
-    golden = read_log(GOLDEN_LOG.read_text(encoding="utf-8"))
+    golden = golden_entries()
     ticks = iter(entry.ts for entry in golden)
     store = Store(pool, clock=lambda: next(ticks))
     for entry in golden:

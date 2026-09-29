@@ -142,6 +142,7 @@ class AcmeSTT(stt.STT[Never]):
         language: str | None = None,
         language_hints: list[str] | None = None,
         eot_threshold: float | None = None,
+        eot_timeout_ms: int | None = None,
         params: AcmeOptions | None = None,
         keyterms: bool = False,
     ) -> None:
@@ -157,6 +158,7 @@ class AcmeSTT(stt.STT[Never]):
             "language": language,
             "language_hints": language_hints,
             "eot_threshold": eot_threshold,
+            "eot_timeout_ms": eot_timeout_ms,
             "params": params,
         }
 

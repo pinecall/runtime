@@ -160,7 +160,7 @@ async def put_fleets(body: Fleets, gateway: GatewayDep) -> Fleets:
 @router.get("/v1/ops/mail")
 async def get_box_mail(gateway: GatewayDep) -> BoxMailResponse:
     """The mailbox the box posts through, where it came from, and how its last letter went."""
-    return box_mail_row(await _box_mail(gateway))
+    return _box_mail_row(await _box_mail(gateway))
 
 
 # Sends nothing: the test door does, and a person watches it.
@@ -169,7 +169,7 @@ async def put_box_mail(body: OrgMailRequest, gateway: GatewayDep) -> BoxMailResp
     """The box's mailbox, stored over the environment's; its letters go through it next."""
     connections = gateway.connections
     await mail.put_box_mail(connections.pool, connections.vault, mailbox_of(body))
-    return box_mail_row(await _box_mail(gateway))
+    return _box_mail_row(await _box_mail(gateway))
 
 
 @router.delete("/v1/ops/mail", status_code=204)
@@ -224,7 +224,7 @@ async def drop_google_signin() -> None:
 @router.get("/v1/ops/brand")
 async def get_brand(gateway: GatewayDep) -> BrandRow:
     """What the box's letters and sign-in page are called and painted with."""
-    return brand_row(await letters.brand_of(gateway.connections.pool))
+    return _brand_row(await letters.brand_of(gateway.connections.pool))
 
 
 @router.put("/v1/ops/brand")
@@ -235,7 +235,7 @@ async def put_brand(body: PutBrandRequest, gateway: GatewayDep) -> BrandRow:
         await letters.brand_of(pool), name=body.name, logo_url=body.logo_url, accent=body.accent
     )
     await letters.put_brand(pool, brand)
-    return brand_row(brand)
+    return _brand_row(brand)
 
 
 # ── every org's floor, and every org's meter ──
@@ -281,7 +281,9 @@ async def list_box_routes(
 ) -> list[RouteRow]:
     """Every number the org answers at in the world, oldest first."""
     found = await _org_id(gateway, org)
-    return [route_row(route) for route in await routes.of_org(gateway.connections.pool, found, env)]
+    return [
+        _route_row(route) for route in await routes.of_org(gateway.connections.pool, found, env)
+    ]
 
 
 # One row per number per org: a number added again moves.
@@ -296,7 +298,7 @@ async def add_box_route(body: RouteRequest, gateway: GatewayDep) -> RouteRow:
         env=body.env,
     )
     await routes.put(gateway.connections.pool, route, account=None)
-    return route_row(route)
+    return _route_row(route)
 
 
 @router.delete("/v1/ops/routes/{number}", status_code=204)
@@ -343,7 +345,7 @@ async def uncordon_worker(
         raise NotFound(NO_SUCH_WORKER.format(worker=worker))
 
 
-def box_mail_row(kept: MailboxStatus | None) -> BoxMailResponse:
+def _box_mail_row(kept: MailboxStatus | None) -> BoxMailResponse:
     """The box's mailbox as the doors send it; the password never."""
     return BoxMailResponse.model_validate(
         {
@@ -362,12 +364,12 @@ def box_mail_row(kept: MailboxStatus | None) -> BoxMailResponse:
     )
 
 
-def brand_row(brand: letters.Brand) -> BrandRow:
+def _brand_row(brand: letters.Brand) -> BrandRow:
     """The brand as the doors send it."""
     return BrandRow(name=brand.name, logo_url=brand.logo_url, accent=brand.accent)
 
 
-def route_row(route: Route) -> RouteRow:
+def _route_row(route: Route) -> RouteRow:
     """A route as the operator lists it."""
     return RouteRow(
         org=route.org,

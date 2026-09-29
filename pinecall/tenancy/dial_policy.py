@@ -175,7 +175,7 @@ async def guard_dial(pool: Pool, dial: Dial) -> Guards:
 
 
 # A transfer target need not have called: the stranger fence stays off, the pace caps a loop.
-async def guard_second_leg(pool: Pool, dial: Dial) -> Guards:
+async def guard_second_leg(pool: Pool, dial: Dial) -> None:
     """The shape and the pace on a leg dialled into a live call; the call's own first leg passes."""
     async with pool.connection() as connection:
         placed = await (
@@ -183,12 +183,10 @@ async def guard_second_leg(pool: Pool, dial: Dial) -> Guards:
                 PLACED, {"org": dial.scope.org, "call": dial.call, "dialled": dial.to}
             )
         ).fetchone()
-    guards = await guards_of(pool, dial.scope.org)
     if placed is not None:
-        return guards
+        return
     await _shaped(pool, dial)
-    await _paced(pool, dial, guards)
-    return guards
+    await _paced(pool, dial, await guards_of(pool, dial.scope.org))
 
 
 async def _shaped(pool: Pool, dial: Dial) -> str:

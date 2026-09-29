@@ -41,7 +41,7 @@ class CallAgent(Agent):
         self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage
     ) -> None:
         """Collect this turn's lookups and write the ones that did not run."""
-        for skipped in await self.lookups.turn_ended(new_message.text_content or "", None):
+        for skipped in await self.lookups.turn_ended(new_message.text_content or ""):
             self.call.writing.write("error", skipped)
 
     # Lookups and dynamic blocks go into this request only, so the cached prefix (instructions

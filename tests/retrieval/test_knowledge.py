@@ -766,7 +766,6 @@ async def test_a_question_the_base_answers_is_strong_evidence_and_one_it_does_no
         pool, embedder, at(org), SearchQuery(query="zzz qqq", k=8, bases={THE_BASE: 0.0})
     )
     assert answered.evidence == "strong"
-    assert unanswered.top_cosine < 0.30
     assert unanswered.evidence == "none"
     assert unanswered.model == FLAT.model
 

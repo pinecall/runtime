@@ -7,7 +7,6 @@ from typing import Literal
 
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import AN_ADDRESS, PRODUCTION, Env
-from pinecall.domain.scope import THE_ORGS_OWN
 
 # Every gateway door belongs to exactly one scope; `fleet` is the box's worker, resolved per call
 # instead of per key org, and only `keys issue --scope fleet` grants it.
@@ -187,11 +186,6 @@ def key_scopes(words: Iterable[str]) -> frozenset[KeyScope]:
             )
         scopes.add(word)
     return frozenset(scopes)
-
-
-def owner_of(holder: str | None) -> str:
-    """Return the holder column value; None is the org's own."""
-    return THE_ORGS_OWN if holder is None else holder
 
 
 def parse_role(word: str) -> Role:

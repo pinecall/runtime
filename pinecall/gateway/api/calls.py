@@ -318,7 +318,7 @@ async def stream_agent_events(
     """An agent's own log: its registrations, its declarations, its errors. It never ends."""
     if reading.acting is None:
         raise NotAllowed(_deps.NOT_YOURS)
-    owner = await gateway.logs.store.owner(None, slug)
+    owner = await gateway.logs.store.owner(slug)
     if owner is not None and owner != reading.acting.org and not _deps.is_the_fleet(reading):
         raise NotFound(NO_AGENT.format(slug=slug))
     config = gateway.sockets.declared(slug)

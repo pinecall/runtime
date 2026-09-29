@@ -24,7 +24,7 @@ from pinecall.session.session import LOCAL_TURN_VERSION, ONE_ANSWER_PER_TOOL, Se
 from pinecall.session.tools import VOICE_LOOKUP_MS
 
 
-def voice_session(call: Call, stages: Pipeline, *, lookup_ms: int = VOICE_LOOKUP_MS) -> Session:
+def voice_session(call: Call, stages: Pipeline) -> Session:
     """A voice call: the three stages built for it, the turn taken as a phone line needs."""
     thinking, ears, voice = (
         llm_of(stages.llm),
@@ -35,24 +35,16 @@ def voice_session(call: Call, stages: Pipeline, *, lookup_ms: int = VOICE_LOOKUP
         llm=thinking,
         stt=ears,
         tts=voice,
-        turn_handling=spoken_turns(call.config, ends_the_turn=stages.stt.ends_the_turn),
+        turn_handling=_spoken_turns(call.config, ends_the_turn=stages.stt.ends_the_turn),
         # Word timings reach transcription_node only from an aligned voice.
         use_tts_aligned_transcript=True,
-        tts_text_transforms=text_transforms_of(call.config),
+        tts_text_transforms=_text_transforms_of(call.config),
         stt_context_options=context_of(call.config, ears),
         max_tool_steps=ONE_ANSWER_PER_TOOL,
     )
     return Session(
-        live, (thinking, ears, voice), tools.Lookups(call, call.platform.lookup, lookup_ms)
+        live, (thinking, ears, voice), tools.Lookups(call, call.platform.lookup, VOICE_LOOKUP_MS)
     )
-
-
-# The parameter replaces livekit's defaults, so they come first and the tenant's words after.
-def text_transforms_of(config: AgentConfig) -> NotGivenOr[Sequence[transforms.TextTransforms]]:
-    """Livekit's own transforms, then the tenant's pronunciations."""
-    if not config.says:
-        return NOT_GIVEN
-    return [*DEFAULT_TTS_TEXT_TRANSFORMS, transforms.replace(dict(config.says))]
 
 
 def context_of(config: AgentConfig, ears: stt.STT[Never]) -> NotGivenOr[STTContextOptions]:
@@ -62,10 +54,18 @@ def context_of(config: AgentConfig, ears: stt.STT[Never]) -> NotGivenOr[STTConte
     return {"keyterms": keyterms(config, {})}
 
 
+# The parameter replaces livekit's defaults, so they come first and the tenant's words after.
+def _text_transforms_of(config: AgentConfig) -> NotGivenOr[Sequence[transforms.TextTransforms]]:
+    """Livekit's own transforms, then the tenant's pronunciations."""
+    if not config.says:
+        return NOT_GIVEN
+    return [*DEFAULT_TTS_TEXT_TRANSFORMS, transforms.replace(dict(config.says))]
+
+
 # Interruptions are judged by the local VAD: livekit's adaptive detector streams the caller's
 # audio to its cloud. A false interruption is not resumed: livekit replays the whole sentence.
 # No endpointing here: the agent's own already reaches the ears, and both would wait twice.
-def spoken_turns(config: AgentConfig, *, ends_the_turn: bool) -> TurnHandlingOptions:
+def _spoken_turns(config: AgentConfig, *, ends_the_turn: bool) -> TurnHandlingOptions:
     r"""How the caller takes the floor, from the agent\'s language and its own words."""
     declared = config.turn.min_interruption_words if config.turn else None
     policy = policy_for(config.language, min_words=declared)

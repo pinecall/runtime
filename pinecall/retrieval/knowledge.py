@@ -303,7 +303,6 @@ class Searched:
     """What a search found, and how strongly its best cosine says the answer is there."""
 
     found: list[Found]
-    top_cosine: float
     evidence: Evidence
     model: str
 
@@ -442,7 +441,7 @@ async def search(pool: Pool, embedder: Embedder, scope: Scope, query: SearchQuer
         if copy["model"] != model:
             raise WrongModel(copy["base"], copy["model"], model)
     if not copies:
-        return Searched(found=[], top_cosine=0.0, evidence="none", model=model)
+        return Searched(found=[], evidence="none", model=model)
     [vector] = await embedder.embed([query.query])
     table = SearchedTable(
         name="knowledge_chunks",
@@ -473,9 +472,7 @@ async def search(pool: Pool, embedder: Embedder, scope: Scope, query: SearchQuer
         if hit.fused >= query.bases[hit.row["base"]]
     ]
     best = top_cosine(hits)
-    return Searched(
-        found=found[: query.k], top_cosine=best, evidence=evidence_of(best), model=model
-    )
+    return Searched(found=found[: query.k], evidence=evidence_of(best), model=model)
 
 
 def where(found: Found) -> str:

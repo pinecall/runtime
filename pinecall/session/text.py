@@ -38,7 +38,7 @@ async def hears(session: Session, text: str) -> str:
     if call.a_person_has_the_line:
         await _unanswered(session, text)
         return ""
-    for skipped in await session.lookups.turn_ended(text, None):
+    for skipped in await session.lookups.turn_ended(text):
         await call.writing.write("error", skipped)
     reply = session.live.generate_reply(user_input=text)
     await reply
@@ -97,7 +97,7 @@ async def resume(session: Session, taken: TakenUp) -> None:
 
 # A written call has no ears and no voice, so its text is neither paced nor billed as speech;
 # its turns are taken by hand, one message at a time.
-def text_session(call: Call, thinking: Running, *, lookup_ms: int = TEXT_LOOKUP_MS) -> Session:
+def text_session(call: Call, thinking: Running) -> Session:
     """A written call: the same session with the model alone."""
     model = llm_of(thinking)
     live: AgentSession[None] = AgentSession(
@@ -105,7 +105,7 @@ def text_session(call: Call, thinking: Running, *, lookup_ms: int = TEXT_LOOKUP_
         turn_handling={"turn_detection": "manual", "preemptive_generation": {"enabled": False}},
         max_tool_steps=ONE_ANSWER_PER_TOOL,
     )
-    return Session(live, (model,), tools.Lookups(call, call.platform.lookup, lookup_ms))
+    return Session(live, (model,), tools.Lookups(call, call.platform.lookup, TEXT_LOOKUP_MS))
 
 
 async def _unanswered(session: Session, text: str) -> None:

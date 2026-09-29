@@ -83,7 +83,7 @@ async def put_settings(
     """The agent's next version in this scope or the team's, checked as a call would build it."""
     pool = gateway.connections.pool
     written_to = _written_to(scope, team=body.team)
-    wanted = tuning_of(body.config)
+    wanted = _tuning_of(body.config)
     if "pipeline" not in key.bearer.key.scopes:
         kept = await scopes.tuning_side_by_side(pool, written_to, slug)
         newest = kept.team if written_to.holder == THE_ORGS_OWN else kept.yours
@@ -108,7 +108,7 @@ async def settings_history(
         gateway.connections.pool, written_to, slug, limit=query.limit
     )
     return SettingsHistoryResponse(
-        world=scope.env, holder=written_to.holder, rows=[settings_row(row) for row in rows]
+        world=scope.env, holder=written_to.holder, rows=[_settings_row(row) for row in rows]
     )
 
 
@@ -125,8 +125,8 @@ async def settings_diff(
     ours = kept.yours if scope.holder else kept.team
     theirs = kept.production if against == "production" else kept.team
     return SettingsDiffResponse(
-        ours=None if ours is None else settings_row(ours),
-        theirs=None if theirs is None else settings_row(theirs),
+        ours=None if ours is None else _settings_row(ours),
+        theirs=None if theirs is None else _settings_row(theirs),
         changed=_differing(ours, theirs),
     )
 
@@ -169,8 +169,8 @@ async def call_settings(call: str, key: CallsKey, gateway: GatewayDep) -> CallSe
     return CallSettingsResponse(
         config_version=versions.config,
         lexicon_version=versions.lexicon,
-        config=None if config is None else settings_row(config),
-        lexicon=None if words is None else lexicon_row(words),
+        config=None if config is None else _settings_row(config),
+        lexicon=None if words is None else _lexicon_row(words),
     )
 
 
@@ -211,12 +211,12 @@ async def lexicon_history(
         gateway.connections.pool, written_to, slug, limit=query.limit
     )
     return LexiconHistoryResponse(
-        world=scope.env, holder=written_to.holder, rows=[lexicon_row(row) for row in rows]
+        world=scope.env, holder=written_to.holder, rows=[_lexicon_row(row) for row in rows]
     )
 
 
 # pydantic wraps the dataclass's own refusal; the person reads that sentence, not the report.
-def tuning_of(body: SettingsBody) -> Tuning:
+def _tuning_of(body: SettingsBody) -> Tuning:
     """The body as the tuning a call is built from; refused in the shape's own words."""
     try:
         return TUNING.validate_python(body.model_dump(mode="python", exclude_none=True))
@@ -228,7 +228,7 @@ def tuning_of(body: SettingsBody) -> Tuning:
         raise DeclarationRefused(str(invalid)) from invalid
 
 
-def settings_row(kept: Version[Tuning]) -> SettingsRow:
+def _settings_row(kept: Version[Tuning]) -> SettingsRow:
     """A stored version as the doors send it."""
     return SettingsRow(
         holder=kept.holder,
@@ -240,7 +240,7 @@ def settings_row(kept: Version[Tuning]) -> SettingsRow:
     )
 
 
-def lexicon_row(kept: Version[Lexicon]) -> LexiconRow:
+def _lexicon_row(kept: Version[Lexicon]) -> LexiconRow:
     """A stored lexicon as the doors send it."""
     return LexiconRow(
         holder=kept.holder,
@@ -304,9 +304,9 @@ async def _side_by_side(
     kept = await scopes.tuning_side_by_side(gateway.connections.pool, scope, slug)
     return SettingsResponse(
         world=world,
-        yours=None if kept.yours is None else settings_row(kept.yours),
-        team=None if kept.team is None else settings_row(kept.team),
-        production=None if kept.production is None else settings_row(kept.production),
+        yours=None if kept.yours is None else _settings_row(kept.yours),
+        team=None if kept.team is None else _settings_row(kept.team),
+        production=None if kept.production is None else _settings_row(kept.production),
     )
 
 
@@ -316,9 +316,9 @@ async def _lexicon_side_by_side(
     kept = await scopes.lexicon_side_by_side(gateway.connections.pool, scope, slug)
     return LexiconResponse(
         world=world,
-        yours=None if kept.yours is None else lexicon_row(kept.yours),
-        team=None if kept.team is None else lexicon_row(kept.team),
-        production=None if kept.production is None else lexicon_row(kept.production),
+        yours=None if kept.yours is None else _lexicon_row(kept.yours),
+        team=None if kept.team is None else _lexicon_row(kept.team),
+        production=None if kept.production is None else _lexicon_row(kept.production),
     )
 
 

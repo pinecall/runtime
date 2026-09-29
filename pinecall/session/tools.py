@@ -200,7 +200,6 @@ class Lookups:
         self.contact = call.context.remembered_as
         # The pairs of this turn, spliced into its request and into nothing else.
         self.items: tuple[llm.ChatItem, ...] = ()
-        self.speech: str | None = None
         self.runs = 0
         self.running: _Running | None = None
 
@@ -222,28 +221,27 @@ class Lookups:
             return
         if len(text.split()) < WORDS_ENOUGH_TO_SEARCH_WITH or not _could_be_a_query(text):
             return
-        self.running = self._start(tools, text, None)
+        self.running = self._start(tools, text)
 
     # A run started early keeps its prefix as the query: it ranks the same chunks, and asking
     # again would cost the time it saved. The pair records the query that was sent.
-    async def turn_ended(self, query: str, speech: str | None) -> list[ErrorEvent]:
+    async def turn_ended(self, query: str) -> list[ErrorEvent]:
         """This turn's pairs, within the budget; one recoverable entry per lookup that failed."""
         self.items = ()
-        self.speech = speech
         running, self.running = self.running, None
         tools = self.run_before_each_turn
         # A turn of digits is a number read out: it finds nothing and would send it to the
         # embedder. No entry either: the grounded judge would read it as a failed lookup.
         if not tools or (running is None and not _could_be_a_query(query)):
             return []
-        run = running or self._start(tools, query, speech)
+        run = running or self._start(tools, query)
         return self._came_back(tools, run.query, await self._within_the_budget(run.tasks))
 
     async def called(self, use: ToolUse) -> str:
         """A lookup the model called itself; a failure is its ToolError, read in its own turn."""
         tool: PlatformTool = "recall" if use.name == RECALL.name else "search"
         try:
-            output = await self.lookup(tool, use.arguments, self.speech)
+            output = await self.lookup(tool, use.arguments, None)
         except Exception as failed:
             why = str(failed) or type(failed).__name__
             raise ToolError(NOT_LOOKED_UP.format(tool=tool, why=why)) from failed
@@ -256,17 +254,13 @@ class Lookups:
         if running is not None:
             await aio.cancel_and_wait(*running.tasks)
 
-    def _start(self, tools: Sequence[PlatformTool], query: str, speech: str | None) -> _Running:
-        return _Running(
-            query, tuple(asyncio.create_task(self._ran(tool, query, speech)) for tool in tools)
-        )
+    def _start(self, tools: Sequence[PlatformTool], query: str) -> _Running:
+        return _Running(query, tuple(asyncio.create_task(self._ran(tool, query)) for tool in tools))
 
     # Failures are returned, not raised: a task nobody may await must not hold an exception.
-    async def _ran(
-        self, tool: PlatformTool, query: str, speech: str | None
-    ) -> JsonObject | BaseException:
+    async def _ran(self, tool: PlatformTool, query: str) -> JsonObject | BaseException:
         try:
-            return await self.lookup(tool, self._arguments(tool, query), speech)
+            return await self.lookup(tool, self._arguments(tool, query), None)
         except Exception as failed:
             logger.warning("%s did not run for this turn", tool, exc_info=True)
             return failed

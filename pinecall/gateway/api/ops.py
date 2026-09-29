@@ -104,14 +104,14 @@ async def box_identity(request: Request, gateway: GatewayDep) -> BoxIdentityResp
 @router.get("/v1/ops/orgs")
 async def list_orgs(gateway: GatewayDep) -> list[OrgRow]:
     """Every org, oldest first, the default one first."""
-    return [org_row(org) for org in await orgs.listed(gateway.connections.pool)]
+    return [_org_row(org) for org in await orgs.listed(gateway.connections.pool)]
 
 
 @router.post("/v1/ops/orgs", status_code=201)
 async def create_org(body: CreateOrgRequest, gateway: GatewayDep) -> OrgRow:
     """A new org, its id minted here, born with what admission gives one."""
     slug = parse_slug(body.slug.strip())
-    return org_row(await orgs.create(gateway.connections.pool, slug, body.name or slug))
+    return _org_row(await orgs.create(gateway.connections.pool, slug, body.name or slug))
 
 
 # `holding` is what the org has now, never a fold of the log: usage is /v1/ops/usage.
@@ -125,8 +125,8 @@ async def org_standing(named: str, gateway: GatewayDep) -> OrgProfile:
         id=org.id,
         slug=org.slug,
         name=org.name,
-        quotas={env: quotas_row(kept) for env, kept in quotas.items()},
-        dialling=guards_row(await dial_policy.guards_of(pool, org.id)),
+        quotas={env: _quotas_row(kept) for env, kept in quotas.items()},
+        dialling=_guards_row(await dial_policy.guards_of(pool, org.id)),
         holding=OrgHolding(
             memory_facts=sum([await memory.kept(pool, org.id, env) for env in ENVS]),
             knowledge_chunks=sum([await knowledge.kept(pool, org.id, env) for env in ENVS]),
@@ -186,7 +186,7 @@ async def put_quotas(named: str, body: PutQuotasRequest, gateway: GatewayDep) ->
         lends=None if wanted.lends is None else parse_lending(wanted.lends),
     )
     await admission.set_quotas(gateway.connections.pool, org.id, body.env, quotas)
-    return quotas_row(quotas)
+    return _quotas_row(quotas)
 
 
 # The operator's: an org able to lift its own dial guards would have none.
@@ -196,7 +196,7 @@ async def put_dialling(named: str, body: PutDiallingRequest, gateway: GatewayDep
     org = await _org(gateway, named)
     guards = Guards.model_validate(body.model_dump(exclude_none=True))
     await dial_policy.put_guards(gateway.connections.pool, org.id, guards)
-    return guards_row(guards)
+    return _guards_row(guards)
 
 
 # ── its people ──
@@ -361,12 +361,12 @@ async def drop_org_vendor_key(named: str, vendor: str, gateway: GatewayDep) -> N
         raise NotFound(NO_SUCH_VENDOR_KEY.format(slug=org.slug, vendor=named_vendor))
 
 
-def org_row(org: Org) -> OrgRow:
+def _org_row(org: Org) -> OrgRow:
     """An org as the doors send it."""
     return OrgRow(id=org.id, slug=org.slug, name=org.name)
 
 
-def quotas_row(quotas: Quotas) -> OrgQuotas:
+def _quotas_row(quotas: Quotas) -> OrgQuotas:
     """An org's limits as the doors send them, `lends` sorted."""
     return OrgQuotas(
         limits=dict(quotas.limits),
@@ -375,7 +375,7 @@ def quotas_row(quotas: Quotas) -> OrgQuotas:
     )
 
 
-def guards_row(guards: Guards) -> DialGuards:
+def _guards_row(guards: Guards) -> DialGuards:
     """The dial guards as the doors send them."""
     return DialGuards(
         dial_anywhere=guards.dial_anywhere,

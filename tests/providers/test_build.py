@@ -125,10 +125,18 @@ def test_the_languages_the_ears_listen_for_go_where_the_plugin_takes_them(acme: 
 def test_the_agents_turn_reaches_the_ears_that_take_it_and_is_dropped_where_they_do_not(
     acme: str,
 ) -> None:
-    ears = stt_of(Running(acme, "k"), Turn(eot_threshold=0.8, endpointing_ms=700))
+    ears = stt_of(Running(acme, "k"), Turn(eot_threshold=0.8, min_interruption_words=2))
     assert isinstance(ears, AcmeSTT)
     assert ears.given["eot_threshold"] == 0.8
-    assert "endpointing_ms" not in ears.given
+    assert "min_interruption_words" not in ears.given
+
+
+def test_the_agents_endpointing_reaches_the_ears_as_the_silence_that_ends_a_turn(
+    acme: str,
+) -> None:
+    ears = stt_of(Running(acme, "k"), Turn(endpointing_ms=700))
+    assert isinstance(ears, AcmeSTT)
+    assert ears.given["eot_timeout_ms"] == 700
 
 
 def test_an_object_the_plugin_takes_whole_is_built_from_the_rows_mapping_however_deep(

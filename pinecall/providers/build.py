@@ -194,7 +194,11 @@ def tts_of(running: Running) -> tts.TTS[Never]:
 def stt_of(running: Running, turn: Turn | None) -> stt.STT[Never]:
     """The ears a stage hears with; the agent's turn knobs reach them where they take them."""
     knobs: dict[str, object] = {} if turn is None else dataclasses.asdict(turn)
-    return _built("stt", _AN_STT, running, {k: v for k, v in knobs.items() if v is not None})
+    given = {knob: value for knob, value in knobs.items() if value is not None}
+    # The agent's endpointing is the silence that closes a turn: the ears that take it call it so.
+    if turn is not None and turn.endpointing_ms is not None:
+        given["eot_timeout_ms"] = turn.endpointing_ms
+    return _built("stt", _AN_STT, running, given)
 
 
 def _vendor(name: str, module: str) -> Vendor:

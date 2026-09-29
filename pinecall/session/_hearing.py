@@ -70,15 +70,6 @@ def policy_for(language: str | None, *, min_words: int | None = None) -> TurnPol
     return TurnPolicy(backchannels=words, min_words=MIN_WORDS if min_words is None else min_words)
 
 
-def a_name(value: object) -> str:
-    if not isinstance(value, str):
-        return ""
-    name = value.strip()
-    if not name or len(name) > LONGEST_TERM or len(name.split()) > MOST_WORDS:
-        return ""
-    return name if any(letter.isalpha() for letter in name) else ""
-
-
 # The declared words first, so the cap drops the names found in the state before them. One
 # level deep catches `patient = {name, phone}`; a term needs a letter, which leaves out numbers.
 def keyterms(config: AgentConfig, state: JsonObject) -> list[str]:
@@ -86,5 +77,14 @@ def keyterms(config: AgentConfig, state: JsonObject) -> list[str]:
     found: list[object] = []
     for value in state.values():
         found += list(value.values()) if isinstance(value, dict) else [value]
-    names = [name for name in (a_name(item) for item in found) if name]
+    names = [name for name in (_a_name(item) for item in found) if name]
     return list(dict.fromkeys(term for term in (*config.hears, *names) if term))[:MOST_TERMS]
+
+
+def _a_name(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    name = value.strip()
+    if not name or len(name) > LONGEST_TERM or len(name.split()) > MOST_WORDS:
+        return ""
+    return name if any(letter.isalpha() for letter in name) else ""

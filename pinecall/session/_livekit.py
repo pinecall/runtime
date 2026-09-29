@@ -88,38 +88,26 @@ def forever(error: APIStatusError) -> bool:
     return error.status_code == POLICY_VIOLATION or error.status_code in FOREVER
 
 
-# livekit's rows carry the wire's names, and livekit adds fields the wire does not know
-# (`input_audio_tokens` on the ears' usage in 1.8.3). The wire refuses an unknown key, and a
-# listener's exception is swallowed by livekit's emitter, so the call would lose its usage in
-# silence: each row is read by the fields its wire model declares.
-def read_as[T: WireModel](model: type[T], livekits: BaseModel) -> T:
-    """The wire model read from livekit's, field by field, so a field livekit grew is left out."""
-    dumped = livekits.model_dump()
-    return model.model_validate(
-        {name: dumped[name] for name in model.model_fields if name in dumped}
-    )
-
-
 def usage_of(used: metrics.ModelUsage) -> measured.ModelUsage:
     """The usage of one model livekit measured, as the wire writes it."""
     match used:
         case metrics.LLMModelUsage():
-            return read_as(measured.LLMModelUsage, used)
+            return _read_as(measured.LLMModelUsage, used)
         case metrics.TTSModelUsage():
-            return read_as(measured.TTSModelUsage, used)
+            return _read_as(measured.TTSModelUsage, used)
         case metrics.STTModelUsage():
-            return read_as(measured.STTModelUsage, used)
+            return _read_as(measured.STTModelUsage, used)
         case metrics.InterruptionModelUsage():
-            return read_as(measured.InterruptionModelUsage, used)
+            return _read_as(measured.InterruptionModelUsage, used)
         case _:
-            return read_as(measured.EOTModelUsage, used)
+            return _read_as(measured.EOTModelUsage, used)
 
 
 def block_of(block: metrics.AgentMetrics) -> tuple[str, WireModel] | None:
     """The metrics livekit measured for one step, as the entry type and model the log keeps."""
     for livekits, kind, ours in BLOCKS:
         if isinstance(block, livekits):
-            return kind, read_as(ours, block)
+            return kind, _read_as(ours, block)
     return None
 
 
@@ -140,4 +128,16 @@ def end_of_utterance(report: Mapping[str, object], speech: str) -> measured.EOUM
             "on_user_turn_completed_delay": report.get("on_user_turn_completed_delay", 0.0),
             "speech_id": speech,
         }
+    )
+
+
+# livekit's rows carry the wire's names, and livekit adds fields the wire does not know
+# (`input_audio_tokens` on the ears' usage in 1.8.3). The wire refuses an unknown key, and a
+# listener's exception is swallowed by livekit's emitter, so the call would lose its usage in
+# silence: each row is read by the fields its wire model declares.
+def _read_as[T: WireModel](model: type[T], livekits: BaseModel) -> T:
+    """The wire model read from livekit's, field by field, so a field livekit grew is left out."""
+    dumped = livekits.model_dump()
+    return model.model_validate(
+        {name: dumped[name] for name in model.model_fields if name in dumped}
     )

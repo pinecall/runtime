@@ -74,12 +74,6 @@ on conflict (log) do update set sealed = true
 
 HEAD = "select seq, sealed from call_log_head where log = %(log)s"
 
-# Head rows, so a call with only ephemeral entries is listed too.
-LIST_CALLS = """
-select call from call_log_head
-where agent = %(agent)s and call is not null
-order by started_at nulls last, log
-"""
 
 # The first claim wins, and it may come before the first entry.
 CLAIM = """
@@ -227,12 +221,6 @@ class Store:
         async with self.pool.connection() as connection:
             await connection.execute(SEAL, {"call": call})
 
-    async def list_calls(self, agent: str) -> list[str]:
-        """Return every call the agent handled, oldest first."""
-        async with self.pool.connection() as connection:
-            rows = await (await connection.execute(LIST_CALLS, {"agent": agent})).fetchall()
-        return [str(row["call"]) for row in rows]
-
     async def claim(
         self, call: str | None, agent: str, org: str, claim: Claim | None = None
     ) -> None:
@@ -254,10 +242,10 @@ class Store:
                 },
             )
 
-    async def owner(self, call: str | None, agent: str) -> str | None:
-        """Return the org the log belongs to, or None while nobody claimed it."""
+    async def owner(self, agent: str) -> str | None:
+        """Return the org the agent's own log belongs to, or None while nobody claimed it."""
         async with self.pool.connection() as connection:
-            row = await (await connection.execute(OWNER, {"log": log_name(call, agent)})).fetchone()
+            row = await (await connection.execute(OWNER, {"log": log_name(None, agent)})).fetchone()
         return None if row is None or row["org"] is None else str(row["org"])
 
     async def claimant(self, call: str | None, agent: str) -> Claimant | None:
