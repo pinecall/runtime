@@ -1,4 +1,4 @@
-"""The bodies of the number doors: carrier accounts, numbers, dialling out, a leg's trunk."""
+"""The number doors' bodies: carriers, numbers, dialling out, a leg's trunk, consent, opt-outs."""
 
 from typing import Literal
 
@@ -12,6 +12,8 @@ from pinecall.wire.parts import (
 )
 
 # ── dialling out ──
+
+type ConsentKind = Literal["express", "written", "opt_out"]
 
 
 class DialResponse(WireModel):
@@ -128,11 +130,21 @@ class MoveNumberRequest(WireModel):
     env: Env
 
 
+class Consent(WireModel):
+    """The consent a call runs on: express or written, where it came from, the words, a proof."""
+
+    kind: Literal["express", "written"]
+    source: str = Field(min_length=1, max_length=200)
+    text: str | None = Field(default=None, max_length=2000)
+    evidence: str | None = Field(default=None, max_length=500)
+
+
 class DialRequest(WireModel):
-    """POST /v1/agents/{slug}/dial: the far end, and the org's number it is shown."""
+    """POST /v1/agents/{slug}/dial: the far end, the org's number it is shown, the consent."""
 
     to: str
     from_: str | None = Field(None, alias="from")
+    consent: Consent | None = None
     # What the log token handed back reads the call through.
     log: Projection = "tenant"
 
@@ -151,3 +163,63 @@ class LegTrunkResponse(WireModel):
     """GET /v1/agents/{slug}/outbound-trunk: the leg's trunk, inline, after the guards."""
 
     trunk: LegTrunk
+
+
+class ConsentRow(WireModel):
+    """One fact about a number: a consent or an opt-out, by whom, from what, on which call."""
+
+    kind: ConsentKind
+    source: str
+    text: str | None
+    evidence: str | None
+    given_by: str
+    call: str | None
+    given_at: float
+
+
+class ConsentHistory(WireModel):
+    """GET /v1/org/consents/{number}: what stands for the number, and every row, newest first."""
+
+    number: str
+    standing: Literal["consented", "opted_out", "unknown"]
+    rows: list[ConsentRow]
+
+
+class OptedOut(WireModel):
+    """A number on the org's do-not-call list: since when, from what, and who put it there."""
+
+    number: str
+    since: float
+    source: str
+    given_by: str
+
+
+class DoNotCall(WireModel):
+    """GET /v1/org/dnc: the numbers whose newest row is an opt-out, newest first, a page."""
+
+    numbers: list[OptedOut]
+    next: str | None
+
+
+class DoNotCallImport(WireModel):
+    """POST /v1/org/dnc: numbers the org's own list or a Registry scrub says not to call."""
+
+    numbers: list[str] = Field(min_length=1, max_length=10000)
+    source: str = Field(min_length=1, max_length=200)
+
+
+class DoNotCallImported(WireModel):
+    """POST /v1/org/dnc, the answer: how many numbers joined the list, and the ones refused."""
+
+    added: int
+    refused: list[str]
+
+
+class RecordConsent(WireModel):
+    """POST /v1/org/consents: one fact about a number, a consent given or an opt-out."""
+
+    number: str
+    kind: ConsentKind
+    source: str = Field(min_length=1, max_length=200)
+    text: str | None = Field(default=None, max_length=2000)
+    evidence: str | None = Field(default=None, max_length=500)

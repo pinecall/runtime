@@ -15,7 +15,9 @@ from pinecall.domain.names import parse_e164
 from pinecall.domain.scope import Scope
 from pinecall.log.queries import ever_reached
 from pinecall.postgres.pool import Pool
-from pinecall.tenancy import policy
+from pinecall.tenancy import consents, policy
+from pinecall.tenancy.consents import Given
+from pinecall.wire.rest.numbers import Consent
 
 NOT_A_COUNTRY = "{number} starts with no country calling code E.164 assigns"
 
@@ -55,6 +57,12 @@ QUIET_HOURS = "quiet_hours"
 TOO_OFTEN = "too_often"
 
 
+DO_NOT_CALL = "do_not_call"
+
+
+NO_CONSENT = "no_consent"
+
+
 # The Telemarketing Sales Rule (16 CFR 310.4(c)): not before 8 a.m. or after 9 p.m. at the called
 # person's location. It binds a call to the US; Canada's rules sit inside the same hours.
 NORTH_AMERICA = "+1"
@@ -85,6 +93,18 @@ UNPLACED = "{number} has no zone this box can place it in, so its hours cannot b
 
 
 A_NUMBERS_DAY = "{number} was rung {used} times in the last day, of {limit} ({guard})"
+
+
+ON_THE_LIST = (
+    "{number} asked not to be called: it is on this org's do-not-call list ({guard}); only a "
+    "consent recorded at POST /v1/org/consents lifts it, never one sent with a dial"
+)
+
+
+NO_CONSENT_ON_FILE = (
+    "{number} has no consent on file ({guard}): an AI-voice call needs the person's prior express "
+    "consent. Send it as `consent` with the dial, or record it at POST /v1/org/consents"
+)
 
 
 NOT_ONE_OF_OURS = (
@@ -178,6 +198,8 @@ class Dial:
     at: datetime
     # The number is a phone the person who asked verified as their own: testing, not calling out.
     own_phone: bool = False
+    # The consent the call runs on, as the dial carried it; written down before anything rings.
+    consent: Consent | None = None
 
 
 @dataclass(frozen=True)
@@ -186,6 +208,9 @@ class Rules:
 
     hours: tuple[int, int] | None
     per_number_day: int | None
+    # Held to the do-not-call list at all: not in the sandbox, not the asker's own phone.
+    listed: bool = False
+    consent_required: bool = False
 
 
 def destination_of(number: str) -> str:
@@ -231,6 +256,8 @@ async def guard_dial(pool: Pool, dial: Dial) -> Guards:
             NOT_ONE_OF_OURS.format(number=destination, env=dial.scope.env, guard=STRANGER)
         )
     rules = await _rules_for(pool, dial, destination)
+    if rules.listed:
+        await _consented(pool, dial, destination, rules)
     if rules.hours is not None:
         await _in_hours(pool, dial, destination, rules.hours)
     await _paced(pool, dial, guards, rules.per_number_day)
@@ -280,7 +307,7 @@ async def _refused(pool: Pool, dial: Dial, guard: str) -> None:
 # The rules bind a call out to a person. The sandbox is where an org tries its agent, and a
 # person's own verified phone is them testing: neither is held to a caller's hours or count.
 async def _rules_for(pool: Pool, dial: Dial, destination: str) -> Rules:
-    """The hours and the daily count this dial is held to, by destination and the org's policy."""
+    """The list, consent, hours and daily count a dial is held to, by destination and policy."""
     if dial.scope.env == "sandbox" or dial.own_phone:
         return Rules(hours=None, per_number_day=None)
     kept = (await policy.policy_of(pool, dial.scope.org)).policy
@@ -290,9 +317,40 @@ async def _rules_for(pool: Pool, dial: Dial, destination: str) -> Rules:
     if destination.startswith(NORTH_AMERICA):
         floor, top = US_HOURS
         start, end = window if window is not None else US_HOURS
-        window = (max(floor, start), min(top, end))
-        return Rules(hours=window, per_number_day=kept.per_number_day or US_PER_NUMBER_DAY)
-    return Rules(hours=window, per_number_day=kept.per_number_day)
+        return Rules(
+            hours=(max(floor, start), min(top, end)),
+            per_number_day=kept.per_number_day or US_PER_NUMBER_DAY,
+            listed=True,
+            consent_required=True,
+        )
+    return Rules(
+        hours=window,
+        per_number_day=kept.per_number_day,
+        listed=True,
+        consent_required=kept.consent_everywhere,
+    )
+
+
+# An opt-out outranks the consent a dial carries: an app may not lift the list by sending one.
+async def _consented(pool: Pool, dial: Dial, destination: str, rules: Rules) -> None:
+    current = await consents.standing_of(pool, dial.scope, destination)
+    if current == "opted_out":
+        await _refused(pool, dial, DO_NOT_CALL)
+        raise NotAllowed(ON_THE_LIST.format(number=destination, guard=DO_NOT_CALL))
+    if dial.consent is not None:
+        given = Given(
+            kind=dial.consent.kind,
+            source=dial.consent.source,
+            given_by=dial.asked_by,
+            text=dial.consent.text,
+            evidence=dial.consent.evidence,
+            call=dial.call,
+        )
+        await consents.give(pool, dial.scope, destination, given)
+        return
+    if rules.consent_required and current != "consented":
+        await _refused(pool, dial, NO_CONSENT)
+        raise NotAllowed(NO_CONSENT_ON_FILE.format(number=destination, guard=NO_CONSENT))
 
 
 async def _in_hours(pool: Pool, dial: Dial, destination: str, hours: tuple[int, int]) -> None:

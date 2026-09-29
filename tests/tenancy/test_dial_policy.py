@@ -10,9 +10,11 @@ from pinecall.domain.errors import DeclarationRefused, NotAllowed, QuotaExhauste
 from pinecall.domain.names import Env
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
-from pinecall.tenancy import dial_policy, orgs, policy
+from pinecall.tenancy import consents, dial_policy, orgs, policy
+from pinecall.tenancy.consents import Given
 from pinecall.tenancy.dial_policy import Dial
 from pinecall.wire.rest.accounts import CallingHours, OrgPolicy
+from pinecall.wire.rest.numbers import Consent
 from tests.conftest import postgres
 
 HER_PHONE = "+59899000001"
@@ -138,11 +140,18 @@ async def dialling_anywhere(pool: Pool, org: str) -> None:
     await dial_policy.put_guards(pool, org, dial_policy.Guards(dial_anywhere=True))
 
 
+async def consented(pool: Pool, org: str, *numbers: str) -> None:
+    """Consent on file for each number, so a test of hours or counts is not refused for it."""
+    for number in numbers:
+        await consents.give(pool, Scope(org), number, Given("express", "a test", "m_ana"))
+
+
 @postgres
 async def test_a_us_number_rings_from_eight_to_nine_in_its_own_time_and_never_outside(
     pool: Pool, org: str
 ) -> None:
     await dialling_anywhere(pool, org)
+    await consented(pool, org, LOS_ANGELES)
     early = datetime(2026, 9, 29, 14, 30, tzinfo=UTC)  # 07:30 in Los Angeles
     with pytest.raises(NotAllowed, match="quiet_hours"):
         await dial_policy.guard_dial(pool, dial_of(org, LOS_ANGELES, at=early))
@@ -157,6 +166,7 @@ async def test_a_us_number_rings_from_eight_to_nine_in_its_own_time_and_never_ou
 @postgres
 async def test_a_us_number_no_zone_can_hold_is_refused(pool: Pool, org: str) -> None:
     await dialling_anywhere(pool, org)
+    await consented(pool, org, TOLL_FREE)
     with pytest.raises(NotAllowed, match="quiet_hours"):
         await dial_policy.guard_dial(pool, dial_of(org, TOLL_FREE))
 
@@ -164,6 +174,7 @@ async def test_a_us_number_no_zone_can_hold_is_refused(pool: Pool, org: str) -> 
 @postgres
 async def test_the_org_narrows_the_us_hours_and_never_widens_them(pool: Pool, org: str) -> None:
     await dialling_anywhere(pool, org)
+    await consented(pool, org, LOS_ANGELES)
     wide = CallingHours.model_validate({"from": 6, "until": 23})
     await policy.put_policy(pool, org, OrgPolicy(calling_hours=wide), by="m_1")
     seven = datetime(2026, 9, 29, 14, 0, tzinfo=UTC)  # 07:00 in Los Angeles
@@ -205,6 +216,7 @@ async def test_a_us_number_is_rung_three_times_a_day_and_the_fourth_is_refused(
     pool: Pool, org: str
 ) -> None:
     await dialling_anywhere(pool, org)
+    await consented(pool, org, LOS_ANGELES, "+12125550142")
     noon_there = datetime(2026, 9, 29, 19, 0, tzinfo=UTC)
     for n in range(3):
         await dial_policy.guard_dial(pool, dial_of(org, LOS_ANGELES, call=f"c{n}", at=noon_there))
@@ -231,3 +243,62 @@ def test_a_number_in_two_zones_is_held_to_both() -> None:
     assert set(zones) == {"America/Adak", "America/Anchorage"}
     eight_in_anchorage = datetime(2026, 9, 29, 16, 0, tzinfo=UTC)  # 07:00 in Adak
     assert not dial_policy.within(zones, eight_in_anchorage, (8, 21))
+
+
+# ── consent and the do-not-call list ──
+
+A_CONSENT = Consent(kind="express", source="the booking form", text="Yes, call me back")
+
+
+@postgres
+async def test_a_us_number_in_production_needs_consent_on_file_or_with_the_dial(
+    pool: Pool, org: str
+) -> None:
+    await dialling_anywhere(pool, org)
+    at_noon = datetime(2026, 9, 29, 19, 0, tzinfo=UTC)
+    with pytest.raises(NotAllowed, match="no_consent"):
+        await dial_policy.guard_dial(pool, dial_of(org, LOS_ANGELES, at=at_noon))
+    with_one = replace(dial_of(org, LOS_ANGELES, call="call_2", at=at_noon), consent=A_CONSENT)
+    await dial_policy.guard_dial(pool, with_one)
+    # The consent the dial carried is on file now: the next call needs none.
+    await dial_policy.guard_dial(pool, dial_of(org, LOS_ANGELES, call="call_3", at=at_noon))
+    history = await consents.history(pool, Scope(org), LOS_ANGELES)
+    assert [(row.kind, row.call) for row in history.rows] == [("express", "call_2")]
+
+
+@postgres
+async def test_an_opt_out_refuses_the_number_whatever_consent_the_dial_carries(
+    pool: Pool, org: str
+) -> None:
+    await dialling_anywhere(pool, org)
+    await consents.give(
+        pool, Scope(org), MONTEVIDEO, Given("opt_out", "the caller asked", "agent:x")
+    )
+    with pytest.raises(NotAllowed, match="do_not_call"):
+        await dial_policy.guard_dial(pool, replace(dial_of(org, MONTEVIDEO), consent=A_CONSENT))
+    assert await consents.standing_of(pool, Scope(org), MONTEVIDEO) == "opted_out"
+    await consents.give(pool, Scope(org), MONTEVIDEO, Given("written", "a signed form", "m_ana"))
+    await dial_policy.guard_dial(pool, dial_of(org, MONTEVIDEO, call="call_2"))
+
+
+@postgres
+async def test_another_country_needs_no_consent_until_the_org_asks_for_it_everywhere(
+    pool: Pool, org: str
+) -> None:
+    await dialling_anywhere(pool, org)
+    await dial_policy.guard_dial(pool, dial_of(org, MONTEVIDEO))
+    await policy.put_policy(pool, org, OrgPolicy(consent_everywhere=True), by="m_1")
+    with pytest.raises(NotAllowed, match="no_consent"):
+        await dial_policy.guard_dial(pool, dial_of(org, MONTEVIDEO, call="call_2"))
+
+
+@postgres
+async def test_the_sandbox_and_the_askers_own_phone_are_held_to_no_list_and_no_consent(
+    pool: Pool, org: str
+) -> None:
+    await dialling_anywhere(pool, org)
+    await consents.give(pool, Scope(org, "sandbox"), LOS_ANGELES, Given("opt_out", "x", "m_ana"))
+    at_noon = datetime(2026, 9, 29, 19, 0, tzinfo=UTC)
+    await dial_policy.guard_dial(pool, dial_of(org, LOS_ANGELES, env="sandbox", at=at_noon))
+    own = replace(dial_of(org, LOS_ANGELES, call="call_2", at=at_noon), own_phone=True)
+    await dial_policy.guard_dial(pool, own)

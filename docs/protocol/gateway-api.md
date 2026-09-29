@@ -165,12 +165,13 @@ and carriers: [numbers.md](numbers.md). Usage, insights, limits and judging:
 [console-api.md](console-api.md).
 
 The org's compliance settings are one row, replaced whole (`team`): `GET /v1/org/policy` answers
-`{policy: {retention_days, calling_hours: {from, until} | null, per_number_day}, set_by, set_at}`
+`{policy: {retention_days, calling_hours: {from, until} | null, per_number_day, consent_everywhere}, set_by, set_at}`
 and `PUT /v1/org/policy` takes the policy. `retention_days` is how many days a sealed call is kept
 before the nightly run erases it through the erasure path (§3); `null` keeps everything, which is
 also an org nobody set. `calling_hours` and `per_number_day` are the org's outbound calling rules,
 applied by destination at the dial ([numbers.md](numbers.md)): a `+1` number keeps the US hours and
-three calls a day whatever the org sets wider. A client that changes one field reads the row and
+three calls a day whatever the org sets wider, and a consent on file; `consent_everywhere` asks for
+one for every country. A client that changes one field reads the row and
 writes it back whole. The trail is `GET /v1/org/erasures`.
 
 `GET /v1/org/export` (`team`) is everything the org keeps in the key's world, as a download of JSON
@@ -178,4 +179,4 @@ Lines (`application/x-ndjson`): a header `{kind: "export", org, env, exported_at
 per call (`{kind: "call", call, agent, holder, started_at, sealed, facts, entries}`, oldest first,
 each with its whole log), then every memory (`kind: "memory"`, without its embedding), every
 version of every agent's settings (`agent_config`) and words (`lexicon`), and every document of its
-knowledge bases (`knowledge_file`). A recording is not inlined: `GET /v1/calls/{call}/recording`.
+knowledge bases (`knowledge_file`), and every fact about a number (`consent`). A recording is not inlined: `GET /v1/calls/{call}/recording`.

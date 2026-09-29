@@ -1,4 +1,4 @@
-"""An org's world as JSON Lines: its calls and their logs, memories, settings, words, documents."""
+"""An org's world as JSON Lines: calls and logs, memories, settings, words, documents, consent."""
 
 import json
 import time
@@ -66,11 +66,20 @@ FROM knowledge_files WHERE org = %(org)s AND env = %(env)s
 ORDER BY base, path
 """
 
+CONSENTS = """
+SELECT jsonb_build_object(
+    'kind', 'consent', 'number', number, 'consent', kind, 'source', source, 'text', text,
+    'evidence', evidence, 'given_by', given_by, 'call', call, 'given_at', given_at
+)::text AS line
+FROM contact_consents WHERE org = %(org)s AND env = %(env)s
+ORDER BY number, given_at, id
+"""
+
 A_PAGE_OF_CALLS = 100
 
 
 async def lines(pool: Pool, org: str, env: Env) -> AsyncIterator[str]:
-    """Every line of the export: the header, then calls, memories, settings, words, documents."""
+    """Every line: the header, calls, memories, settings, words, documents, consent."""
     yield json.dumps({"kind": "export", "org": org, "env": env, "exported_at": time.time()})
     at, call = -1.0, ""
     while True:
@@ -82,7 +91,7 @@ async def lines(pool: Pool, org: str, env: Env) -> AsyncIterator[str]:
         if len(rows) < A_PAGE_OF_CALLS:
             break
         at, call = float(rows[-1]["at"]), str(rows[-1]["call"])
-    for query in (MEMORIES, SETTINGS, WORDS, DOCUMENTS):
+    for query in (MEMORIES, SETTINGS, WORDS, DOCUMENTS, CONSENTS):
         async with pool.connection() as connection:
             rows = await (await connection.execute(query, {"org": org, "env": env})).fetchall()
         for row in rows:

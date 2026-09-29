@@ -19,11 +19,12 @@ from pinecall.gateway import _deps
 from pinecall.gateway._call_setup import exhausted, tuned
 from pinecall.gateway._deps import Acting, AppKey, CallsKey, GatewayDep, ScopeDep
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import claim_code, handed_on, parked_calls_of
+from pinecall.gateway._served import Served, claim_code, handed_on, parked_calls_of
 from pinecall.gateway._sockets import NOT_REGISTERED, Process, Registration, new_socket_id
 from pinecall.providers import catalog
 from pinecall.session.call import changed_by, with_app_fields
-from pinecall.tenancy import admission, keys
+from pinecall.tenancy import admission, consents, keys
+from pinecall.tenancy.consents import Given
 from pinecall.wire.commands import (
     COMMANDS,
     AgentConfigure,
@@ -31,6 +32,7 @@ from pinecall.wire.commands import (
     AgentRegister,
     CallClaim,
     CallDial,
+    CallOptOut,
     DevAnswer,
     Ping,
     command_of,
@@ -64,6 +66,10 @@ DIAL = (
 
 
 NO_SESSION = "{kind} names call {call!r}, which is not running here"
+
+
+# Where an opt-out the agent heard came from, as the do-not-call list says it.
+ASKED_THE_AGENT = "the caller asked the agent"
 
 
 NOBODY_WAITING = (
@@ -155,8 +161,8 @@ class AppSocket:
                     await self.refuse(command.agent, "no_session", text, command.written())
             case ToolResult():
                 await self._answered(command, model)
-            case CallClaim():
-                await self._claimed(command, model)
+            case CallClaim() | CallOptOut():
+                await self._on_the_gateway(command, model)
             case CallDial():
                 await self.refuse(command.agent, "no_handler", DIAL, command.written())
             case _:
@@ -214,12 +220,16 @@ class AppSocket:
         await self.refuse(command.agent, "no_session", text, command.written())
 
     # Bound by the gateway whichever process runs the call.
-    async def _claimed(self, command: Command, wanted: CallClaim) -> None:
+    # A code claimed and an opt-out are the gateway's to answer, whichever process runs the call.
+    async def _on_the_gateway(self, command: Command, wanted: CallClaim | CallOptOut) -> None:
         self._holds(command.agent)
         served = None if command.call is None else self.gateway.live.calls.get(command.call)
         if served is None or served.agent != command.agent:
             text = NO_SESSION.format(kind=command.type, call=command.call)
             await self.refuse(command.agent, "no_session", text, command.written())
+            return
+        if isinstance(wanted, CallOptOut):
+            await _opted_out(self.gateway, served, command.agent, wanted)
             return
         if not await claim_code(self.gateway.codes, served, wanted.code, via="agent"):
             text = NO_CODE.format(code=wanted.code, agent=command.agent)
@@ -353,3 +363,16 @@ def _named(raw: Json, field: str) -> str:
         return ""
     named = raw.get(field)
     return named if isinstance(named, str) else ""
+
+
+# The list is the org's, not the call's, and nothing lands in the log: an SDK that predates the
+# command would refuse to read an entry it has no shape for.
+async def _opted_out(gateway: Gateway, served: Served, agent: str, wanted: CallOptOut) -> None:
+    given = Given(
+        kind="opt_out",
+        source=ASKED_THE_AGENT,
+        given_by=f"agent:{agent}",
+        text=wanted.note,
+        call=served.call,
+    )
+    await consents.give(gateway.connections.pool, served.scope, served.context.caller, given)

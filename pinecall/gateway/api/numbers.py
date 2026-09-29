@@ -16,6 +16,7 @@ from pinecall.domain.names import parse_e164
 from pinecall.domain.scope import Scope
 from pinecall.gateway._deps import (
     Acting,
+    CallsKey,
     GatewayDep,
     NumbersKey,
     ScopeDep,
@@ -23,17 +24,22 @@ from pinecall.gateway._deps import (
     WorkerKey,
     asked_by,
 )
-from pinecall.tenancy import carriers, tokens
+from pinecall.tenancy import carriers, consents, tokens
 from pinecall.tenancy.carriers import TwilioAccount
+from pinecall.tenancy.consents import Given
 from pinecall.tenancy.dial_policy import Dial
 from pinecall.wire.rest.numbers import (
     AvailableNumbers,
     BuyNumberRequest,
     CarrierList,
     CarrierRow,
+    ConsentHistory,
     DialGuards,
     DialRequest,
     DialResponse,
+    DoNotCall,
+    DoNotCallImport,
+    DoNotCallImported,
     ImportNumberRequest,
     ImportNumberResponse,
     LegTrunkResponse,
@@ -42,9 +48,14 @@ from pinecall.wire.rest.numbers import (
     OutboundStatus,
     OwnedNumberRow,
     ProvisionOutboundResponse,
+    RecordConsent,
 )
 
 router = APIRouter()
+
+
+# Who the trail names for an opt-out written at a door, with no form behind it.
+ASKED_BY_HAND = "asked at the console or the API"
 
 
 NOBODY_HOLDING = (
@@ -250,6 +261,7 @@ async def dial_out(
         today=today_in(gateway.connections.settings.timezone),
         at=datetime.now(UTC),
         own_phone=gateway.sockets.phone_of(where.env, body.to) == who,
+        consent=body.consent,
     )
     placed = await dialing.place_call(
         gateway.connections, gateway.logs, placement, running=gateway.live.running(where.org)
@@ -278,6 +290,66 @@ async def get_leg_trunk(
     """The leg's trunk inline, after the shape and the pace; a dial's own first leg passes."""
     dial = Dial(where, slug, query.to, query.shown, asked_by(key), query.call, datetime.now(UTC))
     return LegTrunkResponse(trunk=await dialing.leg_trunk(gateway.connections, dial))
+
+
+# ── consent and the do-not-call list ──
+
+
+@router.post("/v1/org/consents")
+async def record_consent(
+    body: RecordConsent, key: TalkKey, where: ScopeDep, gateway: GatewayDep
+) -> ConsentHistory:
+    """Write one fact about a number, a consent or an opt-out; what stands for it after."""
+    given = Given(
+        kind=body.kind,
+        source=body.source,
+        given_by=asked_by(key),
+        text=body.text,
+        evidence=body.evidence,
+    )
+    pool = gateway.connections.pool
+    await consents.give(pool, where, body.number, given)
+    return await consents.history(pool, where, body.number)
+
+
+@router.get("/v1/org/consents/{number}")
+async def consent_of(
+    number: str, _key: CallsKey, where: ScopeDep, gateway: GatewayDep
+) -> ConsentHistory:
+    """What stands for the number in the key's world, and every fact about it, newest first."""
+    return await consents.history(gateway.connections.pool, where, number)
+
+
+# An opt-out is a fact, not a deletion: the consent before it stays in the history.
+@router.delete("/v1/org/consents/{number}")
+async def opt_out(
+    number: str, key: TalkKey, where: ScopeDep, gateway: GatewayDep
+) -> ConsentHistory:
+    """Put the number on the do-not-call list: no call of the org's reaches it from now on."""
+    given = Given(kind="opt_out", source=ASKED_BY_HAND, given_by=asked_by(key))
+    pool = gateway.connections.pool
+    await consents.give(pool, where, number, given)
+    return await consents.history(pool, where, number)
+
+
+@router.get("/v1/org/dnc")
+async def do_not_call(
+    _key: CallsKey, where: ScopeDep, gateway: GatewayDep, after: str | None = None
+) -> DoNotCall:
+    """The world's do-not-call list, newest first, a page after the cursor."""
+    return await consents.do_not_call(gateway.connections.pool, where, after=after)
+
+
+@router.post("/v1/org/dnc")
+async def import_do_not_call(
+    body: DoNotCallImport, key: TalkKey, where: ScopeDep, gateway: GatewayDep
+) -> DoNotCallImported:
+    """Numbers the org's own list or its Registry scrub says not to call, onto the list at once."""
+    given = Given(kind="opt_out", source=body.source, given_by=asked_by(key))
+    added, refused = await consents.opt_out_many(
+        gateway.connections.pool, where, body.numbers, given
+    )
+    return DoNotCallImported(added=added, refused=refused)
 
 
 def _org_scope(key: Acting) -> Scope:

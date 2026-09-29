@@ -4,17 +4,20 @@ from pinecall.postgres.pool import Pool
 from pinecall.wire.rest.accounts import CallingHours, OrgPolicy, OrgPolicyRow
 
 POLICY = """
-SELECT retention_days, calling_from, calling_until, per_number_day, set_by, set_at
+SELECT retention_days, calling_from, calling_until, per_number_day, consent_everywhere, set_by,
+       set_at
 FROM org_policy WHERE org = %(org)s
 """
 
 PUT_POLICY = """
-INSERT INTO org_policy (org, retention_days, calling_from, calling_until, per_number_day, set_by)
+INSERT INTO org_policy (org, retention_days, calling_from, calling_until, per_number_day,
+                        consent_everywhere, set_by)
 VALUES (%(org)s, %(retention_days)s, %(calling_from)s, %(calling_until)s, %(per_number_day)s,
-        %(set_by)s)
+        %(consent_everywhere)s, %(set_by)s)
 ON CONFLICT (org) DO UPDATE SET retention_days = excluded.retention_days,
     calling_from = excluded.calling_from, calling_until = excluded.calling_until,
-    per_number_day = excluded.per_number_day, set_by = excluded.set_by, set_at = now()
+    per_number_day = excluded.per_number_day, consent_everywhere = excluded.consent_everywhere,
+    set_by = excluded.set_by, set_at = now()
 """
 
 
@@ -34,6 +37,7 @@ async def policy_of(pool: Pool, org: str) -> OrgPolicyRow:
             retention_days=row["retention_days"],
             calling_hours=hours,
             per_number_day=row["per_number_day"],
+            consent_everywhere=row["consent_everywhere"],
         ),
         set_by=str(row["set_by"]),
         set_at=row["set_at"].timestamp(),
@@ -49,6 +53,7 @@ async def put_policy(pool: Pool, org: str, policy: OrgPolicy, *, by: str) -> Non
         "calling_from": None if hours is None else hours.from_,
         "calling_until": None if hours is None else hours.until,
         "per_number_day": policy.per_number_day,
+        "consent_everywhere": policy.consent_everywhere,
         "set_by": by,
     }
     async with pool.connection() as connection:

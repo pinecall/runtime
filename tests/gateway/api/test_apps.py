@@ -5,8 +5,10 @@ import json
 import time
 
 from pinecall.domain.names import JsonObject
+from pinecall.domain.scope import Scope
 from pinecall.gateway._deps import POLICY_VIOLATION
 from pinecall.log.logs import started_entry
+from pinecall.tenancy import consents
 from pinecall.wire.rest.calls import OpenCallRequest
 from tests.conftest import (
     AGENT,
@@ -16,7 +18,7 @@ from tests.conftest import (
     received_until,
     sent,
 )
-from tests.gateway.api.conftest import A_NUMBER, a_call, an_app
+from tests.gateway.api.conftest import A_NUMBER, THE_CALLER, a_call, an_app
 
 
 @postgres
@@ -216,3 +218,26 @@ async def test_the_tools_still_waiting_are_re_sent_to_the_socket_that_takes_the_
     assert again.seq == called.seq
     assert result.json()["output"] == {"ok": True}
     await second.close()
+
+
+@postgres
+async def test_an_opt_out_puts_the_calls_number_on_the_list_and_lands_nothing_in_the_log(
+    knocking: Knocking,
+) -> None:
+    app = await an_app(knocking)
+    context = a_call(knocking)
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+    await sent(app, "call.opt_out", {"note": "please stop calling"}, call=context.call)
+    # Commands are taken in order: the pong comes back after the opt-out was written.
+    await sent(app, "ping", {})
+    await received_until(app, "pong")
+    world = Scope(knocking.org.id, "sandbox")
+    history = await consents.history(knocking.gateway.connections.pool, world, THE_CALLER)
+    assert history.standing == "opted_out"
+    assert (history.rows[0].given_by, history.rows[0].call) == (f"agent:{AGENT}", context.call)
+    kinds = [entry.type for entry in await knocking.gateway.logs.store.whole(context.call)]
+    assert "call.opt_out" not in kinds
+    await sent(app, "call.opt_out", {}, call="call_gone")
+    assert (await received(app)).data["code"] == "no_session"
+    await app.close()
