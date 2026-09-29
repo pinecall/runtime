@@ -7,10 +7,10 @@ from typing import Self
 
 from pinecall.domain.call import CallContext
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.names import JsonObject
+from pinecall.domain.names import ENVS, Env, JsonObject
 from pinecall.log.readers import EVERYTHING, Filter
 from pinecall.log.reduce import reduce
-from pinecall.log.store import Store, log_name
+from pinecall.log.store import Claimant, Store, log_name
 from pinecall.wire.events import (
     EPHEMERAL_EVENTS,
     TERMINAL_EVENT,
@@ -242,9 +242,9 @@ class Logs:
         self.store = store
         self.box = Fanout()
         self._logs: dict[str, Log] = {}
-        self._feeds: dict[str, Fanout] = {}
+        self._feeds: dict[tuple[str, Env], Fanout] = {}
         # A log's owner never changes; caching it keeps a store read off the append path.
-        self._owners: dict[str, str] = {}
+        self._owners: dict[str, Claimant] = {}
 
     def writing(self, call: str, agent: str) -> Log:
         """Return the call's log for its writer, held until the process forgets the call."""
@@ -280,13 +280,24 @@ class Logs:
         self._logs.pop(call, None)
         self._owners.pop(call, None)
 
-    def feed(self, org: str) -> Fanout:
-        """Return the org's feed: the lifecycle entries of every log it owns."""
+    def feed(self, org: str, env: Env) -> Fanout:
+        """Return the org's feed in that world: the lifecycle entries of every log it owns there."""
         self._prune()
-        feed = self._feeds.get(org)
+        feed = self._feeds.get((org, env))
         if feed is None:
-            feed = self._feeds[org] = Fanout()
+            feed = self._feeds[(org, env)] = Fanout()
         return feed
+
+    # Only a found owner is cached: a log nobody claimed yet may be claimed later.
+    async def claimant_of(self, entry: Entry) -> Claimant | None:
+        """Return whose the entry's log is and in which world, asked of the store once per log."""
+        name = log_name(entry.call, entry.agent)
+        found = self._owners.get(name)
+        if found is None:
+            found = await self.store.claimant(entry.call, entry.agent)
+            if found is not None:
+                self._owners[name] = found
+        return found
 
     def _log(self, call: str | None, agent: str) -> Log:
         name = log_name(call, agent)
@@ -295,21 +306,19 @@ class Logs:
             log = self._logs[name] = Log(self.store, call, agent)
         return log
 
-    # Only a found owner is cached: a log nobody claimed yet may be claimed later.
+    # An agent's own entries serve both worlds, so they reach the org's feed in each.
     async def _fed(self, entry: Entry) -> None:
         if entry.type not in ORG_EVENTS:
             return
-        name = log_name(entry.call, entry.agent)
-        org = self._owners.get(name)
-        if org is None:
-            org = await self.store.owner(entry.call, entry.agent)
-            if org is None:
-                return
-            self._owners[name] = org
+        claimant = await self.claimant_of(entry)
+        if claimant is None:
+            return
         self.box.publish(entry)
-        feed = self._feeds.get(org)
-        if feed is not None:
-            feed.publish(entry)
+        worlds = ENVS if claimant.env is None else (claimant.env,)
+        for env in worlds:
+            feed = self._feeds.get((claimant.org, env))
+            if feed is not None:
+                feed.publish(entry)
 
     # On every read, so readers asking for arbitrary names cannot grow the tables without bound.
     def _prune(self, *, but: str = "") -> None:
@@ -320,8 +329,8 @@ class Logs:
         ]
         for name in idle:
             del self._logs[name]
-        for org in [o for o, feed in self._feeds.items() if not feed.readers]:
-            del self._feeds[org]
+        for key in [k for k, feed in self._feeds.items() if not feed.readers]:
+            del self._feeds[key]
 
 
 # The caller is always the far end: on an outbound call that is the `to`.

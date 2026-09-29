@@ -404,12 +404,10 @@ async def _owned(gateway: Gateway, entries: AsyncIterator[Entry]) -> AsyncIterat
         if entry is None:
             yield _streams.PING
             continue
-        store = gateway.logs.store
-        org = await store.owner(entry.call, entry.agent)
-        if org is None:
+        claimant = await gateway.logs.claimant_of(entry)
+        if claimant is None:
             continue
-        env = None if entry.call is None else await store.world(entry.call)
-        event = BoxEvent(org=org, env=env, entry=entry)
+        event = BoxEvent(org=claimant.org, env=claimant.env, entry=entry)
         yield frame(entry.type, event.written(), seq=entry.seq)
 
 

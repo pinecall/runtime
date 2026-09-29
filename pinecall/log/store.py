@@ -96,7 +96,7 @@ on conflict (log) do update
 
 OWNER = "select org from call_log_head where log = %(log)s"
 
-WORLD = "select env from call_log_head where log = %(log)s"
+CLAIMANT = "select org, env from call_log_head where log = %(log)s"
 
 MOVED = """
 with moved as (update call_log_head set org = %(org)s where agent = %(agent)s returning log)
@@ -127,6 +127,14 @@ where call is not null and not sealed
 order by started_at desc nulls last, log desc
 limit 1
 """
+
+
+@dataclass(frozen=True, slots=True)
+class Claimant:
+    """Whose a log is and the world it was claimed in; no world on an agent's own log."""
+
+    org: str
+    env: Env | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,11 +260,16 @@ class Store:
             row = await (await connection.execute(OWNER, {"log": log_name(call, agent)})).fetchone()
         return None if row is None or row["org"] is None else str(row["org"])
 
-    async def world(self, call: str) -> Env | None:
-        """Return the world a call's log was claimed in, or None while nobody claimed it."""
+    async def claimant(self, call: str | None, agent: str) -> Claimant | None:
+        """Return whose the log is and in which world, or None while nobody claimed it."""
         async with self.pool.connection() as connection:
-            row = await (await connection.execute(WORLD, {"log": call})).fetchone()
-        return None if row is None or row["env"] is None else parse_env(str(row["env"]))
+            row = await (
+                await connection.execute(CLAIMANT, {"log": log_name(call, agent)})
+            ).fetchone()
+        if row is None or row["org"] is None:
+            return None
+        env = None if row["env"] is None else parse_env(str(row["env"]))
+        return Claimant(org=str(row["org"]), env=env)
 
     # The operator's way back from a claim: an agent registered with the wrong key.
     async def moved(self, agent: str, org: str) -> int:

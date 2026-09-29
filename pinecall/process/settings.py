@@ -302,6 +302,11 @@ class Settings(BaseModel):
         """The box's name for that world, or None where it has none."""
         return (self.sandbox_domain or self.domain) if world == SANDBOX else self.domain
 
+    def address_of(self, world: Env) -> str | None:
+        """The https address of the box's name for that world, or None where it has none."""
+        name = self.name_of(world)
+        return None if name is None else f"https://{name}"
+
     def livekit_url_for(self, world: Env) -> str:
         """The LiveKit URL a browser in that world is told to join: its own name, else the box's."""
         name = self.name_of(world)

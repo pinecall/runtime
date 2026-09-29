@@ -21,6 +21,7 @@ from pinecall.domain.errors import (
     PinecallError,
     SettingsRefused,
 )
+from pinecall.domain.names import other_world
 from pinecall.evals.runs import Runner
 from pinecall.fleet.roster import Roster
 from pinecall.gateway import _deps
@@ -327,7 +328,7 @@ def console(path: str, request: Request, gateway: _deps.GatewayDep) -> Response:
         return FileResponse(params)
     page = (root / THE_PAGE).read_text(encoding="utf-8")
     settings = gateway.connections.settings
-    marked = page_marked(page, settings, request.headers.get("host"))
+    marked = page_marked(page, settings, request.headers.get(_deps.HOST))
     return HTMLResponse(marked, headers={"cache-control": "no-store"})
 
 
@@ -337,10 +338,10 @@ def page_marked(page: str, settings: Settings, host: str | None) -> str:
     world = settings.world_named(host)
     if world is None:
         return page
-    other = settings.name_of("sandbox" if world == "production" else "production")
     marks = f'<meta name="pinecall-world" content="{world}">'
-    if other:
-        marks += f'<meta name="pinecall-elsewhere" content="https://{other}">'
+    elsewhere = settings.address_of(other_world(world))
+    if elsewhere:
+        marks += f'<meta name="pinecall-elsewhere" content="{elsewhere}">'
     return page.replace("<head>", f"<head>{marks}", 1)
 
 

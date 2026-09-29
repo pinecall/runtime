@@ -4,6 +4,7 @@ import asyncio
 import json
 
 import httpx
+import pytest
 
 from pinecall.domain.call import CallContext
 from pinecall.domain.names import JsonObject
@@ -538,3 +539,22 @@ async def test_remember_on_a_call_that_keeps_nothing_counts_no_op(knocking: Knoc
     assert remembered.json()["ops"] == 0
     assert nobody.status_code == 404
     await app.close()
+
+
+@postgres
+async def test_the_orgs_feed_carries_its_own_worlds_calls_and_not_the_others(
+    knocking: Knocking,
+) -> None:
+    context = a_call(knocking)
+    async with (
+        knocking.http(knocking.app["production"]) as elsewhere,
+        elsewhere.stream("GET", "/v1/events", headers={"Accept": "text/event-stream"}) as quiet,
+        knocking.http(knocking.app["sandbox"]) as tenant,
+        tenant.stream("GET", "/v1/events", headers={"Accept": "text/event-stream"}) as feed,
+        knocking.http(knocking.fleet["sandbox"]) as worker,
+    ):
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+        data = await asyncio.wait_for(first_data(feed.aiter_lines()), 5)
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(first_data(quiet.aiter_lines()), 0.3)
+    assert json.loads(data)["type"] == "call.ringing"

@@ -19,7 +19,7 @@ from pinecall.domain.errors import (
     QuotaExhausted,
     TooManyRequests,
 )
-from pinecall.domain.names import Env, parse_env
+from pinecall.domain.names import PRODUCTION, Env, parse_env
 from pinecall.domain.person import HOLDING, THE_FLEET, THE_TEAM, KeyScope
 from pinecall.domain.scope import Scope
 from pinecall.gateway._call_setup import exhausted
@@ -164,8 +164,8 @@ def public_url(request: Request, gateway: Gateway) -> str:
     """The box's name the request came in by, else production's, without a trailing slash."""
     settings = gateway.connections.settings
     world = settings.world_named(request.headers.get(HOST))
-    name = settings.domain if world is None else settings.name_of(world)
-    return f"https://{name}" if name else str(request.base_url).rstrip("/")
+    address = settings.address_of(PRODUCTION if world is None else world)
+    return address or str(request.base_url).rstrip("/")
 
 
 async def admit_call(gateway: Gateway, scope: Scope, agent: str) -> admission.Ceiling | None:
