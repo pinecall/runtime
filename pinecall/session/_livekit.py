@@ -130,8 +130,10 @@ def end_of_utterance(report: Mapping[str, object], speech: str) -> measured.EOUM
     delays = ("end_of_turn_delay", "transcription_delay", "on_user_turn_completed_delay")
     if not any(key in report for key in delays):
         return None
+    # Said, or written() drops the default and the SDKs refuse the entry.
     return measured.EOUMetrics.model_validate(
         {
+            "type": "eou_metrics",
             "timestamp": time.time(),
             "end_of_utterance_delay": report.get("end_of_turn_delay", 0.0),
             "transcription_delay": report.get("transcription_delay", 0.0),
