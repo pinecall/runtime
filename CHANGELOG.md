@@ -137,7 +137,8 @@ The runtime written again from a blank page.
 - A name per world: `PINECALL_DOMAIN` is production's and `PINECALL_SANDBOX_DOMAIN` the sandbox's,
   both one gateway. The name a request comes in by is its world: the console served at the
   sandbox's name is the sandbox's (the page carries `pinecall-world` and `pinecall-elsewhere`),
-  `pinecall-env` may only agree, `/.well-known/pinecall` says `world` and `elsewhere`, a browser
+  `pinecall-env` may only agree (on a door and on the app and chat sockets alike),
+  `/.well-known/pinecall` says `world` and `elsewhere`, a browser
   joins LiveKit at its own name, and a number imported in a world points its carrier at that
   world's name.
 

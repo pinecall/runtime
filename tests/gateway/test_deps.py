@@ -3,9 +3,10 @@
 from dataclasses import replace
 
 import pytest
-from starlette.requests import Request
+from starlette.requests import HTTPConnection, Request
 
-from pinecall.domain.errors import TooManyRequests
+from pinecall.domain.errors import NotAllowed, TooManyRequests
+from pinecall.domain.person import HOLDING, Key
 from pinecall.domain.scope import Scope
 from pinecall.gateway._deps import (
     SCOPES_OF,
@@ -16,8 +17,10 @@ from pinecall.gateway._deps import (
     dispatched,
     opening,
     public_url,
+    world_of_request,
 )
 from pinecall.gateway._gateway import Gateway
+from pinecall.tenancy.keys import Bearer
 from pinecall.tenancy.signin import TRIES
 from pinecall.tenancy.tokens import Visit
 from tests.conftest import postgres
@@ -99,3 +102,25 @@ def test_the_public_url_is_the_sandboxs_name_for_a_request_that_came_in_by_it(
     assert public_url(a_request(host="sandbox.box.test"), both) == "https://sandbox.box.test"
     assert public_url(a_request(host="box.test"), both) == "https://box.test"
     assert public_url(a_request(host="forged.test"), both) == "https://box.test"
+
+
+@postgres
+def test_a_socket_at_the_sandboxs_name_acts_in_the_sandbox_and_may_not_ask_for_production(
+    wired: Gateway,
+) -> None:
+    named = wired.connections.settings.model_copy(update={"sandbox_domain": "sandbox.box.test"})
+    both = replace(wired, connections=replace(wired.connections, settings=named))
+    server = Bearer(Key("k_1", "org_1", env="sandbox", scopes=frozenset({HOLDING})))
+
+    def socket(*headers: tuple[bytes, bytes]) -> HTTPConnection:
+        return HTTPConnection(
+            {
+                "type": "websocket",
+                "path": "/v1/chat",
+                "headers": [(b"host", b"sandbox.box.test"), *headers],
+            }
+        )
+
+    assert world_of_request(socket(), server, both) == "sandbox"
+    with pytest.raises(NotAllowed, match="this name is the sandbox's"):
+        world_of_request(socket((b"pinecall-env", b"production")), server, both)
