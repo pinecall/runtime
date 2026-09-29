@@ -124,21 +124,22 @@ nobody keyed `503`, a model that answered no line `502`.
 spoken call: the agent is dispatched into the room named `call` with the persona and its rule on
 the dispatch, the caller joins and speaks in a voice the agent does not use (the persona's own,
 else one of the operator's voices for the language), and the room is deleted at the end whatever
-happened. A persona written for other agents is refused. A room nobody can hold is `503`.
+happened. A persona is the agent's: a name nobody wrote for that agent is `404`; one sent
+without a name is played as sent. A room nobody can hold is `503`.
 
-## Personas — `GET` · `PUT` · `DELETE /v1/personas/{name}`, `GET /v1/personas/{name}/runs`
+## Personas — `GET /v1/agents/{slug}/personas`, `PUT` · `DELETE /v1/agents/{slug}/personas/{name}`, `GET /v1/agents/{slug}/personas/{name}/runs`
 
-A persona belongs to the org, in both worlds, and names the agents it may call; none named is
-every agent. `GET /v1/personas?agent=recepcion` lists the ones that agent may be called by.
+A persona belongs to one agent, in both worlds: two agents of the org may each have an `apurado`
+of their own. `GET /v1/agents/recepcion/personas` lists that agent's callers.
 
 ```
-PUT /v1/personas/apurado
+PUT /v1/agents/recepcion/personas/apurado
 {"goal": "cambiar la cita al martes", "style": "frases cortas", "facts": {"nombre": "Ana"},
- "llm": "anthropic/claude-haiku-4-5", "accepts_when": "le dan hora el martes",
- "agents": ["recepcion"], "was": null}
+ "llm": "anthropic/claude-haiku-4-5", "accepts_when": "le dan hora el martes", "was": null}
 ```
 
-The name is lower-case words joined by hyphens; `was` renames. A vendor this box lacks is refused
-when written, not in the middle of a run. `GET /v1/personas/{name}/runs` pages the calls the
-persona made in the key's world, newest first, each with its turns, how it ended, its cost in
+The name is lower-case words joined by hyphens; `was` renames, within the agent. A vendor this box
+lacks is refused when written, not in the middle of a run. `GET
+/v1/agents/{slug}/personas/{name}/runs` pages the calls the persona made to that agent in the
+key's world, newest first, each with its turns, how it ended, its cost in
 US dollars and the judges' score.

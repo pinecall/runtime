@@ -215,7 +215,7 @@ limit %(limit)s
 _THE_PERSONAS_RUNS = sql.SQL("""
 from call_log_head head join call_facts f on f.call = head.log
 where head.org = %(org)s and head.env = %(env)s and head.holder = %(holder)s
-  and head.call is not null and f.persona = %(persona)s
+  and head.agent = %(agent)s and head.call is not null and f.persona = %(persona)s
 """)
 
 

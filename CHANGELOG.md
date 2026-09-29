@@ -150,3 +150,9 @@ The runtime written again from a blank page.
   replace `/v1/lexicon`, with the same bodies, keys, scopes and versions. Migration 0008 copies
   each org's lexicon to every agent the org has in that world, keeping its version numbers, so
   `GET /v1/calls/{call}/settings` still reads the words an older call ran on.
+- A persona is one agent's: its doors are `/v1/agents/{slug}/personas[/{name}[/runs]]`, a name is
+  unique within the agent, its runs are that agent's calls, and `/v1/evals/voice` refuses with
+  `404` a name nobody wrote for the agent it calls. `/v1/personas` is gone, and so is a persona's
+  `agents`: a row written for some agents becomes one copy each, one written for every agent one
+  copy per agent the org has. Fixed by construction: the console and the CLI never sent `agents`,
+  so every edit of a persona made it callable by every agent again.

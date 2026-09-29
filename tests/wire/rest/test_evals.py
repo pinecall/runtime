@@ -75,7 +75,11 @@ def test_a_turn_the_caller_heard_is_said_by_the_agent_or_by_the_caller_and_nobod
         Spoken.read({"who": "narrator", "said": "hola"}, "heard")
 
 
-def test_a_persona_written_for_nobody_in_particular_calls_every_agent() -> None:
+def test_a_persona_written_with_its_goal_and_style_alone_says_nothing_else() -> None:
     written = PersonaRequest.read({"goal": "g", "style": "s"}, "persona")
-    assert written.agents == []
-    assert (written.about, written.facts, written.state) == ("", {}, {})
+    assert (written.about, written.facts, written.state, written.was) == ("", {}, {}, None)
+
+
+def test_a_persona_naming_the_agents_it_calls_is_refused_since_it_is_one_agents() -> None:
+    with pytest.raises(DeclarationRefused):
+        PersonaRequest.read({"goal": "g", "style": "s", "agents": ["recepcion"]}, "persona")

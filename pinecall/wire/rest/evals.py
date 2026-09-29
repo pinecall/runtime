@@ -238,11 +238,11 @@ class PlaceVoiceCallResponse(WireModel):
     line: str
 
 
-# ── the org's personas ──
+# ── an agent's personas ──
 
 
 class PersonaRequest(WireModel):
-    """PUT /v1/personas/{name}, the body: the caller written whole, and the agents it may call."""
+    """PUT /v1/agents/{slug}/personas/{name}, the body: the caller written whole."""
 
     about: str = ""
     goal: str
@@ -256,12 +256,10 @@ class PersonaRequest(WireModel):
     declines_when: str | None = None
     # The name this caller had, when the write renames it.
     was: str | None = None
-    # Empty: every agent of the org.
-    agents: list[str] = Field(default_factory=list[str])
 
 
 class PersonaRow(WireModel):
-    """One caller of the org as the list shows it."""
+    """One caller of the agent as the list shows it."""
 
     name: str
     about: str
@@ -276,11 +274,10 @@ class PersonaRow(WireModel):
     declines_when: str
     author: str
     set_at: float
-    agents: list[str]
 
 
 class PersonaList(WireModel):
-    """GET /v1/personas: the org's callers, by name."""
+    """GET /v1/agents/{slug}/personas: the agent's callers, by name."""
 
     personas: list[PersonaRow]
 
@@ -300,7 +297,7 @@ class PersonaRunRow(WireModel):
 
 
 class PersonaRunList(WireModel):
-    """GET /v1/personas/{name}/runs: a page of the persona's calls, newest first."""
+    """GET /v1/agents/{slug}/personas/{name}/runs: a page of the persona's calls, newest first."""
 
     runs: list[PersonaRunRow]
     total: int

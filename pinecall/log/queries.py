@@ -129,6 +129,15 @@ class Inbox:
 
 
 @dataclass(frozen=True, slots=True)
+class PersonaRunFilters:
+    """Whose runs a list asks for: the agent, the persona that called it, the page before this."""
+
+    agent: str
+    persona: str
+    before: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class PersonaRun:
     """One simulated call by a persona: when it started, its facts, how many turns it took."""
 
@@ -223,13 +232,13 @@ async def found(pool: Pool, scope: Scope, wanted: ListFilters, *, limit: int) ->
 
 
 async def runs_of_persona(
-    pool: Pool, scope: Scope, persona: str, *, before: str | None, limit: int
+    pool: Pool, scope: Scope, wanted: PersonaRunFilters, *, limit: int
 ) -> PersonaRuns:
-    """Return one page of the persona's runs in the scope, newest first, and their total."""
-    params = {**asdict(scope), "persona": persona}
+    """Return a page of the persona's calls to the agent in the scope, newest first, and a total."""
+    params = {**asdict(scope), "agent": wanted.agent, "persona": wanted.persona}
     async with pool.connection() as connection:
         total = await (await connection.execute(PERSONA_RUNS_COUNT, params)).fetchone()
-        page = {**params, "before": before, "limit": limit + 1}
+        page = {**params, "before": wanted.before, "limit": limit + 1}
         rows = await (await connection.execute(PERSONA_RUNS_PAGE, page)).fetchall()
     runs = [PersonaRun(started_at=float(row["started_at"]), facts=facts_of(row)) for row in rows]
     return PersonaRuns(

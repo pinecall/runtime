@@ -14,7 +14,7 @@ from pinecall.evals import runs
 from pinecall.log.store import Claim, log_name
 from pinecall.providers import catalog
 from pinecall.tenancy import admission, personas
-from pinecall.tenancy.personas import Persona
+from pinecall.tenancy.personas import Persona, PersonaEdit
 from pinecall.wire.rest.evals import EvalRunResponse
 from tests.conftest import AGENT, Knocking, configured, issued, postgres, received_until, sent
 from tests.fakes.livekit import Server
@@ -511,20 +511,27 @@ async def test_a_vendor_nobody_keyed_is_the_box_not_being_able_to_play_the_calle
 # ── a spoken call ──
 
 
+async def written_for(knocking: Knocking, agent: str) -> None:
+    apurado = Persona(name="apurado", goal="g", style="s")
+    await personas.put_persona(
+        knocking.gateway.connections.pool, knocking.org.id, agent, apurado, PersonaEdit("a")
+    )
+
+
 @postgres
-async def test_a_persona_written_for_other_agents_is_not_put_on_this_ones_line(
+async def test_a_persona_written_for_another_agent_is_not_put_on_this_ones_line(
     knocking: Knocking,
 ) -> None:
-    written = Persona(name="apurado", goal="g", style="s", agents=frozenset({"tienda-sur"}))
-    await personas.put_persona(
-        knocking.gateway.connections.pool, knocking.org.id, written, author="a"
-    )
+    await written_for(knocking, "tienda-sur")
     async with knocking.http(knocking.app["sandbox"]) as http:
         refused = await http.post(
             "/v1/evals/voice", json={"call": "call_1", "agent": AGENT, "persona": APURADO}
         )
-    assert refused.status_code == 400
-    assert "written for tienda-sur, not for clinica-norte" in refused.json()["detail"]
+    assert refused.status_code == 404
+    assert refused.json()["detail"] == "no persona called apurado for clinica-norte"
+    server = knocking.gateway.connections.server
+    assert isinstance(server, Server)
+    assert server.dispatcher.made == []
 
 
 # The media plane is the box's: here the room refuses the caller, and the room still goes.
@@ -536,6 +543,7 @@ async def test_the_agent_is_dispatched_with_the_persona_and_the_room_is_deleted_
         raise rtc.ConnectError("the room refused the caller")
 
     monkeypatch.setattr(rtc.Room, "connect", refused)
+    await written_for(knocking, AGENT)
     ruled = {**APURADO, "accepts_when": "a Tuesday slot"}
     async with knocking.http(knocking.app["sandbox"]) as http:
         answer = await http.post(

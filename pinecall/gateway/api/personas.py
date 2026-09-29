@@ -1,20 +1,21 @@
-"""The persona doors: the org's synthetic callers, the agents each may call, what each ran."""
+"""The persona doors: an agent's synthetic callers, and what each ran."""
 
 import re
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from pinecall.domain.errors import DeclarationRefused, NotFound
-from pinecall.domain.scope import Scope
 from pinecall.gateway import _deps
 from pinecall.gateway._deps import EvalsKey, GatewayDep, ScopeDep
+from pinecall.gateway._gateway import Gateway
 from pinecall.log import queries
+from pinecall.log.queries import PersonaRunFilters
 from pinecall.providers import catalog
 from pinecall.providers.declared import model_of
 from pinecall.tenancy import personas
-from pinecall.tenancy.personas import Persona, StoredPersona
+from pinecall.tenancy.personas import Persona, PersonaEdit, StoredPersona
 from pinecall.wire.rest.evals import (
     PersonaList,
     PersonaRequest,
@@ -38,12 +39,6 @@ NOT_A_NAME = (
 A_SCREENFUL = 20
 
 
-class PersonaQuery(BaseModel):
-    """Whose personas a list asks for: one agent's, or every one of the org."""
-
-    agent: str | None = None
-
-
 class PersonaRunQuery(BaseModel):
     """Where a persona's runs continue, and how many."""
 
@@ -52,21 +47,18 @@ class PersonaRunQuery(BaseModel):
 
 
 # One list for both worlds: a persona is test data, never heard by a customer.
-@router.get("/v1/personas")
-async def list_personas(
-    key: EvalsKey, gateway: GatewayDep, query: Annotated[PersonaQuery, Query()]
-) -> PersonaList:
-    """The org's callers, by name: every one, or those an agent may be called by."""
-    kept = await personas.personas_of(gateway.connections.pool, key.org, agent=query.agent)
-    return PersonaList(personas=[_row_of(stored) for stored in kept])
+@router.get("/v1/agents/{slug}/personas")
+async def list_personas(slug: str, key: EvalsKey, gateway: GatewayDep) -> PersonaList:
+    """The agent's callers, by name."""
+    return await _list_of(gateway, key.org, slug)
 
 
 # A model or a vendor this box lacks is refused when written, not on the call that plays it.
-@router.put("/v1/personas/{name}")
+@router.put("/v1/agents/{slug}/personas/{name}")
 async def put_persona(
-    name: str, body: PersonaRequest, key: EvalsKey, gateway: GatewayDep
+    slug: str, name: str, body: PersonaRequest, key: EvalsKey, gateway: GatewayDep
 ) -> PersonaList:
-    """Write a caller whole, or rename one from `was`; the org's list after it."""
+    """Write one of the agent's callers whole, or rename one from `was`; its list after it."""
     if not A_NAME.match(name):
         raise DeclarationRefused(NOT_A_NAME.format(name=name))
     pool = gateway.connections.pool
@@ -86,42 +78,41 @@ async def put_persona(
         voice=body.voice or None,
         accepts_when=body.accepts_when or "",
         declines_when=body.declines_when or "",
-        agents=frozenset(body.agents),
     )
     bearer = key.bearer.key
-    await personas.put_persona(
-        pool, key.org, written, author=bearer.subject or bearer.key_id, was=body.was
-    )
-    return PersonaList(
-        personas=[_row_of(stored) for stored in await personas.personas_of(pool, key.org)]
-    )
+    edit = PersonaEdit(author=bearer.subject or bearer.key_id, was=body.was)
+    await personas.put_persona(pool, key.org, slug, written, edit)
+    return await _list_of(gateway, key.org, slug)
 
 
-@router.delete("/v1/personas/{name}")
-async def drop_persona(name: str, key: EvalsKey, gateway: GatewayDep) -> PersonaList:
-    """Forget a caller; the org's list after it, 404 for a name nobody wrote."""
-    pool = gateway.connections.pool
-    await personas.drop_persona(pool, key.org, name)
-    return PersonaList(
-        personas=[_row_of(stored) for stored in await personas.personas_of(pool, key.org)]
-    )
+@router.delete("/v1/agents/{slug}/personas/{name}")
+async def drop_persona(slug: str, name: str, key: EvalsKey, gateway: GatewayDep) -> PersonaList:
+    """Forget one of the agent's callers; its list after it, 404 for a name nobody wrote."""
+    await personas.drop_persona(gateway.connections.pool, key.org, slug, name)
+    return await _list_of(gateway, key.org, slug)
 
 
-# A name the org never wrote is a 404, not an empty page.
-@router.get("/v1/personas/{name}/runs")
+# A name nobody wrote for the agent is a 404, not an empty page. The key is let through by the
+# route's dependency, since the scope already names its org.
+@router.get(
+    "/v1/agents/{slug}/personas/{name}/runs", dependencies=[Depends(_deps.opening("evals"))]
+)
 async def list_persona_runs(
+    slug: str,
     name: str,
-    key: EvalsKey,
     scope: ScopeDep,
     gateway: GatewayDep,
     query: Annotated[PersonaRunQuery, Query()],
 ) -> PersonaRunList:
-    """The calls the persona made in the key's world and scope, newest first, a page."""
+    """The calls the persona made to the agent in the key's world and scope, newest first."""
     pool = gateway.connections.pool
-    if await personas.persona(pool, key.org, name) is None:
-        raise NotFound(personas.NOBODY.format(name=name))
+    if await personas.persona(pool, scope.org, slug, name) is None:
+        raise NotFound(personas.NOBODY.format(name=name, agent=slug))
     found = await queries.runs_of_persona(
-        pool, Scope(key.org, scope.env, scope.holder), name, before=query.before, limit=query.limit
+        pool,
+        scope,
+        PersonaRunFilters(agent=slug, persona=name, before=query.before),
+        limit=query.limit,
     )
     rows = [
         PersonaRunRow.model_validate(
@@ -158,5 +149,9 @@ def _row_of(stored: StoredPersona) -> PersonaRow:
         declines_when=persona.declines_when,
         author=stored.author,
         set_at=stored.set_at.timestamp(),
-        agents=sorted(persona.agents),
     )
+
+
+async def _list_of(gateway: Gateway, org: str, agent: str) -> PersonaList:
+    kept = await personas.personas_of(gateway.connections.pool, org, agent)
+    return PersonaList(personas=[_row_of(stored) for stored in kept])

@@ -22,7 +22,7 @@ from pinecall.tenancy.agents import (
     silence_hold,
 )
 from pinecall.tenancy.codes import CLAIMED, ISSUED, Codes
-from pinecall.tenancy.personas import Persona, personas_of, put_persona
+from pinecall.tenancy.personas import Persona, PersonaEdit, personas_of, put_persona
 from pinecall.wire.frames import Entry
 from tests.conftest import postgres
 from tests.tenancy.conftest import MARTA, an_org
@@ -79,9 +79,10 @@ async def test_silence_and_the_default_both_forget_the_clip(pool: Pool) -> None:
 @postgres
 async def test_writing_the_same_name_replaces_it_and_never_doubles_it(pool: Pool) -> None:
     org = await an_org(pool)
-    await put_persona(pool, org.id, MARTA, author="m_ana")
-    await put_persona(pool, org.id, Persona(name="marta", goal="cancel", style="s"), author="m_bo")
-    (only,) = await personas_of(pool, org.id)
+    await put_persona(pool, org.id, AGENT, MARTA, PersonaEdit("m_ana"))
+    again = Persona(name="marta", goal="cancel", style="s")
+    await put_persona(pool, org.id, AGENT, again, PersonaEdit("m_bo"))
+    (only,) = await personas_of(pool, org.id, AGENT)
     assert (only.persona.goal, only.author) == ("cancel", "m_bo")
 
 
