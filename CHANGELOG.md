@@ -160,3 +160,8 @@ The runtime written again from a blank page.
   `PUT`·`DELETE /v1/agents/{slug}/judges/{name}`, `pinecall judges`), asked of the judge model at
   hang-up beside the runtime's panel, on every call or only on simulated ones; its verdict is in
   `call.score` under its name. `POST /v1/evals/judge/{call}` asks them too.
+- The org's own judges: `GET /v1/org/judges`, `PUT`·`DELETE /v1/org/judges/{name}`, questions
+  asked of every agent's calls beside the panel and the agent's own; a name may not be the
+  panel's, nor the org's and an agent's at once, and a judge without a question is refused.
+- The judge's ceiling is the providers row's `judge.ceiling_usd`, applied: a model judge asked
+  once the call's judging reached it is `skipped`, saying so. `PINECALL_JUDGE_CEILING_USD` is gone.

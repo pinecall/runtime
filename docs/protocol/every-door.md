@@ -22,6 +22,9 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `GET` | `/v1/agents/{slug}/lexicon` | pipeline · words | The agent's words as this key sees them: yours, the team's and production's. |
 | `PUT` | `/v1/agents/{slug}/lexicon` | pipeline · words | The agent's next lexicon in this scope or the team's. |
 | `GET` | `/v1/agents/{slug}/lexicon/history` | pipeline · words | One scope's versions of the agent's lexicon, newest first. |
+| `GET` | `/v1/org/judges` | evals | The org's judges, asked of every agent's calls, by name. |
+| `DELETE` | `/v1/org/judges/{name}` | evals | Forget one of the org's judges; a name nobody wrote is a 404. |
+| `PUT` | `/v1/org/judges/{name}` | evals | One of the org's judges, whole: a question asked of every agent's calls at hang-up. |
 | `GET` | `/v1/agents/{slug}/judges` | evals | The agent's own judges, by name: the question each asks and which calls it reads. |
 | `DELETE` | `/v1/agents/{slug}/judges/{name}` | evals | Forget one of the agent's own judges; a name nobody wrote is a 404. |
 | `PUT` | `/v1/agents/{slug}/judges/{name}` | evals | One of the agent's own judges, whole: a question asked of its calls at hang-up. |

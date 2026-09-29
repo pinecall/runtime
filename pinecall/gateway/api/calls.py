@@ -45,6 +45,7 @@ from pinecall.log import queries
 from pinecall.log.readers import Filter, parse_filter, project_entry, project_state
 from pinecall.log.store import DEFAULT_LIMIT, Claim
 from pinecall.providers import catalog
+from pinecall.providers.catalog import judge_ceiling
 from pinecall.session.call import ToolUse
 from pinecall.tenancy import keys, orgs, tokens
 from pinecall.wire.commands import CallClaim
@@ -245,8 +246,9 @@ async def call_judging(call: str, key: WorkerKey, gateway: GatewayDep) -> Judgin
     """Whether the call's org judges its calls at hang-up."""
     _orgs_call(gateway, key, call)
     served = _orgs_call(gateway, key, call)
-    on = await orgs.judged(gateway.connections.pool, served.scope.org)
-    return JudgingSettings(on=on, ceiling_usd=gateway.connections.settings.judge_ceiling_usd)
+    pool = gateway.connections.pool
+    on = await orgs.judged(pool, served.scope.org)
+    return JudgingSettings(on=on, ceiling_usd=judge_ceiling(await catalog.providers(pool)))
 
 
 # The gateway writes memory.ops and docs.sources on the log itself: the worker has no database.

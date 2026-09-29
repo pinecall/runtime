@@ -34,6 +34,10 @@ type DocsMode = Literal["retrieved", "tool"]
 type RunsOn = Literal["every-call", "simulations"]
 
 
+# The names the hang-up panel gives its verdicts; a judge of the org's or an agent's takes another.
+PANEL_JUDGES: tuple[str, ...] = ("consent", "grounded", "promises", "persona")
+
+
 # A name every model vendor accepts as a function name.
 _A_NAME_A_MODEL_CAN_CALL = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 

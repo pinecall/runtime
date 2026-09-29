@@ -248,7 +248,7 @@ async def judge_call(
         entry.type == "call.score" and entry.data.get("passed") is not None for entry in entries
     ):
         raise Conflict(ALREADY_JUDGED.format(call=call))
-    own = await judges.judges_of(gateway.connections.pool, key.org, entries[0].agent)
+    own = await judges.for_call(gateway.connections.pool, key.org, entries[0].agent)
     score = await judged_call(gateway.connections, entries, declared, own)
     await store.rescored(call, entries[0].agent, score.written())
     return score

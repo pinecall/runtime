@@ -166,6 +166,8 @@ extend_exclude = ["tests/rules/fixtures"]
 # The wheel's build hook imports the build backend, which build-system.requires declares.
 per_rule_ignores = { DEP001 = ["hatchling"] }
 
-[tool.anti-vibe]
+[tool.vibecheck]
 # Calling these is the effect a door exists for: its hops are counted up to them.
 sinks = ["log.logs:Log.append", "Twilio._get", "providers.build:installed"]
+# The folders from the bottom up, as the imports stand today: one may import only from those before it.
+layers = ["domain", "postgres", "wire", "process", "log", "fleet", "providers", "tenancy", "retrieval", "session", "channels", "evals", "worker", "gateway", "cli"]

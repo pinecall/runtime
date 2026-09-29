@@ -11,6 +11,8 @@ from pinecall.gateway._deps import (
     UsageKey,
     public_url,
 )
+from pinecall.providers import catalog
+from pinecall.providers.catalog import judge_ceiling
 from pinecall.tenancy import keys, letters, mail, orgs, sso
 from pinecall.tenancy.mail import Mailbox, MailboxStatus
 from pinecall.tenancy.sso import Client, OrgSso
@@ -52,15 +54,17 @@ NOTHING_TO_TEST = (
 @router.get("/v1/org/judging")
 async def get_judging(key: CallsKey, gateway: GatewayDep) -> JudgingSettings:
     """Whether hang-up judging is on, and its ceiling per call."""
-    on = await orgs.judged(gateway.connections.pool, key.org)
-    return JudgingSettings(on=on, ceiling_usd=gateway.connections.settings.judge_ceiling_usd)
+    pool = gateway.connections.pool
+    on = await orgs.judged(pool, key.org)
+    return JudgingSettings(on=on, ceiling_usd=judge_ceiling(await catalog.providers(pool)))
 
 
 @router.put("/v1/org/judging")
 async def put_judging(body: JudgingRequest, key: UsageKey, gateway: GatewayDep) -> JudgingSettings:
     """Hang-up judging on or off, from the next call."""
-    await orgs.set_judging(gateway.connections.pool, key.org, on=body.on)
-    return JudgingSettings(on=body.on, ceiling_usd=gateway.connections.settings.judge_ceiling_usd)
+    pool = gateway.connections.pool
+    await orgs.set_judging(pool, key.org, on=body.on)
+    return JudgingSettings(on=body.on, ceiling_usd=judge_ceiling(await catalog.providers(pool)))
 
 
 # `team`: the provider decides who the org's people are.

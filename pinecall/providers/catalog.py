@@ -112,6 +112,11 @@ class Providers(BaseModel):
     embedding: Embedding | None = None
 
 
+def judge_ceiling(configured: Providers) -> float | None:
+    """What one call may spend on the box's judge, or None where the row names no judge."""
+    return None if configured.judge is None else configured.judge.ceiling_usd
+
+
 async def providers(pool: Pool) -> Providers:
     """The box's configuration; NotAvailable until it was written."""
     async with pool.connection() as connection:

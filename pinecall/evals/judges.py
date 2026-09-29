@@ -219,6 +219,9 @@ OWN_QUESTION = (
 NOBODY_ANSWERED = "the org wrote this question for the agent, and no judge model was given to ask"
 
 
+OVER_THE_CEILING = "judging this call reached its ceiling of ${ceiling} before this judge asked"
+
+
 NOTHING_ANSWERED = "every judge run over this call failed and not one of them answered"
 
 
@@ -233,9 +236,10 @@ class Question:
 
 @dataclass(frozen=True)
 class JudgeModel:
-    """The judge model a call is asked on, or None and the sentence that says why there is none."""
+    """The judge model a call is asked on and what one call may spend on it, or None and why."""
 
     running: Running | None
+    ceiling_usd: float
     unjudged: str = ""
 
 
@@ -346,24 +350,24 @@ async def at_hangup(
     *,
     configured: Providers,
 ) -> CallScore:
-    """The hang-up panel over a finished call: code judges always, model ones when a model is."""
+    """The hang-up panel over a finished call: code judges always, model ones under the ceiling."""
     case = case_of(entries, declared)
     panel = hangup_judges(case, own)
     running, unjudged = judge.running, judge.unjudged
     model = None if running is None else llm_of(running)
     chat = as_chat(case)
+    judged: list[Judgment] = []
     try:
-        judged = [await _answered(member, chat, model, entries, unjudged) for member in panel]
+        for member in panel:
+            spent = _priced(panel, running, configured)
+            if model is not None and member.needs_a_model and spent >= judge.ceiling_usd:
+                over = OVER_THE_CEILING.format(ceiling=judge.ceiling_usd)
+                judged.append(_skipped(member, over, entries))
+                continue
+            judged.append(await _answered(member, chat, model, entries, unjudged))
     finally:
         if model is not None:
             await model.aclose()
-    # Priced by the names the operator configured, which the rates are keyed by.
-    spent = [
-        usage.model_copy(update={"provider": running.vendor, "model": running.model or usage.model})
-        for member in panel
-        for usage in member.spent
-        if running is not None
-    ]
     settled = [judgment for judgment in judged if judgment.verdict in {"held", "broken"}]
     scored: JsonObject = {
         "judges": [judgment.written() for judgment in judged],
@@ -374,9 +378,21 @@ async def at_hangup(
         scored["passed"] = not any(judgment.verdict == "broken" for judgment in settled)
     else:
         scored["not_judged"] = NOTHING_ANSWERED if model is not None else unjudged
-    if spent:
-        scored["judge_cost_usd"] = prices.cost(spent, configured).usd
+    if any(member.spent for member in panel):
+        scored["judge_cost_usd"] = _priced(panel, running, configured)
     return CallScore.model_validate(scored)
+
+
+# Priced by the names the operator configured, which the rates are keyed by.
+def _priced(panel: Sequence[CaseJudge], running: Running | None, configured: Providers) -> float:
+    if running is None:
+        return 0.0
+    spent = [
+        usage.model_copy(update={"provider": running.vendor, "model": running.model or usage.model})
+        for member in panel
+        for usage in member.spent
+    ]
+    return prices.cost(spent, configured).usd
 
 
 def _passing(reason: str) -> JudgmentResult:
