@@ -232,6 +232,14 @@ async def test_the_agents_own_log_has_an_owner_of_its_own(store: Store, call: st
     assert await store.owner(call, AGENT) is None
 
 
+async def test_a_calls_world_is_the_one_it_was_claimed_in_and_none_before(
+    store: Store, call: str
+) -> None:
+    assert await store.world(call) is None
+    await store.claim(call, AGENT, "clinica", Claim(Scope("clinica", "sandbox")))
+    assert await store.world(call) == "sandbox"
+
+
 async def test_the_operator_moves_every_log_of_an_agent_to_another_org(
     store: Store, call: str
 ) -> None:
