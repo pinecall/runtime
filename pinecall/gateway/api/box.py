@@ -128,16 +128,14 @@ async def get_box_signin(request: Request, gateway: GatewayDep) -> BoxSignInResp
 
 
 @router.put("/v1/ops/signin/google")
-async def put_google_signin(body: PutSignInRequest, gateway: GatewayDep) -> BoxProvider:
+async def put_google_signin(_body: PutSignInRequest) -> BoxProvider:
     """Refused: box-wide Google sign-in is not in this version."""
-    del body, gateway
     raise NotAvailable(NO_BOX_WIDE)
 
 
 @router.delete("/v1/ops/signin/google", status_code=204)
-async def drop_google_signin(gateway: GatewayDep) -> None:
+async def drop_google_signin() -> None:
     """Refused: box-wide Google sign-in is not in this version."""
-    del gateway
     raise NotAvailable(NO_BOX_WIDE)
 
 

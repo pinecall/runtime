@@ -17,10 +17,12 @@ from pinecall.providers.credentials import Keyring
 from pinecall.providers.declared import model_of
 from pinecall.tenancy import vault
 from pinecall.wire.rest.providers import (
+    Availability,
     Catalogue,
     ListedVoice,
     ProviderKeyRequest,
     ProviderRow,
+    Standing,
     VendorsResponse,
     VoiceSampleRequest,
     VoicesListed,
@@ -60,11 +62,19 @@ A_LINE = "Hello, this is the voice you are listening to."
 READY = frozenset({"yours", "offered"})
 
 
+# v1's word for each, which the console draws: a vendor nobody keyed for this org has "no key".
+STANDING: dict[Availability, Standing] = {
+    "yours": "ready",
+    "offered": "ready",
+    "bring your own": "no key",
+    "broken": "no plugin",
+}
+
+
 # The same for every key of an org: what is installed, and whose key would run each vendor.
 @router.get("/v1/providers")
-async def catalogue(key: ProvidersKey, scope: ScopeDep, gateway: GatewayDep) -> Catalogue:
+async def catalogue(_key: ProvidersKey, scope: ScopeDep, gateway: GatewayDep) -> Catalogue:
     """Every vendor this build runs and how this org may run it, the defaults, the models named."""
-    del key
     pool = gateway.connections.pool
     configured = await catalog.providers(pool)
     return catalogue_of(configured, await keys_of(pool, gateway.connections.vault, scope))
@@ -162,14 +172,20 @@ def catalogue_of(configured: Providers, keyring: Keyring) -> Catalogue:
             ProviderRow(
                 name=vendor.name,
                 does=list(vendor.does),
-                availability=vendor.availability,
+                aliases=[],
+                note=vendor.broken or "",
+                standing=STANDING[vendor.availability],
                 ready=vendor.availability in READY,
-                broken=vendor.broken,
+                env=None,
+                extra=vendor.name,
                 voices_listed=_lists_voices(vendor.name, vendor.does),
+                availability=vendor.availability,
+                broken=vendor.broken,
             )
             for vendor in credentials.readiness(build.installed(), keyring)
         ],
         defaults={modality: stage.vendor for modality, stage in configured.defaults.items()},
+        voices=[],
         models={named: [model] for named, model in configured.models.items()},
     )
 
