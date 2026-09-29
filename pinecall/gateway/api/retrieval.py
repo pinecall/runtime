@@ -13,7 +13,7 @@ from pinecall.domain.scope import Scope
 from pinecall.gateway._call_setup import keys_of, tuned
 from pinecall.gateway._deps import GatewayDep, KnowledgeKey, MemoryKey, ScopeDep, embedder_of
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import NO_AGENT
+from pinecall.gateway._sockets import NO_AGENT
 from pinecall.providers import catalog
 from pinecall.providers.credentials import thinking
 from pinecall.retrieval import extraction, knowledge, memory

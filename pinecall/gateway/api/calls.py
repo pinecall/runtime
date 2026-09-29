@@ -25,21 +25,17 @@ from pinecall.gateway import _deps, _streams
 from pinecall.gateway._call_setup import tuned
 from pinecall.gateway._deps import Acting, GatewayDep, Reader, ReaderDep, WorkerKey
 from pinecall.gateway._gateway import Gateway
+from pinecall.gateway._seal import remembered, sealed
 from pinecall.gateway._served import (
-    NO_AGENT,
-    NO_UNCLAIMED,
-    NOT_THAT_APP,
     Served,
     attach,
     claim_code,
     looked_up,
     opened,
-    remembered,
-    sealed,
     served_call,
     serving_agent,
 )
-from pinecall.gateway._sockets import Registration
+from pinecall.gateway._sockets import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registration
 from pinecall.gateway._streams import frame, paced, streamed, wants_sse
 from pinecall.log import queries
 from pinecall.log.readers import Filter, parse_filter, project_entry, project_state

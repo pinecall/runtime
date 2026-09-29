@@ -6,10 +6,7 @@ from pinecall.domain.agent import AgentConfig
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.scope import Scope
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import (
-    handed_on,
-    served_call,
-)
+from pinecall.gateway._served import handed_on, served_call
 from pinecall.log.store import Store
 from tests.conftest import postgres
 from tests.gateway.test_served import (

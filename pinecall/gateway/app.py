@@ -26,7 +26,8 @@ from pinecall.evals.runs import Runner
 from pinecall.fleet.roster import Roster
 from pinecall.gateway import _deps
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import ServedCalls, Serving, reap_forever
+from pinecall.gateway._reaper import reap_forever
+from pinecall.gateway._served import ServedCalls, Serving
 from pinecall.gateway._sockets import Sockets
 from pinecall.gateway._threads import Threads
 from pinecall.gateway.api import (

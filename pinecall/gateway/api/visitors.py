@@ -22,9 +22,7 @@ from pinecall.fleet import worlds
 from pinecall.gateway import _deps
 from pinecall.gateway._deps import GatewayDep, ReaderDep, TalkKey
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import (
-    NO_AGENT,
-)
+from pinecall.gateway._sockets import NO_AGENT
 from pinecall.tenancy import keys, tokens
 from pinecall.tenancy.keys import LONGEST_VISIT_TTL_S
 from pinecall.tenancy.tokens import MINTED_FOR_A_VISIT, ONE_VISIT_TTL_S

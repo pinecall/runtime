@@ -18,8 +18,7 @@ from pinecall.gateway import _deps
 from pinecall.gateway._call_setup import keys_of, tuned
 from pinecall.gateway._deps import CallsKey, DispatchedDep, GatewayDep, ScopeDep, WorkerKey
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import NO_AGENT
-from pinecall.gateway._sockets import Registration
+from pinecall.gateway._sockets import NO_AGENT, Registration
 from pinecall.providers import catalog
 from pinecall.providers.credentials import Pipeline, pipeline
 from pinecall.tenancy import agents, keys
