@@ -8,7 +8,8 @@ TESTS = ROOT / "tests"
 RULES = TESTS / "rules"
 FIXTURES = RULES / "fixtures"
 ALLOWED = RULES / "allowed.py"
-V1 = ROOT.parent / "runtime"
+# v1's checkout beside this one; a clone named `runtime` (CI's) is this checkout, so none.
+V1 = ROOT.parent / "runtime" if ROOT.name != "runtime" else ROOT / "no-v1-beside-this-checkout"
 
 # Internal to the rewrite and kept out of the history; a clean clone has neither.
 TREE_MD = ROOT / "TREE.md"
