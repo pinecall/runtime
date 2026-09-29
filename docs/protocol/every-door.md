@@ -63,6 +63,7 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `GET` | `/v1/callbacks` | calls | The org's callbacks, oldest first, a page at a time. |
 | `POST` | `/v1/callbacks` | app · fleet | Somebody the overflow told to wait for a call back, on the agent's log. |
 | `POST` | `/v1/calls` | app · fleet | Open a call's log, serve it to the socket that holds its agent, and say its minutes. |
+| `DELETE` | `/v1/calls/{call}` | calls | Erase an ended call: its log, facts, tokens, the memories it taught, its recording; one row in the trail. |
 | `POST` | `/v1/calls/{call}/claim` | app · fleet | The caller keyed a page's code: tie the call to it. |
 | `GET` | `/v1/calls/{call}/commands` | app · fleet | The app's commands for the call, in order, until it is sealed. |
 | `GET` | `/v1/calls/{call}/events` | calls | A call's entries above the cursor: a page, or a stream that ends with the call. |
@@ -89,6 +90,7 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `POST` | `/v1/codes` | talk | Four digits for a caller to key, the number to call, and a token that asks after them. |
 | `GET` | `/v1/codes/{code}` | calls | How the code stands; with ?wait=1, held up to 25 s for a call to key it. |
 | `POST` | `/v1/contacts/memory/eval` | memory | A memory golden asked of the ranking a call reads, on facts it writes and forgets. |
+| `DELETE` | `/v1/contacts/{contact}` | calls | Erase a contact in the world: every call they were on and every fact kept of them. |
 | `DELETE` | `/v1/contacts/{contact}/memory` | memory | Every fact of the contact deleted, history included; zero is an answer, not a 404. |
 | `GET` | `/v1/contacts/{contact}/memory` | memory | Every fact ever kept of the contact, current first. |
 | `POST` | `/v1/evals/caller` | evals | The persona's next line on the call so far, improvised by its model. |
@@ -160,7 +162,7 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `POST` | `/v1/ops/mail/test` | operator | One test letter through the box's mailbox, waited for. |
 | `GET` | `/v1/ops/orgs` | operator | Every org, oldest first, the default one first. |
 | `POST` | `/v1/ops/orgs` | operator | A new org, its id minted here, born with what admission gives one. |
-| `DELETE` | `/v1/ops/orgs/{named}` | operator | Forget the org; refused while a live key or a route still names it. |
+| `DELETE` | `/v1/ops/orgs/{named}` | operator | Erase the org whole, its calls and recordings too; refused while a live key or a route still names it. |
 | `GET` | `/v1/ops/orgs/{named}` | operator | One org as it stands: its quotas per world, its dial guards, and what it holds. |
 | `PUT` | `/v1/ops/orgs/{named}/agents` | operator | An agent's logs and numbers moved into this org; refused while somebody holds it. |
 | `PUT` | `/v1/ops/orgs/{named}/dialling` | operator | The org's dial guards, replaced whole; one left out is the default. |
@@ -184,6 +186,7 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `PUT` | `/v1/ops/signin/google` | operator | Refused: box-wide Google sign-in is not in this version. |
 | `GET` | `/v1/ops/usage` | operator | Every org's metered rows after the cursor, totals per org; or the same as a stream. |
 | `GET` | `/v1/ops/whoami` | operator | The box this key opens, and the person holding it; nobody for the box's own key. |
+| `GET` | `/v1/org/erasures` | team | The org's erasures, newest first: what went, when, and who asked. |
 | `GET` | `/v1/org/judging` | calls | Whether hang-up judging is on, and its ceiling per call. |
 | `PUT` | `/v1/org/judging` | usage | Hang-up judging on or off, from the next call. |
 | `DELETE` | `/v1/org/mail` | team | Forget the org's own mailbox: its letters go through the box's again. |

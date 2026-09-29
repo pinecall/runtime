@@ -1,11 +1,11 @@
-"""The bodies of the call doors: readers, tokens, codes, seats, the worker's writes, threads."""
+"""The call doors' bodies: readers, tokens, codes, seats, the worker's writes, threads, erasures."""
 
 from typing import Literal
 
 from pydantic import Field
 
 from pinecall.domain.call import CallContext
-from pinecall.domain.names import Channel, Direction, Json, JsonObject
+from pinecall.domain.names import Channel, Direction, Env, Json, JsonObject
 from pinecall.wire.frames import WireModel
 from pinecall.wire.metrics import ModelUsage
 from pinecall.wire.parts import (
@@ -19,6 +19,8 @@ from pinecall.wire.parts import (
     ThreadKind,
 )
 from pinecall.wire.state import AttentionState
+
+type ErasureSubject = Literal["call", "contact", "org"]
 
 
 # Projected entries keep only part of the envelope, so they travel as plain JSON.
@@ -291,3 +293,24 @@ class ThreadMessageResponse(WireModel):
 
     contact: str
     call: str
+
+
+class Erasure(WireModel):
+    """DELETE /v1/calls/{call}, /v1/contacts/{contact}: what one erasure took, as its trail says."""
+
+    id: int
+    at: float
+    what: ErasureSubject
+    subject: str
+    env: Env | None
+    asked_by: str
+    calls: int
+    entries: int
+    memories: int
+    recordings: int
+
+
+class ErasureTrail(WireModel):
+    """GET /v1/org/erasures: the org's erasures, newest first."""
+
+    erasures: list[Erasure]

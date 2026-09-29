@@ -23,7 +23,16 @@ from pinecall.domain.person import THE_FLEET
 from pinecall.domain.scope import Scope
 from pinecall.gateway import _deps, _streams
 from pinecall.gateway._call_setup import tuned
-from pinecall.gateway._deps import Acting, GatewayDep, Reader, ReaderDep, WorkerKey
+from pinecall.gateway._deps import (
+    Acting,
+    CallsKey,
+    GatewayDep,
+    Reader,
+    ReaderDep,
+    ScopeDep,
+    WorkerKey,
+    asked_by,
+)
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._seal import remembered, sealed
 from pinecall.gateway._served import (
@@ -43,7 +52,7 @@ from pinecall.log.store import DEFAULT_LIMIT, Claim
 from pinecall.providers import catalog
 from pinecall.providers.catalog import judge_ceiling
 from pinecall.session.call import ToolUse
-from pinecall.tenancy import keys, orgs, tokens
+from pinecall.tenancy import erasure, keys, orgs, tokens
 from pinecall.wire.commands import CallClaim
 from pinecall.wire.events import (
     EVENTS,
@@ -58,6 +67,7 @@ from pinecall.wire.rest.calls import (
     AppendEntryRequest,
     CallList,
     CallRow,
+    Erasure,
     LogPage,
     LookupRequest,
     LookupResponse,
@@ -96,6 +106,9 @@ NOT_RECORDED = "call {call} kept no recording"
 
 
 NOT_HERE = "the recording of {call} is at {path} on the box that took the call, not on this one"
+
+
+STILL_LIVE = "call {call} is still running: it can be erased once it has ended"
 
 
 LINE_FROM_STATE = (
@@ -363,6 +376,23 @@ async def recording(call: str, reading: ReaderDep, gateway: GatewayDep) -> FileR
     return FileResponse(path, media_type="audio/ogg", filename=f"{call}.ogg")
 
 
+# The one door that deletes from a call's log: through erasure's own path, never the trigger's.
+@router.delete("/v1/calls/{call}")
+async def erase_call(call: str, key: CallsKey, where: ScopeDep, gateway: GatewayDep) -> Erasure:
+    """Erase one call: its log, facts, tokens, the memories it taught and its recording."""
+    kept = await queries.scope_of_call(gateway.connections.pool, call)
+    if kept is None or kept.scope is None or not _sees_to_erase(where, kept.scope):
+        raise NotFound(_deps.NO_SUCH_CALL.format(call=call))
+    if not kept.sealed:
+        raise Conflict(STILL_LIVE.format(call=call))
+    recordings = Path(gateway.connections.settings.recordings_root)
+    erased = await erasure.call(
+        gateway.connections.pool, recordings, kept.scope, call, by=asked_by(key)
+    )
+    gateway.logs.forget(call)
+    return erased.trail
+
+
 @router.get("/v1/agents/{slug}/sessions")
 async def list_agent_calls(
     slug: str, reading: ReaderDep, gateway: GatewayDep, query: Annotated[ListQuery, Query()]
@@ -539,3 +569,9 @@ def _seq_of(header: str | None) -> int:
         return max(int(header or 0), 0)
     except ValueError:
         return 0
+
+
+# A key erases what it may read: its org and world, and a colleague's corner only as the org's own.
+def _sees_to_erase(where: Scope, owner: Scope) -> bool:
+    same = where.org == owner.org and where.env == owner.env
+    return same and owner.holder in ("", where.holder)

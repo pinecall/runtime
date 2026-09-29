@@ -1,5 +1,6 @@
 """The knowledge and memory doors: bases and their files, a contact's facts, and the goldens."""
 
+import pathlib
 import time
 from datetime import UTC, datetime
 from typing import Annotated
@@ -11,14 +12,23 @@ from pinecall.domain.agent import DEFAULT_CHUNKS_PER_TURN, KnowledgeFile
 from pinecall.domain.errors import DeclarationRefused, NotFound
 from pinecall.domain.scope import Scope
 from pinecall.gateway._call_setup import keys_of, tuned
-from pinecall.gateway._deps import GatewayDep, KnowledgeKey, MemoryKey, ScopeDep, embedder_of
+from pinecall.gateway._deps import (
+    CallsKey,
+    GatewayDep,
+    KnowledgeKey,
+    MemoryKey,
+    ScopeDep,
+    asked_by,
+    embedder_of,
+)
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._sockets import NO_AGENT
 from pinecall.providers import catalog
 from pinecall.providers.credentials import thinking
 from pinecall.retrieval import extraction, knowledge, memory
 from pinecall.retrieval.knowledge import Answered, Push, Question, SearchQuery
-from pinecall.tenancy import admission, scopes
+from pinecall.tenancy import admission, erasure, scopes
+from pinecall.wire.rest.calls import Erasure
 from pinecall.wire.rest.retrieval import (
     AgentFact,
     AgentMemory,
@@ -95,6 +105,19 @@ async def forget_contact(
 ) -> Forgotten:
     """Every fact of the contact deleted, history included; zero is an answer, not a 404."""
     return Forgotten(forgotten=await memory.forget(box.connections.pool, where, contact))
+
+
+# A person's "delete my data": what they said on every call of the world, and what was kept.
+@router.delete("/v1/contacts/{contact}")
+async def erase_contact(contact: str, key: CallsKey, where: ScopeDep, box: GatewayDep) -> Erasure:
+    """Erase a contact in the world: every call they were on and every fact kept of them."""
+    recordings = pathlib.Path(box.connections.settings.recordings_root)
+    erased = await erasure.contact(
+        box.connections.pool, recordings, where, contact, by=asked_by(key)
+    )
+    for call in erased.calls:
+        box.logs.forget(call)
+    return erased.trail
 
 
 @router.post("/v1/contacts/memory/eval")

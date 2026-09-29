@@ -13,7 +13,7 @@ from pinecall.gateway._deps import (
 )
 from pinecall.providers import catalog
 from pinecall.providers.catalog import judge_ceiling
-from pinecall.tenancy import keys, letters, mail, orgs, sso
+from pinecall.tenancy import erasure, keys, letters, mail, orgs, sso
 from pinecall.tenancy.mail import Mailbox, MailboxStatus
 from pinecall.tenancy.sso import Client, OrgSso
 from pinecall.wire.rest.accounts import (
@@ -28,6 +28,7 @@ from pinecall.wire.rest.agents import (
     JudgingRequest,
     JudgingSettings,
 )
+from pinecall.wire.rest.calls import ErasureTrail
 
 router = APIRouter()
 
@@ -168,6 +169,13 @@ def sso_row(wired: OrgSso | None, redirect_uri: str) -> OrgSsoResponse:
         required=wired is not None and wired.required,
         redirect_uri=redirect_uri,
     )
+
+
+@router.get("/v1/org/erasures")
+async def erasures(key: TeamKey, gateway: GatewayDep) -> ErasureTrail:
+    """The org's erasures, newest first: what went, when, and who asked."""
+    rows = await erasure.trail(gateway.connections.pool, key.org)
+    return ErasureTrail(erasures=rows)
 
 
 def _mail_row(kept: MailboxStatus | None) -> OrgMailResponse:

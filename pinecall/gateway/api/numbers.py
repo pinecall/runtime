@@ -13,7 +13,15 @@ from pinecall.domain.call import today_in
 from pinecall.domain.errors import Conflict
 from pinecall.domain.names import parse_e164
 from pinecall.domain.scope import Scope
-from pinecall.gateway._deps import Acting, GatewayDep, NumbersKey, ScopeDep, TalkKey, WorkerKey
+from pinecall.gateway._deps import (
+    Acting,
+    GatewayDep,
+    NumbersKey,
+    ScopeDep,
+    TalkKey,
+    WorkerKey,
+    asked_by,
+)
 from pinecall.tenancy import carriers, tokens
 from pinecall.tenancy.carriers import TwilioAccount
 from pinecall.tenancy.dial_policy import Dial
@@ -236,7 +244,7 @@ async def dial_out(
         agent=slug,
         to=body.to,
         shown=body.from_,
-        asked_by=_who(key),
+        asked_by=asked_by(key),
         today=today_in(gateway.connections.settings.timezone),
     )
     placed = await dialing.place_call(
@@ -264,15 +272,9 @@ async def get_leg_trunk(
     query: Annotated[LegTrunkQuery, Query()],
 ) -> LegTrunkResponse:
     """The leg's trunk inline, after the shape and the pace; a dial's own first leg passes."""
-    dial = Dial(where, slug, query.to, query.shown, _who(key), query.call)
+    dial = Dial(where, slug, query.to, query.shown, asked_by(key), query.call)
     return LegTrunkResponse(trunk=await dialing.leg_trunk(gateway.connections, dial))
 
 
 def _org_scope(key: Acting) -> Scope:
     return Scope(key.org, key.env)
-
-
-# The one record of who placed a call, which is what audits dial spend.
-def _who(key: Acting) -> str:
-    member = key.bearer.member
-    return member.id if member is not None else key.bearer.key.key_id

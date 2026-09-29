@@ -1,5 +1,6 @@
 """The box's own doors over its orgs: who runs the box, the orgs, their quotas, people and keys."""
 
+import pathlib
 from dataclasses import replace
 from importlib.metadata import version
 from typing import Annotated
@@ -18,7 +19,17 @@ from pinecall.gateway.api.org import sso_row
 from pinecall.gateway.api.providers import credentials_of, installed_vendor
 from pinecall.providers.credentials import parse_lending
 from pinecall.retrieval import knowledge, memory
-from pinecall.tenancy import admission, dial_policy, keys, letters, orgs, people, sso, vault
+from pinecall.tenancy import (
+    admission,
+    dial_policy,
+    erasure,
+    keys,
+    letters,
+    orgs,
+    people,
+    sso,
+    vault,
+)
 from pinecall.tenancy.dial_policy import Guards
 from pinecall.tenancy.letters import Link
 from pinecall.wire.rest.accounts import (
@@ -57,6 +68,10 @@ NO_SUCH_ORG = "no org named {named}: by id or by slug"
 
 # Forgetting an org never cascades over what still points at it.
 STILL_IN_USE = "org {slug} still has {what}: revoke its keys and remove its routes first"
+
+
+# Who asked, in the erasure trail, when the box's own doors erase an org.
+OPERATOR = "operator"
 
 
 NOT_HELD = "agent {slug} is held right now: stop it, move it, and start it again"
@@ -138,7 +153,7 @@ async def org_standing(named: str, gateway: GatewayDep) -> OrgProfile:
 
 @router.delete("/v1/ops/orgs/{named}", status_code=204)
 async def remove_org(named: str, gateway: GatewayDep) -> None:
-    """Forget the org; refused while a live key or a route still names it."""
+    """Erase the org whole, its calls and recordings too; refused while a key or route names it."""
     pool = gateway.connections.pool
     org = await _org(gateway, named)
     if any(row.revoked_at is None for row in await keys.listed(pool, org.id)):
@@ -146,7 +161,10 @@ async def remove_org(named: str, gateway: GatewayDep) -> None:
     for env in ENVS:
         if await routes.of_org(pool, org.id, env):
             raise Conflict(STILL_IN_USE.format(slug=org.slug, what="routes"))
-    await orgs.remove(pool, org.id)
+    recordings = pathlib.Path(gateway.connections.settings.recordings_root)
+    erased = await erasure.org(pool, recordings, org.id, by=OPERATOR)
+    for call in erased.calls:
+        gateway.logs.forget(call)
 
 
 # The way back from an agent registered with the wrong org's key: its logs and its numbers move.

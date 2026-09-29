@@ -119,6 +119,24 @@ SSE frames are `id: <seq>`, `event: <type>`, `data: <the entry>`, a `: ping` eve
 
 What each reader receives is its projection: [projections.md](projections.md).
 
+### Erasing
+
+The log is append-only: a trigger on `call_log` refuses every `UPDATE`, and every `DELETE` but
+the one path below, which sets `pinecall.erasing` in its own transaction. An erasure deletes, in
+one transaction, the log's entries and head, the call's facts and tokens, the memories the call
+taught, and the call's recording directory; then it writes one row of the org's trail, `{id, at,
+what, subject, env, asked_by, calls, entries, memories, recordings}`. The dial ledger stays: it
+names numbers and times, never what was said.
+
+| door | |
+|---|---|
+| `DELETE /v1/calls/{call}` | one ended call; `409` while it runs, `404` for a call the key does not read |
+| `DELETE /v1/contacts/{contact}` | a contact in the key's world: every call they were on (by `call_facts.contact`), every fact kept of them, what each reader had read of their thread |
+| `GET /v1/org/erasures` | the trail, newest first (`team`) |
+
+An org is erased whole by the operator: `DELETE /v1/ops/orgs/{named}`
+([operator-api.md](operator-api.md)). The trail row outlives the org.
+
 ## 4. Watching and steering a live call
 
 `POST /v1/calls/{call}/listen` and `/supervise` (`supervise`) mint a seat, a LiveKit token for one

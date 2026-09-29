@@ -256,6 +256,13 @@ def world_of_request(connection: HTTPConnection, key: Bearer, gateway: Gateway) 
 ActingDep = Annotated[Acting, Depends(acting)]
 
 
+# The one record of who asked, which is what audits a dial and an erasure.
+def asked_by(key: Acting) -> str:
+    """The person behind the key, or the key itself for a server's."""
+    member = key.bearer.member
+    return member.id if member is not None else key.bearer.key.key_id
+
+
 def ephemeral_entry(slug: str, event: WireModel, *, kind: str = "error") -> Entry:
     """An entry sent to an app socket and never stored: no call, no seq."""
     return Entry(
