@@ -1,4 +1,4 @@
-"""The judge doors: an agent's own questions for its calls, listed, written, dropped."""
+"""The judge doors: the org's questions for every agent's calls, and one agent's for its own."""
 
 import re
 
@@ -6,7 +6,8 @@ from fastapi import APIRouter
 
 from pinecall.domain.agent import AgentJudge
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.gateway._deps import EvalsKey, GatewayDep
+from pinecall.domain.scope import THE_ORGS_OWN
+from pinecall.gateway._deps import Acting, EvalsKey, GatewayDep
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy import judges
 from pinecall.tenancy.judges import StoredJudge
@@ -25,9 +26,29 @@ NOT_A_NAME = (
 
 
 # One list for both worlds, as the agent's personas are.
+@router.get("/v1/org/judges")
+async def list_org_judges(key: EvalsKey, gateway: GatewayDep) -> JudgeList:
+    """The org's judges, asked of every agent's calls, by name."""
+    return await _listed(gateway.connections.pool, key.org, THE_ORGS_OWN)
+
+
+@router.put("/v1/org/judges/{name}")
+async def put_org_judge(
+    name: str, body: JudgeRequest, key: EvalsKey, gateway: GatewayDep
+) -> JudgeList:
+    """Write one of the org's judges whole; the org's list after it."""
+    return await _written(gateway.connections.pool, key, THE_ORGS_OWN, name, body)
+
+
+@router.delete("/v1/org/judges/{name}")
+async def drop_org_judge(name: str, key: EvalsKey, gateway: GatewayDep) -> JudgeList:
+    """Forget one of the org's judges; the org's list after it, 404 for a name nobody wrote."""
+    return await _dropped(gateway.connections.pool, key.org, THE_ORGS_OWN, name)
+
+
 @router.get("/v1/agents/{slug}/judges")
 async def list_judges(slug: str, key: EvalsKey, gateway: GatewayDep) -> JudgeList:
-    """The agent's own judges, by name."""
+    """The agent's own judges, by name; the org's are at /v1/org/judges."""
     return await _listed(gateway.connections.pool, key.org, slug)
 
 
@@ -35,22 +56,28 @@ async def list_judges(slug: str, key: EvalsKey, gateway: GatewayDep) -> JudgeLis
 async def put_judge(
     slug: str, name: str, body: JudgeRequest, key: EvalsKey, gateway: GatewayDep
 ) -> JudgeList:
-    """Write one of the agent's judges whole; the agent's list after it."""
-    if not A_NAME.match(name):
-        raise DeclarationRefused(NOT_A_NAME.format(name=name))
-    pool = gateway.connections.pool
-    written = AgentJudge(name=name, question=body.question, runs_on=body.runs_on)
-    bearer = key.bearer.key
-    await judges.put_judge(pool, key.org, slug, written, author=bearer.subject or bearer.key_id)
-    return await _listed(pool, key.org, slug)
+    """Write one of the agent's own judges whole; the agent's list after it."""
+    return await _written(gateway.connections.pool, key, slug, name, body)
 
 
 @router.delete("/v1/agents/{slug}/judges/{name}")
 async def drop_judge(slug: str, name: str, key: EvalsKey, gateway: GatewayDep) -> JudgeList:
-    """Forget one of the agent's judges; the agent's list after it, 404 for a name nobody wrote."""
-    pool = gateway.connections.pool
-    await judges.drop_judge(pool, key.org, slug, name)
-    return await _listed(pool, key.org, slug)
+    """Forget one of the agent's own judges; its list after it, 404 for a name nobody wrote."""
+    return await _dropped(gateway.connections.pool, key.org, slug, name)
+
+
+async def _written(pool: Pool, key: Acting, agent: str, name: str, body: JudgeRequest) -> JudgeList:
+    if not A_NAME.match(name):
+        raise DeclarationRefused(NOT_A_NAME.format(name=name))
+    written = AgentJudge(name=name, question=body.question, runs_on=body.runs_on)
+    bearer = key.bearer.key
+    await judges.put_judge(pool, key.org, agent, written, author=bearer.subject or bearer.key_id)
+    return await _listed(pool, key.org, agent)
+
+
+async def _dropped(pool: Pool, org: str, agent: str, name: str) -> JudgeList:
+    await judges.drop_judge(pool, org, agent, name)
+    return await _listed(pool, org, agent)
 
 
 async def _listed(pool: Pool, org: str, agent: str) -> JudgeList:

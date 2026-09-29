@@ -1,4 +1,4 @@
-"""Tests for the judge doors: an agent's own questions for its calls."""
+"""Tests for the judge doors: the org's questions for every agent, and one agent's own."""
 
 import httpx
 import pytest
@@ -105,3 +105,36 @@ async def test_a_key_without_evals_is_refused(knocking: Knocking) -> None:
         put = await http.put(f"{JUDGES}/offers-next-slot", json=SLOT)
         dropped = await http.delete(f"{JUDGES}/offers-next-slot")
     assert (listed.status_code, put.status_code, dropped.status_code) == (403, 403, 403)
+
+
+@postgres
+async def test_the_orgs_judges_have_doors_of_their_own_apart_from_an_agents(
+    knocking: Knocking,
+) -> None:
+    async with knocking.http(knocking.app["sandbox"]) as http:
+        general = await http.put("/v1/org/judges/never-medical-advice", json=SLOT)
+        mine = await http.get(JUDGES)
+        dropped = await http.delete("/v1/org/judges/never-medical-advice")
+        gone = await http.delete("/v1/org/judges/never-medical-advice")
+    assert [row["name"] for row in general.json()["judges"]] == ["never-medical-advice"]
+    assert mine.json() == {"judges": []}
+    assert (dropped.status_code, dropped.json()) == (200, {"judges": []})
+    assert (gone.status_code, gone.json()["detail"]) == (
+        404,
+        "the org has no judge called never-medical-advice",
+    )
+
+
+@postgres
+async def test_a_panels_name_a_shared_name_and_an_empty_question_are_refused(
+    knocking: Knocking,
+) -> None:
+    async with knocking.http(knocking.app["sandbox"]) as http:
+        panel = await http.put(f"{JUDGES}/consent", json=SLOT)
+        blank = await http.put(f"{JUDGES}/blank", json={"question": " "})
+        await http.put("/v1/org/judges/offers-next-slot", json=SLOT)
+        shared = await http.put(f"{JUDGES}/offers-next-slot", json=SLOT)
+    assert (panel.status_code, blank.status_code, shared.status_code) == (400, 400, 409)
+    assert shared.json()["detail"] == (
+        "offers-next-slot is the org judge already: one name asks one question of a call"
+    )

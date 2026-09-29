@@ -108,10 +108,11 @@ judges are the ones written when the door runs, not when the call ended.
 ## At hang-up
 
 The seal judges every call when three things hold: the org judges its calls (`PUT /v1/org/judging`),
-the box's providers row names a `judge` model, and `PINECALL_JUDGE_CEILING_USD` is above zero. The
-panel is consent, grounded, promises, persona when the caller wrote a rule, and the agent's own
-judges (below), by name. The judge runs on
-the box's key. Without a model the code judges still answer and the ones that needed a model are
+the box's providers row names a `judge` model, and that judge's `ceiling_usd` is above zero. The
+panel is consent, grounded, promises, persona when the caller wrote a rule, then the org's own
+judges and the agent's own (below), by name. The judge runs on the box's key, and the ceiling is
+what one call may spend on it: a model judge asked once the calls before it reached the ceiling is
+`skipped`, saying so, while the code judges still answer. Without a model the code judges still answer and the ones that needed a model are
 `skipped`, saying why; a judge whose model failed is skipped too, and the call seals all the same.
 `judge_calls` counts the model's requests and `judge_cost_usd` prices them at the row's rates. An
 org that judges nothing gets `not_judged` saying so; a call an eval run opened is judged by the run.

@@ -36,7 +36,7 @@ from pinecall.session.session import Session
 from pinecall.session.tools import ToolCalls
 from pinecall.tenancy import admission, orgs, vault
 from pinecall.tenancy.codes import Codes
-from pinecall.tenancy.judges import StoredJudge, judges_of
+from pinecall.tenancy.judges import StoredJudge, for_call
 from pinecall.wire.commands import DevAnswer
 from pinecall.wire.events import (
     CallAttached,
@@ -76,7 +76,7 @@ A_RUN_JUDGES_IT = "an eval run opened this call, and its own judges scored it in
 
 NO_JUDGE = "this box's providers configuration names no judge model"
 
-NO_CEILING = "PINECALL_JUDGE_CEILING_USD is zero, so no judge model may be asked"
+NO_CEILING = "the providers row gives the judge a ceiling of zero, so no judge model may be asked"
 
 JUDGING_BROKE = "judging this call failed: {broke}"
 
@@ -458,7 +458,7 @@ async def sealed(
         score = CallScore(judges=[], judge_calls=0, not_judged=JUDGING_OFF.format(call=served.call))
     else:
         entries = await serving.logs.store.whole(served.call)
-        own = await judges_of(serving.connections.pool, served.scope.org, served.agent)
+        own = await for_call(serving.connections.pool, served.scope.org, served.agent)
         score = await judged_call(serving.connections, entries, served.config, own)
     await served.log.append("call.score", score.written())
     serving.logs.forget(served.call)
@@ -545,13 +545,14 @@ async def judged_call(
 async def judge_of(connections: Connections, configured: Providers) -> judges.JudgeModel:
     """The judge model on the box's key, or None and the sentence that says why there is none."""
     if configured.judge is None:
-        return judges.JudgeModel(None, NO_JUDGE)
-    if connections.settings.judge_ceiling_usd <= 0:
-        return judges.JudgeModel(None, NO_CEILING)
+        return judges.JudgeModel(None, 0.0, NO_JUDGE)
+    if configured.judge.ceiling_usd <= 0:
+        return judges.JudgeModel(None, 0.0, NO_CEILING)
     box = await vault.box_credentials(connections.pool, connections.vault)
     named = configured.judge.llm
     declared = Model(provider=named.vendor, model=named.model or "")
-    return judges.JudgeModel(credentials.stage("llm", declared, configured, Keyring(box=box)))
+    stage = credentials.stage("llm", declared, configured, Keyring(box=box))
+    return judges.JudgeModel(stage, configured.judge.ceiling_usd)
 
 
 def _now(serving: Serving) -> datetime:

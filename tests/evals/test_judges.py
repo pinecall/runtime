@@ -5,7 +5,7 @@ import dataclasses
 import pytest
 from livekit.agents.evals import EvaluationResult, JudgmentResult
 
-from pinecall.domain.agent import AgentJudge
+from pinecall.domain.agent import PANEL_JUDGES, AgentJudge
 from pinecall.domain.errors import UpstreamFailed
 from pinecall.domain.names import Json, JsonObject
 from pinecall.evals.case import Case, as_chat, case_of
@@ -619,7 +619,9 @@ async def test_at_hang_up_the_agents_own_judge_answers_in_call_score_and_in_the_
     ]
     log = a_log(caller("¿Hay hueco?"), agent("Llame mañana."))
     judge = Running(vendor=acme, credentials="k", model="acme-1", options={"replies": replies})
-    score = await at_hangup(log, THE_CLINIC, (SLOT,), JudgeModel(judge), configured=configured())
+    score = await at_hangup(
+        log, THE_CLINIC, (SLOT,), JudgeModel(judge, 0.01), configured=configured()
+    )
     assert score.panel == ["consent", "grounded", "promises", SLOT.name]
     own = next(judgment for judgment in score.judges if judgment.name == SLOT.name)
     assert (own.verdict, own.reason) == ("broken", "none")
@@ -665,7 +667,7 @@ async def test_at_hang_up_with_no_model_the_code_judges_answer_and_the_model_one
 ):
     log = a_log(caller("¿Cuánto?"), agent("Son 45 euros."))
     score = await at_hangup(
-        log, THE_CLINIC, (), JudgeModel(None, "no judge"), configured=configured()
+        log, THE_CLINIC, (), JudgeModel(None, 0.0, "no judge"), configured=configured()
     )
     verdicts = {judgment.name: judgment.verdict for judgment in score.judges}
     assert verdicts == {"consent": "held", "grounded": "skipped", "promises": "held"}
@@ -683,7 +685,7 @@ async def test_at_hang_up_the_model_is_asked_counted_and_priced(acme: str) -> No
     log = a_log(caller("¿Cuánto?"), agent("Son 45 euros."))
     judge = Running(vendor=acme, credentials="k", model="acme-1", options={"replies": replies})
     score = await at_hangup(
-        log, THE_CLINIC, (), JudgeModel(judge), configured=with_a_judge(replies)
+        log, THE_CLINIC, (), JudgeModel(judge, 0.01), configured=with_a_judge(replies)
     )
     assert {judgment.name: judgment.verdict for judgment in score.judges}["grounded"] == "held"
     assert score.judge_calls == 1
@@ -691,12 +693,40 @@ async def test_at_hang_up_the_model_is_asked_counted_and_priced(acme: str) -> No
     assert score.judge_cost_usd > 0
 
 
+async def test_a_model_judge_asked_past_the_ceiling_is_skipped_and_the_ones_before_it_stand(
+    acme: str,
+) -> None:
+    replies: list[Json] = [
+        [{"name": "submit_verdict", "arguments": {"verdict": "pass", "reasoning": "fine"}}]
+    ] * 3
+    log = a_log(caller("¿Cuánto?"), agent("Son 45 euros."))
+    judge = Running(vendor=acme, credentials="k", model="acme-1", options={"replies": replies})
+    other = AgentJudge(name="says-the-price", question="The agent said the price.")
+    tight = JudgeModel(judge, 0.000001)
+    score = await at_hangup(log, THE_CLINIC, (SLOT, other), tight, configured=with_a_judge(replies))
+    verdicts = {judgment.name: judgment.verdict for judgment in score.judges}
+    assert (verdicts["grounded"], verdicts[SLOT.name], verdicts[other.name]) == (
+        "held",
+        "skipped",
+        "skipped",
+    )
+    skipped = next(judgment for judgment in score.judges if judgment.name == SLOT.name)
+    assert skipped.reason.startswith("judging this call reached its ceiling of $1e-06")
+    assert score.judge_calls == 1
+
+
+def test_the_panel_gives_its_verdicts_the_names_a_judge_of_ones_own_may_not_take() -> None:
+    names = {judge.name for judge in hangup_judges(offered(), ())}
+    assert names <= set(PANEL_JUDGES)
+    assert "persona" in PANEL_JUDGES
+
+
 async def test_at_hang_up_a_judge_whose_model_failed_is_skipped_and_the_call_still_scored(
     acme: str,
 ) -> None:
     log = a_log(caller("¿Cuánto?"), agent("Son 45 euros."))
     judge = Running(vendor=acme, credentials="k", model="acme-1", options={"replies": [["nada"]]})
-    score = await at_hangup(log, THE_CLINIC, (), JudgeModel(judge), configured=configured())
+    score = await at_hangup(log, THE_CLINIC, (), JudgeModel(judge, 0.01), configured=configured())
     grounded_row = next(judgment for judgment in score.judges if judgment.name == "grounded")
     assert grounded_row.verdict == "skipped"
     assert "the judge model failed" in grounded_row.reason
