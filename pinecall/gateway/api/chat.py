@@ -86,7 +86,7 @@ async def _chatting(websocket: WebSocket, gateway: Gateway) -> tuple[Registratio
     if verified is None:
         raise NotAllowed(_deps.TAKES_A_KEY)
     keys.check_opens(verified, "talk")
-    env = keys.world_of(verified, websocket.headers.get(_deps.WORLD))
+    env = _deps.world_of_request(websocket, verified, gateway)
     scope = keys.scope_of(verified, env)
     slug = websocket.query_params.get("agent", "")
     app = websocket.query_params.get("app")
