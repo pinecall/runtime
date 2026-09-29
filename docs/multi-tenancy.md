@@ -77,7 +77,7 @@ to the admin only for somebody in no other org; anybody else gets it by mail alo
 ## Signing in
 
 Every way in ends with a key of the person's own for that device, answered once. The doors, their
-bodies and their refusals are [protocol/accounts.md](protocol/accounts.md).
+bodies and their refusals are [protocol/people.md](protocol/people.md).
 
 - **Email and password.** Five tries a minute per address and place; a wrong address and a wrong
   password are one sentence.

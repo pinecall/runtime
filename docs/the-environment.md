@@ -89,15 +89,19 @@ of it is read from code.
 
 ## A laptop
 
-A `.env` with the vendor keys and a vault key, in the checkout. The suites that need a database run on a Postgres of their own in colima:
-`make test` starts it (`make db`: the image of `infra/postgres/`, the box's Postgres 17 with
-pgvector and pg_textsearch, on tmpfs, durability off) and gives every test a schema of its own.
-`make test-sandbox` runs the same suites on the sandbox database through an SSH tunnel, the DSN
-never printed. Nothing runs LiveKit locally. The rest of the laptop path lands with the steps that write it.
+A checkout and `uv sync` is the whole of it for writing the runtime: `make check` runs the rules and
+every suite that needs no database; `make test` starts a Postgres of its own in colima (`make db`:
+the image of `infra/postgres/`, the box's Postgres 17 with pgvector and pg_textsearch, on tmpfs,
+durability off) and gives every test a schema of its own. `make test-box` runs the same suites on
+the box's database through an ssh tunnel, the DSN never printed. Nothing runs LiveKit locally: a
+call is tried against a box.
 
 ## A box
 
-A unit's secrets are systemd credentials, loaded by path out of its own store, so a verb
-typed at a shell there reads a box that does not exist. The box's own page,
-`infra/box/README.md`, is not written yet; `../runtime/infra/box/README.md` describes the box
-both runtimes share.
+Everything a box needs at birth is `infra/box/`: `cloud-init.yaml` for the first boot and
+`install.sh` once, which draws the box's own secrets (the LiveKit pair, the database password,
+`PINECALL_VAULT_KEY`, `PINECALL_OPS_KEY`) and seals them with `systemd-creds`. A unit reads its
+secrets as credentials, by path, so a verb typed at a shell on the box reads a box that does not
+exist; the operator's verbs run from a laptop against the gateway, with the ops key. The whole
+walk, from a VM to the first call: [a-box-in-production.md](a-box-in-production.md); the box's files:
+[../infra/box/README.md](../infra/box/README.md).

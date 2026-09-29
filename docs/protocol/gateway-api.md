@@ -1,0 +1,147 @@
+# The gateway API
+
+Every door a tenant's own code may knock at, and what comes back. The `pinecall` package speaks
+exactly these doors, so an app written against this page in any language is a first-class client.
+The operator's half is [operator-api.md](operator-api.md); who a key is, [../multi-tenancy.md](../multi-tenancy.md);
+every door in one table, [every-door.md](every-door.md).
+
+## The shape of it
+
+One gateway serves both worlds, production and the sandbox, at `/v1`, and beside it the console at
+`/` and the widget at `/widget/pinecall-widget.js`, the one answer carrying
+`Access-Control-Allow-Origin: *`. Three kinds of connection:
+
+| | what it is | who opens it |
+|---|---|---|
+| **HTTP** | read a log, mint a token, push knowledge, set a knob | your backend, with the org's key |
+| **`WS /v1/apps`** | the app socket: your process **holds an agent** and answers its tool calls | your backend, with the org's key |
+| **`WS /v1/chat`** · a LiveKit room · a phone · WhatsApp | one caller, one call | a caller |
+
+The log is the truth: everything that happens to a call is an entry with a `seq`, written before
+control returns, and every door that shows a call shows those entries.
+
+```
+Authorization: Bearer <key>             every door, HTTP and WebSocket alike
+pinecall-env: production | sandbox      the world a person's key acts in (the sandbox when unsaid)
+```
+
+**A key opens what its scopes say**, and every tenant door asks for exactly one:
+`403 this key does not open knowledge: it opens calls · evals`. A server's key holds `app` ·
+`calls` · `talk` · `knowledge` · `evals` and lives in the one world it was made for; a person's key
+holds their role's scopes and names the world per request, production only with production access,
+read from their row on every request ([people.md](people.md)). `fleet` is the box's own workers':
+at the worker's doors a key holding it resolves by the scope the request names,
+`?org=&env=&holder=`, the scope the call's dispatch named. `pinecall-corner: <member id>` answers an
+HTTP door in a colleague's sandbox scope, for a key that opens `team` and `app`.
+
+**The one exception to the header** is `?token=`, because an `EventSource` cannot set one: only a
+token of ours for one call (a page's `log_token`), never an API key, since a URL ends up in an access
+log.
+
+**Refusals** are `{"detail": "…"}` under the status, and the sentence names the fix: `401` no key;
+`403` a key that does not open the door, or another world's; `404` a thing that is not there, and
+another org's call, whose existence is nobody else's business; `409` a request that disagrees with
+what is stored; `400` or `422` a body that is not the shape; `429` a quota; `502` a vendor or a
+carrier that did not answer, in its own words; `503` the request was right and this box cannot
+honour it. A socket closes with **1008** and the sentence.
+
+## 1. Your own app: `WS /v1/apps`
+
+An app is a process that holds an agent: it declares what the agent is, receives every entry of
+every call the agent takes, and answers the tool calls the model makes. It binds no port; the
+socket is outbound. Commands go up, entries come down, one JSON object each.
+
+| command | what it does |
+|---|---|
+| `agent.register` | this socket speaks for this agent (`routes`, `sdk`, `takes_unclaimed`); answers `agent.registered` with this socket's `app` id |
+| `agent.configure` | what the agent is: tools, language, the prompt's layout, the state fields it declares. What it runs on (vendors, voice, greeting, hang-up, memory, bases) is the world's, [settings-api.md](settings-api.md) |
+| `ping` | `pong` with the gateway's clock |
+| `agent.drain` | this process is leaving; [a-deploy-never-cuts-a-call.md](a-deploy-never-cuts-a-call.md) |
+
+`takes_unclaimed: false` makes a process a console: it holds the agent but is never handed a call
+that named no app. Several sockets may hold one agent; a call goes to the one it names or to the
+newest that takes unclaimed calls. In the sandbox an agent is held per person: two developers each
+run the same slug and reach their own. The same slug in production and the sandbox is two agents.
+
+When a call opens the socket receives `call.ringing` or `call.dialing`, `call.started`, then every
+entry of the call through `call.score`. The call-scoped commands carry `"call": "<id>"`:
+
+| command | when |
+|---|---|
+| `session.configure` | before the first turn: the state this call opens in |
+| `state.set` | the app's state changed, and this is all of it; `state.changed` is written and the prompt re-rendered |
+| `prompt.set` · `tools.set` | one named block of the prompt, whole; the tools the model may see now |
+| `agent.say` · `agent.reply` | say these words; make the model speak now, guided by an instruction the caller never hears |
+| `call.event` · `call.log` | a fact from your backend (`event.received`); a line of your own (`custom`) |
+| `call.hangup` | end the call |
+| `call.transfer` · `call.attention` · `call.hold` · `call.unhold` · `call.dtmf` · `call.callback` | the line: [the-line.md](the-line.md) |
+| `call.claim` | the caller said a page's code: [codes.md](codes.md) |
+| `tool.result` | the answer to a `tool.call`, by its `call_id`: an `output` or an `error`, never both |
+
+The prompt has three regions, in this order: the static blocks (cached by the provider), the
+history, and the dynamic blocks at the end. The default layout is `identity`, `knowledge`, `tools`
+before the history and `view` after it. A spoken call runs in a worker; the tool round trip is the
+same from your side. The smallest app that works: [the-smallest-app.md](the-smallest-app.md). What
+only the process in the agent's directory can do: [dev-verbs.md](dev-verbs.md).
+
+## 2. Callers
+
+| door | the caller |
+|---|---|
+| `WS /v1/chat?agent=<slug>` | text: send `{"text": "…"}`, receive the call's entries; `app=`, `contact=`, `caller=`, and `call=` to take up a call whose gateway restarted |
+| `POST /v1/tokens` | web voice: [tokens.md](tokens.md) |
+| a phone number | a route to the agent: [numbers.md](numbers.md) |
+| `POST /v1/codes` | a phone call tied to a page: [codes.md](codes.md) |
+| WhatsApp | [whatsapp.md](whatsapp.md) |
+| `POST /v1/agents/{slug}/dial` | a call the agent places, past the org's dial guards: [numbers.md](numbers.md) |
+
+When every worker is full the token door answers `503` and a page offers a call back:
+`POST /v1/callbacks {agent, number, channel?, via?, call?}` writes `callback.requested` on the
+agent's log; `GET /v1/callbacks?agent=&after=` lists them for your app to dial.
+
+## 3. Reading a log
+
+`GET /v1/calls/{call}/events` answers a page of JSON, `{entries, live, next}`, or with
+`Accept: text/event-stream` the same entries as a stream that ends where the log does, at
+`call.score`. `after` is the cursor (a reconnecting `EventSource` sends `Last-Event-ID`; the higher
+wins), `limit` up to 500, `types` a comma list, `durable=1` drops the ephemeral entries, `token` a
+page's log token. `next` is the last seq the page read, so a filtered page still moves you on. The
+SSE frames are `id: <seq>`, `event: <type>`, `data: <the entry>`, a `: ping` every 25 s.
+
+| door | |
+|---|---|
+| `GET /v1/agents/{slug}/calls` | an agent's own log: registrations, declarations, errors |
+| `GET /v1/calls/{call}/state` | the call reduced |
+| `GET /v1/calls/{call}/recording` | the audio, seekable; a written call keeps none |
+| `GET /v1/agents/{slug}/sessions` · `GET /v1/sessions` | one line per call, filtered, counted and paged, in the reader's scope |
+| `GET /v1/calls/{call}/settings` | the exact settings the call was built on |
+| `GET /v1/events` | the org's floor as it changes: agents registered and detached, calls ringing, starting and ending, a person asked for and taken |
+
+What each reader receives is its projection: [projections.md](projections.md).
+
+## 4. Watching and steering a live call
+
+`POST /v1/calls/{call}/listen` and `/supervise` (`supervise`) mint a seat, a LiveKit token for one
+call: listening is hidden and silent; supervising publishes a microphone and sends verbs.
+`POST /v1/calls/{call}/verbs` takes one verb, `say`, `whisper`, `takeover`, `release`, `transfer`
+or `end`, with the seat or the org's key as the bearer, and answers `202`; each lands in the log as
+its own `supervisor.*` entry. A call with no room is steered the same way, less `transfer`.
+Where a ring lands, a developer's own phone and the agent's line: `PUT`·`DELETE /v1/line/from`,
+`GET /v1/line/numbers`, `GET`·`POST`·`DELETE /v1/agents/{slug}/line`.
+
+## 5. What an agent runs on, knows and remembers
+
+The settings and the org's lexicon: [settings-api.md](settings-api.md). The pipeline and its hold
+melody: [pipeline-api.md](pipeline-api.md). The knowledge bases and a contact's memory, and when a
+call looks either up: [../retrieval/spec.md](../retrieval/spec.md). The vendors, the org's own
+keys, the voices: [provider-keys.md](provider-keys.md). The widget: [console-api.md](console-api.md).
+
+## 6. Evals
+
+The goldens, the replay and the judges, the simulated callers: [evals.md](evals.md).
+
+## 7. The org
+
+People, keys, sign-in, sign-up, the org's provider and mailbox: [people.md](people.md). Numbers
+and carriers: [numbers.md](numbers.md). Usage, insights, limits and judging:
+[console-api.md](console-api.md).

@@ -83,6 +83,7 @@ holds one per cloud. `--once --dry-run` prints one tick's verdict and touches no
 `sessions recording <call>`: the log read back off Postgres, every tenant's. `memory reembed`
 embeds every fact another model wrote under the box's embedder. `migrate up` applies what the
 database lacks, `migrate status` says what it lacks (exit 1 while behind), `migrate plan` names
-every migration on the disk. `providers [--does llm|stt|tts]` lists every vendor this build runs
-and whether the box holds its key. `doctor` asks each thing the box needs one question, a line
+every migration on the disk. `providers list [--does llm|stt|tts]` lists every vendor this build
+runs and whether the box holds its key; `providers seed <file>` writes the providers row a box
+starts from, once: after it, the console edits it at `/v1/ops/providers`. `doctor` asks each thing the box needs one question, a line
 each, and exits 1 when one is missing; it is the last line of every deploy.

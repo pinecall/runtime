@@ -5,6 +5,7 @@ import asyncio
 import logging
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 from types import FrameType
 from typing import override
 from urllib.parse import urlparse
@@ -20,7 +21,9 @@ from pinecall.postgres.migrate import apply_migrations, migration_files, migrati
 from pinecall.postgres.pool import open_pool
 from pinecall.process.connections import opened, server_of, vault_of
 from pinecall.process.settings import Settings, load
+from pinecall.providers import catalog
 from pinecall.providers.build import installed
+from pinecall.providers.catalog import Providers
 from pinecall.retrieval import memory
 from pinecall.tenancy import vault
 from pinecall.worker import main as worker
@@ -122,6 +125,15 @@ def providers(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+# Once: a box that has a row is edited from the console, and a second seed is refused.
+def providers_seed(settings: Settings, args: argparse.Namespace) -> int:
+    """Write the providers row a box starts from, off a JSON file."""
+    seeded = Providers.model_validate_json(Path(args.file).read_text(encoding="utf-8"))
+    asyncio.run(_seeded(settings, seeded))
+    sys.stdout.write("the providers row is written: the console edits it from now on\n")
+    return 0
+
+
 def memory_reembed(settings: Settings, _args: argparse.Namespace) -> int:
     """Every fact another model embedded, embedded again by the box's; how many there were."""
     count = asyncio.run(_reembedded(settings))
@@ -156,9 +168,15 @@ def verbs() -> argparse.ArgumentParser:
     migrate.add_parser("plan", help="every migration, off the disk").set_defaults(run=migrate_plan)
     _operator.keys_group(under.add_parser("keys", help="keys"))
     under.add_parser("doctor", help="what this box lacks").set_defaults(run=doctor)
-    vendors = under.add_parser("providers", help="every vendor this build runs")
-    vendors.add_argument("--does", choices=("llm", "stt", "tts"), default=None)
-    vendors.set_defaults(run=providers)
+    vendors = under.add_parser(
+        "providers", help="the vendors this build runs, and the row"
+    ).add_subparsers(required=True)
+    listing = vendors.add_parser("list", help="every vendor this build runs")
+    listing.add_argument("--does", choices=("llm", "stt", "tts"), default=None)
+    listing.set_defaults(run=providers)
+    seed = vendors.add_parser("seed", help="the providers row a box starts from, once")
+    seed.add_argument("file", help="a JSON file of the row")
+    seed.set_defaults(run=providers_seed)
     memory_verbs = under.add_parser("memory", help="contact memory").add_subparsers(required=True)
     memory_verbs.add_parser("reembed", help="every fact under the box's embedder").set_defaults(
         run=memory_reembed
@@ -183,6 +201,14 @@ async def _box_vendors(settings: Settings) -> frozenset[str]:
     pool = await open_pool(settings.database_url)
     try:
         return frozenset(await vault.box_credentials(pool, vault_of(settings.vault_key)))
+    finally:
+        await pool.close()
+
+
+async def _seeded(settings: Settings, seeded: Providers) -> None:
+    pool = await open_pool(settings.database_url)
+    try:
+        await catalog.seed(pool, seeded)
     finally:
         await pool.close()
 
