@@ -10,6 +10,18 @@ A VM, `make box`, `make deploy`: [a-box-in-production.md](a-box-in-production.md
 green, the console answers at the box's name, and the box's providers row names a vendor for each
 stage with a key the box holds (`/v1/ops/providers`, `/v1/ops/provider-keys/{vendor}`).
 
+The runtime itself is one wheel on PyPI, the console and the widget inside:
+
+```console
+$ pip install pinecall             # or: uv tool install pinecall
+$ pinecall-runtime doctor          # what this machine lacks, one line each
+```
+
+The wheel is the gateway, the worker and `pinecall-runtime`; what they stand on — Postgres with
+`vector` and `pg_textsearch`, LiveKit and its SIP and egress, Caddy — is `infra/box/` in this
+repository, which `make box` installs. The doctor names each missing piece and the variable that
+points at it ([the-environment.md](the-environment.md)).
+
 ## 2. The first org and the first person
 
 ```bash
