@@ -28,7 +28,7 @@ from pinecall.gateway._sockets import Sockets
 from pinecall.log.logs import Logs, log_name, started_entry
 from pinecall.log.store import Store
 from pinecall.providers import catalog
-from pinecall.providers.catalog import Embedding, Judge
+from pinecall.providers.catalog import Embedding, Judge, Rate
 from pinecall.retrieval import memory
 from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy import admission, orgs
@@ -222,6 +222,47 @@ async def test_the_seal_writes_the_summary_the_score_and_lets_the_call_go(wired:
     assert whole[-1].type == "call.score"
     assert await wired.logs.store.sealed(context.call)
     assert context.call not in wired.live.calls
+
+
+@postgres
+async def test_the_seal_prices_the_phone_leg_by_the_trunks_rate_and_never_names_the_number(
+    wired: Gateway,
+) -> None:
+    pool = wired.connections.pool
+    box = await catalog.providers(pool)
+    rates = {**box.rates, "twilio-inbound/+1": Rate(minutes=0.0034)}
+    await catalog.configure(pool, box.model_copy(update={"rates": rates}))
+    context = a_call(channel="phone")
+    served = served_call(wired.serving, None, context, AgentConfig(slug=AGENT), OURS)
+    await opened(served.log, context, AGENT)
+    leg: JsonObject = {
+        "sip.callID": "SCL_1",
+        "sip.ruleID": "SDR_1",
+        "sip.twilio.callSid": "CA_1",
+        "sip.trunkPhoneNumber": "+13617334133",
+    }
+    joined: JsonObject = {"identity": "sip_caller", "kind": "caller", "attributes": leg}
+    await served.log.append("participant.joined", joined)
+    await served.log.append(
+        "call.ended",
+        {"reason": "caller_hung_up", "ended_by": "caller", "ended_at": 5.0, "duration_s": 30.0},
+    )
+    await sealed(wired.serving, served, SealCallRequest(usage=[], outcome="answered"))
+    whole = await wired.logs.store.whole(context.call)
+    summary = next(item for item in whole if item.type == "call.summary")
+    cost = summary.data["cost"]
+    assert isinstance(cost, dict)
+    assert cost["rows"] == [
+        {
+            "provider": "twilio",
+            "model": "twilio-inbound/+1",
+            "unit": "minutes",
+            "quantity": 1,
+            "unit_price_usd": 0.0034,
+            "usd": 0.0034,
+        }
+    ]
+    assert "+13617334133" not in str(cost)
 
 
 @postgres
@@ -485,6 +526,22 @@ async def test_a_hang_up_remembers_between_call_ended_and_call_summary(
     assert len(facts) == 1
     kept = await memory.current(embedding.connections.pool, remembering, "+59899123456")
     assert [fact.text for fact in kept] == ["Prefiere las mañanas"]
+
+
+@postgres
+async def test_the_memory_models_tokens_are_the_calls_and_priced_with_it(
+    embedding: Gateway, remembering: Scope
+) -> None:
+    whole = await hung_up(embedding, remembering, KEEPS)
+    summary = next(entry for entry in whole if entry.type == "call.summary")
+    usage = summary.data["usage"]
+    assert isinstance(usage, list)
+    assert [(row["model"], row["input_tokens"]) for row in usage if isinstance(row, dict)] == [
+        ("acme-1", 20)
+    ]
+    cost = summary.data["cost"]
+    assert isinstance(cost, dict)
+    assert cost["usd"] == 0.00003
 
 
 @postgres

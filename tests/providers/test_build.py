@@ -5,6 +5,7 @@ import re
 import sys
 
 import pytest
+from livekit.agents import llm
 
 from pinecall.domain.agent import Turn
 from pinecall.domain.errors import DeclarationRefused, NotAvailable
@@ -13,6 +14,7 @@ from pinecall.providers.build import (
     INFERENCE,
     Running,
     Vendor,
+    completion_usage,
     installed,
     llm_of,
     plugin,
@@ -207,3 +209,19 @@ def test_a_plugin_that_did_not_import_is_tried_again_and_found_when_it_does(
     monkeypatch.setitem(sys.modules, "livekit.plugins.acme", acme_plugin())
     assert plugin("acme").__name__ == "livekit.plugins.acme"
     assert installed()["acme"].does == {"llm", "stt", "tts"}
+
+
+def test_a_models_answer_is_counted_as_the_calls_usage_counts_it(acme: str) -> None:
+    thinking = llm_of(Running(acme, "k", model="acme-2"))
+    used = llm.CompletionUsage(
+        completion_tokens=5, prompt_tokens=100, total_tokens=105, prompt_cached_tokens=40
+    )
+    counted = completion_usage(thinking, used)
+    assert counted is not None
+    assert (counted.model, counted.input_tokens, counted.input_cached_tokens) == (
+        "acme-2",
+        100,
+        40,
+    )
+    assert counted.output_tokens == 5
+    assert completion_usage(thinking, None) is None

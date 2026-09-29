@@ -112,6 +112,19 @@ class CallContext:
         return self.caller if self.channel in CHANNELS_WITH_A_NUMBER else None
 
 
+# A carrier bills each leg on its own, by the number at the end of it: the box's own number when
+# the call came in, the dialled one when it went out.
+@dataclass(frozen=True)
+class PhoneLeg:
+    """One leg of a call on the phone network, and how long it was up."""
+
+    # `twilio`, or `sip` for a trunk the box knows only by its address.
+    carrier: str
+    direction: Direction
+    number: str
+    seconds: float
+
+
 def new_call_id() -> str:
     """Mint a call id; it is also the LiveKit room name."""
     return f"{A_CALL}{uuid4().hex}"

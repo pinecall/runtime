@@ -21,7 +21,7 @@ from pinecall.gateway._call_setup import exhausted, keys_of
 from pinecall.gateway._sockets import Process, Registration, SocketId, Sockets, orgs_own
 from pinecall.log import facts, queries
 from pinecall.log.logs import Log, Logs, Subscription, arrival_entry
-from pinecall.log.reduce import reduce
+from pinecall.log.reduce import phone_legs, reduce
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.process.connections import Connections
@@ -31,6 +31,7 @@ from pinecall.providers.catalog import Providers
 from pinecall.providers.credentials import Keyring, thinking
 from pinecall.retrieval import extraction, lookups, memory
 from pinecall.retrieval.embed import Embedder
+from pinecall.retrieval.extraction import MemoryWrite
 from pinecall.retrieval.lookups import OnTheCall
 from pinecall.session.session import Session
 from pinecall.session.tools import ToolCalls
@@ -283,8 +284,7 @@ class Serving:
     embedder: Embedder | None
 
 
-# A call opened with a key goes to that key's scope; one that rang, to the caller's phone
-# owner, else to the line.
+# A call opened with a key goes to that key's scope; one that rang, to its phone owner, or the line.
 def serving_agent(
     sockets: Sockets, scope: Scope, agent: str, app: SocketId | None, context: CallContext
 ) -> Registration | None:
@@ -341,10 +341,9 @@ async def looked_up(serving: Serving, served: Served, request: LookupRequest) ->
     return await lookups.lookup(pool, serving.embedder, on_the_call, request, quotas=quotas)
 
 
-# Runs between call.ended and call.summary. The org's keys are read now, so a key rotated during
-# the call is the one used. A refusal at the cap goes on the agent's log, and the call's says an
-# empty remember; anything that breaks is an entry, and the call still seals.
-async def remembered(serving: Serving, served: Served) -> MemoryOp | None:
+# Between call.ended and call.summary, on the org's keys as they are now. A refusal at the cap goes
+# on the agent's log and the call's says an empty remember; a break is an entry, and it seals.
+async def remembered(serving: Serving, served: Served) -> MemoryWrite | None:
     """What the call taught its contact's memory, written; None when the agent keeps nothing."""
     pool = serving.connections.pool
     entries = await serving.logs.store.whole(served.call)
@@ -362,14 +361,14 @@ async def remembered(serving: Serving, served: Served) -> MemoryOp | None:
         await exhausted(serving.logs, served.scope.org, served.agent, refused)
         op = MemoryOp(op="remember", contact=heard.contact, facts=[], took_ms=0.0)
         await served.log.append("memory.ops", MemoryOps(ops=[op]).written())
-        return op
+        return MemoryWrite(op=op, usage=None)
     budget = serving.connections.settings.remember_budget_s or REMEMBER_BUDGET_S
     try:
         async with asyncio.timeout(budget):
             configured = await catalog.providers(pool)
             keys = await keys_of(pool, serving.connections.vault, served.scope)
             model = thinking(served.config, configured, keys)
-            op = await extraction.remember(pool, serving.embedder, model, served.scope, heard)
+            written = await extraction.remember(pool, serving.embedder, model, served.scope, heard)
     except Exception as broke:
         # Memory is a courtesy to the next call; this one ends all the same.
         logger.warning("call %s was not written into memory", served.call, exc_info=True)
@@ -377,8 +376,8 @@ async def remembered(serving: Serving, served: Served) -> MemoryOp | None:
         failed = ErrorEvent(code="remember_failed", message=why, recoverable=True)
         await served.log.append("error", failed.written())
         return None
-    await served.log.append("memory.ops", MemoryOps(ops=[op]).written())
-    return op
+    await served.log.append("memory.ops", MemoryOps(ops=[written.op]).written())
+    return written
 
 
 async def attach(live: ServedCalls, store: Store, call: str, app: SocketId) -> Entry | None:
@@ -450,7 +449,10 @@ async def sealed(
     serving: Serving, served: Served, sealing: SealCallRequest, *, lent: Sequence[str] = ()
 ) -> None:
     """Remember, price the call, write its summary and its score, seal the log, let it go."""
-    await remembered(serving, served)
+    written = await remembered(serving, served)
+    # The memory model's tokens are the call's: they are billed with it.
+    if written is not None and written.usage is not None:
+        sealing = sealing.model_copy(update={"usage": [*sealing.usage, written.usage]})
     await summed_up(serving.connections.pool, serving.logs.store, served.log, sealing)
     if lent:
         await facts.lent(serving.connections.pool, served.call, lent)
@@ -478,7 +480,7 @@ async def summed_up(pool: Pool, store: Store, log: Log, sealing: SealCallRequest
         duration_s=0.0 if over is None else over.duration_s,
         turns=sum(1 for turn in state.turns if isinstance(turn, AgentTurn)),
         usage=sealing.usage,
-        cost=prices.cost(sealing.usage, await catalog.providers(pool)),
+        cost=prices.cost(sealing.usage, await catalog.providers(pool), legs=phone_legs(entries)),
         recording=sealing.recording,
     )
     await log.append("call.summary", summary.written())
