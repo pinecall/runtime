@@ -276,7 +276,7 @@ async def test_the_orgs_reads_are_listed_newest_first_and_of_one_call_when_named
     await reads.record(pool, Scope(knocking.org.id), Read("CA_2", "log", reads.OPERATOR))
     async with knocking.http(knocking.app["production"]) as http:
         every = await http.get("/v1/org/reads")
-        of_one = await http.get("/v1/org/reads", params={"call": "CA_1"})
+        of_one = await http.get("/v1/org/reads", params={"subject": "CA_1"})
     assert [row["subject"] for row in every.json()["reads"]] == ["CA_2", "CA_1"]
     assert [(row["what"], row["reader"]) for row in of_one.json()["reads"]] == [
         ("recording", "m_ana")

@@ -128,12 +128,14 @@ taught, and the call's recording directory; then it writes one row of the org's 
 what, subject, env, asked_by, calls, entries, memories, recordings}`. The dial ledger stays, and a
 phone call leaves its detail record in `call_records` — the numbers, the direction, when it
 started and ended, how it ended; no name, no words, no outcome — for a carrier's traceback, until
-the nightly run forgets it 24 months after the call started.
+the nightly run forgets it, and every dial, 24 months on. The night's backup, taken at 03:00
+before the retention run, still holds what was erased: 7 days on the box, 35 in the bucket
+(`a-box-in-production.md` §Backups), which an answer to a data subject says.
 
 | door | |
 |---|---|
-| `DELETE /v1/calls/{call}` | one ended call; `409` while it runs, `404` for a call the key does not read |
-| `DELETE /v1/contacts/{contact}` | a contact in the key's world: every call they were on (by `call_facts.contact`), every fact kept of them, what each reader had read of their thread |
+| `DELETE /v1/calls/{call}` | one ended call (`team`); `409` while it runs, `404` for a call the key does not read |
+| `DELETE /v1/contacts/{contact}` | a contact in the key's world (`team`): every call they were on (by `call_facts.contact`), every fact kept of them, what each reader had read of their thread; `409` while they are on a call |
 | `GET /v1/org/erasures` | the trail, newest first (`team`) |
 
 ### Who read what
@@ -145,7 +147,7 @@ a server's key, a visitor's token and the fleet write none. The operator's reads
 `GET /v1/ops/traceback`, one row in each org the lookup showed) write rows with `reader:
 "operator"`. A row names the call or the number, never what it said. `GET /v1/org/reads?call=`
 (`team`) answers `{reads: [{subject, what: log|recording|traceback, env, reader, at}]}`, newest
-first, of one call or number when `call` names it.
+first, of one call or number when `subject` names it.
 
 An org is erased whole by the operator: `DELETE /v1/ops/orgs/{named}`
 ([operator-api.md](operator-api.md)). The trail row outlives the org.
@@ -193,7 +195,8 @@ unless `recording_notice` is `false`. A call nobody records says no notice; a wr
 neither. Both play in the sandbox too, so a test hears what a caller will. A client that changes
 one field reads the row and writes it back whole. The trail is `GET /v1/org/erasures`.
 
-`GET /v1/org/export` (`team`) is everything the org keeps in the key's world, as a download of JSON
+`GET /v1/org/export` (`team`) is the org's calls, memories, settings, words, documents and consents
+in the key's world, as a download of JSON
 Lines (`application/x-ndjson`): a header `{kind: "export", org, env, exported_at}`, then one line
 per call (`{kind: "call", call, agent, holder, started_at, sealed, facts, entries}`, oldest first,
 each with its whole log), then every memory (`kind: "memory"`, without its embedding), every

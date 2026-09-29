@@ -8,7 +8,8 @@ from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
-from pinecall.tenancy import export
+from pinecall.tenancy import consents, export
+from pinecall.tenancy.consents import Given
 from tests.conftest import postgres
 from tests.log.conftest import ACall, logged_call
 from tests.tenancy.conftest import an_org
@@ -63,6 +64,32 @@ async def test_an_orgs_world_comes_out_whole_header_first(pool: Pool, store: Sto
     assert facts["contact"] == "+34 600 111 222"
     assert "embedding" not in lines[2]
     assert lines[3]["text"] == "Open 9 to 5."
+
+
+A_SETTING = """
+INSERT INTO agent_config (org, env, holder, agent, version, config, author)
+VALUES (%(org)s, 'production', '', 'agenda', 1, '{"slug": "agenda"}', 'm_ana')
+"""
+
+A_WORD = """
+INSERT INTO lexicon (org, env, holder, agent, version, said, heard, author)
+VALUES (%(org)s, 'production', '', 'agenda', 1, '{"ok": "vale"}', '[]', 'm_ana')
+"""
+
+
+async def test_the_settings_the_words_and_the_consents_come_out_too(pool: Pool) -> None:
+    org = await an_org(pool)
+    async with pool.connection() as connection:
+        await connection.execute(A_SETTING, {"org": org.id})
+        await connection.execute(A_WORD, {"org": org.id})
+    await consents.give(pool, Scope(org.id), "+14155550142", Given("express", "the form", "m_ana"))
+    lines = await exported(pool, org.id)
+    assert [line["kind"] for line in lines] == ["export", "agent_config", "lexicon", "consent"]
+    assert (lines[1]["version"], lines[2]["said"], lines[3]["number"]) == (
+        1,
+        {"ok": "vale"},
+        "+14155550142",
+    )
 
 
 async def test_another_org_and_the_other_world_are_not_in_it(pool: Pool, store: Store) -> None:

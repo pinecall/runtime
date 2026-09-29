@@ -13,11 +13,11 @@ from pinecall.domain.errors import DeclarationRefused, NotFound
 from pinecall.domain.scope import Scope
 from pinecall.gateway._call_setup import keys_of, tuned
 from pinecall.gateway._deps import (
-    CallsKey,
     GatewayDep,
     KnowledgeKey,
     MemoryKey,
     ScopeDep,
+    TeamKey,
     asked_by,
     embedder_of,
 )
@@ -109,7 +109,7 @@ async def forget_contact(
 
 # A person's "delete my data": what they said on every call of the world, and what was kept.
 @router.delete("/v1/contacts/{contact}")
-async def erase_contact(contact: str, key: CallsKey, where: ScopeDep, box: GatewayDep) -> Erasure:
+async def erase_contact(contact: str, key: TeamKey, where: ScopeDep, box: GatewayDep) -> Erasure:
     """Erase a contact in the world: every call they were on and every fact kept of them."""
     recordings = pathlib.Path(box.connections.settings.recordings_root)
     erased = await erasure.contact(

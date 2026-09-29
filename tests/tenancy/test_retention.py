@@ -15,6 +15,17 @@ pytestmark = postgres
 
 A_DAY_S = 86400.0
 
+A_DIAL = """
+INSERT INTO dials (org, env, agent, dialled, shown, asked_by, at)
+VALUES (%(org)s, 'production', 'agenda', '+14155550142', '+14155550100', 'm_ana', now())
+"""
+
+# A dial nobody answered: facts with an end and no start.
+A_RECORD_WITH_NO_START = """
+INSERT INTO call_records (call, org, env, direction, from_number, to_number, ended_at)
+VALUES ('CA_unanswered', %(org)s, 'production', 'outbound', '+14155550100', '+14155550142', 1.0)
+"""
+
 # logged_call starts every call at started_at 1.0 (the store's ticking clock); "now" is days after.
 DAYS_LATER = 1.0 + 40 * A_DAY_S
 
@@ -63,6 +74,19 @@ async def test_a_run_stops_at_its_limit_and_the_next_one_takes_the_rest(
     assert len(await retention.purge(pool, tmp_path, DAYS_LATER, limit=2)) == 1
     for call in calls:
         assert await store.whole(call) == []
+
+
+async def test_dials_and_a_record_of_a_call_that_never_started_are_forgotten_at_24_months(
+    pool: Pool,
+) -> None:
+    org = await an_org(pool)
+    async with pool.connection() as connection:
+        await connection.execute(A_DIAL, {"org": org.id})
+        await connection.execute(A_RECORD_WITH_NO_START, {"org": org.id})
+    assert await retention.forget_dials(pool, 1.0 + 700 * A_DAY_S) == 0
+    assert await retention.forget_records(pool, 1.0 + 700 * A_DAY_S) == 0
+    assert await retention.forget_dials(pool, 4_000_000_000.0) == 1
+    assert await retention.forget_records(pool, 4_000_000_000.0) == 1
 
 
 async def test_an_erased_calls_record_is_kept_24_months_and_then_forgotten(

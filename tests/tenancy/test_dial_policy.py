@@ -212,6 +212,21 @@ async def test_the_sandbox_and_the_askers_own_phone_are_held_to_no_hours(
 
 
 @postgres
+async def test_a_sandbox_dial_writes_its_consent_and_rings_past_the_list_without_lifting_it(
+    pool: Pool, org: str
+) -> None:
+    await dialling_anywhere(pool, org)
+    sandbox = Scope(org, "sandbox")
+    with_one = replace(dial_of(org, LOS_ANGELES, env="sandbox"), consent=A_CONSENT)
+    await dial_policy.guard_dial(pool, with_one)
+    assert await consents.standing_of(pool, sandbox, LOS_ANGELES) == "consented"
+    await consents.give(pool, sandbox, MONTEVIDEO, Given("opt_out", "the caller asked", "agent:x"))
+    listed = replace(dial_of(org, MONTEVIDEO, env="sandbox", call="call_2"), consent=A_CONSENT)
+    await dial_policy.guard_dial(pool, listed)
+    assert await consents.standing_of(pool, sandbox, MONTEVIDEO) == "opted_out"
+
+
+@postgres
 async def test_a_us_number_is_rung_three_times_a_day_and_the_fourth_is_refused(
     pool: Pool, org: str
 ) -> None:

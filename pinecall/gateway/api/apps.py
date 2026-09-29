@@ -71,6 +71,8 @@ NO_SESSION = "{kind} names call {call!r}, which is not running here"
 # Where an opt-out the agent heard came from, as the do-not-call list says it.
 ASKED_THE_AGENT = "the caller asked the agent"
 
+NO_NUMBER_TO_LIST = "call {call} has no phone number at its far end: nothing to put on the list"
+
 
 NOBODY_WAITING = (
     "no tool call {call_id} is waiting on call {call!r}: it lapsed, it was answered, or the call "
@@ -368,6 +370,8 @@ def _named(raw: Json, field: str) -> str:
 # The list is the org's, not the call's, and nothing lands in the log: an SDK that predates the
 # command would refuse to read an entry it has no shape for.
 async def _opted_out(gateway: Gateway, served: Served, agent: str, wanted: CallOptOut) -> None:
+    if served.context.channel != "phone":
+        raise DeclarationRefused(NO_NUMBER_TO_LIST.format(call=served.call))
     given = Given(
         kind="opt_out",
         source=ASKED_THE_AGENT,

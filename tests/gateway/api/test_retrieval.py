@@ -745,6 +745,19 @@ async def test_an_agent_no_app_is_holding_is_the_registrys_own_refusal(knocking:
 
 
 @postgres
+async def test_a_contact_on_a_call_right_now_is_not_erased(knocking: Knocking) -> None:
+    store = knocking.gateway.logs.store
+    org = knocking.org.id
+    ended = await logged_call(store, org, ACall(caller=CONTACT))
+    live = await logged_call(store, org, ACall(caller=CONTACT, ended=False))
+    async with knocking.http(knocking.app[PRODUCTION]) as http:
+        refused = await http.delete(f"/v1/contacts/{CONTACT}")
+    assert refused.status_code == 409
+    assert live in refused.json()["detail"]
+    assert await store.whole(ended) != []
+
+
+@postgres
 async def test_a_contacts_erasure_takes_their_calls_and_every_fact_kept_of_them(
     knocking: Knocking,
 ) -> None:

@@ -172,10 +172,10 @@ def retention_due(settings: Settings, _args: argparse.Namespace) -> int:
 
 
 def retention_run(settings: Settings, _args: argparse.Namespace) -> int:
-    """Erase every sealed call past its org's days, forget old call records; how many went."""
-    erased, forgotten = asyncio.run(_purged(settings))
+    """Erase every sealed call past its org's days, forget old records and dials; how many."""
+    erased, records, dials = asyncio.run(_purged(settings))
     sys.stdout.write(f"{len(erased)} calls erased past their org's days\n")
-    sys.stdout.write(f"{forgotten} call records forgotten past 24 months\n")
+    sys.stdout.write(f"{records} call records and {dials} dials forgotten past 24 months\n")
     return 0
 
 
@@ -299,12 +299,13 @@ async def _due(settings: Settings) -> list[retention.Due]:
         await pool.close()
 
 
-async def _purged(settings: Settings) -> tuple[list[str], int]:
+async def _purged(settings: Settings) -> tuple[list[str], int, int]:
     pool = await open_pool(settings.database_url)
     now = time.time()
     try:
         erased = await retention.purge(pool, Path(settings.recordings_root), now)
-        return erased, await retention.forget_records(pool, now)
+        records = await retention.forget_records(pool, now)
+        return erased, records, await retention.forget_dials(pool, now)
     finally:
         await pool.close()
 

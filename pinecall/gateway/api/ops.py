@@ -73,10 +73,6 @@ NO_SUCH_ORG = "no org named {named}: by id or by slug"
 STILL_IN_USE = "org {slug} still has {what}: revoke its keys and remove its routes first"
 
 
-# Who asked, in the erasure trail, when the box's own doors erase an org.
-OPERATOR = "operator"
-
-
 NOT_HELD = "agent {slug} is held right now: stop it, move it, and start it again"
 
 
@@ -165,7 +161,7 @@ async def remove_org(named: str, gateway: GatewayDep) -> None:
         if await routes.of_org(pool, org.id, env):
             raise Conflict(STILL_IN_USE.format(slug=org.slug, what="routes"))
     recordings = pathlib.Path(gateway.connections.settings.recordings_root)
-    erased = await erasure.org(pool, recordings, org.id, by=OPERATOR)
+    erased = await erasure.org(pool, recordings, org.id, by=reads.OPERATOR)
     for call in erased.calls:
         gateway.logs.forget(call)
 

@@ -193,7 +193,7 @@ No fields.
 
 ### `call.opt_out`
 
-The caller asked never to be called again: their number joins the org's do-not-call list. The gateway writes it, whichever process runs the call, as an opt-out of the org's world with the call's id beside it (`GET /v1/org/consents/{number}`); no call of the org reaches the number again until a consent is recorded at `POST /v1/org/consents`. Nothing lands in the log: an SDK that predates the command would refuse an entry it has no shape for. Refused with `no_session` when the call is not running here.
+The caller asked never to be called again: their number joins the org's do-not-call list. The gateway writes it, whichever process runs the call, as an opt-out of the org's world with the call's id beside it (`GET /v1/org/consents/{number}`); no call of the org reaches the number again until a consent is recorded at `POST /v1/org/consents`. Nothing lands in the log: an SDK that predates the command would refuse an entry it has no shape for. Refused with `no_session` when the call is not running here, and with `bad_shape` on a call with no phone number at its far end (the widget, a chat).
 
 Lands in the log as: nothing.
 

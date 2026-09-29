@@ -1,4 +1,4 @@
-"""Retention: sealed calls past their org's days (policy.py), and call records past 24 months."""
+"""Retention: calls past their org's days (policy.py); call records and dials past 24 months."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,11 +20,17 @@ ORDER BY head.started_at
 LIMIT %(limit)s
 """
 
-# An erased phone call's record (erasure.py) is kept for a carrier's traceback this long after the
-# call started, then forgotten.
+# An erased phone call's record (erasure.py) and every dial (dial_policy.py) are kept for a
+# carrier's traceback this long, then forgotten. A record of a call that never started goes by
+# when it ended, or when it was erased.
 RECORDS_KEPT_S = 730 * 86400
 
-FORGET_RECORDS = "DELETE FROM call_records WHERE started_at < %(before)s"
+FORGET_RECORDS = """
+DELETE FROM call_records
+WHERE coalesce(started_at, ended_at, extract(epoch FROM erased_at)) < %(before)s
+"""
+
+FORGET_DIALS = "DELETE FROM dials WHERE at < to_timestamp(%(before)s)"
 
 # Who asked, in the erasure trail, for what the calendar erased.
 RETENTION = "retention"
@@ -66,7 +72,14 @@ async def purge(
 
 
 async def forget_records(pool: Pool, now: float) -> int:
-    """Forget the records of erased calls that started more than 24 months ago; how many."""
+    """Forget the records of erased calls more than 24 months old; how many."""
     async with pool.connection() as connection:
         done = await connection.execute(FORGET_RECORDS, {"before": now - RECORDS_KEPT_S})
+    return done.rowcount
+
+
+async def forget_dials(pool: Pool, now: float) -> int:
+    """Forget the dials placed or refused more than 24 months ago; how many."""
+    async with pool.connection() as connection:
+        done = await connection.execute(FORGET_DIALS, {"before": now - RECORDS_KEPT_S})
     return done.rowcount

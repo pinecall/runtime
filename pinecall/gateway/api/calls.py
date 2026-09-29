@@ -25,11 +25,11 @@ from pinecall.gateway import _deps, _streams
 from pinecall.gateway._call_setup import tuned
 from pinecall.gateway._deps import (
     Acting,
-    CallsKey,
     GatewayDep,
     Reader,
     ReaderDep,
     ScopeDep,
+    TeamKey,
     WorkerKey,
     asked_by,
 )
@@ -167,7 +167,6 @@ async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) 
     config, versions = await _tuned(gateway, scope, body.agent, found)
     await gateway.logs.store.claim(context.call, body.agent, scope.org, Claim(scope, versions))
     owner = None if found is None else found.owner
-    served_call(gateway.serving, owner, context, config, scope)
     served = served_call(gateway.serving, owner, context, config, scope)
     await opened(served.log, context, body.agent)
     first, notice = await _opening(gateway, scope, config.language)
@@ -387,7 +386,7 @@ async def recording(call: str, reading: ReaderDep, gateway: GatewayDep) -> FileR
 
 # The one door that deletes from a call's log: through erasure's own path, never the trigger's.
 @router.delete("/v1/calls/{call}")
-async def erase_call(call: str, key: CallsKey, where: ScopeDep, gateway: GatewayDep) -> Erasure:
+async def erase_call(call: str, key: TeamKey, where: ScopeDep, gateway: GatewayDep) -> Erasure:
     """Erase one call: its log, facts, tokens, the memories it taught and its recording."""
     kept = await queries.scope_of_call(gateway.connections.pool, call)
     if kept is None or kept.scope is None or not _sees_to_erase(where, kept.scope):

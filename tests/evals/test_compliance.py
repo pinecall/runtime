@@ -3,6 +3,7 @@
 from pinecall.evals.case import AGENT, CALLER, Case, Said
 from pinecall.evals.compliance import Compliance, ruled
 from pinecall.evals.judges import hangup_judges
+from pinecall.tenancy.disclosure import CALLING_FOR
 
 CLINIC = Compliance(
     org="Clínica Norte",
@@ -54,6 +55,14 @@ def test_a_caller_who_asks_if_it_is_a_robot_must_hear_it_is_automated_next() -> 
     )
     assert verdicts(disclosing)["disclosed"] == "pass"
     assert verdicts(dodged)["disclosed"] == "fail"
+
+
+def test_every_sentence_the_platform_speaks_is_heard_as_a_disclosure() -> None:
+    for language, sentence in CALLING_FOR.items():
+        call = a_call(
+            (AGENT, sentence.format(org="Acme")), (CALLER, "Are you a robot?"), (AGENT, "...")
+        )
+        assert verdicts(call)["disclosed"] == "pass", language
 
 
 def test_a_word_inside_another_is_no_disclosure() -> None:

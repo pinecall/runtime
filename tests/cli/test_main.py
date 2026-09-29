@@ -172,6 +172,6 @@ async def test_retention_says_what_is_due_then_erases_it_and_says_how_many(
     ran = capsys.readouterr().out.splitlines()
     assert ran[0] == "1 calls erased past their org's days"
     # The call started in 1970 by the store's clock, so its record is past 24 months at once.
-    assert ran[1].endswith("call records forgotten past 24 months")
+    assert ran[1].endswith("dials forgotten past 24 months")
     assert await asyncio.to_thread(retention_due, settings, argparse.Namespace()) == 0
     assert capsys.readouterr().out == "0 calls past their org's days\n"

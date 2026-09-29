@@ -13,18 +13,22 @@ from pinecall.tenancy.reads import Read
 from pinecall.tenancy.retention import RECORDS_KEPT_S
 from pinecall.wire.rest.ops import Traceback, TracebackCall, TracebackDial
 
-# A kept call's facts, then an erased call's record: the same columns, oldest first.
+# A kept call's facts, then an erased call's record: the same columns, oldest first. A call that
+# never started (a dial nobody answered) is placed by when it ended.
 CALLS = """
-SELECT head.call, head.org, head.env, facts.direction, facts.from_number, facts.to_number,
-       head.started_at, facts.ended_at, facts.end_reason, false AS erased
-FROM call_facts facts JOIN call_log_head head ON head.call = facts.call
-WHERE facts.channel = 'phone' AND head.started_at >= %(since)s
-  AND (facts.from_number = %(number)s OR facts.to_number = %(number)s)
-UNION ALL
-SELECT call, org, env, direction, from_number, to_number, started_at, ended_at, end_reason, true
-FROM call_records
-WHERE started_at >= %(since)s AND (from_number = %(number)s OR to_number = %(number)s)
-ORDER BY started_at
+SELECT call, org, env, direction, from_number, to_number, started_at, ended_at, end_reason, erased
+FROM (
+    SELECT head.call, head.org, head.env, facts.direction, facts.from_number, facts.to_number,
+           head.started_at, facts.ended_at, facts.end_reason, false AS erased
+    FROM call_facts facts JOIN call_log_head head ON head.call = facts.call
+    WHERE facts.channel = 'phone'
+      AND (facts.from_number = %(number)s OR facts.to_number = %(number)s)
+    UNION ALL
+    SELECT call, org, env, direction, from_number, to_number, started_at, ended_at, end_reason, true
+    FROM call_records WHERE from_number = %(number)s OR to_number = %(number)s
+) found
+WHERE coalesce(started_at, ended_at, 0) >= %(since)s
+ORDER BY coalesce(started_at, ended_at, 0)
 """
 
 # Every dial to the number, placed or refused, with who asked.

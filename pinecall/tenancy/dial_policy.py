@@ -256,8 +256,7 @@ async def guard_dial(pool: Pool, dial: Dial) -> Guards:
             NOT_ONE_OF_OURS.format(number=destination, env=dial.scope.env, guard=STRANGER)
         )
     rules = await _rules_for(pool, dial, destination)
-    if rules.listed:
-        await _consented(pool, dial, destination, rules)
+    await _consented(pool, dial, destination, rules)
     if rules.hours is not None:
         await _in_hours(pool, dial, destination, rules.hours)
     await _paced(pool, dial, guards, rules.per_number_day)
@@ -331,9 +330,13 @@ async def _rules_for(pool: Pool, dial: Dial, destination: str) -> Rules:
     )
 
 
-# An opt-out outranks the consent a dial carries: an app may not lift the list by sending one.
+# An opt-out outranks the consent a dial carries: an app may not lift the list by sending one. A
+# dial the list does not bind (the sandbox, a developer's own phone) rings past it, and writes no
+# consent over it either.
 async def _consented(pool: Pool, dial: Dial, destination: str, rules: Rules) -> None:
     current = await consents.standing_of(pool, dial.scope, destination)
+    if current == "opted_out" and not rules.listed:
+        return
     if current == "opted_out":
         await _refused(pool, dial, DO_NOT_CALL)
         raise NotAllowed(ON_THE_LIST.format(number=destination, guard=DO_NOT_CALL))
@@ -396,7 +399,7 @@ def _ledger(dial: Dial) -> dict[str, str | None]:
         "org": dial.scope.org,
         "env": dial.scope.env,
         "agent": dial.agent,
-        "dialled": dial.to,
+        "dialled": dial.to.strip(),
         "shown": dial.shown,
         "asked_by": dial.asked_by,
     }
