@@ -46,6 +46,10 @@ ORDER BY given_at DESC, number DESC
 LIMIT %(limit)s
 """
 
+OPTED_OUT_ON = """
+SELECT EXISTS (SELECT 1 FROM contact_consents WHERE call = %(call)s AND kind = 'opt_out') AS opted
+"""
+
 NOT_A_CURSOR = "{after} is no cursor of this list: it is <epoch>:<number>, as the last page said"
 
 A_PAGE = 200
@@ -117,6 +121,13 @@ async def do_not_call(
     ]
     last = numbers[-1] if len(numbers) == limit else None
     return DoNotCall(numbers=numbers, next=None if last is None else f"{last.since}:{last.number}")
+
+
+async def opted_out_on(pool: Pool, call: str) -> bool:
+    """Whether a number went on the do-not-call list on this call."""
+    async with pool.connection() as connection:
+        row = await (await connection.execute(OPTED_OUT_ON, {"call": call})).fetchone()
+    return row is not None and bool(row["opted"])
 
 
 async def opt_out_many(

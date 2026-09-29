@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from pinecall.domain.agent import AgentConfig, Model
 from pinecall.domain.errors import PinecallError, QuotaExhausted
 from pinecall.evals import judges
+from pinecall.evals.compliance import Compliance, Panel
 from pinecall.gateway._call_setup import exhausted, keys_of
 from pinecall.gateway._served import Served, Serving, now_of
 from pinecall.log import facts
@@ -20,7 +21,7 @@ from pinecall.providers.catalog import Providers
 from pinecall.providers.credentials import Keyring, thinking
 from pinecall.retrieval import extraction, lookups, memory
 from pinecall.retrieval.extraction import MemoryWrite
-from pinecall.tenancy import admission, orgs, vault
+from pinecall.tenancy import admission, consents, disclosure, orgs, policy, vault
 from pinecall.tenancy.judges import StoredJudge, for_call
 from pinecall.wire.events import CallEnded, CallScore, CallSummary, ErrorEvent, MemoryOps
 from pinecall.wire.frames import Entry
@@ -67,7 +68,9 @@ async def sealed(
     else:
         entries = await serving.logs.store.whole(served.call)
         own = await for_call(serving.connections.pool, served.scope.org, served.agent)
-        score = await judged_call(serving.connections, entries, served.config, own)
+        pool = serving.connections.pool
+        org_facts = await compliance_of(pool, served.scope.org, served.call, served.config)
+        score = await judged_call(serving.connections, entries, served.config, own, org_facts)
     await served.log.append("call.score", score.written())
     serving.logs.forget(served.call)
     serving.live.close(served.call)
@@ -118,17 +121,33 @@ async def judged_call(
     entries: Sequence[Entry],
     declared: AgentConfig | None,
     own: Sequence[StoredJudge],
+    org_facts: Compliance | None,
 ) -> CallScore:
-    """The hang-up panel and the agent's own judges over a finished call, a model's when named."""
+    """The hang-up panel, compliance and the agent's own judges over a finished call."""
     call = next((entry.call for entry in entries if entry.call is not None), "")
     try:
         configured = await catalog.providers(connections.pool)
         judge = await judge_of(connections, configured)
-        questions = [stored.judge for stored in own]
-        return await judges.at_hangup(entries, declared, questions, judge, configured=configured)
+        judged_by = Panel(own=[stored.judge for stored in own], compliance=org_facts)
+        return await judges.at_hangup(entries, declared, judged_by, judge, configured=configured)
     except PinecallError as broke:
         logger.warning("call %s: nothing judged it", call, exc_info=True)
         return CallScore(judges=[], judge_calls=0, not_judged=JUDGING_BROKE.format(broke=broke))
+
+
+# The org as the call spoke for it: its name, the opening sentence it set, and an opt-out it took.
+async def compliance_of(
+    pool: Pool, org: str, call: str, declared: AgentConfig | None
+) -> Compliance:
+    """What the compliance judges read beyond the call's log."""
+    found = await orgs.find(pool, org)
+    name = org if found is None else found.name
+    kept = (await policy.policy_of(pool, org)).policy
+    language = None if declared is None else declared.language
+    opening = disclosure.disclosure_of(kept, name, language)
+    return Compliance(
+        org=name, disclosure=opening, opted_out=await consents.opted_out_on(pool, call)
+    )
 
 
 # Always the box's key, never an org's: judging is the platform's measure, the same for all.

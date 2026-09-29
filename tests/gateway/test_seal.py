@@ -133,7 +133,13 @@ async def test_a_box_that_names_no_judge_still_judges_by_code_and_skips_the_mode
     whole = await sealed_call(wired, a_call(), *PRICED)
     score = CallScore.model_validate(whole[-1].data)
     verdicts = {judgment.name: judgment.verdict for judgment in score.judges}
-    assert verdicts == {"consent": "held", "grounded": "skipped", "promises": "held"}
+    assert verdicts == {
+        "consent": "held",
+        "grounded": "skipped",
+        "promises": "held",
+        "disclosed": "held",
+        "honoured_stop": "held",
+    }
     grounded = next(judgment for judgment in score.judges if judgment.name == "grounded")
     assert grounded.reason.startswith(NO_JUDGE)
     assert score.passed is True
@@ -211,7 +217,14 @@ async def test_the_seal_asks_the_agents_own_judges_and_leaves_a_simulations_one_
         await judges.put_judge(pool, org.id, AGENT, judge, author="m_ana")
     whole = await sealed_call(wired, a_call(Scope(org.id, "sandbox")), *GREETED)
     score = CallScore.model_validate(whole[-1].data)
-    assert score.panel == ["consent", "grounded", "promises", "greets"]
+    assert score.panel == [
+        "consent",
+        "grounded",
+        "promises",
+        "disclosed",
+        "honoured_stop",
+        "greets",
+    ]
     own = next(judgment for judgment in score.judges if judgment.name == "greets")
     assert (own.verdict, own.reason) == ("held", "it greeted")
     assert score.judge_calls == 1

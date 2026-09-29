@@ -14,6 +14,7 @@ from livekit.agents.llm import ChatContext, ChatItem, ChatMessage, FunctionCall,
 from pinecall.domain.agent import AgentConfig, AgentJudge
 from pinecall.domain.errors import PinecallError, UpstreamFailed
 from pinecall.domain.names import JsonObject
+from pinecall.evals import compliance
 from pinecall.evals._evidence import (
     as_text,
     carries,
@@ -35,6 +36,7 @@ from pinecall.evals.case import (
     verdict_word,
 )
 from pinecall.evals.checks import consent_of
+from pinecall.evals.compliance import Compliance, Panel
 from pinecall.providers import prices
 from pinecall.providers.build import Running, a_mapping, completion_usage, llm_of
 from pinecall.providers.catalog import Providers
@@ -314,11 +316,15 @@ def golden_judges(golden: Golden, case: Case) -> list[CaseJudge]:
 
 
 # The register a business asks for is not declared anywhere, so it is not judged at hang-up.
-def hangup_judges(case: Case, own: Sequence[AgentJudge]) -> list[CaseJudge]:
-    """The panel: consent, grounding, promises, the caller's rule, then the agent's own judges."""
+def hangup_judges(
+    case: Case, own: Sequence[AgentJudge], org_facts: Compliance | None = None
+) -> list[CaseJudge]:
+    """The panel: consent, grounding, promises, compliance, the caller's rule, the agent's own."""
     panel = [_consent_judge(case), _grounded_judge(case), _promises_judge(case)]
-    ruled = [_persona_judge(case), *(_question_judge(case, judge) for judge in own)]
-    return [*panel, *(judge for judge in ruled if judge is not None)]
+    rules = [] if org_facts is None else compliance.ruled(case, org_facts)
+    lawful = [CaseJudge(rule.name, rule.criteria, rule.settled) for rule in rules]
+    ruled_by = [_persona_judge(case), *(_question_judge(case, judge) for judge in own)]
+    return [*panel, *lawful, *(judge for judge in ruled_by if judge is not None)]
 
 
 def evidence_in(reason: str, entries: Sequence[Entry]) -> JudgmentEvidence:
@@ -345,14 +351,14 @@ def judgment_of(name: str, result: JudgmentResult, entries: Sequence[Entry]) -> 
 async def at_hangup(
     entries: Sequence[Entry],
     declared: AgentConfig | None,
-    own: Sequence[AgentJudge],
+    judged_by: Panel,
     judge: JudgeModel,
     *,
     configured: Providers,
 ) -> CallScore:
     """The hang-up panel over a finished call: code judges always, model ones under the ceiling."""
     case = case_of(entries, declared)
-    panel = hangup_judges(case, own)
+    panel = hangup_judges(case, judged_by.own, judged_by.compliance)
     running, unjudged = judge.running, judge.unjudged
     model = None if running is None else llm_of(running)
     chat = as_chat(case)

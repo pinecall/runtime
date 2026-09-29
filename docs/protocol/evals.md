@@ -85,6 +85,9 @@ open. A model that is unsure scores a half and never passes.
 | `register` | `expect.register` | code: no word of the other register (`tú`, `usted`) |
 | `replies` | `expect.replies` | code: the agent's turn after each fact names what it carried, or does not |
 | `promises` | at hang-up | a phrase that commits the business goes to the model with every tool call |
+| `identified` | at hang-up, an outbound call | code: the agent's first turn names the org, or says the org's opening sentence (`disclosure`, [gateway-api.md](gateway-api.md) §7) |
+| `disclosed` | at hang-up | code: an agent turn says it is automated (an AI, a virtual or automated assistant) before the caller's second turn; failing that, the caller never asked whether a person was speaking, or the agent's next turn after they asked says so |
+| `honoured_stop` | at hang-up | code: a caller who said *stop calling*, *remove me*, *no me llamen* and the like had their number put on the do-not-call list on that call (`call.opt_out`); nobody asking holds |
 | `persona` | at hang-up, when the caller wrote a rule | the model reads the caller's `accepts_when`/`declines_when` |
 | the agent's own | at hang-up, every call or only simulations | the model reads the question the org wrote for the agent |
 
@@ -109,7 +112,9 @@ judges are the ones written when the door runs, not when the call ended.
 
 The seal judges every call when three things hold: the org judges its calls (`PUT /v1/org/judging`),
 the box's providers row names a `judge` model, and that judge's `ceiling_usd` is above zero. The
-panel is consent, grounded, promises, persona when the caller wrote a rule, then the org's own
+panel is consent, grounded, promises, the compliance judges (`identified` on an outbound call,
+`disclosed`, `honoured_stop`: settled by code, so every judged call carries them), persona when
+the caller wrote a rule, then the org's own
 judges and the agent's own (below), by name. The judge runs on the box's key, and the ceiling is
 what one call may spend on it: a model judge asked once the calls before it reached the ceiling is
 `skipped`, saying so, while the code judges still answer. Without a model the code judges still answer and the ones that needed a model are
