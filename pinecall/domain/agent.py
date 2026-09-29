@@ -265,7 +265,7 @@ class Tuning:
             if value is not None and not value.strip():
                 raise DeclarationRefused(BLANK.format(field=name))
         if self.max_duration_s is not None:
-            check_call_limit(self.max_duration_s)
+            _check_call_limit(self.max_duration_s)
 
 
 @dataclass(frozen=True)
@@ -276,7 +276,7 @@ class Lexicon:
     heard: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        check_pronunciations(self.said, "the lexicon")
+        _check_pronunciations(self.said, "the lexicon")
         if any(not word.strip() for word in self.heard):
             raise DeclarationRefused("the lexicon: a word the ears must know is not blank")
 
@@ -363,8 +363,8 @@ class AgentConfig:
             raise DeclarationRefused(
                 f"agent {self.slug}: prompt block names repeat: {sorted(repeated)}"
             )
-        check_pronunciations(self.says, f"agent {self.slug}")
-        check_call_limit(self.max_duration_s)
+        _check_pronunciations(self.says, f"agent {self.slug}")
+        _check_call_limit(self.max_duration_s)
         for event, sources in self.events.items():
             if not event or not sources:
                 raise DeclarationRefused(
@@ -385,7 +385,7 @@ class AgentConfig:
         return {tool.name: tool for tool in self.tools}
 
 
-def check_call_limit(seconds: int) -> None:
+def _check_call_limit(seconds: int) -> None:
     """Raise DeclarationRefused unless seconds is 0 or between 60 and 3600."""
     if seconds != NO_LIMIT and not SHORTEST_LIMIT_S <= seconds <= LONGEST_LIMIT_S:
         raise DeclarationRefused(
@@ -394,7 +394,7 @@ def check_call_limit(seconds: int) -> None:
         )
 
 
-def check_pronunciations(says: Mapping[str, str], owner: str) -> None:
+def _check_pronunciations(says: Mapping[str, str], owner: str) -> None:
     """Raise DeclarationRefused when a word or its spoken form is blank."""
     if blank := {word for word, spoken in says.items() if not word or not spoken}:
         raise DeclarationRefused(

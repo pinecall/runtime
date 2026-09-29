@@ -157,13 +157,11 @@ class Sockets:
         return self.lines.get((env, slug))
 
     # Taking the line is said out loud: starting later never takes a colleague's calls.
-    def take_the_line(self, scope: Scope, slug: str) -> Registration:
+    def take_the_line(self, scope: Scope, slug: str) -> None:
         """Give the agent's line to this scope, which must hold an app that answers a ring."""
-        taking = self._taker((scope, slug))
-        if taking is None:
+        if self._taker((scope, slug)) is None:
             raise DeclarationRefused(NOT_HOLDING.format(slug=slug, env=scope.env))
         self.lines[(scope.env, slug)] = scope.holder
-        return taking
 
     def drop_the_line(self, scope: Scope, slug: str) -> bool:
         """Let the line go, to the newest other scope that could take it."""
@@ -215,7 +213,7 @@ class Sockets:
     ) -> Entry:
         """This socket holds the agent from now on; agent.registered is written on its log."""
         store = self.logs.store
-        owner_org = await store.owner(None, slug)
+        owner_org = await store.owner(slug)
         if owner_org is not None and owner_org != scope.org:
             raise DeclarationRefused(ANOTHER_ORGS.format(slug=slug))
         await store.claim(None, slug, scope.org)
@@ -247,14 +245,12 @@ class Sockets:
         return await self._written(env, slug, "agent.configured", data.written())
 
     # A deploy: the socket keeps the agent so its tools still answer, and takes no new call.
-    def drain(self, owner: SocketId, env: Env, slug: str) -> Registration:
+    def drain(self, owner: SocketId, env: Env, slug: str) -> None:
         """Mark the socket as draining the agent."""
         found = self.on(owner, env, slug)
         if found is None:
             raise DeclarationRefused(NOT_REGISTERED.format(slug=slug))
-        draining = replace(found, draining=True)
-        self._replace(draining)
-        return draining
+        self._replace(replace(found, draining=True))
 
     async def drained(
         self, owner: SocketId, env: Env, slug: str, *, handed: int, parked: int

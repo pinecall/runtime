@@ -148,7 +148,6 @@ class Grant:
     connects: bool
     audio: bool
     reads_log: bool
-    sends_verbs: bool
     own_call_only: bool
     ttl_s: int | None
     # `audio` publishes and subscribes; `hears` only subscribes; `hidden` is not seen in the room.
@@ -162,7 +161,6 @@ GRANTS: Mapping[RoomScope, Grant] = {
         connects=True,
         audio=True,
         reads_log=True,
-        sends_verbs=False,
         own_call_only=True,
         ttl_s=ONE_VISIT_TTL_S,
     ),
@@ -172,7 +170,6 @@ GRANTS: Mapping[RoomScope, Grant] = {
         audio=False,
         hears=True,
         reads_log=True,
-        sends_verbs=False,
         own_call_only=True,
         ttl_s=ONE_VISIT_TTL_S,
     ),
@@ -182,7 +179,6 @@ GRANTS: Mapping[RoomScope, Grant] = {
         hears=True,
         hidden=True,
         reads_log=True,
-        sends_verbs=False,
         own_call_only=False,
         ttl_s=None,
     ),
@@ -191,7 +187,6 @@ GRANTS: Mapping[RoomScope, Grant] = {
         connects=False,
         audio=True,
         reads_log=True,
-        sends_verbs=True,
         own_call_only=False,
         ttl_s=None,
     ),
@@ -199,7 +194,6 @@ GRANTS: Mapping[RoomScope, Grant] = {
         connects=False,
         audio=False,
         reads_log=True,
-        sends_verbs=False,
         own_call_only=True,
         ttl_s=READ_TTL_S,
     ),
@@ -207,7 +201,6 @@ GRANTS: Mapping[RoomScope, Grant] = {
         connects=False,
         audio=False,
         reads_log=True,
-        sends_verbs=False,
         own_call_only=True,
         ttl_s=None,
     ),

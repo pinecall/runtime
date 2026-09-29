@@ -4,8 +4,8 @@ import pytest
 
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.wire.events import EPHEMERAL_EVENTS, EVENTS, TERMINAL_EVENT, CallStarted, event_of
-from pinecall.wire.frames import Entry, read_log
-from tests.wire.golden import GOLDEN_LOG
+from pinecall.wire.frames import Entry
+from tests.wire.golden import golden_entries
 
 
 def test_the_ephemeral_events_and_the_terminal_one_are_registered() -> None:
@@ -14,7 +14,7 @@ def test_the_ephemeral_events_and_the_terminal_one_are_registered() -> None:
 
 
 def test_every_entry_of_the_golden_log_is_the_model_its_type_names() -> None:
-    entries = read_log(GOLDEN_LOG.read_text(encoding="utf-8"))
+    entries = golden_entries()
     for entry in entries:
         assert type(event_of(entry)) is EVENTS[entry.type]
     assert [entry.type for entry in entries if not entry.ephemeral][-1] == TERMINAL_EVENT

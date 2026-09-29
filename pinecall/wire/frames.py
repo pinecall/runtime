@@ -2,7 +2,7 @@
 
 from typing import Self
 
-from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import JsonObject
@@ -48,14 +48,3 @@ class Command(WireModel):
     call: str | None
     id: str | None = None
     data: JsonObject
-
-
-_LOG: TypeAdapter[list[Entry]] = TypeAdapter(list[Entry])
-
-
-def read_log(text: str) -> list[Entry]:
-    """Return a whole log from a JSON array text, in the order it came."""
-    try:
-        return _LOG.validate_json(text)
-    except ValidationError as error:
-        raise DeclarationRefused(f"log: {error}") from error

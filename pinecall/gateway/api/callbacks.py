@@ -40,7 +40,7 @@ class CallbackQuery(BaseModel):
 @router.post("/v1/callbacks", status_code=204)
 async def request_callback(body: CallbackRequest, key: WorkerKey, gateway: GatewayDep) -> None:
     """Somebody the overflow told to wait for a call back, on the agent's log."""
-    owner = await gateway.logs.store.owner(None, body.agent)
+    owner = await gateway.logs.store.owner(body.agent)
     if owner is None or (owner != key.org and THE_FLEET not in key.bearer.key.scopes):
         raise NotFound(NOT_THIS_ORGS.format(agent=body.agent))
     wanted = CallbackRequested(

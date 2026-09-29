@@ -94,7 +94,7 @@ async def hold_audio(
     slug: str, _key: PipelineKey, scope: ScopeDep, gateway: GatewayDep
 ) -> HoldAudio:
     """What the agent plays while a tool runs: the box's melody, silence, or a clip of its own."""
-    return hold_audio_row(await agents.hold_of(gateway.connections.pool, _of(scope), slug))
+    return _hold_audio_row(await agents.hold_of(gateway.connections.pool, _of(scope), slug))
 
 
 # The body is the file, no multipart; the name rides the query. Converted here, once, so no
@@ -115,7 +115,7 @@ async def upload_hold_audio(
     melody = await asyncio.to_thread(hold.converted, data)
     clip = Clip(audio=melody.audio, seconds=melody.seconds, name=(name or "").strip() or "melody")
     chosen = await agents.keep_hold(gateway.connections.pool, _of(scope), slug, clip)
-    return hold_audio_row(chosen)
+    return _hold_audio_row(chosen)
 
 
 @router.get("/v1/agents/{slug}/pipeline/hold-audio/audio")
@@ -142,7 +142,7 @@ async def choose_hold_audio(
     return HoldAudio(played="off")
 
 
-def hold_audio_row(chosen: Chosen | None) -> HoldAudio:
+def _hold_audio_row(chosen: Chosen | None) -> HoldAudio:
     """The stored choice as the doors send it; no row is the box's melody."""
     if chosen is None:
         return HoldAudio(played="default")

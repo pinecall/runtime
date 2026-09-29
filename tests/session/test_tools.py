@@ -196,7 +196,7 @@ async def test_a_turn_runs_what_the_declaration_asks_for_with_the_callers_words(
     box.found["recall"] = {"facts": [{"text": "vegetariano"}]}
     box.found["search"] = {"chunks": [{"text": "el menú del día"}]}
     lookups = _lookups(box, BOTH)
-    assert await lookups.turn_ended("qué hay de menú", None) == []
+    assert await lookups.turn_ended("qué hay de menú") == []
     assert [tool for tool, _ in box.lookups] == ["recall", "search"]
     assert box.lookups[1][1] == {"query": "qué hay de menú"}
 
@@ -207,7 +207,7 @@ async def test_a_caller_nobody_has_identified_is_left_out_and_never_named_as_nob
 ) -> None:
     unknown = context_of(str(box.log.call), "web", contact=Contact())
     lookups = Lookups(Call(unknown, MEMORY, box.platform()), box.lookup, 200)
-    await lookups.turn_ended("mi pedido", None)
+    await lookups.turn_ended("mi pedido")
     assert box.lookups == [("recall", {"query": "mi pedido"})]
 
 
@@ -215,7 +215,7 @@ async def test_a_caller_nobody_has_identified_is_left_out_and_never_named_as_nob
 async def test_each_run_leaves_a_pair_the_formatter_can_match_by_call_id(box: Box) -> None:
     box.found["recall"] = {"facts": [{"text": "vegetariano"}]}
     lookups = _lookups(box, MEMORY)
-    await lookups.turn_ended("menú", None)
+    await lookups.turn_ended("menú")
     called, answered = lookups.items
     assert isinstance(called, llm.FunctionCall)
     assert isinstance(answered, llm.FunctionCallOutput)
@@ -230,9 +230,9 @@ async def test_the_pair_is_replaced_whole_every_turn_and_holds_nothing_between_t
 ) -> None:
     box.found["recall"] = {"facts": [{"text": "vegetariano"}]}
     lookups = _lookups(box, MEMORY)
-    await lookups.turn_ended("menú", None)
+    await lookups.turn_ended("menú")
     box.found["recall"] = {"facts": []}
-    await lookups.turn_ended("otra cosa", None)
+    await lookups.turn_ended("otra cosa")
     assert lookups.items == ()
 
 
@@ -242,7 +242,7 @@ async def test_docs_in_tool_mode_run_nothing_before_the_turn_and_still_answer_th
 ) -> None:
     box.found["search"] = {"chunks": [{"text": "abrimos a las nueve"}]}
     lookups = _lookups(box, AgentConfig(slug="a", bases=(Docs(base="b", mode="tool"),)))
-    await lookups.turn_ended("horario", None)
+    await lookups.turn_ended("horario")
     assert box.lookups == []
     answered = await lookups.called(ToolUse("m1", "search", {"query": "horario"}))
     assert json.loads(answered) == {"chunks": [{"text": "abrimos a las nueve"}]}
@@ -259,7 +259,7 @@ async def test_past_the_budget_no_pair_is_added_and_the_log_says_which_tool_did_
         return {"facts": [{"text": "late"}]}
 
     lookups.lookup = slow
-    skipped = await lookups.turn_ended("menú del día", None)
+    skipped = await lookups.turn_ended("menú del día")
     assert lookups.items == ()
     assert [(error.code, error.message) for error in skipped] == [
         ("recall_skipped", "recall did not run: no answer within 20 ms")
@@ -271,7 +271,7 @@ async def test_one_lookup_that_fails_leaves_the_other_ones_pair_standing(box: Bo
     box.failing.add("recall")
     box.found["search"] = {"chunks": [{"text": "el menú"}]}
     lookups = _lookups(box, BOTH)
-    skipped = await lookups.turn_ended("menú", None)
+    skipped = await lookups.turn_ended("menú")
     assert [error.code for error in skipped] == ["recall_skipped"]
     assert [item.call_id for item in lookups.items if isinstance(item, llm.FunctionCall)] == [
         "lu_1_search"
@@ -286,7 +286,7 @@ async def test_an_interim_of_enough_words_starts_the_run_and_the_pair_carries_it
     lookups = _lookups(box, MEMORY)
     lookups.heard_so_far("quiero saber qué hay")
     lookups.heard_so_far("quiero saber qué hay de menú")
-    await lookups.turn_ended("quiero saber qué hay de menú hoy", None)
+    await lookups.turn_ended("quiero saber qué hay de menú hoy")
     assert box.lookups == [("recall", {"contact": "+59899123456", "query": "quiero saber qué hay"})]
     called = lookups.items[0]
     assert isinstance(called, llm.FunctionCall)
@@ -299,7 +299,7 @@ async def test_a_turn_too_short_to_have_started_a_run_still_gets_its_lookups_at_
 ) -> None:
     lookups = _lookups(box, MEMORY)
     lookups.heard_so_far("sí")
-    await lookups.turn_ended("sí", None)
+    await lookups.turn_ended("sí")
     assert box.lookups == [("recall", {"contact": "+59899123456", "query": "sí"})]
 
 
@@ -314,8 +314,8 @@ async def test_the_eager_run_also_refuses_a_turn_that_could_not_be_a_query(box: 
 async def test_a_run_started_for_one_turn_is_never_read_by_the_next(box: Box) -> None:
     lookups = _lookups(box, MEMORY)
     lookups.heard_so_far("quiero saber qué hay hoy")
-    await lookups.turn_ended("quiero saber qué hay hoy", None)
-    await lookups.turn_ended("y mañana", None)
+    await lookups.turn_ended("quiero saber qué hay hoy")
+    await lookups.turn_ended("y mañana")
     assert [arguments["query"] for _, arguments in box.lookups] == [
         "quiero saber qué hay hoy",
         "y mañana",
@@ -325,7 +325,7 @@ async def test_a_run_started_for_one_turn_is_never_read_by_the_next(box: Box) ->
 @postgres
 async def test_a_class_that_declares_neither_asks_nobody_and_carries_no_pair(box: Box) -> None:
     lookups = _lookups(box, AgentConfig(slug="a"))
-    assert await lookups.turn_ended("menú", None) == []
+    assert await lookups.turn_ended("menú") == []
     assert (box.lookups, lookups.items) == ([], ())
 
 
@@ -333,7 +333,7 @@ async def test_a_class_that_declares_neither_asks_nobody_and_carries_no_pair(box
 async def test_the_empty_one_goes_and_the_full_one_stays_in_the_same_turn(box: Box) -> None:
     box.found["search"] = {"chunks": [{"text": "el menú"}]}
     lookups = _lookups(box, BOTH)
-    await lookups.turn_ended("menú", None)
+    await lookups.turn_ended("menú")
     names = [item.name for item in lookups.items if isinstance(item, llm.FunctionCall)]
     assert names == ["search"]
 
@@ -376,6 +376,6 @@ async def test_only_the_tool_still_out_when_the_budget_expires_is_the_one_skippe
         return await quick(tool, arguments, speech)
 
     lookups.lookup = search_is_slow
-    skipped = await lookups.turn_ended("menú del día", None)
+    skipped = await lookups.turn_ended("menú del día")
     assert [error.code for error in skipped] == ["search_skipped"]
     assert [item.name for item in lookups.items if isinstance(item, llm.FunctionCall)] == ["recall"]

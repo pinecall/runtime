@@ -16,7 +16,7 @@ router = APIRouter()
 async def get_widget(slug: str, key: TalkKey, gateway: GatewayDep) -> WidgetSettings:
     """How the agent's widget looks in the key's world; the widget's own defaults when unset."""
     look = await agents.look_of(gateway.connections.pool, Scope(key.org, key.env), slug)
-    return widget_row(look)
+    return _widget_row(look)
 
 
 # `pipeline`: the same key that sets the agent's greeting and voice.
@@ -34,10 +34,10 @@ async def put_widget(
         theme=body.theme,
     )
     await agents.put_look(gateway.connections.pool, Scope(key.org, key.env), slug, look)
-    return widget_row(look)
+    return _widget_row(look)
 
 
-def widget_row(look: Look) -> WidgetSettings:
+def _widget_row(look: Look) -> WidgetSettings:
     """A look as the doors send it."""
     return WidgetSettings(
         title=look.title,
