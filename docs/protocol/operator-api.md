@@ -42,7 +42,9 @@ Four rows of `box_settings`, each read and written whole, the console's box scre
 - `GET /v1/ops/orgs/{named}`: the org as it stands, `{id, slug, name, quotas: {production, sandbox},
   dialling, holding: {memory_facts, knowledge_chunks, numbers, seats}}`. `holding` is what it has
   now, across both worlds; usage is a fold of the log and lives at `/v1/ops/usage`.
-- `DELETE /v1/ops/orgs/{named}`: `204`; `409` while a live key or a route still names it.
+- `DELETE /v1/ops/orgs/{named}`: `204`; the org erased whole: every log it owns, every recording,
+  then the org and what cascades from it, with one row in the erasure trail that outlives it
+  ([gateway-api.md](gateway-api.md) §Erasing). `409` while a live key or a route still names it.
 - `PUT /v1/ops/orgs/{named}/agents {agent}`: an agent registered with the wrong org's key moved
   into this one, its logs and its numbers with it: `{agent, org, logs, numbers, stayed}`. `409`
   while somebody holds it, `404` for a slug that never wrote a log; a number the org already

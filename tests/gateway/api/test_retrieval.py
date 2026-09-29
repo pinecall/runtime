@@ -27,6 +27,7 @@ from pinecall.tenancy.scopes import Written
 from tests.conftest import AGENT, Knocking, issued, postgres, received_until, sent
 from tests.fakes.acme import AcmeLLM
 from tests.fakes.embeddings import Embeddings, Meanings
+from tests.log.conftest import ACall, logged_call
 
 # ── knowledge ──
 
@@ -741,3 +742,24 @@ async def test_an_agent_no_app_is_holding_is_the_registrys_own_refusal(knocking:
         404,
         f"no app is holding agent {AGENT}",
     )
+
+
+@postgres
+async def test_a_contacts_erasure_takes_their_calls_and_every_fact_kept_of_them(
+    knocking: Knocking,
+) -> None:
+    pool, org = knocking.gateway.connections.pool, knocking.org.id
+    call = await logged_call(knocking.gateway.logs.store, org, ACall(caller=CONTACT))
+    await a_fact(pool, org, "prefiere turnos por la mañana", call=call)
+    await a_fact(pool, org, "vive en Montevideo")
+    async with knocking.http(knocking.app[PRODUCTION]) as http:
+        erased = await http.delete(f"/v1/contacts/{CONTACT}")
+        facts = await http.get(A_CONTACT)
+    assert erased.status_code == 200
+    assert (erased.json()["what"], erased.json()["calls"], erased.json()["memories"]) == (
+        "contact",
+        1,
+        2,
+    )
+    assert facts.json() == {"facts": []}
+    assert await knocking.gateway.logs.store.whole(call) == []

@@ -558,3 +558,61 @@ async def test_the_orgs_feed_carries_its_own_worlds_calls_and_not_the_others(
         with pytest.raises(TimeoutError):
             await asyncio.wait_for(first_data(quiet.aiter_lines()), 0.3)
     assert json.loads(data)["type"] == "call.ringing"
+
+
+async def a_sealed_call(knocking: Knocking) -> CallContext:
+    """A call the worker opened, ended and sealed."""
+    context = a_call(knocking)
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+        await worker.post(
+            f"/v1/calls/{context.call}/sealed",
+            json=SealCallRequest(usage=[], outcome="booked").written(),
+        )
+    return context
+
+
+@postgres
+async def test_an_ended_call_is_erased_and_reads_as_nobodys_afterwards(knocking: Knocking) -> None:
+    context = await a_sealed_call(knocking)
+    async with knocking.http(knocking.app["sandbox"]) as tenant:
+        erased = await tenant.delete(f"/v1/calls/{context.call}")
+        again = await tenant.delete(f"/v1/calls/{context.call}")
+        state = await tenant.get(f"/v1/calls/{context.call}/state")
+        trail = await tenant.get("/v1/org/erasures")
+    assert erased.status_code == 200
+    body = erased.json()
+    assert (body["what"], body["subject"], body["env"], body["calls"]) == (
+        "call",
+        context.call,
+        "sandbox",
+        1,
+    )
+    assert body["entries"] > 0
+    assert again.status_code == 404
+    assert state.status_code == 404
+    assert [row["subject"] for row in trail.json()["erasures"]] == [context.call]
+
+
+@postgres
+async def test_a_call_still_running_is_not_erased(knocking: Knocking) -> None:
+    context = a_call(knocking)
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+    async with knocking.http(knocking.app["sandbox"]) as tenant:
+        refused = await tenant.delete(f"/v1/calls/{context.call}")
+    assert refused.status_code == 409
+    assert await knocking.gateway.logs.store.whole(context.call) != []
+
+
+@postgres
+async def test_another_orgs_key_and_the_other_world_erase_nothing(knocking: Knocking) -> None:
+    context = await a_sealed_call(knocking)
+    stranger = await orgs.create(knocking.gateway.connections.pool, "otra", "Otra")
+    theirs = await issued(knocking.gateway.connections.pool, stranger.id, "sandbox", KEY_SCOPES)
+    async with knocking.http(theirs) as other:
+        refused = await other.delete(f"/v1/calls/{context.call}")
+    async with knocking.http(knocking.app["production"]) as production:
+        elsewhere = await production.delete(f"/v1/calls/{context.call}")
+    assert (refused.status_code, elsewhere.status_code) == (404, 404)
+    assert await knocking.gateway.logs.store.whole(context.call) != []

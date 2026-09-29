@@ -5,12 +5,13 @@ from dataclasses import replace
 from pinecall.channels import routes
 from pinecall.domain.call import Route
 from pinecall.gateway.app import app
-from pinecall.tenancy import people, sso
+from pinecall.tenancy import erasure, people, sso
 from pinecall.tenancy.sso import Client, OrgSso
 from pinecall.wire.rest.calls import OpenCallRequest
 from tests.conftest import AGENT, Knocking, a_developer, postgres
 from tests.fakes.acme import ACME
 from tests.gateway.api.conftest import a_call
+from tests.log.conftest import logged_call
 
 THE_OPS_KEY = "the-operators-own-key-of-this-box"
 ORGS = "/v1/ops/orgs"
@@ -241,3 +242,20 @@ async def test_the_operator_sets_and_takes_back_an_orgs_own_vendor_key(knocking:
     assert listed.json() == {"vendors": [ACME]}
     assert gone.status_code == 204
     assert again.status_code == 404
+
+
+@postgres
+async def test_forgetting_an_org_erases_its_calls_too_and_leaves_the_trail(
+    knocking: Knocking,
+) -> None:
+    with_an_ops_key(knocking)
+    store = knocking.gateway.logs.store
+    async with knocking.http(THE_OPS_KEY) as operator:
+        made = await operator.post(ORGS, json={"slug": "tienda", "name": "La Tienda"})
+        org = made.json()["id"]
+        call = await logged_call(store, org)
+        gone = await operator.delete(f"{ORGS}/tienda")
+    assert gone.status_code == 204
+    assert await store.whole(call) == []
+    trail = await erasure.trail(knocking.gateway.connections.pool, org)
+    assert [(row.what, row.calls, row.asked_by) for row in trail] == [("org", 1, "operator")]
