@@ -168,3 +168,10 @@ The org's compliance settings are one row, replaced whole (`team`): `GET /v1/org
 `{policy: {retention_days}, set_by, set_at}`, and `PUT /v1/org/policy {retention_days}` sets how
 many days a sealed call is kept before the nightly run erases it through the erasure path (§3);
 `null` keeps everything, which is also an org nobody set. The trail is `GET /v1/org/erasures`.
+
+`GET /v1/org/export` (`team`) is everything the org keeps in the key's world, as a download of JSON
+Lines (`application/x-ndjson`): a header `{kind: "export", org, env, exported_at}`, then one line
+per call (`{kind: "call", call, agent, holder, started_at, sealed, facts, entries}`, oldest first,
+each with its whole log), then every memory (`kind: "memory"`, without its embedding), every
+version of every agent's settings (`agent_config`) and words (`lexicon`), and every document of its
+knowledge bases (`knowledge_file`). A recording is not inlined: `GET /v1/calls/{call}/recording`.

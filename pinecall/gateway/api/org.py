@@ -1,6 +1,9 @@
 """The org's own settings: judging and its ceiling, its identity provider, and its mailbox."""
 
+from collections.abc import AsyncIterator
+
 from fastapi import APIRouter, Request
+from fastapi.responses import StreamingResponse
 
 from pinecall.domain.errors import Conflict, DeclarationRefused, NotFound, UpstreamFailed
 from pinecall.domain.person import parse_role
@@ -14,7 +17,7 @@ from pinecall.gateway._deps import (
 )
 from pinecall.providers import catalog
 from pinecall.providers.catalog import judge_ceiling
-from pinecall.tenancy import erasure, keys, letters, mail, orgs, retention, sso
+from pinecall.tenancy import erasure, export, keys, letters, mail, orgs, retention, sso
 from pinecall.tenancy.mail import Mailbox, MailboxStatus
 from pinecall.tenancy.sso import Client, OrgSso
 from pinecall.wire.rest.accounts import (
@@ -195,6 +198,17 @@ async def put_policy(body: OrgPolicy, key: TeamKey, gateway: GatewayDep) -> OrgP
     return await retention.policy_of(pool, key.org)
 
 
+@router.get("/v1/org/export", response_model=None)
+async def export_org(key: TeamKey, gateway: GatewayDep) -> StreamingResponse:
+    """The org's data in the key's world as JSON Lines: calls, memories, settings, documents."""
+    filename = f"pinecall-{key.org}-{key.env}.jsonl"
+    return StreamingResponse(
+        _one_per_line(export.lines(gateway.connections.pool, key.org, key.env)),
+        media_type="application/x-ndjson",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 def _mail_row(kept: MailboxStatus | None) -> OrgMailResponse:
     # By its wire name: `from` is a keyword.
     return OrgMailResponse.model_validate(
@@ -209,3 +223,8 @@ def _mail_row(kept: MailboxStatus | None) -> OrgMailResponse:
             "last_error": None if kept is None else kept.last_error,
         }
     )
+
+
+async def _one_per_line(lines: AsyncIterator[str]) -> AsyncIterator[bytes]:
+    async for line in lines:
+        yield f"{line}\n".encode()

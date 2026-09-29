@@ -1,5 +1,6 @@
 """Tests for the org's own settings: judging, its identity provider, its mailbox."""
 
+import json
 from collections.abc import AsyncIterator
 from dataclasses import replace
 
@@ -232,3 +233,14 @@ async def test_the_orgs_policy_is_read_then_replaced_whole_and_says_who(knocking
     assert put.json()["set_by"]
     assert cleared.json()["policy"] == {"retention_days": None}
     assert refused.status_code == 422
+
+
+@postgres
+async def test_the_export_is_a_download_of_json_lines_of_the_keys_world(knocking: Knocking) -> None:
+    async with knocking.http(knocking.app["sandbox"]) as http:
+        answer = await http.get("/v1/org/export")
+    assert answer.status_code == 200
+    assert answer.headers["content-type"].startswith("application/x-ndjson")
+    assert "attachment" in answer.headers["content-disposition"]
+    header = json.loads(answer.text.splitlines()[0])
+    assert (header["kind"], header["org"], header["env"]) == ("export", knocking.org.id, "sandbox")
