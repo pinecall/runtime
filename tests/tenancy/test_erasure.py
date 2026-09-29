@@ -58,6 +58,16 @@ def a_recording(root: Path, call: str) -> Path:
     return directory
 
 
+A_RUN = """
+INSERT INTO eval_runs (id, agent, started_at, status, document)
+VALUES ('run_1', %s, 1, 'done', '{}')
+"""
+
+A_READ = """
+INSERT INTO thread_reads (org, env, holder, agent, reader, contact, read_at)
+VALUES (%s, 'production', '', %s, 'm_1', '+1', 1)
+"""
+
 NOTHING_LEFT = {"entries": 0, "heads": 0, "facts": 0, "tokens": 0, "memories": 0}
 
 
@@ -141,6 +151,10 @@ async def test_an_org_erased_takes_every_log_and_its_row_and_its_trail_outlives_
     await store.claim(None, AGENT, org.id)
     recording = a_recording(tmp_path, call)
 
+    async with pool.connection() as connection:
+        await connection.execute(A_RUN, (AGENT,))
+        await connection.execute(A_READ, (org.id, AGENT))
+
     erased = await erasure.org(pool, tmp_path, org.id, by="operator")
 
     assert erased.calls == (call,)
@@ -155,6 +169,14 @@ async def test_an_org_erased_takes_every_log_and_its_row_and_its_trail_outlives_
         gone = await (
             await connection.execute("SELECT count(*) AS n FROM orgs WHERE id = %s", (org.id,))
         ).fetchone()
+        runs = await (await connection.execute("SELECT count(*) AS n FROM eval_runs")).fetchone()
+        reads = await (
+            await connection.execute("SELECT count(*) AS n FROM thread_reads")
+        ).fetchone()
+    assert runs is not None
+    assert runs["n"] == 0
+    assert reads is not None
+    assert reads["n"] == 0
     assert heads is not None
     assert heads["n"] == 0
     assert gone is not None

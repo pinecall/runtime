@@ -23,7 +23,7 @@ WHERE head.org = %(org)s AND head.env = %(env)s AND facts.contact = %(contact)s
 """
 
 # Every log of the org: its calls, and its agents' own logs ("@<agent>"), which carry no call.
-LOGS_OF_ORG = "SELECT log, call FROM call_log_head WHERE org = %(org)s"
+LOGS_OF_ORG = "SELECT log, call, agent FROM call_log_head WHERE org = %(org)s"
 
 # What a call left: its entries, its head, its facts, its tokens, the memories it taught. The
 # dials ledger stays: it names numbers and times, never what was said, and a traceback asks for it.
@@ -48,8 +48,14 @@ WITH kept AS (
 SELECT count(*) AS memories FROM kept
 """
 
-# The quotas, keys, carriers, settings and memories go by the foreign keys' cascade.
-ERASE_ORG = "DELETE FROM orgs WHERE id = %(org)s"
+# What has no foreign key to the org: its agents' eval runs and hold melodies, and what each reader
+# read of a thread. Then the org, and the quotas, keys, carriers, settings and memories cascade.
+ERASE_ORG = """
+WITH runs AS (DELETE FROM eval_runs WHERE agent = ANY(%(agents)s)),
+     melodies AS (DELETE FROM hold_audio WHERE org = %(org)s),
+     reads AS (DELETE FROM thread_reads WHERE org = %(org)s)
+DELETE FROM orgs WHERE id = %(org)s
+"""
 
 TRAIL = """
 INSERT INTO erasures (org, env, what, subject, asked_by, calls, entries, memories, recordings)
@@ -120,8 +126,9 @@ async def org(pool: Pool, recordings: Path, org_id: str, *, by: str) -> Erased:
         rows = await (await connection.execute(LOGS_OF_ORG, {"org": org_id})).fetchall()
         logs = [str(row["log"]) for row in rows]
         calls = [str(row["call"]) for row in rows if row["call"] is not None]
+        agents = sorted({str(row["agent"]) for row in rows if row["agent"] is not None})
         entries, memories = await _logs(connection, logs, calls)
-        await connection.execute(ERASE_ORG, {"org": org_id})
+        await connection.execute(ERASE_ORG, {"org": org_id, "agents": agents})
         taking = _Taking(org_id, None, "org", org_id, by, calls, entries, memories)
         return await _written(connection, recordings, taking)
 
