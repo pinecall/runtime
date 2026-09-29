@@ -36,6 +36,10 @@ DRAIN_S = 10 * 60
 # What a job has to seal once told to stop: livekit's 10 s kills a seal halfway.
 SEALING_S = 60.0
 
+# A new process imports every installed plugin before its first job: ~10 s on a quiet 4-core box,
+# and livekit's own 10 s kills it while three pools warm up at once, then respawns it for ever.
+INITIALIZE_S = 90.0
+
 
 NO_LIVEKIT = "LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET: a worker registers with them"
 
@@ -96,6 +100,7 @@ def server_of(settings: Settings) -> AgentServer:
         api_secret=settings.livekit_api_secret,
         drain_timeout=DRAIN_S,
         shutdown_process_timeout=SEALING_S,
+        initialize_process_timeout=INITIALIZE_S,
         # livekit's default health port, 8081, is the SIP service's on the box.
         host="127.0.0.1",
         port=settings.worker_http_port,
@@ -177,6 +182,7 @@ def overflow_of(settings: Settings, gate: OverflowGate) -> AgentServer:
         port=0,
         load_fnc=gate,
         setup_fnc=prewarm,
+        initialize_process_timeout=INITIALIZE_S,
     )
     server.rtc_session(overflow_job, agent_name=settings.fleet)
     return server

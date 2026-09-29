@@ -5,7 +5,7 @@ from livekit.agents import AgentServer
 
 from pinecall.domain.errors import SettingsRefused
 from pinecall.process.settings import Settings
-from pinecall.worker.main import CLOSED, OPEN, OverflowGate, overflow_of, server_of
+from pinecall.worker.main import CLOSED, INITIALIZE_S, OPEN, OverflowGate, overflow_of, server_of
 
 REGISTRABLE = {
     "LIVEKIT_URL": "ws://127.0.0.1:7880",
@@ -33,6 +33,22 @@ def test_a_worker_registers_under_its_fleets_name_only(monkeypatch: pytest.Monke
     monkeypatch.setattr(AgentServer, "rtc_session", recorded)
     server_of(settings_with())
     assert named == ["pinecall-sandbox"]
+
+
+def test_both_servers_give_a_new_process_the_time_the_plugins_take(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    given: list[object] = []
+    original = AgentServer.__init__
+
+    def recorded(server: AgentServer, *args: object, **told: object) -> None:
+        given.append(told.get("initialize_process_timeout"))
+        original(server, *args, **told)
+
+    monkeypatch.setattr(AgentServer, "__init__", recorded)
+    server_of(settings_with())
+    overflow_of(settings_with(), OverflowGate())
+    assert given == [INITIALIZE_S, INITIALIZE_S]
 
 
 def test_a_worker_without_its_livekit_pair_is_refused() -> None:
