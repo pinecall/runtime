@@ -404,9 +404,13 @@ async def _owned(gateway: Gateway, entries: AsyncIterator[Entry]) -> AsyncIterat
         if entry is None:
             yield _streams.PING
             continue
-        org = await gateway.logs.store.owner(entry.call, entry.agent)
-        if org is not None:
-            yield frame(entry.type, BoxEvent(org=org, entry=entry).written(), seq=entry.seq)
+        store = gateway.logs.store
+        org = await store.owner(entry.call, entry.agent)
+        if org is None:
+            continue
+        env = None if entry.call is None else await store.world(entry.call)
+        event = BoxEvent(org=org, env=env, entry=entry)
+        yield frame(entry.type, event.written(), seq=entry.seq)
 
 
 async def _metered_stream(store: Store, after: int, only: str | None) -> AsyncIterator[str]:

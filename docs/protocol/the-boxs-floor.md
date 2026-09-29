@@ -9,12 +9,14 @@ SSE, live only, from the moment it opens: no cursor, nothing replayed. The entri
 feed's: `agent.registered` · `agent.detached`, `call.ringing` · `call.dialing` · `call.started` ·
 `call.ended`, `attention.requested` · `attention.answered`, `supervisor.took_over` ·
 `supervisor.released`. A turn is never on it. Each frame is one entry wrapped with the org whose
-log it is:
+log it is and the world its call runs in (`production`, `sandbox`); an agent's own entries serve
+both worlds, and their `env` is `null`. A reader that serves one world, such as a notifier that
+pages people for production's calls, keeps the frames of that world and drops the rest:
 
 ```
 id: 1
 event: call.ringing
-data: {"org":"org_…","entry":{"seq":1,"ts":1727170000.1,"call":"CA_…","agent":"clinica-norte","type":"call.ringing","ephemeral":false,"data":{…}}}
+data: {"org":"org_…","env":"production","entry":{"seq":1,"ts":1727170000.1,"call":"CA_…","agent":"clinica-norte","type":"call.ringing","ephemeral":false,"data":{…}}}
 ```
 
 `id:` is the entry's `seq` in its own log, so ids from two calls interleave and a reconnect opens

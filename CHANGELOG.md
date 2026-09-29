@@ -141,3 +141,5 @@ The runtime written again from a blank page.
   joins LiveKit at its own name, and a number imported in a world points its carrier at that
   world's name.
 
+- The box's floor (`GET /v1/ops/events`) says each frame's world: `env` is the world of the call,
+  `null` on an agent's own entries, so a reader serving one world keeps its frames and no other.

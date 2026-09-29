@@ -10,7 +10,7 @@ from psycopg.types.json import Jsonb
 
 from pinecall.domain.agent import Versions
 from pinecall.domain.errors import Conflict
-from pinecall.domain.names import JsonObject
+from pinecall.domain.names import Env, JsonObject, parse_env
 from pinecall.domain.scope import Scope
 from pinecall.log.facts import record
 from pinecall.log.reduce import Metered
@@ -95,6 +95,8 @@ on conflict (log) do update
 """
 
 OWNER = "select org from call_log_head where log = %(log)s"
+
+WORLD = "select env from call_log_head where log = %(log)s"
 
 MOVED = """
 with moved as (update call_log_head set org = %(org)s where agent = %(agent)s returning log)
@@ -249,6 +251,12 @@ class Store:
         async with self.pool.connection() as connection:
             row = await (await connection.execute(OWNER, {"log": log_name(call, agent)})).fetchone()
         return None if row is None or row["org"] is None else str(row["org"])
+
+    async def world(self, call: str) -> Env | None:
+        """Return the world a call's log was claimed in, or None while nobody claimed it."""
+        async with self.pool.connection() as connection:
+            row = await (await connection.execute(WORLD, {"log": call})).fetchone()
+        return None if row is None or row["env"] is None else parse_env(str(row["env"]))
 
     # The operator's way back from a claim: an agent registered with the wrong key.
     async def moved(self, agent: str, org: str) -> int:

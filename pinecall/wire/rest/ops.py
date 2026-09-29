@@ -189,7 +189,8 @@ class FleetListed(WireModel):
 
 
 class BoxEvent(WireModel):
-    """One frame of GET /v1/ops/events: an entry of some org's floor, and whose floor it is."""
+    """One frame of GET /v1/ops/events: an entry of some org's floor, whose, and in which world."""
 
     org: str
+    env: Env | None = None
     entry: Entry

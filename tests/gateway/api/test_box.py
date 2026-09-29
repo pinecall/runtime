@@ -134,7 +134,7 @@ async def test_the_fleet_lists_every_worker_heard_from_and_a_cordon_reaches_it(
 
 
 @postgres
-async def test_every_orgs_floor_streams_to_the_operator_with_the_org_named(
+async def test_every_orgs_floor_streams_to_the_operator_with_the_org_and_world_named(
     knocking: Knocking,
 ) -> None:
     with_an_ops_key(knocking)
@@ -147,6 +147,7 @@ async def test_every_orgs_floor_streams_to_the_operator_with_the_org_named(
         await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
         data = await first_data(feed.aiter_lines())
     assert f'"org":"{knocking.org.id}"' in data
+    assert '"env":"sandbox"' in data
     assert '"type":"call.ringing"' in data
 
 
