@@ -1,4 +1,4 @@
-"""The bodies of the settings doors: an agent's tuning and the org's lexicon, versioned."""
+"""The bodies of the settings doors: an agent's tuning and lexicon, versioned."""
 
 from pydantic import Field
 
@@ -93,14 +93,14 @@ class RollbackSettingsRequest(WireModel):
 
 
 class LexiconBody(WireModel):
-    """The org's lexicon: how the voice says its words, and the words the ears must know."""
+    """The agent's lexicon: how the voice says its words, and the words the ears must know."""
 
     said: list[Pronunciation]
     heard: list[str]
 
 
 class LexiconRow(WireModel):
-    """One kept version of the org's lexicon."""
+    """One kept version of the agent's lexicon."""
 
     holder: str
     version: int
@@ -111,7 +111,7 @@ class LexiconRow(WireModel):
 
 
 class LexiconResponse(WireModel):
-    """GET /v1/lexicon: yours, the team's and production's newest, or null."""
+    """GET /v1/agents/{slug}/lexicon: yours, the team's and production's newest, or null."""
 
     world: Env
     yours: LexiconRow | None
@@ -120,7 +120,7 @@ class LexiconResponse(WireModel):
 
 
 class PutLexiconRequest(WireModel):
-    """PUT /v1/lexicon: the whole lexicon, the version read, why, whose scope."""
+    """PUT /v1/agents/{slug}/lexicon: the whole lexicon, the version read, why, whose scope."""
 
     lexicon: LexiconBody
     if_version: int | None = None
@@ -129,7 +129,7 @@ class PutLexiconRequest(WireModel):
 
 
 class LexiconHistoryResponse(WireModel):
-    """GET /v1/lexicon/history: one scope's versions, newest first."""
+    """GET /v1/agents/{slug}/lexicon/history: one scope's versions, newest first."""
 
     world: Env
     holder: str

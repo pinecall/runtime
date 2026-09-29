@@ -11,7 +11,7 @@ or of the pages beside it. This page is the doors that exist for a screen and no
 | `GET` · `PUT /v1/org/judging` | `calls` · `usage` | whether the org's calls are judged at hang-up, and the box's ceiling per call in dollars |
 | `GET` · `PUT /v1/agents/{slug}/widget` | `talk` · `pipeline` | how the widget presents the agent per world: `{title, tagline, greeting, accent, autostart, theme}`; a null field is the widget's own default, an accent is a CSS colour |
 | `GET /v1/agents/{slug}/pipeline` and the hold melody | `pipeline` | [pipeline-api.md](pipeline-api.md) |
-| `GET` · `PUT /v1/agents/{slug}/settings`, `/v1/lexicon` | `pipeline` · `words` | [settings-api.md](settings-api.md) |
+| `GET` · `PUT /v1/agents/{slug}/settings`, `/v1/agents/{slug}/lexicon` | `pipeline` · `words` | [settings-api.md](settings-api.md) |
 | `GET /v1/providers`, `/v1/provider-keys`, `/v1/voices`, `/v1/voices/sample` | `providers` · `pipeline` | [provider-keys.md](provider-keys.md) |
 | `POST /v1/agents/{slug}/dev/{family}/{verb}` | the family's | [dev-verbs.md](dev-verbs.md) |
 | `/v1/personas`, `/v1/evals/*` | `evals` | [evals.md](evals.md) |

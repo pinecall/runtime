@@ -1,4 +1,4 @@
-"""What an agent runs as its org set it: the declaration, the tuning and the lexicon over it."""
+"""What an agent runs as its org set it: the declaration, its tuning and its lexicon."""
 
 import dataclasses
 from collections.abc import Mapping

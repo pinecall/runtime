@@ -405,8 +405,8 @@ What an app declares about its agent: the prompt's layout, the language, the too
 | `llm` | `ModelConfig` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
 | `stt` | `ModelConfig` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
 | `turn` | `TurnConfig` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `says` | `Pronunciation[]` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `hears` | `string[]` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
+| `says` | `Pronunciation[]` | no | Ignored: the world's, set in the agent's lexicon. Kept one release so an app on an older package still registers; removed in the next. |
+| `hears` | `string[]` | no | Ignored: the world's, set in the agent's lexicon. Kept one release so an app on an older package still registers; removed in the next. |
 | `knowledge` | `KnowledgeFile` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
 | `docs` | `DocsConfig` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
 | `memory` | `MemoryConfig` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |

@@ -146,3 +146,7 @@ The runtime written again from a blank page.
   `null` on an agent's own entries, so a reader serving one world keeps its frames and no other.
 - Fixed: an org's feed (`GET /v1/events`) carried both worlds' calls; it carries the calls of the
   world the key acts in, and the org's agents' own entries, which serve both.
+- A lexicon is one agent's: `GET`·`PUT /v1/agents/{slug}/lexicon` and `GET …/lexicon/history`
+  replace `/v1/lexicon`, with the same bodies, keys, scopes and versions. Migration 0008 copies
+  each org's lexicon to every agent the org has in that world, keeping its version numbers, so
+  `GET /v1/calls/{call}/settings` still reads the words an older call ran on.

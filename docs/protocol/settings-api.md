@@ -1,7 +1,7 @@
-# An agent's settings — `/v1/agents/{slug}/settings` and `/v1/lexicon`
+# An agent's settings — `/v1/agents/{slug}/settings` and `/v1/agents/{slug}/lexicon`
 
 What an agent runs on is the org's, not the class's: which vendors and models, how a call opens and
-ends, how a turn is cut, what is remembered, which knowledge bases it reads, and the org's words,
+ends, how a turn is cut, what is remembered, which knowledge bases it reads, and its lexicon,
 how the voice says a brand and what the ears must know. These doors keep all of it **per world, per
 scope, a version a row**, and a call's head row says which versions it ran on. The class declares
 the contract, the tools, the state, the language, the doors, and nothing of this: the world is put
@@ -10,7 +10,7 @@ runtime's default.
 
 **Two kinds of key open them.** A key that opens `pipeline` (a developer's, an admin's) may set
 everything. A key that opens `words` alone (a supervisor's, a manager's) may set the opening's
-words, what is remembered and the org's lexicon, and is refused the vendors, the models, the cut of
+words, what is remembered and the agent's lexicon, and is refused the vendors, the models, the cut of
 a turn, the bases, the recording and the duration **by name**: `403 llm, turn: the pipeline's, and
 this key opens words alone`. Its set carries those fields over untouched from what stands.
 
@@ -64,7 +64,7 @@ no limit), `knowledge` (Markdown read whole into the static block of every call)
 ```
 
 The **whole** set for this scope. It is checked as a call would be built from it: the declaration
-when an app holds the agent, a bare one otherwise, the lexicon of the scope, and the vendors on the
+when an app holds the agent, a bare one otherwise, its lexicon in the scope, and the vendors on the
 org's keys, so a vendor this build has no plugin for, a blank knob or an opening with both verbs is
 `400` in its own sentence, and a vendor the box does not lend this org is refused here and not on
 the next call. `409` when the scope is not at `if_version`. Answers the `GET` shape.
@@ -81,10 +81,12 @@ Rollback takes `pipeline`.
 The exact tuning and lexicon the call was built on, by the two version numbers its head row kept:
 `{config_version, lexicon_version, config, lexicon}`, each row null where the scope had set nothing.
 
-## The lexicon — `/v1/lexicon`
+## The lexicon — `/v1/agents/{slug}/lexicon`
 
-The org's words, shared by every agent of it and laid over each one's own `says` and `hears`.
-`GET` answers `{world, yours, team, production}` of `{holder, version, author, note, set_at,
-lexicon: {said: [{word, spoken}], heard: [string]}}`. `PUT {lexicon, if_version, note, team}` is
-the whole lexicon, with the same `409`, and a blank word refused. `GET /v1/lexicon/history?team=&limit=`.
-All three open to `pipeline` or `words`.
+The agent's words: what the voice says in place of a word (`says`) and the words the ears must
+know (`hears`). The class sets neither; each agent has a lexicon of its own, versioned per world
+and scope as its settings are. `GET` answers `{world, yours, team, production}` of `{holder,
+version, author, note, set_at, lexicon: {said: [{word, spoken}], heard: [string]}}`.
+`PUT {lexicon, if_version, note, team}` is the whole lexicon, with the same `409`, and a blank
+word refused. `GET /v1/agents/{slug}/lexicon/history?team=&limit=`. All three open to `pipeline`
+or `words`.

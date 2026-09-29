@@ -201,6 +201,53 @@ async def test_a_v1_database_that_already_counts_in_dollars_keeps_its_dollars_an
     assert kept == []
 
 
+LEXICON_PER_AGENT = "0008_lexicon_per_agent.sql"
+
+
+# The agents of an org: recepcion has settings in the sandbox, turnos a log the org claimed.
+@postgres
+async def test_an_orgs_lexicon_is_copied_to_each_of_its_agents_in_the_world_and_the_original_goes(
+    schema: str,
+) -> None:
+    before = [path for path in migration_files() if path.name < LEXICON_PER_AGENT]
+    await pretend_it_ran(schema, *((path.name, file_hash(path)) for path in before))
+    async with await connect(DSN) as connection:
+        await connection.execute(
+            sql.SQL("set search_path to {}, public").format(sql.Identifier(schema))
+        )
+        for path in before:
+            await connection.execute(path.read_bytes())
+        await connection.execute(
+            "insert into agent_config (org, env, holder, agent, version, config, author)"
+            " values ('default', 'sandbox', '', 'recepcion', 1, '{}', 'm_ana')"
+        )
+        await connection.execute(
+            "insert into call_log_head (log, agent, org) values ('@turnos', 'turnos', 'default')"
+        )
+        await connection.execute(
+            "insert into lexicon (org, env, holder, version, heard, author) values"
+            " ('default', 'sandbox', '', 3, '[\"Vidal\"]', 'm_ana'),"
+            " ('default', 'production', '', 1, '[\"GSA\"]', 'm_ana')"
+        )
+
+    await apply_migrations(DSN, schema=schema)
+
+    async with await connect(DSN) as connection:
+        await connection.execute(
+            sql.SQL("set search_path to {}, public").format(sql.Identifier(schema))
+        )
+        rows = await (
+            await connection.execute(
+                "select env, agent, version, heard from lexicon order by env, agent"
+            )
+        ).fetchall()
+    assert [(row["env"], row["agent"], row["version"], row["heard"]) for row in rows] == [
+        ("production", "turnos", 1, ["GSA"]),
+        ("sandbox", "recepcion", 3, ["Vidal"]),
+        ("sandbox", "turnos", 3, ["Vidal"]),
+    ]
+
+
 @postgres
 async def test_two_runs_at_once_do_not_both_migrate(schema: str) -> None:
     both = await asyncio.gather(
