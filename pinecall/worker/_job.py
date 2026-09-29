@@ -46,7 +46,7 @@ from pinecall.wire.events import CallEnded, ErrorEvent, ToolCall
 from pinecall.wire.frames import Command, Entry
 from pinecall.wire.metrics import ModelUsage
 from pinecall.wire.parts import EndReason, PlatformTool, ToolResult
-from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
+from pinecall.wire.rest.calls import OpenCallRequest, OpenCallResponse, SealCallRequest
 from pinecall.wire.state import State
 from pinecall.worker._recorder import file_written, record_room, recording_path
 
@@ -159,7 +159,10 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
     )
     hold = await _hold_music(gateway, route.agent, scope, played.played, played.sha256)
     await session.start(
-        where=where, hold=hold, seat=await _seat_of(ctx.room, route.channel, typed=typed)
+        where=where,
+        hold=hold,
+        seat=await _seat_of(ctx.room, route.channel, typed=typed),
+        opening=None if typed else opening_of(opened, recorded=audio is not None),
     )
     if hold is not None:
         await hold.start(ctx.room)
@@ -270,6 +273,13 @@ def end_reason_of(refused: Exception) -> EndReason:
 
 # A widget's route is not stored: every agent answers on the widget, and the token door already
 # checked the agent is the key's. A handed-over ring dialled production's number.
+# The org's sentences said before the greeting: the disclosure, then the notice when it records.
+def opening_of(opened: OpenCallResponse, *, recorded: bool) -> str | None:
+    """What a spoken call says before its greeting, or None."""
+    notice = opened.recording_notice if recorded else None
+    return " ".join(item for item in (opened.disclosure, notice) if item) or None
+
+
 def _of_agent(agent: str, dispatch: Dispatch, arrival: Arrival, routes: list[Route]) -> Route:
     if dispatch.diverted_from is not None and arrival.number and dispatch.org and dispatch.env:
         return Route(

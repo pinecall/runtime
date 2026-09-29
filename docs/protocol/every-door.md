@@ -62,7 +62,7 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `POST` | `/v1/apps/{app}/stop` | app | Tell the app it was stopped, and close its socket. |
 | `GET` | `/v1/callbacks` | calls | The org's callbacks, oldest first, a page at a time. |
 | `POST` | `/v1/callbacks` | app · fleet | Somebody the overflow told to wait for a call back, on the agent's log. |
-| `POST` | `/v1/calls` | app · fleet | Open a call's log, serve it to the socket that holds its agent, and say its minutes. |
+| `POST` | `/v1/calls` | app · fleet | Open a call's log, serve it to its agent's socket, say its minutes and its first words. |
 | `DELETE` | `/v1/calls/{call}` | calls | Erase an ended call: its log, facts, tokens, the memories it taught, its recording; one row in the trail. |
 | `POST` | `/v1/calls/{call}/claim` | app · fleet | The caller keyed a page's code: tie the call to it. |
 | `GET` | `/v1/calls/{call}/commands` | app · fleet | The app's commands for the call, in order, until it is sealed. |

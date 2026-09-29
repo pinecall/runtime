@@ -1,4 +1,4 @@
-"""Tests for an org's policy: nobody set it, it is replaced whole, its calling hours come back."""
+"""Tests for an org's policy: nobody set it, replaced whole, its hours and sentences come back."""
 
 import pytest
 from pydantic import ValidationError
@@ -33,6 +33,18 @@ async def test_a_policy_is_replaced_whole_and_names_who_set_it(pool: Pool) -> No
     await policy.put_policy(pool, org.id, OrgPolicy(retention_days=90), by="m_2")
     row = await policy.policy_of(pool, org.id)
     assert (row.policy.retention_days, row.policy.calling_hours, row.set_by) == (90, None, "m_2")
+
+
+@postgres
+async def test_the_disclosure_and_the_notice_come_back_as_they_were_set(pool: Pool) -> None:
+    org = await an_org(pool)
+    own = OrgPolicy(disclosure="Hi, this is Acme's virtual assistant.", recording_notice=False)
+    await policy.put_policy(pool, org.id, own, by="m_1")
+    row = await policy.policy_of(pool, org.id)
+    assert (row.policy.disclosure, row.policy.recording_notice) == (own.disclosure, False)
+    await policy.put_policy(pool, org.id, OrgPolicy(disclosure=""), by="m_1")
+    row = await policy.policy_of(pool, org.id)
+    assert (row.policy.disclosure, row.policy.recording_notice) == ("", True)
 
 
 def test_calling_hours_are_a_window_with_at_least_one_hour() -> None:

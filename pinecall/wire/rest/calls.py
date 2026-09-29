@@ -158,10 +158,13 @@ class OpenCallRequest(WireModel):
 
 
 class OpenCallResponse(WireModel):
-    """What the org's minutes leave the call, in seconds; null for no limit."""
+    """What the org's minutes leave the call (null for no limit), and what it says first."""
 
     seconds_left: int | None
     minutes: int | None
+    # An outbound call's AI disclosure, and the notice a recorded call says; null for none.
+    disclosure: str | None = None
+    recording_notice: str | None = None
 
 
 class AppendEntryRequest(WireModel):

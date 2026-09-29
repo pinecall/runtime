@@ -232,6 +232,8 @@ async def test_the_orgs_policy_is_read_then_replaced_whole_and_says_who(knocking
         "calling_hours": None,
         "per_number_day": None,
         "consent_everywhere": False,
+        "disclosure": None,
+        "recording_notice": True,
     }
     assert first.json() == {"policy": nothing_set, "set_by": None, "set_at": None}
     assert put.status_code == 200

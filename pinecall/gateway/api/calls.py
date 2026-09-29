@@ -52,7 +52,7 @@ from pinecall.log.store import DEFAULT_LIMIT, Claim
 from pinecall.providers import catalog
 from pinecall.providers.catalog import judge_ceiling
 from pinecall.session.call import ToolUse
-from pinecall.tenancy import erasure, keys, orgs, tokens
+from pinecall.tenancy import disclosure, erasure, keys, orgs, policy, tokens
 from pinecall.wire.commands import CallClaim
 from pinecall.wire.events import (
     EVENTS,
@@ -155,7 +155,7 @@ class ListQuery(BaseModel):
 # The log opens before the media, so a console sees the call ring; call.started is the worker's.
 @router.post("/v1/calls")
 async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) -> OpenCallResponse:
-    """Open a call's log, serve it to the socket that holds its agent, and say its minutes."""
+    """Open a call's log, serve it to its agent's socket, say its minutes and its first words."""
     context = body.context
     scope = _call_corner(key, context)
     await _spent(gateway, context, body.agent)
@@ -168,9 +168,13 @@ async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) 
     served_call(gateway.serving, owner, context, config, scope)
     served = served_call(gateway.serving, owner, context, config, scope)
     await opened(served.log, context, body.agent)
-    if ceiling is None:
-        return OpenCallResponse(seconds_left=None, minutes=None)
-    return OpenCallResponse(seconds_left=ceiling.seconds, minutes=ceiling.minutes)
+    first, notice = await _opening(gateway, scope, config.language)
+    return OpenCallResponse(
+        seconds_left=None if ceiling is None else ceiling.seconds,
+        minutes=None if ceiling is None else ceiling.minutes,
+        disclosure=first if context.direction == "outbound" else None,
+        recording_notice=notice,
+    )
 
 
 # A gateway that restarted forgot the call: served again from the worker's word, no quota, no
@@ -484,6 +488,17 @@ async def _tuned(
     return await tuned(
         gateway.connections.pool, config, scope, await catalog.providers(gateway.connections.pool)
     )
+
+
+# The worker says the disclosure before the greeting, and the notice only where it records.
+async def _opening(
+    gateway: Gateway, scope: Scope, language: str | None
+) -> tuple[str | None, str | None]:
+    pool = gateway.connections.pool
+    kept = (await policy.policy_of(pool, scope.org)).policy
+    org = await orgs.find(pool, scope.org)
+    name = scope.org if org is None else org.name
+    return disclosure.disclosure_of(kept, name, language), disclosure.notice_of(kept, language)
 
 
 def _page(

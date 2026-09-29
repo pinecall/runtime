@@ -165,14 +165,20 @@ and carriers: [numbers.md](numbers.md). Usage, insights, limits and judging:
 [console-api.md](console-api.md).
 
 The org's compliance settings are one row, replaced whole (`team`): `GET /v1/org/policy` answers
-`{policy: {retention_days, calling_hours: {from, until} | null, per_number_day, consent_everywhere}, set_by, set_at}`
+`{policy: {retention_days, calling_hours: {from, until} | null, per_number_day, consent_everywhere, disclosure, recording_notice}, set_by, set_at}`
 and `PUT /v1/org/policy` takes the policy. `retention_days` is how many days a sealed call is kept
 before the nightly run erases it through the erasure path (§3); `null` keeps everything, which is
 also an org nobody set. `calling_hours` and `per_number_day` are the org's outbound calling rules,
 applied by destination at the dial ([numbers.md](numbers.md)): a `+1` number keeps the US hours and
 three calls a day whatever the org sets wider, and a consent on file; `consent_everywhere` asks for
-one for every country. A client that changes one field reads the row and
-writes it back whole. The trail is `GET /v1/org/erasures`.
+one for every country. `disclosure` and `recording_notice` are what a spoken call says before its
+greeting, spoken by the agent's voice and logged as its first `turn.agent`: an outbound call opens
+with `disclosure` — `null` is the platform's sentence in the agent's language (*"This is an
+automated assistant calling on behalf of {org name}."*), `""` is none, anything else is said as
+written — and every recorded spoken call, either direction, then says *"This call may be recorded."*
+unless `recording_notice` is `false`. A call nobody records says no notice; a written call says
+neither. Both play in the sandbox too, so a test hears what a caller will. A client that changes
+one field reads the row and writes it back whole. The trail is `GET /v1/org/erasures`.
 
 `GET /v1/org/export` (`team`) is everything the org keeps in the key's world, as a download of JSON
 Lines (`application/x-ndjson`): a header `{kind: "export", org, env, exported_at}`, then one line

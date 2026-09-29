@@ -196,8 +196,9 @@ class Session:
         where: room.CallRoom | None = None,
         hold: HoldMusic | None = None,
         seat: str | None = None,
+        opening: str | None = None,
     ) -> None:
-        """Open a new call: its first entries, the session on its room or headless, the greeting."""
+        """Open a new call: its first entries, the session, the opening, the greeting."""
         self.room = where
         self.hold = hold
         self.seat = seat
@@ -210,6 +211,8 @@ class Session:
         if knowledge is not None:
             await self.call.writing.write("prompt.changed", knowledge)
         await self._opened(llm.ChatContext.empty())
+        if opening is not None:
+            self.live.say(opening, allow_interruptions=False)
         greeting = _prompt.greeting_for(self.call.config.greeting, context.run)
         if greeting is not None and greeting.say is not None:
             self.live.say(
