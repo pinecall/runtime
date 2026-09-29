@@ -1,0 +1,94 @@
+# A `v*` tag is the publication: `git push origin vX.Y.Z` puts ONE wheel on PyPI, `pinecall`, with
+# the console and the widget inside, so `pip install pinecall` answers every screen. No sdist: the
+# pages are built from two other repositories, which no checkout of this one carries.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  # A rehearsal that burns no number: guard, gates and build run, publish is skipped (no tag).
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # A PyPI version is permanent: a wheel whose name lies cannot be taken back.
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: the tag and pyproject.toml say the same number
+        if: github.ref_type == 'tag'
+        run: |
+          declared=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          if [ "${GITHUB_REF_NAME#v}" != "$declared" ]; then
+            echo "the tag says ${GITHUB_REF_NAME#v} and pyproject.toml says $declared" >&2
+            exit 1
+          fi
+
+  # A tag matches no `push: branches`, so without this line the release would run no gate at all.
+  gates:
+    uses: ./.github/workflows/check.yml
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: runtime
+      # scripts/console reads ../console and ../widget: the layout these three checkouts make.
+      - uses: actions/checkout@v7
+        with:
+          repository: pinecall/console
+          path: console
+      - uses: actions/checkout@v7
+        with:
+          repository: pinecall/widget
+          path: widget
+      - uses: pnpm/action-setup@v6.1.0
+        with:
+          version: 11.2.2
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.12"
+      - run: pnpm install --frozen-lockfile
+        working-directory: console
+      - run: scripts/console
+        working-directory: runtime
+      - run: uv build --wheel --out-dir dist
+        working-directory: runtime
+      # A wheel without the pages installs a gateway that answers every screen with a refusal.
+      - name: the wheel carries the console and the widget
+        working-directory: runtime
+        run: |
+          unzip -l dist/pinecall-*.whl | grep -q 'pinecall/public/console/index.html'
+          unzip -l dist/pinecall-*.whl | grep -q 'pinecall/public/widget/pinecall-widget.js'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel
+          path: runtime/dist/
+
+  # Trusted Publishing works only in a top-level job: the gates are reused, the publish stays here.
+  publish:
+    needs: [guard, gates, build]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # OIDC: no token stored anywhere
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheel
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true   # a workflow run again is not an error

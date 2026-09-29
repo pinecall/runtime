@@ -3,6 +3,8 @@ name: check
 on:
   push:
   pull_request:
+  # release.yml runs these as its gates before a wheel reaches PyPI.
+  workflow_call:
 
 jobs:
   rules:

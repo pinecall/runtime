@@ -1,8 +1,10 @@
 # Changelog
 
-## Unreleased — 2.0.0a0
+## 0.1.1 — The runtime written again, in production
 
-The runtime written again from a blank page.
+The runtime written again from a blank page, and the one that runs `box.pinecall.io` since
+2026-09-29. `pip install pinecall` installs the gateway, the worker and `pinecall-runtime`, the
+console and the widget inside; `docs/from-zero.md` walks a box to its first call.
 
 - The skeleton: the domain types, the error hierarchy, the settings, the wire, the database pool
   and the migration runner, the schema as one migration, and the rules `make check` enforces.
