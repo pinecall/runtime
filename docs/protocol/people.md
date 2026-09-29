@@ -12,7 +12,7 @@ its status; a key, a password or a link is in exactly one answer, the one that m
 No key. What a sign-in page reads first:
 
 ```json
-{"version": "2.0.0a0", "signup": false, "min_password": 8, "mail": true,
+{"version": "0.1.1", "signup": false, "min_password": 8, "mail": true,
  "brand": {"name": "Pinecall", "logo_url": null, "accent": "#5b3df5"}, "google": false}
 ```
 
