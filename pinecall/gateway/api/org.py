@@ -1,8 +1,9 @@
 """The org's own settings: judging and its ceiling, its identity provider, and its mailbox."""
 
 from collections.abc import AsyncIterator
+from typing import Annotated
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
 
 from pinecall.domain.errors import Conflict, DeclarationRefused, NotFound, UpstreamFailed
@@ -17,7 +18,7 @@ from pinecall.gateway._deps import (
 )
 from pinecall.providers import catalog
 from pinecall.providers.catalog import judge_ceiling
-from pinecall.tenancy import erasure, export, keys, letters, mail, orgs, policy, sso
+from pinecall.tenancy import erasure, export, keys, letters, mail, orgs, policy, reads, sso
 from pinecall.tenancy.mail import Mailbox, MailboxStatus
 from pinecall.tenancy.sso import Client, OrgSso
 from pinecall.wire.rest.accounts import (
@@ -34,7 +35,7 @@ from pinecall.wire.rest.agents import (
     JudgingRequest,
     JudgingSettings,
 )
-from pinecall.wire.rest.calls import ErasureTrail
+from pinecall.wire.rest.calls import ErasureTrail, ReadsResponse
 
 router = APIRouter()
 
@@ -182,6 +183,15 @@ async def erasures(key: TeamKey, gateway: GatewayDep) -> ErasureTrail:
     """The org's erasures, newest first: what went, when, and who asked."""
     rows = await erasure.trail(gateway.connections.pool, key.org)
     return ErasureTrail(erasures=rows)
+
+
+@router.get("/v1/org/reads")
+async def who_read(
+    key: TeamKey, gateway: GatewayDep, call: Annotated[str | None, Query()] = None
+) -> ReadsResponse:
+    """Who read the org's calls and recordings, newest first; of one call or number when named."""
+    rows = await reads.of_org(gateway.connections.pool, key.org, subject=call)
+    return ReadsResponse(reads=rows)
 
 
 @router.get("/v1/org/policy")

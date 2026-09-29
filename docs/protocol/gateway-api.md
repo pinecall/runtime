@@ -136,6 +136,17 @@ the nightly run forgets it 24 months after the call started.
 | `DELETE /v1/contacts/{contact}` | a contact in the key's world: every call they were on (by `call_facts.contact`), every fact kept of them, what each reader had read of their thread |
 | `GET /v1/org/erasures` | the trail, newest first (`team`) |
 
+### Who read what
+
+A person's key reading a call's log (`GET /v1/calls/{call}/events`, `/state`) or its recording
+writes one row of the org's access log, once an hour at most for the same reader, call and kind;
+a server's key, a visitor's token and the fleet write none. The operator's reads off the box
+(`pinecall-runtime sessions show|tail|recording`) and its tracebacks (`pinecall-runtime traceback`,
+`GET /v1/ops/traceback`, one row in each org the lookup showed) write rows with `reader:
+"operator"`. A row names the call or the number, never what it said. `GET /v1/org/reads?call=`
+(`team`) answers `{reads: [{subject, what: log|recording|traceback, env, reader, at}]}`, newest
+first, of one call or number when `call` names it.
+
 An org is erased whole by the operator: `DELETE /v1/ops/orgs/{named}`
 ([operator-api.md](operator-api.md)). The trail row outlives the org.
 

@@ -7,8 +7,10 @@ from dataclasses import replace
 import httpx
 import pytest
 
+from pinecall.domain.scope import Scope
 from pinecall.gateway.app import app
-from pinecall.tenancy import mail, sso
+from pinecall.tenancy import mail, reads, sso
+from pinecall.tenancy.reads import Read
 from tests.conftest import Knocking, postgres
 from tests.fakes.idp import IdentityProvider
 from tests.fakes.mail import Postbox
@@ -263,3 +265,19 @@ async def test_the_export_is_a_download_of_json_lines_of_the_keys_world(knocking
     assert "attachment" in answer.headers["content-disposition"]
     header = json.loads(answer.text.splitlines()[0])
     assert (header["kind"], header["org"], header["env"]) == ("export", knocking.org.id, "sandbox")
+
+
+@postgres
+async def test_the_orgs_reads_are_listed_newest_first_and_of_one_call_when_named(
+    knocking: Knocking,
+) -> None:
+    pool = knocking.gateway.connections.pool
+    await reads.record(pool, Scope(knocking.org.id), Read("CA_1", "recording", "m_ana"))
+    await reads.record(pool, Scope(knocking.org.id), Read("CA_2", "log", reads.OPERATOR))
+    async with knocking.http(knocking.app["production"]) as http:
+        every = await http.get("/v1/org/reads")
+        of_one = await http.get("/v1/org/reads", params={"call": "CA_1"})
+    assert [row["subject"] for row in every.json()["reads"]] == ["CA_2", "CA_1"]
+    assert [(row["what"], row["reader"]) for row in of_one.json()["reads"]] == [
+        ("recording", "m_ana")
+    ]
