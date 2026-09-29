@@ -14,7 +14,15 @@ from pinecall.domain.agent import Versions
 from pinecall.domain.errors import Conflict
 from pinecall.domain.scope import Scope
 from pinecall.log.reduce import reduce
-from pinecall.log.store import AGENT_LOG_PREFIX, DEFAULT_LIMIT, Claim, Store, entry_of, log_name
+from pinecall.log.store import (
+    AGENT_LOG_PREFIX,
+    DEFAULT_LIMIT,
+    Claim,
+    Claimant,
+    Store,
+    entry_of,
+    log_name,
+)
 from pinecall.postgres.pool import Pool, connect
 from pinecall.wire.frames import Entry, read_log
 from tests.conftest import DSN, postgres
@@ -232,12 +240,14 @@ async def test_the_agents_own_log_has_an_owner_of_its_own(store: Store, call: st
     assert await store.owner(call, AGENT) is None
 
 
-async def test_a_calls_world_is_the_one_it_was_claimed_in_and_none_before(
+async def test_a_logs_claimant_is_its_org_and_world_and_an_agents_log_has_no_world(
     store: Store, call: str
 ) -> None:
-    assert await store.world(call) is None
+    assert await store.claimant(call, AGENT) is None
     await store.claim(call, AGENT, "clinica", Claim(Scope("clinica", "sandbox")))
-    assert await store.world(call) == "sandbox"
+    await store.claim(None, AGENT, "clinica")
+    assert await store.claimant(call, AGENT) == Claimant("clinica", "sandbox")
+    assert await store.claimant(None, AGENT) == Claimant("clinica", None)
 
 
 async def test_the_operator_moves_every_log_of_an_agent_to_another_org(

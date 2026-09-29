@@ -1,5 +1,7 @@
 # TLS for every name of the box; PINECALL_DOMAINS comes from /etc/pinecall/box.env through the
-# caddy drop-in install.sh writes. Media does not pass here.
+# caddy drop-in install.sh writes. Media does not pass here. A site of something else that runs
+# beside the runtime on this box goes in conf.d/, which no deploy of the runtime touches.
+import /etc/caddy/conf.d/*.caddy
 {$PINECALL_DOMAINS} {
 	# LiveKit's signalling, and /agent for a worker on a machine of its own.
 	@livekit path /rtc* /twirp* /validate* /agent*

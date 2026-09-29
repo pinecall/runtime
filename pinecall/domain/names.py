@@ -58,6 +58,11 @@ CHANNELS_WITH_A_NUMBER: tuple[Channel, ...] = ("phone", "whatsapp")
 THE_WIDGET: Channel = "web"
 
 
+def other_world(world: Env) -> Env:
+    """Return the world that is not this one."""
+    return SANDBOX if world == PRODUCTION else PRODUCTION
+
+
 def parse_env(word: str) -> Env:
     """Return the word as an Env, raising DeclarationRefused when it is neither world."""
     if word not in ENVS:

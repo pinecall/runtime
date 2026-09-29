@@ -78,6 +78,7 @@ fi
 # The containers, Caddy, the runtime's units.
 install -d /etc/containers/systemd
 install -m 0644 "$HERE"/containers/* /etc/containers/systemd/
+install -d /etc/caddy/conf.d
 install -m 0644 "$HERE/caddy/Caddyfile" /etc/caddy/Caddyfile
 install -d /etc/systemd/system/caddy.service.d
 printf '[Service]\nEnvironmentFile=/etc/pinecall/box.env\n' > /etc/systemd/system/caddy.service.d/pinecall.conf

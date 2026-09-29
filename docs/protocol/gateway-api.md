@@ -115,7 +115,7 @@ SSE frames are `id: <seq>`, `event: <type>`, `data: <the entry>`, a `: ping` eve
 | `GET /v1/calls/{call}/recording` | the audio, seekable; a written call keeps none |
 | `GET /v1/agents/{slug}/sessions` · `GET /v1/sessions` | one line per call, filtered, counted and paged, in the reader's scope |
 | `GET /v1/calls/{call}/settings` | the exact settings the call was built on |
-| `GET /v1/events` | the org's floor as it changes: agents registered and detached, calls ringing, starting and ending, a person asked for and taken |
+| `GET /v1/events` | the org's floor as it changes, in the world the key acts in: agents registered and detached, calls ringing, starting and ending, a person asked for and taken |
 
 What each reader receives is its projection: [projections.md](projections.md).
 

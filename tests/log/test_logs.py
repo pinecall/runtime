@@ -9,9 +9,10 @@ import pytest
 from pinecall.domain.call import CallContext, Route
 from pinecall.domain.errors import Conflict, DeclarationRefused
 from pinecall.domain.names import JsonObject
+from pinecall.domain.scope import Scope
 from pinecall.log.logs import QUEUE_DEPTH, Fanout, Log, Logs, arrival_entry, started_entry
 from pinecall.log.readers import Filter, parse_filter
-from pinecall.log.store import Store
+from pinecall.log.store import Claim, Claimant, Store
 from pinecall.wire.frames import Entry
 from tests.conftest import postgres
 
@@ -359,8 +360,8 @@ async def test_the_orgs_own_feed_still_hears_its_own_while_the_box_listens(
     store: Store, call: str
 ) -> None:
     logs = Logs(store)
-    box, feed = logs.box.subscribe(), logs.feed("org_a").subscribe()
-    elsewhere = logs.feed("org_b").subscribe()
+    box, feed = logs.box.subscribe(), logs.feed("org_a", "production").subscribe()
+    elsewhere = logs.feed("org_b", "production").subscribe()
     await store.claim(call, AGENT, "org_a")
     await logs.writing(call, AGENT).append("call.ringing", RINGING)
     assert (await asyncio.wait_for(anext(feed), 1)).call == call
@@ -370,17 +371,36 @@ async def test_the_orgs_own_feed_still_hears_its_own_while_the_box_listens(
 
 
 @postgres
+async def test_an_orgs_feed_is_one_worlds_and_its_agents_own_entries_reach_both(
+    store: Store, call: str
+) -> None:
+    logs = Logs(store)
+    production = logs.feed("org_a", "production").subscribe()
+    sandbox = logs.feed("org_a", "sandbox").subscribe()
+    await store.claim(call, AGENT, "org_a", Claim(Scope("org_a", "sandbox")))
+    await store.claim(None, AGENT, "org_a")
+    await logs.writing(call, AGENT).append("call.ringing", RINGING)
+    await logs.agent(AGENT).append("agent.registered", {"routes": []})
+    assert (await asyncio.wait_for(anext(sandbox), 1)).type == "call.ringing"
+    assert (await asyncio.wait_for(anext(production), 1)).type == "agent.registered"
+    assert (await asyncio.wait_for(anext(sandbox), 1)).type == "agent.registered"
+    assert await logs.claimant_of(
+        Entry(seq=1, ts=1.0, call=call, agent=AGENT, type="x", ephemeral=False, data={})
+    ) == Claimant("org_a", "sandbox")
+
+
+@postgres
 async def test_whose_a_log_is_is_asked_of_the_store_once_and_not_per_entry(
     store: Store, call: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     params: list[str | None] = []
-    owner = store.owner
+    claimant = store.claimant
 
-    async def counted(of: str | None, agent: str) -> str | None:
+    async def counted(of: str | None, agent: str) -> Claimant | None:
         params.append(of)
-        return await owner(of, agent)
+        return await claimant(of, agent)
 
-    monkeypatch.setattr(store, "owner", counted)
+    monkeypatch.setattr(store, "claimant", counted)
     logs = Logs(store)
     await store.claim(call, AGENT, "org_1")
     for _ in range(3):

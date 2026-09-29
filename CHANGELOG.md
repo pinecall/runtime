@@ -143,3 +143,5 @@ The runtime written again from a blank page.
 
 - The box's floor (`GET /v1/ops/events`) says each frame's world: `env` is the world of the call,
   `null` on an agent's own entries, so a reader serving one world keeps its frames and no other.
+- Fixed: an org's feed (`GET /v1/events`) carried both worlds' calls; it carries the calls of the
+  world the key acts in, and the org's agents' own entries, which serve both.
