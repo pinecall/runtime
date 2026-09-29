@@ -34,7 +34,7 @@ from pinecall.gateway import _deps
 from pinecall.gateway._call_setup import exhausted, keys_of, tuned
 from pinecall.gateway._deps import EvalsKey, GatewayDep, ScopeDep
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._seal import judge_of, judged_call
+from pinecall.gateway._seal import compliance_of, judge_of, judged_call
 from pinecall.gateway._sockets import NO_AGENT, Registration
 from pinecall.gateway._text_calls import TextSetup, open_text_as
 from pinecall.providers import catalog, credentials
@@ -249,7 +249,8 @@ async def judge_call(
     ):
         raise Conflict(ALREADY_JUDGED.format(call=call))
     own = await judges.for_call(gateway.connections.pool, key.org, entries[0].agent)
-    score = await judged_call(gateway.connections, entries, declared, own)
+    org_facts = await compliance_of(gateway.connections.pool, key.org, call, declared)
+    score = await judged_call(gateway.connections, entries, declared, own, org_facts)
     await store.rescored(call, entries[0].agent, score.written())
     return score
 

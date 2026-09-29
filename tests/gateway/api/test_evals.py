@@ -409,7 +409,13 @@ async def test_a_call_its_org_did_not_judge_is_judged_and_the_verdict_lands_on_i
     async with knocking.http(knocking.app["sandbox"]) as http:
         answer = await http.post(f"/v1/evals/judge/{call}")
     assert answer.status_code == 200, answer.text
-    assert answer.json()["panel"] == ["consent", "grounded", "promises"]
+    assert answer.json()["panel"] == [
+        "consent",
+        "grounded",
+        "promises",
+        "disclosed",
+        "honoured_stop",
+    ]
     scores = [
         entry
         for entry in await knocking.gateway.logs.store.whole(call)
@@ -429,7 +435,14 @@ async def test_a_call_judged_later_meets_the_agents_own_judges_too(knocking: Kno
     call = await a_finished_call(knocking, *BOOKED)
     async with knocking.http(knocking.app["sandbox"]) as http:
         answer = await http.post(f"/v1/evals/judge/{call}")
-    assert answer.json()["panel"] == ["consent", "grounded", "promises", "offers-next-slot"]
+    assert answer.json()["panel"] == [
+        "consent",
+        "grounded",
+        "promises",
+        "disclosed",
+        "honoured_stop",
+        "offers-next-slot",
+    ]
     own = next(row for row in answer.json()["judges"] if row["name"] == "offers-next-slot")
     assert (own["verdict"], own["criteria"]) == ("skipped", slot.question)
 

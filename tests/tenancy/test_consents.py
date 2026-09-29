@@ -78,3 +78,11 @@ async def test_a_number_that_is_no_number_and_a_bad_cursor_are_refused(pool: Poo
         await consents.give(pool, Scope(org.id), "tomorrow", Given("express", "x", "m_ana"))
     with pytest.raises(DeclarationRefused, match="no cursor"):
         await consents.do_not_call(pool, Scope(org.id), after="yesterday")
+
+
+async def test_a_call_that_put_its_number_on_the_list_says_so(pool: Pool) -> None:
+    org = await an_org(pool)
+    given = Given("opt_out", "the caller asked the agent", "agent:front-desk", call="CA_stop")
+    await consents.give(pool, Scope(org.id), DANA, given)
+    assert await consents.opted_out_on(pool, "CA_stop")
+    assert not await consents.opted_out_on(pool, "CA_other")
