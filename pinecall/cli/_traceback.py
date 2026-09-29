@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.postgres.pool import open_pool
 from pinecall.process.settings import Settings
-from pinecall.tenancy import traceback
+from pinecall.tenancy import reads, traceback
 from pinecall.wire.rest.ops import Traceback, TracebackCall, TracebackDial
 
 NOT_A_DAY = "--since {since}: a day, like 2026-09-01"
@@ -50,7 +50,9 @@ def lines_of(found: Traceback) -> list[str]:
 async def _found(settings: Settings, number: str, since: float | None) -> Traceback:
     pool = await open_pool(settings.database_url)
     try:
-        return await traceback.of_number(pool, number, since)
+        found = await traceback.of_number(pool, number, since)
+        await traceback.read_by(pool, found, reads.OPERATOR)
+        return found
     finally:
         await pool.close()
 

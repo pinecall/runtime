@@ -5,8 +5,11 @@ from datetime import datetime
 
 from psycopg.rows import DictRow
 
-from pinecall.domain.names import parse_e164
+from pinecall.domain.names import parse_e164, parse_env
+from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
+from pinecall.tenancy import reads
+from pinecall.tenancy.reads import Read
 from pinecall.tenancy.retention import RECORDS_KEPT_S
 from pinecall.wire.rest.ops import Traceback, TracebackCall, TracebackDial
 
@@ -46,6 +49,15 @@ async def of_number(pool: Pool, number: str, since: float | None = None) -> Trac
         calls=[TracebackCall.model_validate(row) for row in calls],
         dials=[_dial(row) for row in dials],
     )
+
+
+async def read_by(pool: Pool, found: Traceback, reader: str) -> None:
+    """Write the lookup into the access log of every org whose calls or dials it showed."""
+    seen = {(call.org, call.env) for call in found.calls if call.org is not None}
+    seen |= {(dial.org, dial.env) for dial in found.dials}
+    for org, env in sorted(seen, key=str):
+        scope = Scope(org, parse_env(env) if env else "production")
+        await reads.record(pool, scope, Read(found.number, "traceback", reader))
 
 
 def _dial(row: DictRow) -> TracebackDial:

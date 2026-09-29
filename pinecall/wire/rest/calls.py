@@ -22,6 +22,8 @@ from pinecall.wire.state import AttentionState
 
 type ErasureSubject = Literal["call", "contact", "org"]
 
+type ReadKind = Literal["log", "recording", "traceback"]
+
 
 # Projected entries keep only part of the envelope, so they travel as plain JSON.
 class LogPage(WireModel):
@@ -311,6 +313,23 @@ class Erasure(WireModel):
     entries: int
     memories: int
     recordings: int
+
+
+class ReadRow(WireModel):
+    """One read of the org's data: the call or number, what of it, who, and when."""
+
+    subject: str
+    what: ReadKind
+    env: Env | None
+    # A person's id, or "operator" for the box's operator.
+    reader: str
+    at: float
+
+
+class ReadsResponse(WireModel):
+    """GET /v1/org/reads: who read the org's calls, newest first."""
+
+    reads: list[ReadRow]
 
 
 class ErasureTrail(WireModel):

@@ -27,6 +27,7 @@ from pinecall.tenancy import (
     letters,
     orgs,
     people,
+    reads,
     sso,
     traceback,
     vault,
@@ -387,7 +388,10 @@ async def number_traceback(
     gateway: GatewayDep, number: str, since: float | None = None
 ) -> Traceback:
     """Every phone call with a number, kept or erased, and every dial to it, of every org."""
-    return await traceback.of_number(gateway.connections.pool, number, since)
+    pool = gateway.connections.pool
+    found = await traceback.of_number(pool, number, since)
+    await traceback.read_by(pool, found, reads.OPERATOR)
+    return found
 
 
 def _org_row(org: Org) -> OrgRow:

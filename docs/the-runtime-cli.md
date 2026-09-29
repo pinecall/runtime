@@ -80,7 +80,7 @@ holds one per cloud. `--once --dry-run` prints one tick's verdict and touches no
 ## `sessions` · `memory` · `retention` · `traceback` · `migrate` · `providers` · `doctor`
 
 `sessions list [--agent] [--limit]`, `sessions show <call> [--json]`, `sessions tail [<call>]`,
-`sessions recording <call>`: the log read back off Postgres, every tenant's. `memory reembed`
+`sessions recording <call>`: the log read back off Postgres, every tenant's; each read of a call is a row of its org's access log (`reader: operator`), and so is each org a `traceback` showed. `memory reembed`
 embeds every fact another model wrote under the box's embedder. `retention due` lists the sealed
 calls past their org's `retention_days` (`PUT /v1/org/policy`), oldest first; `retention run`
 erases them, each through the erasure path with `retention` as who asked, 5 000 a run at most,

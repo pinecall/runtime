@@ -11,10 +11,13 @@ from pinecall.log import queries
 from pinecall.log.logs import Logs
 from pinecall.log.reduce import reduce
 from pinecall.log.store import Store
-from pinecall.postgres.pool import open_pool
+from pinecall.postgres.pool import Pool, open_pool
 from pinecall.process.settings import Settings
+from pinecall.tenancy import reads
+from pinecall.tenancy.reads import Read
 from pinecall.wire.events import TERMINAL_EVENT, CallSummary
 from pinecall.wire.frames import Entry
+from pinecall.wire.rest.calls import ReadKind
 
 NO_SUCH_CALL = "no call {call} was ever written here"
 
@@ -105,6 +108,7 @@ async def _tailed(settings: Settings, call: str | None) -> int:
         named = call or await store.newest_live_call()
         if named is None:
             raise NotFound(NO_LIVE_CALL)
+        await _read_by_the_operator(pool, named, "log")
         async for entry in Logs(store).reading(named).stream():
             _line_out(_line(entry))
             if entry.type == TERMINAL_EVENT:
@@ -115,7 +119,7 @@ async def _tailed(settings: Settings, call: str | None) -> int:
 
 
 async def _recording(settings: Settings, call: str) -> int:
-    entries = await _whole(settings, call)
+    entries = await _whole(settings, call, "recording")
     summary = next((entry for entry in reversed(entries) if entry.type == "call.summary"), None)
     path = None if summary is None else CallSummary.model_validate(summary.data).recording
     if path is None:
@@ -125,15 +129,24 @@ async def _recording(settings: Settings, call: str) -> int:
     return 0
 
 
-async def _whole(settings: Settings, call: str) -> list[Entry]:
+async def _whole(settings: Settings, call: str, what: ReadKind = "log") -> list[Entry]:
     pool = await open_pool(settings.database_url)
     try:
         entries = await Store(pool).whole(call)
+        if entries:
+            await _read_by_the_operator(pool, call, what)
     finally:
         await pool.close()
     if not entries:
         raise NotFound(NO_SUCH_CALL.format(call=call))
     return entries
+
+
+# The operator reading an org's call off the box is a read the org's access log shows.
+async def _read_by_the_operator(pool: Pool, call: str, what: ReadKind) -> None:
+    kept = await queries.scope_of_call(pool, call)
+    if kept is not None and kept.scope is not None:
+        await reads.record(pool, kept.scope, Read(call, what, reads.OPERATOR))
 
 
 def _line(entry: Entry) -> str:

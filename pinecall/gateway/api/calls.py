@@ -52,7 +52,8 @@ from pinecall.log.store import DEFAULT_LIMIT, Claim
 from pinecall.providers import catalog
 from pinecall.providers.catalog import judge_ceiling
 from pinecall.session.call import ToolUse
-from pinecall.tenancy import disclosure, erasure, keys, orgs, policy, tokens
+from pinecall.tenancy import disclosure, erasure, keys, orgs, policy, reads, tokens
+from pinecall.tenancy.reads import Read
 from pinecall.wire.commands import CallClaim
 from pinecall.wire.events import (
     EVENTS,
@@ -73,6 +74,7 @@ from pinecall.wire.rest.calls import (
     LookupResponse,
     OpenCallRequest,
     OpenCallResponse,
+    ReadKind,
     RememberResponse,
     SealCallRequest,
     SessionScore,
@@ -307,6 +309,7 @@ async def stream_events(
 ) -> Response | StreamingResponse | LogPage:
     """A call's entries above the cursor: a page, or a stream that ends with the call."""
     config = await _deps.check_readable(gateway, reading, call)
+    await _read_by(gateway, reading, call, "log")
     cursor = max(query.after, _seq_of(options.last_event_id))
     only = parse_filter(query.types, durable=query.durable)
     store = gateway.logs.store
@@ -347,6 +350,7 @@ async def stream_agent_events(
 async def call_state(call: str, reading: ReaderDep, gateway: GatewayDep) -> JsonObject:
     """The call's folded state as this reader may see it, and the seq a stream resumes from."""
     config = await _deps.check_readable(gateway, reading, call)
+    await _read_by(gateway, reading, call, "log")
     state = await gateway.logs.reading(call).snapshot()
     if state.seq == 0:
         raise NotFound(_deps.NO_SUCH_CALL.format(call=call))
@@ -362,6 +366,7 @@ async def call_state(call: str, reading: ReaderDep, gateway: GatewayDep) -> Json
 async def recording(call: str, reading: ReaderDep, gateway: GatewayDep) -> FileResponse:
     """The call's audio, with byte ranges so a player can seek."""
     await _deps.check_readable(gateway, reading, call)
+    await _read_by(gateway, reading, call, "recording")
     state = await gateway.logs.reading(call).snapshot()
     summary = next(
         (
@@ -488,6 +493,15 @@ async def _tuned(
     return await tuned(
         gateway.connections.pool, config, scope, await catalog.providers(gateway.connections.pool)
     )
+
+
+# A person's read is written down, a server's and a visitor's are not: the access log is of people.
+async def _read_by(gateway: Gateway, reading: Reader, call: str, what: ReadKind) -> None:
+    acting = reading.acting
+    person = None if acting is None else acting.bearer.member
+    if person is None or reading.scope is None:
+        return
+    await reads.record(gateway.connections.pool, reading.scope, Read(call, what, person.id))
 
 
 # The worker says the disclosure before the greeting, and the notice only where it records.

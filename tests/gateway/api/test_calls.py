@@ -10,12 +10,13 @@ import pytest
 from pinecall.domain.call import CallContext
 from pinecall.domain.names import JsonObject
 from pinecall.domain.person import KEY_SCOPES
-from pinecall.tenancy import orgs, policy, tokens
+from pinecall.tenancy import orgs, policy, reads, tokens
 from pinecall.wire.rest.accounts import OrgPolicy
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
 from tests.conftest import (
     AGENT,
     Knocking,
+    a_developer,
     issued,
     postgres,
     received,
@@ -648,3 +649,22 @@ async def test_another_orgs_key_and_the_other_world_erase_nothing(knocking: Knoc
         elsewhere = await production.delete(f"/v1/calls/{context.call}")
     assert (refused.status_code, elsewhere.status_code) == (404, 404)
     assert await knocking.gateway.logs.store.whole(context.call) != []
+
+
+@postgres
+async def test_a_persons_read_of_a_call_is_written_once_an_hour_and_a_servers_is_not(
+    knocking: Knocking,
+) -> None:
+    app = await an_app(knocking)
+    context = await a_logged_call(knocking, "greeted")
+    ana, secret = await a_developer(knocking, "ana@clinica.test")
+    sandbox = {"pinecall-env": "sandbox"}
+    async with knocking.http(secret) as person:
+        for _ in range(2):
+            read = await person.get(f"/v1/calls/{context.call}/state", headers=sandbox)
+            assert read.status_code == 200
+    async with knocking.http(knocking.app["sandbox"]) as server:
+        assert (await server.get(f"/v1/calls/{context.call}/state")).status_code == 200
+    rows = await reads.of_org(knocking.gateway.connections.pool, knocking.org.id)
+    assert [(row.subject, row.what, row.reader) for row in rows] == [(context.call, "log", ana)]
+    await app.close()
