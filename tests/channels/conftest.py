@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -108,7 +109,7 @@ def a_peer(**said: object) -> SipPeer:
 
 def dial_of(line: Line, to: str = HER_PHONE, env: Env = "production", call: str = "call_1") -> Dial:
     """A dial of the org's agent to that number."""
-    return Dial(line.scope(env), "recepcion", to, A_NUMBER, "m_ana", call)
+    return Dial(line.scope(env), "recepcion", to, A_NUMBER, "m_ana", call, datetime.now(UTC))
 
 
 async def ledger(line: Line) -> list[tuple[str, str | None, str | None]]:

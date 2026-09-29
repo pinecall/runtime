@@ -1,5 +1,6 @@
 """The number doors: the org's carrier accounts, its numbers, dialling out, and a worker's leg."""
 
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Query
@@ -239,13 +240,16 @@ async def dial_out(
     """Place a call as the agent, after its guards: the call it became, before anything rings."""
     if gateway.sockets.serving(where, slug, None) is None:
         raise Conflict(NOBODY_HOLDING.format(agent=slug))
+    who = asked_by(key)
     placement = Placement(
         scope=where,
         agent=slug,
         to=body.to,
         shown=body.from_,
-        asked_by=asked_by(key),
+        asked_by=who,
         today=today_in(gateway.connections.settings.timezone),
+        at=datetime.now(UTC),
+        own_phone=gateway.sockets.phone_of(where.env, body.to) == who,
     )
     placed = await dialing.place_call(
         gateway.connections, gateway.logs, placement, running=gateway.live.running(where.org)
@@ -272,7 +276,7 @@ async def get_leg_trunk(
     query: Annotated[LegTrunkQuery, Query()],
 ) -> LegTrunkResponse:
     """The leg's trunk inline, after the shape and the pace; a dial's own first leg passes."""
-    dial = Dial(where, slug, query.to, query.shown, asked_by(key), query.call)
+    dial = Dial(where, slug, query.to, query.shown, asked_by(key), query.call, datetime.now(UTC))
     return LegTrunkResponse(trunk=await dialing.leg_trunk(gateway.connections, dial))
 
 

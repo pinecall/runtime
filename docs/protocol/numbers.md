@@ -122,10 +122,15 @@ org's `dials` ledger, taken or refused:
 |---|---|---|
 | `to` is not E.164, has no country calling code, is a satellite or global-service range (`+870`, `+878`, `+881`, `+882`, `+883`, `+888`, `+979`), or has fewer than five national digits | `400` | a number somebody could answer |
 | the number never called or wrote to this org **in this world** | `403` | an operator's `dial_anywhere` |
+| outside the called number's hours in **every** zone it could be in (`quiet_hours`): for a `+1` number 8:00 to 21:00 local (the Telemarketing Sales Rule), narrowed by the org's `calling_hours` and never widened, and a `+1` number with no zone (toll-free) always; elsewhere the org's `calling_hours`, when it set some | `403` | the hour |
 | more dials this minute than `per_minute` (6), refusals counted | `429` | a wait |
 | more dials today than `per_day` (200) | `429` | a wait |
+| the number itself rung `per_number_day` times in 24 hours (`too_often`): 3 for a `+1` number unless the org sets its own, none elsewhere unless it does | `429` | a wait |
 
-The count and the row are one transaction under the org's lock: two dials at once cannot both take
+The hours and the per-number count bind a call to somebody: the **sandbox** is held to neither, and
+neither is a number the person who asked verified as **their own phone** (`PUT /v1/line/from`) —
+that is them testing. The zones come from libphonenumber (`phonenumbers`); the org sets its hours
+and count at `PUT /v1/org/policy` ([gateway-api.md](gateway-api.md) §7). The count and the row are one transaction under the org's lock: two dials at once cannot both take
 the last slot. A placed call runs at most `max_duration_s` (600), which the media plane enforces.
 A far end that is busy, declines or never answers ends the call `busy` or `no_answer`; anything
 else, `dial_failed`.

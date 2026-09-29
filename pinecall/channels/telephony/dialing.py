@@ -4,7 +4,7 @@ import logging
 import secrets
 import time
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, datetime
 
 from livekit import api
 from livekit.protocol.sip import (
@@ -149,7 +149,7 @@ class OutboundSurvey:
 
 @dataclass(frozen=True)
 class Placement:
-    """A call asked for: scope, agent, the far end, the number shown, who asked, the day."""
+    """A call asked for: scope, agent, the far end, the number shown, who asked, when."""
 
     scope: Scope
     agent: str
@@ -157,6 +157,9 @@ class Placement:
     shown: str | None
     asked_by: str
     today: date
+    at: datetime
+    # The far end is the asker's own verified phone: a test, held to no caller's hours.
+    own_phone: bool = False
 
 
 @dataclass(frozen=True)
@@ -241,7 +244,16 @@ async def place_call(
         )
     carrier = await _dials_through(connections, scope, shown)
     call = new_call_id()
-    dial = Dial(scope, placement.agent, placement.to, shown, placement.asked_by, call)
+    dial = Dial(
+        scope,
+        placement.agent,
+        placement.to,
+        shown,
+        placement.asked_by,
+        call,
+        placement.at,
+        own_phone=placement.own_phone,
+    )
     guards = await guard_dial(connections.pool, dial)
     await admission.admit_call(connections.pool, scope.org, scope.env, running=running)
     context = CallContext(

@@ -104,3 +104,12 @@ async def test_a_call_whose_socket_left_waits_parked_for_the_next(wired: Gateway
     await wired.sockets.release("app_1")
     assert await handed_on(wired.live, wired.logs.store, wired.sockets, [context.call]) == (0, 1)
     assert wired.live.parked(OURS, AGENT) == [context.call]
+
+
+@postgres
+async def test_a_phone_is_the_person_who_verified_it_and_nobody_elses(store: Store) -> None:
+    sockets = sockets_over(store)
+    sockets.calls_from("production", "+13105550142", "m_ana")
+    assert sockets.phone_of("production", " +13105550142 ") == "m_ana"
+    assert sockets.phone_of("sandbox", "+13105550142") is None
+    assert sockets.phone_of("production", "+12125550142") is None

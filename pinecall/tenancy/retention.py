@@ -1,4 +1,4 @@
-"""An org's policy, and retention: sealed calls past the org's days, erased by the nightly run."""
+"""Retention: the sealed calls past their org's days (policy.py), erased by the nightly run."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -7,16 +7,6 @@ from pinecall.domain.names import parse_env
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy import erasure
-from pinecall.wire.rest.accounts import OrgPolicy, OrgPolicyRow
-
-POLICY = "SELECT retention_days, set_by, set_at FROM org_policy WHERE org = %(org)s"
-
-PUT_POLICY = """
-INSERT INTO org_policy (org, retention_days, set_by)
-VALUES (%(org)s, %(retention_days)s, %(set_by)s)
-ON CONFLICT (org) DO UPDATE SET retention_days = excluded.retention_days,
-    set_by = excluded.set_by, set_at = now()
-"""
 
 # Sealed calls only: a call still running is the caller's, not the calendar's. Oldest first, so a
 # run cut short by its limit takes up where it stopped.
@@ -43,26 +33,6 @@ class Due:
 
     scope: Scope
     call: str
-
-
-async def policy_of(pool: Pool, org: str) -> OrgPolicyRow:
-    """The org's policy, and who set it last; an org nobody set keeps everything."""
-    async with pool.connection() as connection:
-        row = await (await connection.execute(POLICY, {"org": org})).fetchone()
-    if row is None:
-        return OrgPolicyRow(policy=OrgPolicy(), set_by=None, set_at=None)
-    return OrgPolicyRow(
-        policy=OrgPolicy(retention_days=row["retention_days"]),
-        set_by=str(row["set_by"]),
-        set_at=row["set_at"].timestamp(),
-    )
-
-
-async def put_policy(pool: Pool, org: str, policy: OrgPolicy, *, by: str) -> None:
-    """Replace the org's policy whole."""
-    params = {"org": org, "retention_days": policy.retention_days, "set_by": by}
-    async with pool.connection() as connection:
-        await connection.execute(PUT_POLICY, params)
 
 
 async def due(pool: Pool, now: float, *, limit: int = A_RUN_ERASES) -> list[Due]:

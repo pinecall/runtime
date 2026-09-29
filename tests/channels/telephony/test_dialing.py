@@ -1,6 +1,6 @@
 """Tests for dialling out: provisioning, the guards and their ledger, a call placed, a leg."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 from livekit import api
@@ -34,6 +34,10 @@ from tests.conftest import postgres
 from tests.fakes.idp import a_sid
 
 # ── outbound: the account to dial through ──
+
+
+# The moment every call here is asked for: noon UTC, inside any hours a +598 number keeps.
+NOON = datetime(2026, 9, 28, 12, 0, tzinfo=UTC)
 
 
 @postgres
@@ -154,7 +158,7 @@ async def ready_to_dial(line: Line) -> None:
 
 def placing(line: Line, shown: str | None = None) -> Placement:
     """A call back to her phone, asked by Ana."""
-    return Placement(line.scope(), "recepcion", HER_PHONE, shown, "m_ana", date(2026, 9, 28))
+    return Placement(line.scope(), "recepcion", HER_PHONE, shown, "m_ana", date(2026, 9, 28), NOON)
 
 
 @postgres
@@ -197,7 +201,7 @@ async def test_a_number_shown_that_is_not_the_agents_and_an_agent_with_none_are_
         await dialing.place_call(
             line.connections, Logs(store), placing(line, "+34910000000"), running=0
         )
-    other = Placement(line.scope(), "agenda", HER_PHONE, None, "m_ana", date(2026, 9, 28))
+    other = Placement(line.scope(), "agenda", HER_PHONE, None, "m_ana", date(2026, 9, 28), NOON)
     with pytest.raises(NotFound, match="answers at no phone number"):
         await dialing.place_call(line.connections, Logs(store), other, running=0)
 
