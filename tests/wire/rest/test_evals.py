@@ -5,6 +5,7 @@ import pytest
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.wire.rest.evals import (
     Golden,
+    JudgeRequest,
     PersonaRequest,
     RunSuiteRequest,
     ScoreRow,
@@ -83,3 +84,15 @@ def test_a_persona_written_with_its_goal_and_style_alone_says_nothing_else() -> 
 def test_a_persona_naming_the_agents_it_calls_is_refused_since_it_is_one_agents() -> None:
     with pytest.raises(DeclarationRefused):
         PersonaRequest.read({"goal": "g", "style": "s", "agents": ["recepcion"]}, "persona")
+
+
+def test_a_judge_that_says_nothing_of_when_it_runs_reads_every_call() -> None:
+    assert JudgeRequest.read({"question": "q"}, "judge").runs_on == "every-call"
+
+
+def test_a_judge_runs_on_every_call_or_on_simulations_and_nothing_else() -> None:
+    assert JudgeRequest.read({"question": "q", "runs_on": "simulations"}, "judge").runs_on == (
+        "simulations"
+    )
+    with pytest.raises(DeclarationRefused):
+        JudgeRequest.read({"question": "q", "runs_on": "sometimes"}, "judge")

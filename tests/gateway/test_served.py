@@ -8,7 +8,7 @@ from datetime import date
 import httpx
 import pytest
 
-from pinecall.domain.agent import AgentConfig, MemoryPolicy
+from pinecall.domain.agent import AgentConfig, AgentJudge, MemoryPolicy
 from pinecall.domain.call import CallContext, Route, new_call_id
 from pinecall.domain.names import JsonObject
 from pinecall.domain.org import Quotas
@@ -31,7 +31,7 @@ from pinecall.providers import catalog
 from pinecall.providers.catalog import Embedding, Judge, Rate
 from pinecall.retrieval import memory
 from pinecall.retrieval.embed import Embedder
-from pinecall.tenancy import admission, orgs
+from pinecall.tenancy import admission, judges, orgs
 from pinecall.wire.events import CallScore
 from pinecall.wire.frames import Command, Entry
 from pinecall.wire.metrics import LLMModelUsage
@@ -382,7 +382,8 @@ async def sealed_call(
     wired: Gateway, context: CallContext, *turns: tuple[str, JsonObject]
 ) -> list[Entry]:
     """A call that said these turns, ended and sealed: its whole log."""
-    served = served_call(wired.serving, None, context, AgentConfig(slug=AGENT), OURS)
+    scope = Scope(context.route.org, context.route.env)
+    served = served_call(wired.serving, None, context, AgentConfig(slug=AGENT), scope)
     for kind, data in turns:
         await served.log.append(kind, data)
     await served.log.append(
@@ -459,6 +460,38 @@ async def test_a_call_an_eval_run_opened_is_judged_by_the_run_and_not_again_at_h
     whole = await sealed_call(wired, context, *PRICED)
     score = CallScore.model_validate(whole[-1].data)
     assert (score.judges, score.not_judged) == ([], A_RUN_JUDGES_IT)
+
+
+GREETED: tuple[tuple[str, JsonObject], ...] = (
+    ("turn.user", {"speech_id": "sp_1", "text": "Hola", "metrics": {}}),
+    ("turn.agent", {"speech_id": "sp_1", "text": "Buenas.", "interrupted": False, "metrics": {}}),
+)
+
+
+@postgres
+async def test_the_seal_asks_the_agents_own_judges_and_leaves_a_simulations_one_out(
+    wired: Gateway,
+) -> None:
+    pool = wired.connections.pool
+    verdict: dict[str, object] = {
+        "name": "submit_verdict",
+        "arguments": {"verdict": "pass", "reasoning": "it greeted"},
+    }
+    judged_box = configured([[verdict]]).model_copy(
+        update={"judge": Judge.model_validate({"llm": {"vendor": "acme"}, "ceiling_usd": 0.01})}
+    )
+    await catalog.configure(pool, judged_box)
+    org = await orgs.create(pool, "org-own", "Own")
+    greets = AgentJudge(name="greets", question="The agent greeted the caller.")
+    rehearsed = AgentJudge(name="rehearsed", question="q", runs_on="simulations")
+    for judge in (greets, rehearsed):
+        await judges.put_judge(pool, org.id, AGENT, judge, author="m_ana")
+    whole = await sealed_call(wired, a_call(Scope(org.id, "sandbox")), *GREETED)
+    score = CallScore.model_validate(whole[-1].data)
+    assert score.panel == ["consent", "grounded", "promises", "greets"]
+    own = next(judgment for judgment in score.judges if judgment.name == "greets")
+    assert (own.verdict, own.reason) == ("held", "it greeted")
+    assert score.judge_calls == 1
 
 
 # ── the seal remembers ──

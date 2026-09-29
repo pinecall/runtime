@@ -1,10 +1,11 @@
-"""The bodies of the eval doors: a golden, a suite, a run and its matrix, a replay, a persona."""
+"""The bodies of the eval doors: a golden, a suite, a run, a replay, a persona, a judge."""
 
 from datetime import date
 from typing import Literal
 
 from pydantic import Field
 
+from pinecall.domain.agent import RunsOn
 from pinecall.domain.names import Json, JsonObject
 from pinecall.wire.frames import WireModel
 from pinecall.wire.parts import EndReason, ModelConfig, ScoreVerdict
@@ -302,3 +303,29 @@ class PersonaRunList(WireModel):
     runs: list[PersonaRunRow]
     total: int
     next: str | None
+
+
+# ── an agent's own judges ──
+
+
+class JudgeRequest(WireModel):
+    """PUT /v1/agents/{slug}/judges/{name}, the body: the question, and which calls it reads."""
+
+    question: str
+    runs_on: RunsOn = "every-call"
+
+
+class JudgeRow(WireModel):
+    """One of the agent's own judges as the list shows it."""
+
+    name: str
+    question: str
+    runs_on: RunsOn
+    author: str
+    set_at: float
+
+
+class JudgeList(WireModel):
+    """GET /v1/agents/{slug}/judges: the agent's own judges, by name."""
+
+    judges: list[JudgeRow]

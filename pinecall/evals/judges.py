@@ -11,7 +11,7 @@ from livekit.agents import APIError, llm
 from livekit.agents.evals import Judge, JudgmentResult, Verdict
 from livekit.agents.llm import ChatContext, ChatItem, ChatMessage, FunctionCall, FunctionCallOutput
 
-from pinecall.domain.agent import AgentConfig
+from pinecall.domain.agent import AgentConfig, AgentJudge
 from pinecall.domain.errors import PinecallError, UpstreamFailed
 from pinecall.domain.names import JsonObject
 from pinecall.evals._evidence import (
@@ -208,6 +208,17 @@ IN_THE_CALLERS_WORDS: Mapping[Verdict, str] = {
 AS_ANSWERED: Mapping[Verdict, str] = {"pass": "{reason}", "fail": "{reason}", "maybe": "{reason}"}
 
 
+# The org's own question, asked as the caller's rule is: of what happened, not of the wording.
+OWN_QUESTION = (
+    "{question}\n\nAnswer 'pass' if the conversation shows this held, 'fail' if it shows it did "
+    "not, and 'maybe' if the conversation does not say. Judge what actually happened — both "
+    "sides' turns and the tool calls — never how either side worded it."
+)
+
+
+NOBODY_ANSWERED = "the org wrote this question for the agent, and no judge model was given to ask"
+
+
 NOTHING_ANSWERED = "every judge run over this call failed and not one of them answered"
 
 
@@ -218,6 +229,14 @@ class Question:
     question: str
     unasked: str
     worded: Mapping[Verdict, str] = field(default_factory=lambda: AS_ANSWERED)
+
+
+@dataclass(frozen=True)
+class JudgeModel:
+    """The judge model a call is asked on, or None and the sentence that says why there is none."""
+
+    running: Running | None
+    unjudged: str = ""
 
 
 @dataclass(frozen=True)
@@ -291,11 +310,11 @@ def golden_judges(golden: Golden, case: Case) -> list[CaseJudge]:
 
 
 # The register a business asks for is not declared anywhere, so it is not judged at hang-up.
-def hangup_judges(case: Case) -> list[CaseJudge]:
-    """What every finished call is judged on: consent, grounding, promises, the caller's rule."""
-    judges = [_consent_judge(case), _grounded_judge(case), _promises_judge(case)]
-    persona = _persona_judge(case)
-    return judges if persona is None else [*judges, persona]
+def hangup_judges(case: Case, own: Sequence[AgentJudge]) -> list[CaseJudge]:
+    """The panel: consent, grounding, promises, the caller's rule, then the agent's own judges."""
+    panel = [_consent_judge(case), _grounded_judge(case), _promises_judge(case)]
+    ruled = [_persona_judge(case), *(_question_judge(case, judge) for judge in own)]
+    return [*panel, *(judge for judge in ruled if judge is not None)]
 
 
 def evidence_in(reason: str, entries: Sequence[Entry]) -> JudgmentEvidence:
@@ -322,27 +341,28 @@ def judgment_of(name: str, result: JudgmentResult, entries: Sequence[Entry]) -> 
 async def at_hangup(
     entries: Sequence[Entry],
     declared: AgentConfig | None,
-    judge: Running | None,
+    own: Sequence[AgentJudge],
+    judge: JudgeModel,
     *,
     configured: Providers,
-    unjudged: str,
 ) -> CallScore:
     """The hang-up panel over a finished call: code judges always, model ones when a model is."""
     case = case_of(entries, declared)
-    panel = hangup_judges(case)
-    model = None if judge is None else llm_of(judge)
+    panel = hangup_judges(case, own)
+    running, unjudged = judge.running, judge.unjudged
+    model = None if running is None else llm_of(running)
     chat = as_chat(case)
     try:
-        judged = [await _answered(judge_of, chat, model, entries, unjudged) for judge_of in panel]
+        judged = [await _answered(member, chat, model, entries, unjudged) for member in panel]
     finally:
         if model is not None:
             await model.aclose()
     # Priced by the names the operator configured, which the rates are keyed by.
     spent = [
-        usage.model_copy(update={"provider": judge.vendor, "model": judge.model or usage.model})
+        usage.model_copy(update={"provider": running.vendor, "model": running.model or usage.model})
         for member in panel
         for usage in member.spent
-        if judge is not None
+        if running is not None
     ]
     settled = [judgment for judgment in judged if judgment.verdict in {"held", "broken"}]
     scored: JsonObject = {
@@ -475,6 +495,17 @@ def _persona_judge(case: Case) -> CaseJudge | None:
         PERSONA,
         Question(question=question, unasked=NOBODY_READ, worded=IN_THE_CALLERS_WORDS),
     )
+
+
+# held means the question held of the call, broken that it did not.
+def _question_judge(case: Case, judge: AgentJudge) -> CaseJudge | None:
+    """The org's question read by a model; None for a simulations judge on a real call."""
+    if judge.runs_on == "simulations" and not case.simulated:
+        return None
+    question = Question(
+        question=OWN_QUESTION.format(question=judge.question), unasked=NOBODY_ANSWERED
+    )
+    return CaseJudge(judge.name, judge.question, question)
 
 
 async def _answered(

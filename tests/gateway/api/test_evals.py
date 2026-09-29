@@ -7,13 +7,14 @@ import pytest
 from livekit import rtc
 from websockets.asyncio.client import ClientConnection
 
+from pinecall.domain.agent import AgentJudge
 from pinecall.domain.names import Json, JsonObject
 from pinecall.domain.org import Quotas
 from pinecall.domain.scope import Scope
 from pinecall.evals import runs
 from pinecall.log.store import Claim, log_name
 from pinecall.providers import catalog
-from pinecall.tenancy import admission, personas
+from pinecall.tenancy import admission, judges, personas
 from pinecall.tenancy.personas import Persona, PersonaEdit
 from pinecall.wire.rest.evals import EvalRunResponse
 from tests.conftest import AGENT, Knocking, configured, issued, postgres, received_until, sent
@@ -417,6 +418,20 @@ async def test_a_call_its_org_did_not_judge_is_judged_and_the_verdict_lands_on_i
     assert len(scores) == 2
     facts = await knocking.gateway.logs.store.whole(call)
     assert facts[-1].data["judges"]
+
+
+# No judge model on the box: the agent's own question is in the panel, skipped and saying so.
+@postgres
+async def test_a_call_judged_later_meets_the_agents_own_judges_too(knocking: Knocking) -> None:
+    pool = knocking.gateway.connections.pool
+    slot = AgentJudge(name="offers-next-slot", question="The agent offered the next slot.")
+    await judges.put_judge(pool, knocking.org.id, AGENT, slot, author="m_ana")
+    call = await a_finished_call(knocking, *BOOKED)
+    async with knocking.http(knocking.app["sandbox"]) as http:
+        answer = await http.post(f"/v1/evals/judge/{call}")
+    assert answer.json()["panel"] == ["consent", "grounded", "promises", "offers-next-slot"]
+    own = next(row for row in answer.json()["judges"] if row["name"] == "offers-next-slot")
+    assert (own["verdict"], own["criteria"]) == ("skipped", slot.question)
 
 
 @postgres

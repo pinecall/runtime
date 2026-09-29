@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from uuid import uuid4
 
+import psycopg
 import pytest
 from psycopg import sql
 
@@ -347,3 +348,22 @@ async def test_what_is_behind_is_every_file_before_the_first_run_and_nothing_aft
 
     assert before == tuple(path.name for path in migration_files())
     assert after == ()
+
+
+@postgres
+async def test_an_agents_judge_runs_on_every_call_or_simulations_of_an_org_that_exists(
+    schema: str,
+) -> None:
+    await apply_migrations(DSN, schema=schema)
+    insert = (
+        "insert into agent_judges (org, agent, name, question, runs_on)"
+        " values (%s, 'recepcion', 'greets', 'q', %s)"
+    )
+    async with await connect(DSN) as connection:
+        await connection.execute(sql.SQL("set search_path to {}").format(sql.Identifier(schema)))
+        await connection.execute(insert, ("default", "simulations"))
+        with pytest.raises(psycopg.errors.CheckViolation):
+            await connection.execute(insert, ("default", "sometimes"))
+        with pytest.raises(psycopg.errors.ForeignKeyViolation):
+            await connection.execute(insert, ("nobody", "every-call"))
+    assert await column_of(schema, "agent_judges", "runs_on") == ["simulations"]

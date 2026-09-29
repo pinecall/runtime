@@ -26,7 +26,6 @@ from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.process.connections import Connections
 from pinecall.providers import catalog, credentials, prices
-from pinecall.providers.build import Running
 from pinecall.providers.catalog import Providers
 from pinecall.providers.credentials import Keyring, thinking
 from pinecall.retrieval import extraction, lookups, memory
@@ -37,6 +36,7 @@ from pinecall.session.session import Session
 from pinecall.session.tools import ToolCalls
 from pinecall.tenancy import admission, orgs, vault
 from pinecall.tenancy.codes import Codes
+from pinecall.tenancy.judges import StoredJudge, judges_of
 from pinecall.wire.commands import DevAnswer
 from pinecall.wire.events import (
     CallAttached,
@@ -72,15 +72,11 @@ NO_UNCLAIMED = (
 
 JUDGING_OFF = "this org's calls are not judged at hang-up: POST /v1/evals/judge/{call} judges one"
 
-
 A_RUN_JUDGES_IT = "an eval run opened this call, and its own judges scored it in the run's matrix"
-
 
 NO_JUDGE = "this box's providers configuration names no judge model"
 
-
 NO_CEILING = "PINECALL_JUDGE_CEILING_USD is zero, so no judge model may be asked"
-
 
 JUDGING_BROKE = "judging this call failed: {broke}"
 
@@ -462,7 +458,8 @@ async def sealed(
         score = CallScore(judges=[], judge_calls=0, not_judged=JUDGING_OFF.format(call=served.call))
     else:
         entries = await serving.logs.store.whole(served.call)
-        score = await judged_call(serving.connections, entries, served.config)
+        own = await judges_of(serving.connections.pool, served.scope.org, served.agent)
+        score = await judged_call(serving.connections, entries, served.config, own)
     await served.log.append("call.score", score.written())
     serving.logs.forget(served.call)
     serving.live.close(served.call)
@@ -527,32 +524,34 @@ async def reap_forever(serving: Serving, server: api.LiveKitAPI) -> None:
 
 # The seal never fails on a judge: a call that could not be judged says why and seals all the same.
 async def judged_call(
-    connections: Connections, entries: Sequence[Entry], declared: AgentConfig | None
+    connections: Connections,
+    entries: Sequence[Entry],
+    declared: AgentConfig | None,
+    own: Sequence[StoredJudge],
 ) -> CallScore:
-    """The hang-up panel over a finished call, a model's judges when the box names one."""
+    """The hang-up panel and the agent's own judges over a finished call, a model's when named."""
     call = next((entry.call for entry in entries if entry.call is not None), "")
     try:
         configured = await catalog.providers(connections.pool)
-        judge, unjudged = await judge_of(connections, configured)
-        return await judges.at_hangup(
-            entries, declared, judge, configured=configured, unjudged=unjudged
-        )
+        judge = await judge_of(connections, configured)
+        questions = [stored.judge for stored in own]
+        return await judges.at_hangup(entries, declared, questions, judge, configured=configured)
     except PinecallError as broke:
         logger.warning("call %s: nothing judged it", call, exc_info=True)
         return CallScore(judges=[], judge_calls=0, not_judged=JUDGING_BROKE.format(broke=broke))
 
 
 # Always the box's key, never an org's: judging is the platform's measure, the same for all.
-async def judge_of(connections: Connections, configured: Providers) -> tuple[Running | None, str]:
+async def judge_of(connections: Connections, configured: Providers) -> judges.JudgeModel:
     """The judge model on the box's key, or None and the sentence that says why there is none."""
     if configured.judge is None:
-        return None, NO_JUDGE
+        return judges.JudgeModel(None, NO_JUDGE)
     if connections.settings.judge_ceiling_usd <= 0:
-        return None, NO_CEILING
+        return judges.JudgeModel(None, NO_CEILING)
     box = await vault.box_credentials(connections.pool, connections.vault)
     named = configured.judge.llm
     declared = Model(provider=named.vendor, model=named.model or "")
-    return credentials.stage("llm", declared, configured, Keyring(box=box)), ""
+    return judges.JudgeModel(credentials.stage("llm", declared, configured, Keyring(box=box)))
 
 
 def _now(serving: Serving) -> datetime:

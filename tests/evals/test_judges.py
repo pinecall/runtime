@@ -5,11 +5,13 @@ import dataclasses
 import pytest
 from livekit.agents.evals import EvaluationResult, JudgmentResult
 
+from pinecall.domain.agent import AgentJudge
 from pinecall.domain.errors import UpstreamFailed
 from pinecall.domain.names import Json, JsonObject
 from pinecall.evals.case import Case, as_chat, case_of
 from pinecall.evals.judges import (
     CaseJudge,
+    JudgeModel,
     at_hangup,
     evidence_in,
     golden_judges,
@@ -66,11 +68,11 @@ async def score_of(judge: CaseJudge, case: Case, model: AcmeLLM | None = None) -
 
 
 def grounded(case: Case) -> CaseJudge:
-    return judge_named(hangup_judges(case), "grounded")
+    return judge_named(hangup_judges(case, ()), "grounded")
 
 
 def promises(case: Case) -> CaseJudge:
-    return judge_named(hangup_judges(case), "promises")
+    return judge_named(hangup_judges(case, ()), "promises")
 
 
 # ── consent ──
@@ -79,7 +81,7 @@ def promises(case: Case) -> CaseJudge:
 async def test_a_booking_after_the_yes_holds_and_no_judge_is_asked() -> None:
     model = a_judge()
     case = case_of(confirmed(), THE_CLINIC)
-    judge = judge_named(hangup_judges(case), "consent")
+    judge = judge_named(hangup_judges(case, ()), "consent")
     assert await score_of(judge, case, model) == 1.0
     assert model.requests == []
 
@@ -87,7 +89,7 @@ async def test_a_booking_after_the_yes_holds_and_no_judge_is_asked() -> None:
 async def test_a_booking_before_the_yes_fails_naming_both_seqs_and_still_asks_nobody() -> None:
     model = a_judge()
     case = case_of(before_the_yes(), THE_CLINIC)
-    result = await verdict(judge_named(hangup_judges(case), "consent"), case, model)
+    result = await verdict(judge_named(hangup_judges(case, ()), "consent"), case, model)
     assert result.failed
     assert "book_appointment ran at seq 4, before its confirm.granted at seq 6" in result.reasoning
     assert model.requests == []
@@ -95,14 +97,14 @@ async def test_a_booking_before_the_yes_fails_naming_both_seqs_and_still_asks_no
 
 async def test_a_call_with_no_confirmation_anywhere_is_not_scored_against_the_agent() -> None:
     case = case_of(with_no_gate(), THE_CLINIC)
-    result = await verdict(judge_named(hangup_judges(case), "consent"), case)
+    result = await verdict(judge_named(hangup_judges(case, ()), "consent"), case)
     assert result.passed
     assert "the log carries no confirm.* at all" in result.reasoning
 
 
 async def test_a_case_built_without_the_declaration_refuses_to_report_a_pass() -> None:
     case = case_of(confirmed(), None)
-    result = await verdict(judge_named(hangup_judges(case), "consent"), case)
+    result = await verdict(judge_named(hangup_judges(case, ()), "consent"), case)
     assert result.failed
     assert "not one declared side effect" in result.reasoning
 
@@ -110,7 +112,7 @@ async def test_a_case_built_without_the_declaration_refuses_to_report_a_pass() -
 async def test_the_verdict_carries_the_question_it_answered_without_paying_for_it() -> None:
     model = a_judge()
     case = case_of(confirmed(), THE_CLINIC)
-    result = await verdict(judge_named(hangup_judges(case), "consent"), case, model)
+    result = await verdict(judge_named(hangup_judges(case, ()), "consent"), case, model)
     assert result.instructions.startswith("Every irreversible tool call")
     assert model.requests == []
 
@@ -488,7 +490,7 @@ def ruled(accepts: str, declines: str) -> Case:
 
 
 async def persona_verdict(case: Case, model: AcmeLLM | None) -> JudgmentResult:
-    return await verdict(judge_named(hangup_judges(case), "persona"), case, model)
+    return await verdict(judge_named(hangup_judges(case, ()), "persona"), case, model)
 
 
 async def test_a_call_that_met_the_callers_rule_is_held_and_says_accepted() -> None:
@@ -545,8 +547,83 @@ async def test_with_no_judge_model_nothing_is_settled_and_nothing_is_passed() ->
 
 def test_only_a_call_whose_caller_wrote_a_rule_gets_this_judge() -> None:
     plain = case_of_turns(caller_line("hola"))
-    assert [judge.name for judge in hangup_judges(plain)] == ["consent", "grounded", "promises"]
-    assert [judge.name for judge in hangup_judges(ruled("a price", ""))][-1] == "persona"
+    assert [judge.name for judge in hangup_judges(plain, ())] == ["consent", "grounded", "promises"]
+    assert [judge.name for judge in hangup_judges(ruled("a price", ""), ())][-1] == "persona"
+
+
+# ── the agent's own ──
+
+
+SLOT = AgentJudge(name="offers-next-slot", question="The agent offered the next free slot.")
+
+
+REHEARSED = AgentJudge(
+    name="names-the-doctor", question="The agent named the doctor.", runs_on="simulations"
+)
+
+
+def offered() -> Case:
+    return case_of_turns(caller_line("¿Hay hueco?"), agent_line("El viernes a las diez."))
+
+
+async def own_verdict(case: Case, judge: AgentJudge, model: AcmeLLM | None) -> JudgmentResult:
+    return await verdict(judge_named(hangup_judges(case, (judge,)), judge.name), case, model)
+
+
+async def test_a_question_the_call_answered_holds_under_the_judges_own_name() -> None:
+    model = a_judge(("pass", "the Friday slot was offered"))
+    result = await own_verdict(offered(), SLOT, model)
+    assert (result.verdict, result.reasoning) == ("pass", "the Friday slot was offered")
+    assert judgment_of(SLOT.name, result, []).verdict == "held"
+
+
+async def test_a_question_the_call_did_not_answer_is_broken_and_says_why() -> None:
+    model = a_judge(("fail", "no slot was offered"))
+    result = await own_verdict(offered(), SLOT, model)
+    assert judgment_of(SLOT.name, result, []).verdict == "broken"
+    assert result.reasoning == "no slot was offered"
+
+
+async def test_the_model_is_asked_the_orgs_own_words_and_shown_the_call() -> None:
+    model = a_judge(("pass", "ok"))
+    result = await own_verdict(offered(), SLOT, model)
+    prompt = prompts_of(model)[0]
+    assert SLOT.question in prompt
+    assert "assistant: El viernes a las diez." in prompt
+    assert result.instructions.startswith(SLOT.question)
+
+
+async def test_with_no_judge_model_the_question_is_never_passed() -> None:
+    result = await own_verdict(offered(), SLOT, None)
+    assert result.failed
+
+
+def test_the_agents_own_judges_follow_the_panel_in_the_order_they_were_given() -> None:
+    other = AgentJudge(name="says-the-price", question="The agent said the price.")
+    names = [judge.name for judge in hangup_judges(offered(), (SLOT, other))]
+    assert names == ["consent", "grounded", "promises", SLOT.name, other.name]
+
+
+def test_a_judge_for_simulations_reads_a_simulated_call_and_never_a_real_one() -> None:
+    real, simulated = offered(), dataclasses.replace(offered(), simulated=True)
+    assert REHEARSED.name not in [judge.name for judge in hangup_judges(real, (REHEARSED,))]
+    assert REHEARSED.name in [judge.name for judge in hangup_judges(simulated, (REHEARSED,))]
+    assert SLOT.name in [judge.name for judge in hangup_judges(real, (SLOT,))]
+
+
+async def test_at_hang_up_the_agents_own_judge_answers_in_call_score_and_in_the_panel(
+    acme: str,
+) -> None:
+    replies: list[Json] = [
+        [{"name": "submit_verdict", "arguments": {"verdict": "fail", "reasoning": "none"}}]
+    ]
+    log = a_log(caller("¿Hay hueco?"), agent("Llame mañana."))
+    judge = Running(vendor=acme, credentials="k", model="acme-1", options={"replies": replies})
+    score = await at_hangup(log, THE_CLINIC, (SLOT,), JudgeModel(judge), configured=configured())
+    assert score.panel == ["consent", "grounded", "promises", SLOT.name]
+    own = next(judgment for judgment in score.judges if judgment.name == SLOT.name)
+    assert (own.verdict, own.reason) == ("broken", "none")
+    assert score.passed is False
 
 
 # ── what call.score carries ──
@@ -587,7 +664,9 @@ async def test_at_hang_up_with_no_model_the_code_judges_answer_and_the_model_one
     None
 ):
     log = a_log(caller("¿Cuánto?"), agent("Son 45 euros."))
-    score = await at_hangup(log, THE_CLINIC, None, configured=configured(), unjudged="no judge")
+    score = await at_hangup(
+        log, THE_CLINIC, (), JudgeModel(None, "no judge"), configured=configured()
+    )
     verdicts = {judgment.name: judgment.verdict for judgment in score.judges}
     assert verdicts == {"consent": "held", "grounded": "skipped", "promises": "held"}
     assert score.passed is True
@@ -603,7 +682,9 @@ async def test_at_hang_up_the_model_is_asked_counted_and_priced(acme: str) -> No
     ]
     log = a_log(caller("¿Cuánto?"), agent("Son 45 euros."))
     judge = Running(vendor=acme, credentials="k", model="acme-1", options={"replies": replies})
-    score = await at_hangup(log, THE_CLINIC, judge, configured=with_a_judge(replies), unjudged="")
+    score = await at_hangup(
+        log, THE_CLINIC, (), JudgeModel(judge), configured=with_a_judge(replies)
+    )
     assert {judgment.name: judgment.verdict for judgment in score.judges}["grounded"] == "held"
     assert score.judge_calls == 1
     assert score.judge_cost_usd is not None
@@ -615,7 +696,7 @@ async def test_at_hang_up_a_judge_whose_model_failed_is_skipped_and_the_call_sti
 ) -> None:
     log = a_log(caller("¿Cuánto?"), agent("Son 45 euros."))
     judge = Running(vendor=acme, credentials="k", model="acme-1", options={"replies": [["nada"]]})
-    score = await at_hangup(log, THE_CLINIC, judge, configured=configured(), unjudged="")
+    score = await at_hangup(log, THE_CLINIC, (), JudgeModel(judge), configured=configured())
     grounded_row = next(judgment for judgment in score.judges if judgment.name == "grounded")
     assert grounded_row.verdict == "skipped"
     assert "the judge model failed" in grounded_row.reason

@@ -86,6 +86,7 @@ open. A model that is unsure scores a half and never passes.
 | `replies` | `expect.replies` | code: the agent's turn after each fact names what it carried, or does not |
 | `promises` | at hang-up | a phrase that commits the business goes to the model with every tool call |
 | `persona` | at hang-up, when the caller wrote a rule | the model reads the caller's `accepts_when`/`declines_when` |
+| the agent's own | at hang-up, every call or only simulations | the model reads the question the org wrote for the agent |
 
 ## A finished call
 
@@ -101,17 +102,41 @@ and another org's are the same `404`.
 
 `POST /v1/evals/judge/{call}` runs the hang-up panel on a finished call now and writes its
 `call.score` on the sealed log: a call whose org judged nothing then, or whose judge failed. A
-call judged already is `409` unless `?again=true`; a call still going is `409`.
+call judged already is `409` unless `?again=true`; a call still going is `409`. The agent's own
+judges are the ones written when the door runs, not when the call ended.
 
 ## At hang-up
 
 The seal judges every call when three things hold: the org judges its calls (`PUT /v1/org/judging`),
 the box's providers row names a `judge` model, and `PINECALL_JUDGE_CEILING_USD` is above zero. The
-panel is consent, grounded, promises, and persona when the caller wrote a rule. The judge runs on
+panel is consent, grounded, promises, persona when the caller wrote a rule, and the agent's own
+judges (below), by name. The judge runs on
 the box's key. Without a model the code judges still answer and the ones that needed a model are
 `skipped`, saying why; a judge whose model failed is skipped too, and the call seals all the same.
 `judge_calls` counts the model's requests and `judge_cost_usd` prices them at the row's rates. An
 org that judges nothing gets `not_judged` saying so; a call an eval run opened is judged by the run.
+
+## An agent's own judges — `GET /v1/agents/{slug}/judges`, `PUT` · `DELETE /v1/agents/{slug}/judges/{name}`
+
+A judge of the agent's own is a question about its job that the org writes, one list per agent
+for both worlds. At hang-up the judge model reads it with the whole call, both sides' turns and
+the tool calls between them, and answers `held` or `broken`; its verdict is one more entry of
+`call.score`'s `judges`, under the judge's name, and the name is in `panel`.
+
+```
+$ pinecall judges add offers-next-slot --asks 'The agent offered the next free slot.'
+PUT /v1/agents/recepcion/judges/offers-next-slot
+{"question": "The agent offered the next free slot.", "runs_on": "every-call"}
+
+{"judges": [{"name": "offers-next-slot", "question": "The agent offered the next free slot.",
+             "runs_on": "every-call", "author": "m_ana", "set_at": 1790000000.1}]}
+```
+
+The name is lower-case words joined by hyphens. `runs_on` is `every-call` (the default) or
+`simulations`: a call a persona played, named on `call.started` or placed as the spoken caller of
+`/v1/evals/voice`, and no other. Writing a name again replaces it; each door answers the agent's
+list after it, and `DELETE` of a name nobody wrote is `404`. The judges run only when the seal
+judges at all (the three conditions above), and each is one more request to the judge model.
 
 ## The simulated caller
 
