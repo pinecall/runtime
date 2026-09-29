@@ -1,0 +1,10 @@
+# The nightly backup (infra/box/backup.sh), started by pinecall-backup.timer. Root, because the
+# Postgres container is root's podman; the files it writes are encrypted before they leave memory's reach.
+[Unit]
+Description=Pinecall: back up the database and the recordings, encrypted
+After=pinecall-postgres.service
+Requires=pinecall-postgres.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/pinecall/infra/box/backup.sh

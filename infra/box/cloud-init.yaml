@@ -10,6 +10,7 @@ packages:
   - curl
   - rsync
   - openssl
+  - age
 
 users:
   # The account `make box` and `make deploy` arrive as. Its sudo serves install.sh, run by you;

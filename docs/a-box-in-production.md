@@ -54,6 +54,25 @@ every sealed call older than its org's `retention_days`. An org with no days kee
 Each erasure is a row of `erasures`, which outlives the org. The journal keeps a month
 (`journald.conf.d/pinecall.conf`, 1 GB at most) and Caddy writes no access log.
 
+### Backups
+
+`pinecall-backup.timer` runs `infra/box/backup.sh` at 03:00: `pg_dump -Fc` of the database, read
+back by `pg_restore --list` before anything else, and a tar of the recordings, each encrypted with
+`age` to `/etc/pinecall/backup.age.pub` (`infra/box/backup.age.pub`), with a manifest of their
+sha256 before encryption. The private key is never on the box: whoever restores holds it. They
+are kept 7 days in `/var/lib/pinecall/backups`; with `PINECALL_BACKUP_BUCKET=<bucket>` in
+`/etc/pinecall/backup.env` (the operator's file, which `install.sh` never writes) each night's
+files are copied to that bucket with the VM's own identity, which needs `storage.objects.create`
+on it and nothing else; the bucket's lifecycle rule deletes them after 35 days.
+
+A restore, from a machine that holds the key:
+
+```sh
+age -d -i backup-age.key -o db.dump 20260930T030000Z.db.dump.age
+sha256sum -c 20260930T030000Z.sha256 --ignore-missing      # the bytes the box dumped
+pg_restore --clean --if-exists -d "$DATABASE_URL" db.dump    # on the box being restored
+```
+
 ## 5. What the box runs
 
 From the console's box screens, or the operator's doors with the ops key

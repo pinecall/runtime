@@ -44,6 +44,10 @@ install -D -m 0644 "$HERE/tmpfiles.d/pinecall.conf" /etc/tmpfiles.d/pinecall.con
 systemd-sysusers
 systemd-tmpfiles --create /etc/tmpfiles.d/pinecall.conf
 
+# age encrypts the nightly backup; a box born before it was in cloud-init gets it here.
+command -v age >/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y -q age
+install -m 0644 "$HERE/backup.age.pub" /etc/pinecall/backup.age.pub
+
 install -m 0644 "$HERE/nftables.conf" /etc/nftables.conf
 nft -f /etc/nftables.conf
 install -d /etc/systemd/journald.conf.d
@@ -97,5 +101,5 @@ systemctl restart caddy
 # Started by the first deploy, which brings the code they run.
 systemctl enable pinecall-migrate pinecall-gateway pinecall-worker@production \
     pinecall-worker@sandbox pinecall-overflow@production
-systemctl enable --now pinecall-retention.timer
+systemctl enable --now pinecall-retention.timer pinecall-backup.timer
 echo "the box stands at $DOMAINS (production $FIRST, sandbox ${SECOND:-$FIRST}): run \`make deploy BOX=…\` from the checkout"
