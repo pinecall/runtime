@@ -20,8 +20,11 @@ them: empty `__init__.py` files, no pass-through functions, an import graph decl
 (`test_05_import_graph.py`; `docs/architecture.md` is the same graph in prose), no duplicated
 code, tests mirroring source files one to one, no linter suppressions, ruff on every rule,
 pyright strict, no secret-shaped strings, every task with a named owner, no module over 700
-lines, no literary names, and private modules (`_name.py`) that stay inside their package. Read `docs/conventions.md` before writing a file: it says which names,
-which data model and which error to use.
+lines, no literary names, private modules (`_name.py`) that stay inside their package, a module
+that reads top to bottom (constants, classes, public functions, private ones), a budget for the
+gateway's private modules, `docs/architecture.md` carrying each folder's measures, and
+`docs/wire/` describing every field of the wire. Read `docs/conventions.md` before writing a
+file: it says which names, which data model and which error to use.
 
 ## A change
 

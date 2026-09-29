@@ -21,7 +21,8 @@ Four rows of `box_settings`, each read and written whole, the console's box scre
 
 - `GET` · `PUT /v1/ops/providers`: the providers row: the default vendor and model of each stage,
   the models a vendor named alone runs, the voice per vendor and language, what each vendor is told
-  (`tuning`), the language hints, the rates a call is priced at in dollars, the judge model, the
+  (`tuning`), the language hints, the rates a call is priced at in dollars, the judge model and what
+  judging one call may spend on it (`judge.ceiling_usd`: a model judge past it is `skipped`), the
   embedder. A vendor not installed, or not doing the stage it is named for, is `400` where it is
   written. No vendor is listed in code: every livekit plugin installed is one.
 - `GET /v1/ops/provider-keys`, `PUT` · `DELETE /v1/ops/provider-keys/{vendor} {key | credentials}`:
