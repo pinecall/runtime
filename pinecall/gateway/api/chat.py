@@ -18,8 +18,7 @@ from pinecall.domain.scope import Scope
 from pinecall.gateway import _deps
 from pinecall.gateway._call_setup import exhausted
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP
-from pinecall.gateway._sockets import Registration
+from pinecall.gateway._sockets import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registration
 from pinecall.gateway._text_calls import open_text, resume_text, tokens_of
 from pinecall.log.logs import Subscription
 from pinecall.session import text

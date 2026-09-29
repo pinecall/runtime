@@ -37,6 +37,17 @@ ANOTHER_ORGS = "agent {slug} belongs to another org: a slug is one org's"
 NOT_REGISTERED = "agent {slug} is not registered on this socket: register it first"
 
 
+NO_AGENT = "no app is holding agent {slug}"
+
+
+NOT_THAT_APP = "app {app} is not holding agent {slug}: it disconnected, or it never held it"
+
+
+NO_UNCLAIMED = (
+    "agent {slug} is held only by apps that take no call they did not open: run `pinecall start`"
+)
+
+
 type Stop = Callable[[str], Awaitable[None]]
 
 

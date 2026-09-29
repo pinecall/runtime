@@ -1,57 +1,36 @@
-"""The calls this gateway serves: opened, handed on, sealed, and reaped when their worker dies."""
+"""The calls this gateway serves: opened, handed to an app, parked, claimed, and looked up for."""
 
 import asyncio
 import logging
-import time
-from collections.abc import Awaitable, Callable, Iterable, Sequence
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Literal
 
-from livekit import api
-
-from pinecall.channels.rooms import room_closed, rooms_with_an_agent
-from pinecall.domain.agent import AgentConfig, Model
+from pinecall.domain.agent import AgentConfig
 from pinecall.domain.call import CallContext
-from pinecall.domain.errors import Conflict, NotAvailable, PinecallError, QuotaExhausted
 from pinecall.domain.names import CHANNELS_WITH_A_NUMBER, Env, JsonObject
 from pinecall.domain.scope import Scope
-from pinecall.evals import judges
-from pinecall.gateway._call_setup import exhausted, keys_of
 from pinecall.gateway._sockets import Process, Registration, SocketId, Sockets, orgs_own
-from pinecall.log import facts, queries
 from pinecall.log.logs import Log, Logs, Subscription, arrival_entry
-from pinecall.log.reduce import phone_legs, reduce
+from pinecall.log.reduce import reduce
 from pinecall.log.store import Store
-from pinecall.postgres.pool import Pool
 from pinecall.process.connections import Connections
-from pinecall.providers import catalog, credentials, prices
-from pinecall.providers.catalog import Providers
-from pinecall.providers.credentials import Keyring, thinking
-from pinecall.retrieval import extraction, lookups, memory
+from pinecall.retrieval import lookups
 from pinecall.retrieval.embed import Embedder
-from pinecall.retrieval.extraction import MemoryWrite
 from pinecall.retrieval.lookups import OnTheCall
 from pinecall.session.session import Session
 from pinecall.session.tools import ToolCalls
-from pinecall.tenancy import admission, orgs, vault
+from pinecall.tenancy import admission
 from pinecall.tenancy.codes import Codes
-from pinecall.tenancy.judges import StoredJudge, for_call
 from pinecall.wire.commands import DevAnswer
 from pinecall.wire.events import (
     CallAttached,
     CallClaimed,
-    CallEnded,
-    CallScore,
     CallStarted,
-    CallSummary,
-    ErrorEvent,
-    MemoryOps,
 )
 from pinecall.wire.frames import Command, Entry
-from pinecall.wire.parts import EndReason, MemoryOp
-from pinecall.wire.rest.calls import LookupRequest, SealCallRequest
-from pinecall.wire.state import AgentTurn
+from pinecall.wire.rest.calls import LookupRequest
 
 type Send = Callable[[Entry], Awaitable[None]]
 
@@ -59,66 +38,11 @@ type Send = Callable[[Entry], Awaitable[None]]
 logger = logging.getLogger(__name__)
 
 
-NO_AGENT = "no app is holding agent {slug}"
-
-
-NOT_THAT_APP = "app {app} is not holding agent {slug}: it disconnected, or it never held it"
-
-
-NO_UNCLAIMED = (
-    "agent {slug} is held only by apps that take no call they did not open: run `pinecall start`"
-)
-
-
-JUDGING_OFF = "this org's calls are not judged at hang-up: POST /v1/evals/judge/{call} judges one"
-
-A_RUN_JUDGES_IT = "an eval run opened this call, and its own judges scored it in the run's matrix"
-
-NO_JUDGE = "this box's providers configuration names no judge model"
-
-NO_CEILING = "the providers row gives the judge a ceiling of zero, so no judge model may be asked"
-
-JUDGING_BROKE = "judging this call failed: {broke}"
-
-
-NOT_JUDGED_REAPED = (
-    "the worker holding this call went away before it could end it, and the platform sealed the "
-    "log: there was no session left to judge"
-)
-
-
-NOTHING_SAID = "no reply"
-
-
-REMEMBER_FAILED = "the call was not written into memory: {why}"
-
-
-# What a hang-up waits for the one model call that writes memory, unless the settings say.
-REMEMBER_BUDGET_S = 8.0
-
-
 # Entries a taking-over socket is rebuilt from; the prompt is not, the log keeps its hash alone.
 STARTED = "call.started"
 
 
 CLAIMED = "call.claimed"
-
-
-# Well over livekit's empty_timeout (60 s): the empty room is the signal, this is the margin.
-QUIET_S = 5 * 60.0
-
-
-REAPED_EVERY_S = 60.0
-
-
-AT_MOST = 100
-
-
-# How long a WhatsApp thread waits for its contact before it is closed.
-A_THREAD_WAITS_S = 2 * 60 * 60.0
-
-
-REAPED = "sealed %s: no agent is in its room and it has said nothing for %.0f s"
 
 
 # A call belongs to its agent, not to a socket: `app` is None while it waits for one.
@@ -332,48 +256,9 @@ async def looked_up(serving: Serving, served: Served, request: LookupRequest) ->
         context=served.context,
         config=served.config,
         log=served.log,
-        now=_now(serving),
+        now=now_of(serving),
     )
     return await lookups.lookup(pool, serving.embedder, on_the_call, request, quotas=quotas)
-
-
-# Between call.ended and call.summary, on the org's keys as they are now. A refusal at the cap goes
-# on the agent's log and the call's says an empty remember; a break is an entry, and it seals.
-async def remembered(serving: Serving, served: Served) -> MemoryWrite | None:
-    """What the call taught its contact's memory, written; None when the agent keeps nothing."""
-    pool = serving.connections.pool
-    entries = await serving.logs.store.whole(served.call)
-    heard = lookups.heard_in(served.context, served.config, entries, at=_now(serving))
-    if heard is None or serving.embedder is None:
-        return None
-    try:
-        await admission.admit_memory(
-            pool,
-            served.scope.org,
-            served.scope.env,
-            kept=await memory.kept(pool, served.scope.org, served.scope.env),
-        )
-    except QuotaExhausted as refused:
-        await exhausted(serving.logs, served.scope.org, served.agent, refused)
-        op = MemoryOp(op="remember", contact=heard.contact, facts=[], took_ms=0.0)
-        await served.log.append("memory.ops", MemoryOps(ops=[op]).written())
-        return MemoryWrite(op=op, usage=None)
-    budget = serving.connections.settings.remember_budget_s or REMEMBER_BUDGET_S
-    try:
-        async with asyncio.timeout(budget):
-            configured = await catalog.providers(pool)
-            keys = await keys_of(pool, serving.connections.vault, served.scope)
-            model = thinking(served.config, configured, keys)
-            written = await extraction.remember(pool, serving.embedder, model, served.scope, heard)
-    except Exception as broke:
-        # Memory is a courtesy to the next call; this one ends all the same.
-        logger.warning("call %s was not written into memory", served.call, exc_info=True)
-        why = REMEMBER_FAILED.format(why=str(broke) or type(broke).__name__)
-        failed = ErrorEvent(code="remember_failed", message=why, recoverable=True)
-        await served.log.append("error", failed.written())
-        return None
-    await served.log.append("memory.ops", MemoryOps(ops=[written.op]).written())
-    return written
 
 
 async def attach(live: ServedCalls, store: Store, call: str, app: SocketId) -> Entry | None:
@@ -440,104 +325,8 @@ async def claim_code(
     return True
 
 
-# One end for every call: a worker's, a written one's, and one the reaper finishes.
-async def sealed(
-    serving: Serving, served: Served, sealing: SealCallRequest, *, lent: Sequence[str] = ()
-) -> None:
-    """Remember, price the call, write its summary and its score, seal the log, let it go."""
-    written = await remembered(serving, served)
-    # The memory model's tokens are the call's: they are billed with it.
-    if written is not None and written.usage is not None:
-        sealing = sealing.model_copy(update={"usage": [*sealing.usage, written.usage]})
-    await _summed_up(serving.connections.pool, serving.logs.store, served.log, sealing)
-    if lent:
-        await facts.lent(serving.connections.pool, served.call, lent)
-    if served.context.run is not None:
-        score = CallScore(judges=[], judge_calls=0, not_judged=A_RUN_JUDGES_IT)
-    elif not await orgs.judged(serving.connections.pool, served.scope.org):
-        score = CallScore(judges=[], judge_calls=0, not_judged=JUDGING_OFF.format(call=served.call))
-    else:
-        entries = await serving.logs.store.whole(served.call)
-        own = await for_call(serving.connections.pool, served.scope.org, served.agent)
-        score = await judged_call(serving.connections, entries, served.config, own)
-    await served.log.append("call.score", score.written())
-    serving.logs.forget(served.call)
-    serving.live.close(served.call)
-
-
-# A killed job writes no call.ended, and nothing else would close its log.
-async def reaped(serving: Serving, server: api.LiveKitAPI, now: float) -> list[str]:
-    """Seal the quiet calls nothing runs any more, and say which."""
-    sealed_now: list[str] = []
-    quiet = await queries.unsealed_spoken(serving.connections.pool, now - QUIET_S, limit=AT_MOST)
-    existing: set[str] = set()
-    if quiet:
-        existing = await rooms_with_an_agent(server, [item.call for item in quiet])
-    for orphan in quiet:
-        if orphan.call not in existing and await _finished(serving, orphan, "drained"):
-            # The room goes too, so whoever is still in it hears the call end.
-            await room_closed(server, orphan.call)
-            logger.warning(REAPED, orphan.call, now - orphan.last_at)
-            sealed_now.append(orphan.call)
-    for orphan in await queries.unsealed_written(
-        serving.connections.pool, now - QUIET_S, limit=AT_MOST
-    ):
-        # A written call waits for its caller as long as its channel would.
-        patience = A_THREAD_WAITS_S if orphan.channel == "whatsapp" else QUIET_S
-        if serving.live.calls.get(orphan.call) is not None or now - orphan.last_at < patience:
-            continue
-        if await _finished(serving, orphan, "timeout"):
-            sealed_now.append(orphan.call)
-    return sealed_now
-
-
-# A pass that fails is said, and the next one runs: the reaper never stops.
-async def reap_forever(serving: Serving, server: api.LiveKitAPI) -> None:
-    """A pass now, and one every minute."""
-    while True:
-        try:
-            await reaped(serving, server, time.time())
-        except (Conflict, NotAvailable, api.TwirpError, OSError):
-            logger.warning(
-                "the reaper's pass failed; the next is in %.0f s", REAPED_EVERY_S, exc_info=True
-            )
-        await asyncio.sleep(REAPED_EVERY_S)
-
-
-# The seal never fails on a judge: a call that could not be judged says why and seals all the same.
-async def judged_call(
-    connections: Connections,
-    entries: Sequence[Entry],
-    declared: AgentConfig | None,
-    own: Sequence[StoredJudge],
-) -> CallScore:
-    """The hang-up panel and the agent's own judges over a finished call, a model's when named."""
-    call = next((entry.call for entry in entries if entry.call is not None), "")
-    try:
-        configured = await catalog.providers(connections.pool)
-        judge = await judge_of(connections, configured)
-        questions = [stored.judge for stored in own]
-        return await judges.at_hangup(entries, declared, questions, judge, configured=configured)
-    except PinecallError as broke:
-        logger.warning("call %s: nothing judged it", call, exc_info=True)
-        return CallScore(judges=[], judge_calls=0, not_judged=JUDGING_BROKE.format(broke=broke))
-
-
-# Always the box's key, never an org's: judging is the platform's measure, the same for all.
-async def judge_of(connections: Connections, configured: Providers) -> judges.JudgeModel:
-    """The judge model on the box's key, or None and the sentence that says why there is none."""
-    if configured.judge is None:
-        return judges.JudgeModel(None, 0.0, NO_JUDGE)
-    if configured.judge.ceiling_usd <= 0:
-        return judges.JudgeModel(None, 0.0, NO_CEILING)
-    box = await vault.box_credentials(connections.pool, connections.vault)
-    named = configured.judge.llm
-    declared = Model(provider=named.vendor, model=named.model or "")
-    stage = credentials.stage("llm", declared, configured, Keyring(box=box))
-    return judges.JudgeModel(stage, configured.judge.ceiling_usd)
-
-
-def _now(serving: Serving) -> datetime:
+def now_of(serving: Serving) -> datetime:
+    """This moment by the store's clock, the one every entry of a call is stamped with."""
     return datetime.fromtimestamp(serving.logs.store.clock(), UTC)
 
 
@@ -548,53 +337,3 @@ async def _pumped(entries: Subscription, send: Send) -> None:
     except (OSError, RuntimeError):
         logger.warning("an app socket stopped taking its call's entries", exc_info=True)
         entries.close()
-
-
-# Duration ends at the last entry, not now: reaping late bills no extra minutes.
-async def _finished(serving: Serving, orphan: queries.Unsealed, reason: EndReason) -> bool:
-    store = serving.logs.store
-    log = serving.logs.writing(orphan.call, orphan.agent)
-    written_types = {item.type for item in await store.whole(orphan.call)}
-    try:
-        if "call.ended" not in written_types:
-            ended = CallEnded(
-                reason=reason,
-                ended_by="platform",
-                ended_at=orphan.last_at,
-                duration_s=max(orphan.last_at - orphan.started_at, 0.0),
-            )
-            await log.append("call.ended", ended.written())
-        if "call.summary" not in written_types:
-            await _summed_up(
-                serving.connections.pool,
-                store,
-                log,
-                SealCallRequest(usage=[], outcome=NOTHING_SAID),
-            )
-        score = CallScore(judges=[], judge_calls=0, not_judged=NOT_JUDGED_REAPED)
-        await log.append("call.score", score.written())
-    except Conflict:
-        # Another gateway sealed it first: nothing is left to do.
-        return False
-    finally:
-        serving.logs.forget(orphan.call)
-    serving.live.close(orphan.call)
-    return True
-
-
-async def _summed_up(pool: Pool, store: Store, log: Log, sealing: SealCallRequest) -> None:
-    """call.summary: how the call ended, what it used, what that cost."""
-    entries = await store.whole(log.name)
-    ended = next((entry for entry in reversed(entries) if entry.type == "call.ended"), None)
-    over = None if ended is None else CallEnded.model_validate(ended.data)
-    state = reduce(entries)
-    summary = CallSummary(
-        reason="error" if over is None else over.reason,
-        outcome=sealing.outcome,
-        duration_s=0.0 if over is None else over.duration_s,
-        turns=sum(1 for turn in state.turns if isinstance(turn, AgentTurn)),
-        usage=sealing.usage,
-        cost=prices.cost(sealing.usage, await catalog.providers(pool), legs=phone_legs(entries)),
-        recording=sealing.recording,
-    )
-    await log.append("call.summary", summary.written())
