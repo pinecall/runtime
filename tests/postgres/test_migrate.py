@@ -163,6 +163,44 @@ async def test_a_database_the_previous_runtime_migrated_is_taken_over_without_ru
     assert await column_of(schema, "schema_migrations", "name") == [FIRST, *later]
 
 
+# v1's own migration had added the dollar columns beside the euro ones before the takeover.
+@postgres
+async def test_a_v1_database_that_already_counts_in_dollars_keeps_its_dollars_and_loses_its_euros(
+    schema: str,
+) -> None:
+    await pretend_it_ran(schema, ("0001_initial.sql", "c" * 64), ("0053_dollars.sql", "d" * 64))
+    async with await connect(DSN) as connection:
+        await connection.execute(
+            sql.SQL("set search_path to {}, public").format(sql.Identifier(schema))
+        )
+        await connection.execute((MIGRATIONS / FIRST).read_bytes())
+        await connection.execute("alter table call_facts add column cost_usd double precision")
+        await connection.execute("alter table quotas add column budget_usd integer")
+        await connection.execute(
+            "insert into call_facts (call, cost_eur, cost_usd) values ('CA_old', 2.0, null),"
+            " ('CA_new', 9.0, 3.0)"
+        )
+
+    await apply_migrations(DSN, schema=schema)
+
+    async with await connect(DSN) as connection:
+        await connection.execute(
+            sql.SQL("set search_path to {}, public").format(sql.Identifier(schema))
+        )
+        rows = await (
+            await connection.execute("select call, cost_usd from call_facts order by call")
+        ).fetchall()
+        kept = await (
+            await connection.execute(
+                "select table_name, column_name from information_schema.columns"
+                " where table_schema = %s and column_name in ('cost_eur', 'budget_eur')",
+                (schema,),
+            )
+        ).fetchall()
+    assert [(row["call"], row["cost_usd"]) for row in rows] == [("CA_new", 3.0), ("CA_old", 2.0)]
+    assert kept == []
+
+
 @postgres
 async def test_two_runs_at_once_do_not_both_migrate(schema: str) -> None:
     both = await asyncio.gather(
