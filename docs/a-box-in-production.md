@@ -51,7 +51,9 @@ Every call's log is kept until it is erased: by its org (`DELETE /v1/calls/{call
 `DELETE /v1/contacts/{contact}`), by the operator erasing the org (`DELETE /v1/ops/orgs/{named}`),
 or by `pinecall-retention.timer`, which runs `pinecall-runtime retention run` at 04:00 and erases
 every sealed call older than its org's `retention_days`. An org with no days keeps everything.
-Each erasure is a row of `erasures`, which outlives the org. The journal keeps a month
+Each erasure is a row of `erasures`, which outlives the org. An erased phone call leaves its detail
+record (numbers, times, how it ended) in `call_records` for 24 months, and the `dials` ledger keeps
+every dial: `pinecall-runtime traceback <number>` reads both for a carrier. The journal keeps a month
 (`journald.conf.d/pinecall.conf`, 1 GB at most) and Caddy writes no access log.
 
 ### Backups

@@ -1,11 +1,11 @@
-"""Tests for retention: an org's days, the calls past them, and the run that erases only those."""
+"""Tests for retention: an org's days, the calls past them, the run, call records past 24 months."""
 
 from pathlib import Path
 
 from pinecall.domain.scope import Scope
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
-from pinecall.tenancy import erasure, policy, retention
+from pinecall.tenancy import erasure, policy, retention, traceback
 from pinecall.wire.rest.accounts import OrgPolicy
 from tests.conftest import postgres
 from tests.log.conftest import ACall, logged_call
@@ -63,3 +63,17 @@ async def test_a_run_stops_at_its_limit_and_the_next_one_takes_the_rest(
     assert len(await retention.purge(pool, tmp_path, DAYS_LATER, limit=2)) == 1
     for call in calls:
         assert await store.whole(call) == []
+
+
+async def test_an_erased_calls_record_is_kept_24_months_and_then_forgotten(
+    pool: Pool, store: Store, tmp_path: Path
+) -> None:
+    org = await an_org(pool)
+    call = await logged_call(store, org.id, ACall(caller="+34600555666"))
+    await erasure.call(pool, tmp_path, Scope(org.id), call, by="m_1")
+    await retention.forget_records(pool, 1.0 + 700 * A_DAY_S)
+    assert [kept.call for kept in (await traceback.of_number(pool, "+34600555666", 0)).calls] == [
+        call
+    ]
+    assert await retention.forget_records(pool, 1.0 + 731 * A_DAY_S) >= 1
+    assert (await traceback.of_number(pool, "+34600555666", 0)).calls == []

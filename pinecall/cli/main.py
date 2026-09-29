@@ -15,7 +15,7 @@ import httpx
 import uvicorn
 from livekit import api
 
-from pinecall.cli import _operator, _sessions
+from pinecall.cli import _operator, _sessions, _traceback
 from pinecall.domain.errors import NotAvailable, PinecallError
 from pinecall.gateway.app import announce_closing, app, embedder_of
 from pinecall.postgres.migrate import apply_migrations, migration_files, migrations_behind
@@ -172,9 +172,10 @@ def retention_due(settings: Settings, _args: argparse.Namespace) -> int:
 
 
 def retention_run(settings: Settings, _args: argparse.Namespace) -> int:
-    """Erase every sealed call past its org's days; how many went."""
-    erased = asyncio.run(_purged(settings))
+    """Erase every sealed call past its org's days, forget old call records; how many went."""
+    erased, forgotten = asyncio.run(_purged(settings))
     sys.stdout.write(f"{len(erased)} calls erased past their org's days\n")
+    sys.stdout.write(f"{forgotten} call records forgotten past 24 months\n")
     return 0
 
 
@@ -231,6 +232,9 @@ def verbs() -> argparse.ArgumentParser:
         run=retention_run
     )
     _sessions.sessions_group(under.add_parser("sessions", help="the log, off Postgres"))
+    _traceback.traceback_verb(
+        under.add_parser("traceback", help="a number's calls and dials, for a carrier")
+    )
     _operator.init_group(under.add_parser("init", help="the first org and person, on a fresh box"))
     _operator.orgs_group(under.add_parser("orgs", help="the tenants"))
     _operator.routes_group(under.add_parser("routes", help="which agent answers a number"))
@@ -295,10 +299,12 @@ async def _due(settings: Settings) -> list[retention.Due]:
         await pool.close()
 
 
-async def _purged(settings: Settings) -> list[str]:
+async def _purged(settings: Settings) -> tuple[list[str], int]:
     pool = await open_pool(settings.database_url)
+    now = time.time()
     try:
-        return await retention.purge(pool, Path(settings.recordings_root), time.time())
+        erased = await retention.purge(pool, Path(settings.recordings_root), now)
+        return erased, await retention.forget_records(pool, now)
     finally:
         await pool.close()
 
