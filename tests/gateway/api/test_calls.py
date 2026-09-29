@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from dataclasses import replace
 
 import httpx
 import pytest
@@ -9,7 +10,8 @@ import pytest
 from pinecall.domain.call import CallContext
 from pinecall.domain.names import JsonObject
 from pinecall.domain.person import KEY_SCOPES
-from pinecall.tenancy import orgs, tokens
+from pinecall.tenancy import orgs, policy, tokens
+from pinecall.wire.rest.accounts import OrgPolicy
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
 from tests.conftest import (
     AGENT,
@@ -47,9 +49,39 @@ async def test_a_call_the_worker_opens_rings_on_the_socket_holding_its_agent(
             "/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written()
         )
     assert opened.status_code == 200
-    assert opened.json() == {"seconds_left": None, "minutes": None}
+    assert opened.json() == {
+        "seconds_left": None,
+        "minutes": None,
+        "disclosure": None,
+        "recording_notice": "This call may be recorded.",
+    }
     ringing = await received(app)
     assert (ringing.type, ringing.call) == ("call.ringing", context.call)
+    await app.close()
+
+
+@postgres
+async def test_an_outbound_call_opens_with_the_orgs_disclosure_and_its_notice_as_set(
+    knocking: Knocking,
+) -> None:
+    app = await an_app(knocking)
+    pool = knocking.gateway.connections.pool
+    context = replace(a_call(knocking), direction="outbound")
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        default = await worker.post(
+            "/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written()
+        )
+        await policy.put_policy(
+            pool, knocking.org.id, OrgPolicy(disclosure="", recording_notice=False), by="m_1"
+        )
+        muted = replace(context, call=a_call(knocking).call)
+        silent = await worker.post(
+            "/v1/calls", json=OpenCallRequest(agent=AGENT, context=muted).written()
+        )
+    assert default.json()["disclosure"] == (
+        f"This is an automated assistant calling on behalf of {knocking.org.name}."
+    )
+    assert (silent.json()["disclosure"], silent.json()["recording_notice"]) == (None, None)
     await app.close()
 
 

@@ -483,6 +483,9 @@ class OrgPolicy(WireModel):
     calling_hours: CallingHours | None = None
     per_number_day: Annotated[int, Field(gt=0)] | None = None
     consent_everywhere: bool = False
+    # An outbound call's opening sentence: null is the platform's, "" is none.
+    disclosure: Annotated[str, Field(max_length=500)] | None = None
+    recording_notice: bool = True
 
 
 class OrgPolicyRow(WireModel):

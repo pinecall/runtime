@@ -9,12 +9,14 @@ from pinecall.domain.errors import GatewayRefused, NotFound
 from pinecall.domain.names import THE_WIDGET
 from pinecall.domain.scope import Scope
 from pinecall.session.room import CALLER_NUMBER, DIALLED_NUMBER
+from pinecall.wire.rest.calls import OpenCallResponse
 from pinecall.worker._job import (
     Arrival,
     arrival_of,
     end_reason_of,
     may_be_a_developers,
     named_by,
+    opening_of,
     resolve,
 )
 from tests.fakes.acme import seat
@@ -113,3 +115,20 @@ def test_the_carriers_answer_becomes_the_logs_own_word_for_it(code: str, reason:
 def test_anything_that_is_not_a_sip_answer_is_a_dial_that_failed() -> None:
     assert end_reason_of(GatewayRefused("GET /v1/agents/x/outbound-trunk: 409")) == "dial_failed"
     assert end_reason_of(api.TwirpError("internal", "no", status=500)) == "dial_failed"
+
+
+def test_a_recorded_call_says_its_disclosure_then_the_notice_and_an_unrecorded_one_no_notice() -> (
+    None
+):
+    opened = OpenCallResponse(
+        seconds_left=None,
+        minutes=None,
+        disclosure="This is an automated assistant calling on behalf of Acme.",
+        recording_notice="This call may be recorded.",
+    )
+    assert opening_of(opened, recorded=True) == (
+        "This is an automated assistant calling on behalf of Acme. This call may be recorded."
+    )
+    assert opening_of(opened, recorded=False) == opened.disclosure
+    inbound = OpenCallResponse(seconds_left=None, minutes=None, recording_notice="Grabada.")
+    assert opening_of(inbound, recorded=False) is None

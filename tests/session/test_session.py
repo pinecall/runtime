@@ -173,6 +173,18 @@ async def test_an_instruction_runs_the_model_and_never_the_verbatim_verb(
 
 
 @postgres
+async def test_the_opening_is_said_before_the_greeting_and_logged_as_the_agents_turn(
+    box: Box, store: Store, call: str
+) -> None:
+    session = a_session(box, AgentConfig(slug="clinica-norte", greeting=Greeting(say="Buenas")))
+    await session.start(opening="Le habla un asistente automático en nombre de Clínica Norte.")
+    await settled()
+    await text.end(session, "caller_hung_up", "caller")
+    agent = [entry.data["text"] for entry in await store.whole(call) if entry.type == "turn.agent"]
+    assert agent == ["Le habla un asistente automático en nombre de Clínica Norte.", "Buenas"]
+
+
+@postgres
 async def test_a_call_a_run_opened_is_not_greeted_at_all(box: Box, store: Store, call: str) -> None:
     greeted = AgentConfig(slug="clinica-norte", greeting=Greeting(say="Buenas"))
     session = a_session(box, greeted, run="run_1")
