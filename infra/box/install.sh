@@ -82,8 +82,8 @@ install -d /etc/caddy/conf.d
 install -m 0644 "$HERE/caddy/Caddyfile" /etc/caddy/Caddyfile
 install -d /etc/systemd/system/caddy.service.d
 printf '[Service]\nEnvironmentFile=/etc/pinecall/box.env\n' > /etc/systemd/system/caddy.service.d/pinecall.conf
-install -m 0644 "$HERE"/pinecall-*.service /etc/systemd/system/
-for unit in pinecall-gateway pinecall-worker@ pinecall-overflow@ pinecall-migrate; do
+install -m 0644 "$HERE"/pinecall-*.service "$HERE"/pinecall-*.timer /etc/systemd/system/
+for unit in pinecall-gateway pinecall-worker@ pinecall-overflow@ pinecall-migrate pinecall-retention; do
     install -d "/etc/systemd/system/$unit.service.d"
     install -m 0644 "$HERE/hardening.conf" "/etc/systemd/system/$unit.service.d/hardening.conf"
 done
@@ -97,4 +97,5 @@ systemctl restart caddy
 # Started by the first deploy, which brings the code they run.
 systemctl enable pinecall-migrate pinecall-gateway pinecall-worker@production \
     pinecall-worker@sandbox pinecall-overflow@production
+systemctl enable --now pinecall-retention.timer
 echo "the box stands at $DOMAINS (production $FIRST, sandbox ${SECOND:-$FIRST}): run \`make deploy BOX=…\` from the checkout"

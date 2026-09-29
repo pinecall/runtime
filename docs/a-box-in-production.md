@@ -45,6 +45,15 @@ fleet key into its unit's store.
 `pinecall-runtime doctor` asks each thing the box needs one question, a line each: the vault key,
 the database and its migrations, LiveKit, the gateway. Its exit is the deploy's.
 
+### What the box keeps, and for how long
+
+Every call's log is kept until it is erased: by its org (`DELETE /v1/calls/{call}`,
+`DELETE /v1/contacts/{contact}`), by the operator erasing the org (`DELETE /v1/ops/orgs/{named}`),
+or by `pinecall-retention.timer`, which runs `pinecall-runtime retention run` at 04:00 and erases
+every sealed call older than its org's `retention_days`. An org with no days keeps everything.
+Each erasure is a row of `erasures`, which outlives the org. The journal keeps a month
+(`journald.conf.d/pinecall.conf`, 1 GB at most) and Caddy writes no access log.
+
 ## 5. What the box runs
 
 From the console's box screens, or the operator's doors with the ops key

@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import logging
 import sys
+import time
 from collections.abc import Sequence
 from pathlib import Path
 from types import FrameType
@@ -25,7 +26,7 @@ from pinecall.providers import catalog, prices
 from pinecall.providers.build import installed
 from pinecall.providers.catalog import Providers
 from pinecall.retrieval import memory
-from pinecall.tenancy import vault
+from pinecall.tenancy import retention, vault
 from pinecall.worker import main as worker
 
 logger = logging.getLogger(__name__)
@@ -161,6 +162,22 @@ def memory_reembed(settings: Settings, _args: argparse.Namespace) -> int:
     return 0
 
 
+def retention_due(settings: Settings, _args: argparse.Namespace) -> int:
+    """The sealed calls the next run would erase, one line each, and how many."""
+    calls = asyncio.run(_due(settings))
+    for call in calls:
+        sys.stdout.write(f"{call.call}  {call.scope.org} {call.scope.env}\n")
+    sys.stdout.write(f"{len(calls)} calls past their org's days\n")
+    return 0
+
+
+def retention_run(settings: Settings, _args: argparse.Namespace) -> int:
+    """Erase every sealed call past its org's days; how many went."""
+    erased = asyncio.run(_purged(settings))
+    sys.stdout.write(f"{len(erased)} calls erased past their org's days\n")
+    return 0
+
+
 def doctor(settings: Settings, _args: argparse.Namespace) -> int:
     """Each thing the box needs, a line each; the exit is 1 when one is missing."""
     lines = asyncio.run(_examined(settings))
@@ -204,6 +221,14 @@ def verbs() -> argparse.ArgumentParser:
     memory_verbs = under.add_parser("memory", help="contact memory").add_subparsers(required=True)
     memory_verbs.add_parser("reembed", help="every fact under the box's embedder").set_defaults(
         run=memory_reembed
+    )
+    kept = under.add_parser("retention", help="the calls past their org's days")
+    kept_verbs = kept.add_subparsers(required=True)
+    kept_verbs.add_parser("due", help="what the next run would erase").set_defaults(
+        run=retention_due
+    )
+    kept_verbs.add_parser("run", help="erase them; the box's timer runs it nightly").set_defaults(
+        run=retention_run
     )
     _sessions.sessions_group(under.add_parser("sessions", help="the log, off Postgres"))
     _operator.init_group(under.add_parser("init", help="the first org and person, on a fresh box"))
@@ -259,6 +284,23 @@ async def _reembedded(settings: Settings) -> int:
         if embedder is None:
             raise NotAvailable("this box embeds nothing: no embedding in its providers row")
         return await memory.reembed(connections.pool, embedder)
+
+
+# The database alone: no vault, no LiveKit, so the nightly unit is handed nothing else.
+async def _due(settings: Settings) -> list[retention.Due]:
+    pool = await open_pool(settings.database_url)
+    try:
+        return await retention.due(pool, time.time())
+    finally:
+        await pool.close()
+
+
+async def _purged(settings: Settings) -> list[str]:
+    pool = await open_pool(settings.database_url)
+    try:
+        return await retention.purge(pool, Path(settings.recordings_root), time.time())
+    finally:
+        await pool.close()
 
 
 async def _examined(settings: Settings) -> list[tuple[str, str | None]]:
