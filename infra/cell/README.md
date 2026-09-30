@@ -9,6 +9,7 @@ primary.sh                  on the box: `allow <replica address>` (the role, the
                             published toward the replica and fenced to it alone), `forget`
 replica.sh                  on the second machine: `join <box address>`, the replication password on stdin
 pinecall-postgres.container the standby: the box's image, volume and container name
+alerts.yaml                 the four alerts, as Prometheus rules over the gateway's /metrics
 ```
 
 The second machine runs Ubuntu 24.04 in the box's own network and holds a copy of the box's

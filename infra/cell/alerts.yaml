@@ -1,0 +1,30 @@
+# The four alerts a cell carries, as Prometheus alerting rules over the gateway's /metrics
+# (docs/a-box-in-production.md, "The four alerts"). Any Prometheus or compatible agent reads them;
+# nothing here names a cloud. Nothing else is added until one of these misses an incident.
+groups:
+  - name: pinecall
+    rules:
+      # A write that waits is every call waiting: the log is on the path of every entry.
+      - alert: PinecallAppendsSlow
+        expr: histogram_quantile(0.99, sum by (le) (rate(pinecall_append_seconds_bucket[5m]))) > 0.25
+        for: 5m
+        annotations:
+          summary: "appends take {{ $value }}s at p99: the database is the call's bottleneck"
+      # Busy past 0.8 for five minutes and the loop has not caught up: new calls will hear the overflow.
+      - alert: PinecallFleetBusy
+        expr: sum by (fleet) (pinecall_fleet{what="busy"}) / sum by (fleet) (pinecall_fleet{what="seats"}) > 0.8
+        for: 5m
+        annotations:
+          summary: "fleet {{ $labels.fleet }} is {{ $value | humanizePercentage }} busy"
+      # A vendor over its error line: its calls are being stepped over to the fallbacks.
+      - alert: PinecallVendorFailing
+        expr: max by (vendor) (pinecall_vendor_failing) == 1
+        for: 2m
+        annotations:
+          summary: "{{ $labels.vendor }} fails half the calls handed it"
+      # A standby far behind is a failover that loses what it has not replayed.
+      - alert: PinecallReplicaBehind
+        expr: max by (replica) (pinecall_replication_lag_seconds) > 30
+        for: 5m
+        annotations:
+          summary: "replica {{ $labels.replica }} is {{ $value }}s behind"

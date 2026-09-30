@@ -2,6 +2,7 @@
 
 import time
 
+import psycopg
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
 
@@ -22,6 +23,13 @@ NOT_HERE = "/metrics answers on the box's loopback alone: curl http://127.0.0.1:
 
 TEXT_FORMAT = "text/plain; version=0.0.4; charset=utf-8"
 
+# What each standby is behind, as the primary sees it: empty on a box with no replica, and on a
+# standby itself. A lag never replayed yet (a replica caught up and idle) reads as zero.
+REPLICAS = """
+select application_name as replica, extract(epoch from coalesce(replay_lag, interval '0')) as lag
+from pg_stat_replication
+"""
+
 
 # No key: the address is the fence, and a scraper on the box holds none.
 @router.get("/metrics", include_in_schema=False)
@@ -29,10 +37,21 @@ async def read_metrics(request: Request, gateway: GatewayDep) -> PlainTextRespon
     """What the gateway counted since it started and what it holds now, in Prometheus's text."""
     if client_of(request) not in LOOPBACK or FORWARDED in request.headers:
         raise NotAllowed(NOT_HERE)
-    return PlainTextResponse(_measures_of(gateway, time.time()), media_type=TEXT_FORMAT)
+    replicas = await _replicas(gateway)
+    return PlainTextResponse(_measures_of(gateway, time.time(), replicas), media_type=TEXT_FORMAT)
 
 
-def _measures_of(gateway: Gateway, now: float) -> str:
+# A database that cannot say leaves the family empty: the scrape still answers.
+async def _replicas(gateway: Gateway) -> list[tuple[str, float]]:
+    try:
+        async with gateway.connections.pool.connection() as connection:
+            rows = await (await connection.execute(REPLICAS)).fetchall()
+    except psycopg.Error:
+        return []
+    return [(str(row["replica"]), float(row["lag"])) for row in rows]
+
+
+def _measures_of(gateway: Gateway, now: float, replicas: list[tuple[str, float]]) -> str:
     """Every family this gateway exposes, in the text format."""
     counted = gateway.counters
     pool = gateway.connections.pool.get_stats()
@@ -112,6 +131,18 @@ def _measures_of(gateway: Gateway, now: float) -> str:
                         ("accepting", total.accepting),
                     )
                 ],
+            ),
+            family(
+                "pinecall_vendor_failing",
+                "Vendors over their error line in the last two minutes, as this gateway saw.",
+                "gauge",
+                [({"vendor": vendor}, 1) for vendor in sorted(counted.failing(now))],
+            ),
+            family(
+                "pinecall_replication_lag_seconds",
+                "How far behind each standby is in replaying the primary's WAL.",
+                "gauge",
+                [({"replica": replica}, lag) for replica, lag in replicas],
             ),
             family(
                 "pinecall_spend_unusual",
