@@ -2,7 +2,6 @@
 
 from dataclasses import replace
 
-from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.log.facts import A_DAY_S
 from pinecall.log.queries import (
@@ -135,40 +134,6 @@ async def test_a_day_is_counted_in_its_corner(store: Store, org: str) -> None:
 
 
 @postgres
-async def test_each_stage_of_the_days_turns_is_read_by_vendor_and_model(
-    store: Store, org: str
-) -> None:
-    call = await logged_call(store, org, ACall(ended=False))
-    elsewhere = await logged_call(
-        store, org, ACall(scope=Scope(org, "sandbox", "m_dev"), ended=False)
-    )
-    for delay, confidence in ((0.2, 0.5), (0.4, 1.0), (1.0, 0.75)):
-        heard = _heard(delay, confidence, "soniox", "stt-rt-v5")
-        await store.append(call, AGENT, "turn.user", heard, ephemeral=False)
-    await store.append(
-        elsewhere, AGENT, "turn.user", _heard(9.0, 0.1, "soniox", "stt-rt-v5"), ephemeral=False
-    )
-    await store.append(
-        call, AGENT, "turn.user", _heard(0.3, 0.95, "deepgram", "nova-3"), ephemeral=False
-    )
-    await store.append(call, AGENT, "turn.agent", _answered(0.5, 0.25), ephemeral=False)
-    day = await counted_day(store.pool, Scope(org), THE_DAY)
-    rows = [
-        (stage.stage, stage.vendor, stage.model, stage.turns, stage.median_s, stage.confidence)
-        for stage in day.stages
-    ]
-    assert rows == [
-        ("llm", "anthropic", "claude-haiku-4-5", 1, 0.5, None),
-        ("stt", "deepgram", "nova-3", 1, 0.3, 0.95),
-        ("stt", "soniox", "stt-rt-v5", 3, 0.4, 0.75),
-        ("tts", "cartesia", "sonic-3", 1, 0.25, None),
-    ]
-    soniox = next(stage for stage in day.stages if stage.vendor == "soniox")
-    assert soniox.p95_s is not None
-    assert round(soniox.p95_s, 2) == 0.94
-
-
-@postgres
 async def test_an_inbox_is_a_line_per_contact_and_counts_what_the_reader_has_not_read(
     store: Store, org: str
 ) -> None:
@@ -196,21 +161,3 @@ async def test_an_inbox_is_a_line_per_contact_and_counts_what_the_reader_has_not
         row.unread for row in (await threads(store.pool, theirs, after=None, limit=10)).rows
     ] == [2, 1]
     assert await calls_with(store.pool, Scope(org), AGENT, "+34622", limit=5) == [spoken]
-
-
-def _heard(delay: float, confidence: float, vendor: str, model: str) -> JsonObject:
-    report: JsonObject = {
-        "transcription_delay": delay,
-        "stt_metadata": {"model_provider": vendor, "model_name": model},
-    }
-    return {"speech_id": "u", "text": "sí", "transcript_confidence": confidence, "metrics": report}
-
-
-def _answered(ttft: float, ttfb: float) -> JsonObject:
-    report: JsonObject = {
-        "llm_node_ttft": ttft,
-        "tts_node_ttfb": ttfb,
-        "llm_metadata": {"model_provider": "anthropic", "model_name": "claude-haiku-4-5"},
-        "tts_metadata": {"model_provider": "cartesia", "model_name": "sonic-3"},
-    }
-    return {"speech_id": "a", "text": "claro", "interrupted": False, "metrics": report}

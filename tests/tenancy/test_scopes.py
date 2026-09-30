@@ -22,6 +22,7 @@ from pinecall.tenancy.scopes import (
     tuning_at,
     tuning_history,
     tuning_side_by_side,
+    versions_noted,
 )
 from tests.conftest import postgres
 
@@ -129,6 +130,21 @@ async def test_history_is_the_corners_own_newest_first_and_at_reads_one_back(poo
     assert at is not None
     assert (at.holder, at.value.voice) == ("m_ana", "a")
     assert await tuning_at(pool, mine, AGENT, 9) is None
+
+
+@postgres
+async def test_the_versions_noted_are_those_named_and_those_set_in_the_window(pool: Pool) -> None:
+    mine, team, _ = await _corners(pool)
+    await put_tuning(pool, team, AGENT, Tuning(voice="team"), Written("m_bo", note="the team's"))
+    await put_tuning(pool, mine, AGENT, Tuning(voice="a"), Written("m_ana", note="first"))
+    await put_tuning(pool, mine, AGENT, Tuning(voice="b"), Written("m_ana", note="second"))
+    named = await versions_noted(pool, mine, AGENT, [1], (0.0, 0.0))
+    assert [(row.holder, row.version, row.note) for row in named] == [("m_ana", 1, "first")]
+    everything = await versions_noted(pool, mine, AGENT, [], (0.0, 4102444800.0))
+    assert [(row.holder, row.version) for row in everything] == [("m_ana", 1), ("m_ana", 2)]
+    assert [row.author for row in await versions_noted(pool, team, AGENT, [1], (0.0, 0.0))] == [
+        "m_bo"
+    ]
 
 
 @postgres

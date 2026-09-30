@@ -1,5 +1,6 @@
 """Tests for the org's meters: the usage feed, one day's insights, and the limits."""
 
+from pinecall.domain.names import JsonObject
 from pinecall.domain.org import Quotas
 from pinecall.tenancy import admission
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
@@ -11,11 +12,45 @@ INSIGHTS = "/v1/insights"
 LIMITS = "/v1/limits"
 
 
-async def a_sealed_call(knocking: Knocking) -> str:
-    """A call of the org, opened by the worker, ended and sealed; its id."""
+DRIFT = "/v1/insights/drift"
+
+
+# One turn each way, whose reports name the vendor and the model of each stage.
+TURNS: list[JsonObject] = [
+    {
+        "type": "turn.user",
+        "data": {
+            "speech_id": "s1",
+            "text": "hola",
+            "transcript_confidence": 0.9,
+            "metrics": {
+                "transcription_delay": 0.3,
+                "stt_metadata": {"model_provider": "acme", "model_name": "acme-ears"},
+            },
+        },
+    },
+    {
+        "type": "turn.agent",
+        "data": {
+            "speech_id": "s1",
+            "text": "buenas",
+            "interrupted": False,
+            "metrics": {
+                "llm_node_ttft": 0.6,
+                "llm_metadata": {"model_provider": "acme", "model_name": "acme-1"},
+            },
+        },
+    },
+]
+
+
+async def a_sealed_call(knocking: Knocking, turns: list[JsonObject] | None = None) -> str:
+    """A call of the org, opened by the worker, its turns written, ended and sealed; its id."""
     context = a_call(knocking)
     async with knocking.http(knocking.fleet["sandbox"]) as worker:
         await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+        for turn in turns or []:
+            await worker.post(f"/v1/calls/{context.call}/events", json=turn)
         await worker.post(
             f"/v1/calls/{context.call}/events",
             json={
@@ -88,6 +123,34 @@ async def test_a_days_insights_count_the_scopes_calls_and_the_orgs_month(
     assert [agent["slug"] for agent in body["agents"]] == [AGENT]
     assert empty.json()["conversations"] == {"today": 0, "yesterday": 0}
     assert empty.json()["stages"] == []
+    await app.close()
+
+
+@postgres
+async def test_a_days_stages_and_an_agents_drift_are_read_from_what_the_seal_counted(
+    knocking: Knocking,
+) -> None:
+    app = await an_app(knocking)
+    await a_sealed_call(knocking, TURNS)
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        today = await org.get(INSIGHTS, params={"day": "1970-01-01"})
+        moved = await org.get(
+            DRIFT, params={"agent": AGENT, "before": "1969-12-31", "after": "1970-01-01"}
+        )
+        by_version = await org.get(DRIFT, params={"agent": AGENT, "before": "v1", "after": "v2"})
+        no_day = await org.get(DRIFT, params={"agent": AGENT, "before": "yesterday"})
+        one_version = await org.get(DRIFT, params={"agent": AGENT, "after": "v2"})
+    stages = [(row["stage"], row["vendor"], row["turns"]) for row in today.json()["stages"]]
+    assert stages == [("llm", "acme", 1), ("stt", "acme", 1)]
+    assert moved.status_code == 200
+    body = moved.json()
+    assert (body["before"]["day"], body["after"]["day"]) == ("1969-12-31", "1970-01-01")
+    ears = next(row for row in body["stages"] if row["stage"] == "stt")
+    assert (ears["before"], ears["after"]["turns"], ears["median_moved_s"]) == (None, 1, None)
+    assert body["after"]["versions"] == []
+    assert by_version.json()["stages"] == []
+    assert (no_day.status_code, one_version.status_code) == (400, 400)
+    assert "neither a day" in no_day.json()["detail"]
     await app.close()
 
 

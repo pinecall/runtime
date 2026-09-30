@@ -6,12 +6,14 @@ import pytest
 
 from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
+from pinecall.log import drift
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy import consents, export
 from pinecall.tenancy.consents import Given
+from pinecall.wire.scores import CallScore
 from tests.conftest import postgres
-from tests.log.conftest import ACall, logged_call
+from tests.log.conftest import ACall, judgment, logged_call
 from tests.tenancy.conftest import an_org
 
 pytestmark = postgres
@@ -64,6 +66,32 @@ async def test_an_orgs_world_comes_out_whole_header_first(pool: Pool, store: Sto
     assert facts["contact"] == "+34 600 111 222"
     assert "embedding" not in lines[2]
     assert lines[3]["text"] == "Open 9 to 5."
+
+
+async def test_the_drift_the_seal_counted_comes_out_as_numbers_by_day(
+    pool: Pool, store: Store
+) -> None:
+    org = await an_org(pool)
+    turn: JsonObject = {
+        "speech_id": "a",
+        "text": "claro",
+        "interrupted": False,
+        "metrics": {"llm_node_ttft": 0.5},
+    }
+    call = await logged_call(
+        store, org.id, ACall(judges=(judgment("consent", "held"),), ended=False)
+    )
+    await store.append(call, "dental-sur", "turn.agent", turn, ephemeral=False)
+    score: JsonObject = {"judges": [judgment("consent", "held")], "judge_calls": 0}
+    await drift.fold(pool, call, await store.whole(call), CallScore.model_validate(score))
+
+    lines = await exported(pool, org.id)
+
+    stage = next(line for line in lines if line["kind"] == "stage_day")
+    verdict = next(line for line in lines if line["kind"] == "judge_day")
+    assert (stage["stage"], stage["turns"], stage["day"]) == ("llm", 1, "1970-01-01")
+    assert (verdict["judge"], verdict["held"], verdict["broken"]) == ("consent", 1, 0)
+    assert call not in json.dumps(lines[-2:]), "a day's numbers name no call"
 
 
 A_SETTING = """

@@ -121,6 +121,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `POST` | `/v1/hosted/{name}/start` | app | Run a stopped app again, its newest release. |
 | `POST` | `/v1/hosted/{name}/stop` | app | Stop running the app: its process drains, and its releases and token stay. |
 | `GET` | `/v1/insights` | calls | One day of the key's world and scope at a glance, and the month's spend. |
+| `GET` | `/v1/insights/drift` | calls | What moved between two days or versions of an agent, and the versions run or set. |
 | `POST` | `/v1/invitations/{token}` | — | Choose a password: the member is active, and here is their first key. |
 | `GET` | `/v1/keys` | — | The org's keys this key may see, oldest first, the revoked ones too; never a key. |
 | `POST` | `/v1/keys` | app | A server's token for the org in one world, `pc_live_` or `pc_test_`. |

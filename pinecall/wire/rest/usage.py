@@ -1,4 +1,4 @@
-"""The bodies of the org's meters: the usage feed, one day's insights, and the limits."""
+"""The bodies of the org's meters: the usage feed, a day's insights, its drift, and the limits."""
 
 from typing import Literal
 
@@ -111,6 +111,77 @@ class Insights(WireModel):
     agents: list[InsightsAgent]
     stages: list[InsightsStage]
     budget: InsightsBudget
+
+
+class DriftSide(WireModel):
+    """One side of a drift as asked: a day, a version; and the versions its calls ran."""
+
+    day: str | None
+    version: int | None
+    versions: list[int]
+
+
+class JudgeTally(WireModel):
+    """One judge on one side: its verdicts that held, those settled, and the share that held."""
+
+    held: int
+    judged: int
+    pass_rate: float | None
+
+
+class DriftJudge(WireModel):
+    """One judge on both sides, how far its pass rate moved, and whether its question changed."""
+
+    name: str
+    before: JudgeTally | None
+    after: JudgeTally | None
+    moved: float | None
+    criteria_changed: bool
+
+
+class StageTally(WireModel):
+    """One stage on one side: its turns, median and p95 in seconds, the ears' confidence."""
+
+    turns: int
+    median_s: float | None
+    p95_s: float | None
+    confidence: float | None
+
+
+class DriftStage(WireModel):
+    """One stage on one vendor and model on both sides, and how far its median and p95 moved."""
+
+    stage: Literal["stt", "llm", "tts"]
+    vendor: str | None
+    model: str | None
+    before: StageTally | None
+    after: StageTally | None
+    median_moved_s: float | None
+    p95_moved_s: float | None
+
+
+class DriftVersion(WireModel):
+    """A version of the agent's settings a side ran or that was set between: who, when, why."""
+
+    version: int
+    holder: str
+    author: str
+    note: str | None
+    set_at: float
+    ran_before: bool
+    ran_after: bool
+
+
+class Drift(WireModel):
+    """GET /v1/insights/drift: what moved between two days or versions of an agent, and why."""
+
+    agent: str
+    world: Env
+    before: DriftSide
+    after: DriftSide
+    judges: list[DriftJudge]
+    stages: list[DriftStage]
+    versions: list[DriftVersion]
 
 
 class Limit(WireModel):
