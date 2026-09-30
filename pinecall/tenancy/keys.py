@@ -66,6 +66,11 @@ NOT_YOURS_TO_GRANT = (
 )
 
 
+NOT_THEIR_AGENT = (
+    "{name} works on {agents}, and agent {slug} is not one of them: an admin adds it in Team"
+)
+
+
 NOT_YOURS_TO_SWITCH = "{name} has no production access, and cannot give it: an admin does"
 
 
@@ -357,6 +362,19 @@ def check_opens(bearer: Bearer, *scopes: KeyScope) -> None:
         return
     opens = " · ".join(sorted(bearer.key.scopes)) or "nothing"
     raise NotAllowed(NOT_OPENED.format(scope=" or ".join(sorted(scopes)), opens=opens))
+
+
+# A member's agents bind their own org alone: on a visit the member row is the visitor's own
+# org's, and names none of the visited org's agents.
+def check_agent(bearer: Bearer, slug: str) -> None:
+    """Refuse a person whose list of agents leaves this one out; an empty list is every agent."""
+    member = bearer.member
+    if member is None or not member.agents or member.org != bearer.key.org:
+        return
+    if slug in member.agents:
+        return
+    agents = ", ".join(sorted(member.agents))
+    raise NotAllowed(NOT_THEIR_AGENT.format(name=member.name, agents=agents, slug=slug))
 
 
 # A key grants only a role whose scopes it holds, or a manager would make an admin.

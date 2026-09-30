@@ -280,11 +280,12 @@ def ephemeral_entry(slug: str, event: WireModel, *, kind: str = "error") -> Entr
 
 
 # FastAPI calls these: one per scope, each recorded so a test walks every door for exactly one.
-def opening(*scopes: KeyScope) -> Callable[[Acting], Awaitable[Acting]]:
+def opening(*scopes: KeyScope) -> Callable[[HTTPConnection, Acting], Awaitable[Acting]]:
     """A dependency that lets through a key that opens one of the scopes."""
 
-    async def opened(key: ActingDep) -> Acting:
+    async def opened(connection: HTTPConnection, key: ActingDep) -> Acting:
         keys.check_opens(key.bearer, *scopes)
+        _check_agent_named(connection, key.bearer)
         return key
 
     SCOPES_OF[opened] = frozenset(scopes)
@@ -414,6 +415,8 @@ async def check_readable(gateway: Gateway, reading: Reader, call: str) -> AgentC
         return None
     if not _sees(reading, kept.scope):
         raise NotFound(NO_SUCH_CALL.format(call=call))
+    if reading.acting is not None:
+        keys.check_agent(reading.acting.bearer, kept.agent)
     return gateway.sockets.declared(kept.agent)
 
 
@@ -437,6 +440,7 @@ async def _reader_of(
         raise NotSignedIn(READ_WITH_A_KEY)
     key = Acting(bearer=verified, env=world_of_request(connection, verified, gateway))
     keys.check_opens(verified, *opens)
+    _check_agent_named(connection, verified)
     if THE_FLEET in verified.key.scopes:
         return Reader(acting=key)
     return Reader(acting=key, scope=await scope(connection, key, gateway, named))
@@ -466,3 +470,10 @@ async def _called(gateway: Gateway, connection: HTTPConnection) -> Scope | None:
     if kept is None or kept.scope is None:
         raise NotFound(NEVER_OPENED.format(call=call))
     return kept.scope
+
+
+# The agent a door names in its path or its query; a body's agent is checked by its door.
+def _check_agent_named(connection: HTTPConnection, bearer: Bearer) -> None:
+    for slug in (connection.path_params.get("slug"), connection.query_params.get("agent")):
+        if slug:
+            keys.check_agent(bearer, slug)

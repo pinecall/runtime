@@ -76,6 +76,7 @@ async def _seated(gateway: Gateway, key: Acting, call: str, scope: RoomScope) ->
     kept = await queries.scope_of_call(gateway.connections.pool, call)
     if kept is None or kept.scope is None or kept.scope.org != key.org:
         raise NotFound(_deps.NO_SUCH_CALL.format(call=call))
+    keys.check_agent(key.bearer, kept.agent)
     if await gateway.logs.store.sealed(call):
         raise Conflict(IS_OVER.format(call=call))
     seat = tokens.seat(gateway.signer, call, scope, key.bearer)

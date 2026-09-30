@@ -1,6 +1,7 @@
 """Keys: kept as fingerprints, read with their person, in one world and scope; room tokens."""
 
 import time
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
@@ -16,6 +17,7 @@ from pinecall.postgres.pool import Pool
 from pinecall.tenancy.keys import (
     Bearer,
     Issued,
+    check_agent,
     check_may_grant,
     check_opens,
     issue,
@@ -254,6 +256,23 @@ def test_the_fleets_key_acts_in_the_scope_the_calls_head_keeps_whatever_the_disp
         scope_of(fleet, "sandbox", dispatched=Scope("org_2", "sandbox"), called=head)
     with pytest.raises(NotAllowed, match="the sandbox fleet's key"):
         scope_of(fleet, "sandbox", called=Scope("org_1", "production"))
+
+
+def test_a_members_agents_bind_their_key_and_an_empty_list_is_every_agent() -> None:
+    everyone = persons_of(a_member())
+    check_agent(everyone, "recepcion")
+    bound = persons_of(replace(a_member(), agents=frozenset({"recepcion"})))
+    check_agent(bound, "recepcion")
+    with pytest.raises(NotAllowed, match="Ana García works on recepcion, and agent ventas is not"):
+        check_agent(bound, "ventas")
+    check_agent(Bearer(Key("k_server", "org_1")), "ventas")
+
+
+# A visit's member row is the visitor's own org's: its agents name none of the visited org's.
+def test_a_members_agents_do_not_bind_a_visit_to_another_org() -> None:
+    operator = replace(a_member(), agents=frozenset({"recepcion"}), operator=True)
+    visiting = Bearer(Key("k_visit", "org_2", subject=operator.id), member=operator)
+    check_agent(visiting, "ventas")
 
 
 def test_a_door_refused_names_what_the_key_does_open() -> None:

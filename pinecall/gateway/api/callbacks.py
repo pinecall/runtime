@@ -19,6 +19,7 @@ from pinecall.gateway._deps import (
 )
 from pinecall.gateway._gateway import Gateway
 from pinecall.log import queries
+from pinecall.tenancy import keys
 from pinecall.wire.events import CallbackRequested
 from pinecall.wire.rest.calls import CallbackList, CallbackRequest, CallbackRow
 
@@ -49,6 +50,7 @@ class CallbackQuery(BaseModel):
 @router.post("/v1/callbacks", status_code=204)
 async def request_callback(body: CallbackRequest, key: WorkerKey, gateway: GatewayDep) -> None:
     """Somebody the overflow told to wait for a call back, on the agent's log."""
+    keys.check_agent(key.bearer, body.agent)
     owner = await gateway.logs.store.owner(body.agent)
     fleet = THE_FLEET in key.bearer.key.scopes
     acting_for = await _org_of_the_call(gateway, key, body.call) if fleet else key.org
