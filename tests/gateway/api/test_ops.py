@@ -278,3 +278,16 @@ async def test_a_traceback_finds_a_call_whose_org_was_erased_by_its_record(
     assert found.status_code == 200
     assert [(row["call"], row["erased"]) for row in found.json()["calls"]] == [(call, True)]
     assert refused.status_code == 400
+
+
+@postgres
+async def test_the_operator_reads_every_orgs_time_served_and_nobody_else_does(
+    knocking: Knocking,
+) -> None:
+    with_an_ops_key(knocking)
+    async with knocking.http(THE_OPS_KEY) as operator:
+        answer = await operator.get("/v1/ops/hosted-usage", params={"month": "2026-09"})
+    async with knocking.http(knocking.app["production"]) as http:
+        refused = await http.get("/v1/ops/hosted-usage")
+    assert answer.json() == {"since": "2026-09-01", "until": "2026-10-01", "rows": []}
+    assert refused.status_code in (401, 403)

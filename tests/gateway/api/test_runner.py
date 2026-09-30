@@ -160,3 +160,55 @@ async def test_no_key_of_an_org_opens_the_runners_doors_and_the_runners_opens_no
         theirs = await http.get("/v1/hosted")
     assert [answer.status_code for answer in answers] == [403, 403, 403]
     assert theirs.status_code == 403
+
+
+@postgres
+async def test_logs_asked_for_are_wanted_of_the_runner_and_kept_when_it_sends_them(
+    knocking: Knocking,
+) -> None:
+    runner = await a_runner(knocking)
+    await uploaded(knocking)
+    [before] = (await beat(knocking, runner)).json()["apps"]
+    async with knocking.http(knocking.app["production"]) as http:
+        await http.get("/v1/hosted/support/logs")
+    [wanted_now] = (await beat(knocking, runner)).json()["apps"]
+    sent = {
+        "org": wanted_now["org"],
+        "name": "support",
+        "host": wanted_now["host"],
+        "lines": "connected\n",
+    }
+    async with knocking.http(runner) as http:
+        await http.post(HEARTBEAT, json={"runner": "apps-1", "logs": [sent]})
+    async with knocking.http(knocking.app["production"]) as http:
+        logs = (await http.get("/v1/hosted/support/logs")).json()
+    assert (before["logs_wanted"], wanted_now["logs_wanted"]) == (False, True)
+    assert (logs["lines"], logs["host"]) == ("connected\n", wanted_now["host"])
+
+
+@postgres
+async def test_a_stopped_app_is_not_among_what_the_runner_is_to_run(knocking: Knocking) -> None:
+    runner = await a_runner(knocking)
+    await uploaded(knocking)
+    async with knocking.http(knocking.app["production"]) as http:
+        await http.post("/v1/hosted/support/stop")
+    assert (await beat(knocking, runner)).json()["apps"] == []
+
+
+@postgres
+async def test_time_is_counted_while_a_process_of_the_org_runs_under_one_of_its_hosts(
+    knocking: Knocking,
+) -> None:
+    runner = await a_runner(knocking)
+    await uploaded(knocking)
+    [wanted] = (await beat(knocking, runner)).json()["apps"]
+    socket = await knocking.socket("/v1/apps", knocking.app["production"])
+    await sent(socket, "agent.register", {"routes": [], "host": wanted["host"]})
+    await received_until(socket, "agent.registered")
+    await beat(knocking, runner)
+    await beat(knocking, runner)
+    await socket.close()
+    async with knocking.http(knocking.app["production"]) as http:
+        rows = (await http.get("/v1/hosted/usage")).json()["rows"]
+    # Two beats a few milliseconds apart: the row is what proves the counting, not its size.
+    assert [(row["name"], row["env"]) for row in rows] == [("support", "production")]
