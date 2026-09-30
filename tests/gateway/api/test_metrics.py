@@ -55,6 +55,7 @@ async def test_the_appends_are_timed_counted_and_a_vendors_failures_named(
         read = await scraper.get("/metrics")
     assert read.status_code == 200
     assert read.headers["content-type"].startswith("text/plain; version=0.0.4")
+    assert "pinecall_writer_waiting 0.0" in read.text
     text = read.text
     assert (
         line_of(text, "pinecall_entries_appended_total ") == "pinecall_entries_appended_total 3.0"

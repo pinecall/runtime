@@ -175,6 +175,11 @@ class Writer:
         self._writing: set[str] = set()
         self._tasks: dict[Lane, asyncio.Task[None]] = {}
 
+    @property
+    def waiting(self) -> int:
+        """How many requests wait for a transaction now: what /metrics says a writer is behind."""
+        return len(self._queue)
+
     async def written(self, append: Append) -> Batch:
         """Queue the request; its entries numbered, once the transaction that wrote them commits."""
         answer: asyncio.Future[Batch] = asyncio.get_running_loop().create_future()
