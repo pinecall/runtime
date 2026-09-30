@@ -357,7 +357,7 @@ async def a_gateway(pool: Pool, logs: Logs, shared: Shared) -> AsyncGenerator[Ga
     http = httpx.AsyncClient(transport=shared.outside)
     sockets, live = Sockets(logs), ServedCalls(shared.signal)
     await sockets.start()
-    await live.owners.start()
+    await live.listen()
     connections = Connections(
         settings=settings,
         pool=pool,
@@ -391,7 +391,7 @@ async def a_gateway(pool: Pool, logs: Logs, shared: Shared) -> AsyncGenerator[Ga
     await outbox.drained()
     await threads.closed()
     await sockets.close()
-    await live.owners.close()
+    await live.quiet()
     await store.writer.drained()
     await logs.close()
     await http.aclose()

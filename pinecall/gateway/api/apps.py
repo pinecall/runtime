@@ -31,8 +31,8 @@ from pinecall.gateway._sockets import (
 )
 from pinecall.gateway.calls.binding import handed_on, parked_calls_of
 from pinecall.gateway.calls.commands import commanded
+from pinecall.gateway.calls.inbox import APP_CHANNEL, Bound, ForApp
 from pinecall.gateway.calls.known import known_here
-from pinecall.gateway.calls.pump import BOUND_CHANNEL, Bound
 from pinecall.providers import catalog
 from pinecall.session.call import changed_by, with_app_fields
 from pinecall.session.tools import unanswered
@@ -110,7 +110,7 @@ SEARCHES_WITH_NOTHING = (
 )
 
 
-NO_SUCH_APP = "no app {app} is connected here that this key may stop"
+NO_SUCH_APP = "no app {app} is connected to this box that this key may stop"
 
 
 # How long a socket waits for the signal before listening again for the calls bound to it.
@@ -259,7 +259,7 @@ class AppSocket:
             await self.refuse(command.agent, "no_code", text, command.written())
 
     async def _dev_answered(self, command: Command, answer: DevAnswer) -> None:
-        if not self.gateway.live.dev_answered(answer):
+        if not await self.gateway.live.dev_answered(answer):
             text = NOBODY_ASKED.format(id=answer.id)
             await self.refuse(command.agent, "no_session", text, command.written())
 
@@ -332,7 +332,7 @@ async def apps_socket(websocket: WebSocket) -> None:
         ),
         socket.send,
     )
-    bound = asyncio.create_task(_bound_here(gateway, socket.id))
+    bound = asyncio.create_task(_inbox(gateway, socket))
     try:
         await socket.serve()
     except WebSocketDisconnect:
@@ -376,10 +376,11 @@ async def list_apps(key: CallsKey, where: ScopeDep, gateway: GatewayDep) -> AppL
 # One 404 for every reason (another org, world or scope, gone): nothing leaks.
 @router.post("/v1/apps/{app}/stop")
 async def stop_app(app: str, key: AppKey, where: ScopeDep, gateway: GatewayDep) -> StopAppResponse:
-    """Tell the app it was stopped, and close its socket."""
-    found = gateway.live.processes.get(app)
+    """Tell the app it was stopped, and close its socket, on whichever gateway holds it."""
+    connected = gateway.live.processes_of(where.org, where.env)
+    found = next((process for process in connected if process.app == app), None)
     every = _deps.sees_every_scope(key)
-    if found is None or found.scope.org != where.org or found.scope.env != where.env:
+    if found is None:
         raise NotFound(NO_SUCH_APP.format(app=app))
     if not every and found.scope.holder not in ("", where.holder):
         raise NotFound(NO_SUCH_APP.format(app=app))
@@ -426,22 +427,31 @@ async def _written(served: Served, result: ToolResult) -> bool:
     return served.tools.answered(result) or await served.log.answer(result.written()) is not None
 
 
-# Another gateway opened a call for an agent this socket holds, or handed it one: the call is
-# served here and pumped down this socket, from the seq that gateway said.
-async def _bound_here(gateway: Gateway, app: SocketId) -> None:
+# What other gateways send this socket: a call they bound to it (served here and pumped down it,
+# from the seq they said), an entry for it (a console's dev.request), or a stop.
+async def _inbox(gateway: Gateway, socket: AppSocket) -> None:
     signal = gateway.connections.signal
     while True:
         try:
-            listening = await signal.subscribe(BOUND_CHANNEL.format(app=app))
+            listening = await signal.subscribe(APP_CHANNEL.format(app=socket.id))
         except NotAvailable:
             await asyncio.sleep(BOUND_RETRY_S)
             continue
         try:
             async for data in listening:
-                await _taken_here(gateway, app, Bound.model_validate_json(data))
+                await _for_the_app(gateway, socket, ForApp.model_validate_json(data))
         finally:
             listening.close()
         await asyncio.sleep(BOUND_RETRY_S)
+
+
+async def _for_the_app(gateway: Gateway, socket: AppSocket, message: ForApp) -> None:
+    if message.bound is not None:
+        await _taken_here(gateway, socket.id, message.bound)
+    if message.entry is not None:
+        await socket.send(message.entry)
+    if message.stop is not None:
+        await socket.stopped(message.stop)
 
 
 async def _taken_here(gateway: Gateway, app: SocketId, bound: Bound) -> None:

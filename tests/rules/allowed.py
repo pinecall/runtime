@@ -149,7 +149,8 @@ TASK_OWNERS: tuple[Allowed, ...] = (
     Allowed(
         "pinecall/gateway/_served.py",
         "create_task",
-        "a call's listener for its commands is cancelled in ServedCalls.close() when it ends",
+        "a call's command listener is cancelled in close(); a dev.request's answer listener when "
+        "its future is done",
     ),
     Allowed(
         "pinecall/process/shared.py",
