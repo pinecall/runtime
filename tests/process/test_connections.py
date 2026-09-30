@@ -4,7 +4,7 @@ import pytest
 from cryptography.fernet import Fernet
 
 from pinecall.domain.errors import NotAvailable, SettingsRefused
-from pinecall.process.connections import keyring_of, opened, server_of, vault_of
+from pinecall.process.connections import WRITING, keyring_of, opened, server_of, vault_of
 from pinecall.process.settings import Settings
 from tests.conftest import DSN, postgres, settings_of
 
@@ -54,7 +54,9 @@ async def test_the_connections_open_on_the_settings_and_close_after() -> None:
 @postgres
 async def test_the_pool_is_as_large_as_the_settings_say() -> None:
     settings = settings_of().model_copy(
-        update={"database_url": DSN, "vault_key": Fernet.generate_key().decode(), "db_pool": 3}
+        update={"database_url": DSN, "vault_key": Fernet.generate_key().decode(), "db_pool": 5}
     )
     async with opened(settings) as connections:
-        assert connections.pool.max_size == 3
+        assert (connections.pool.max_size, connections.writing.max_size) == (3, WRITING)
+        assert connections.writing.min_size == WRITING, "the writer's connections stay open"
+    assert connections.writing.closed

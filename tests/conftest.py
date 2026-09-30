@@ -276,6 +276,7 @@ async def connections(pool: Pool) -> AsyncIterator[Connections]:
         yield Connections(
             settings=settings_of(),
             pool=pool,
+            writing=pool,
             vault=vault_of(Fernet.generate_key().decode()),
             http=http,
             server=server,
@@ -297,7 +298,9 @@ async def wired(
     settings = settings_of()
     http = httpx.AsyncClient(transport=outside(twilio, graph))
     sockets, live = Sockets(logs), ServedCalls()
-    connections = Connections(settings=settings, pool=pool, vault=sealed, http=http, server=server)
+    connections = Connections(
+        settings=settings, pool=pool, writing=pool, vault=sealed, http=http, server=server
+    )
     serving = Serving(connections=connections, logs=logs, live=live, embedder=None)
     threads = Threads(serving, sockets)
     outbox = Outbox(connections, None)

@@ -12,7 +12,7 @@ import pytest
 from pinecall.domain.errors import Conflict
 from pinecall.log._writer import FEED_ORDER_KEY, MOST_IN_A_GROUP, Append, Unnumbered, Writer
 from pinecall.log.store import Store
-from pinecall.postgres.pool import Pool, connect
+from pinecall.postgres.pool import Pool, connect, open_pool
 from tests.conftest import DSN, postgres
 
 pytestmark = postgres
@@ -274,3 +274,18 @@ async def test_a_log_waiting_in_the_fed_lane_is_not_written_ahead_of_it_by_the_p
         assert not after.done(), "the plain lane wrote the log past its waiting summary"
         await elsewhere.execute(FEED_LET_GO, (FEED_ORDER_KEY,))
         assert ((await summary).seq, (await after).seq) == (1, 2)
+
+
+async def test_a_writer_on_connections_of_its_own_never_waits_for_the_doors(
+    schema: str, call: str
+) -> None:
+    doors = await open_pool(DSN, schema=schema, max_size=1)
+    writing = await open_pool(DSN, schema=schema, max_size=2, min_size=2)
+    try:
+        store = Store(doors, writing=writing)
+        async with doors.connection(), asyncio.timeout(5):
+            entry = await store.append(call, AGENT, "turn.user", {}, ephemeral=False)
+        assert entry.seq == 1
+    finally:
+        await writing.close()
+        await doors.close()

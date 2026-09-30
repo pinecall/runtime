@@ -112,12 +112,15 @@ class Claim:
 class Store:
     """The log tables on a pool the store is given and never closes."""
 
-    def __init__(self, pool: Pool, *, clock: Callable[[], float] = time.time) -> None:
-        """Keep the pool and the clock the entries are stamped with; appends go through a writer."""
+    def __init__(
+        self, pool: Pool, *, clock: Callable[[], float] = time.time, writing: Pool | None = None
+    ) -> None:
+        """Keep the pools and the clock entries are stamped with; appends go through a writer."""
         self.pool = pool
         # ts is the runtime's clock, when it saw the event, never the database's.
         self.clock = clock
-        self.writer = Writer(pool)
+        # A gateway's writer has connections of its own; a verb's and a test's share the pool.
+        self.writer = Writer(pool if writing is None else writing)
 
     async def append(
         self, call: str | None, agent: str, kind: str, data: JsonObject, *, ephemeral: bool

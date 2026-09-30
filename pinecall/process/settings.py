@@ -83,8 +83,8 @@ class Settings(BaseModel):
     db_pool: int = Field(
         POOL_SIZE,
         alias="PINECALL_DB_POOL",
-        ge=1,
-        description="Connections the gateway holds open to Postgres at most.",
+        ge=3,
+        description="Connections to Postgres: two its writer holds, the rest the doors share.",
     )
 
     # ── recordings ──

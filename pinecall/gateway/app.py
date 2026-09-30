@@ -270,7 +270,7 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
     connections = await stack.enter_async_context(opened(settings))
     if not settings.livekit_api_key or not settings.livekit_api_secret:
         raise SettingsRefused(NO_LIVEKIT)
-    logs = Logs(Store(connections.pool))
+    logs = Logs(Store(connections.pool, writing=connections.writing))
     # Pushed before everything that appends on its way out, so it runs after them and before the
     # pool closes: every append a request was promised is written.
     stack.push_async_callback(logs.store.writer.drained)
