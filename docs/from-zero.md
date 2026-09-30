@@ -6,27 +6,33 @@ a box.
 
 ## 1. A box
 
-A VM, `make box`, `make deploy`: [a-box-in-production.md](a-box-in-production.md). The doctor is
-green, the console answers at the box's name, and the box's providers row names a vendor for each
-stage with a key the box holds (`/v1/ops/providers`, `/v1/ops/provider-keys/{vendor}`).
-
-The runtime itself is one wheel on PyPI, the console and the widget inside:
+A machine with Ubuntu 24.04 (4 vCPU, 16 GB, a public IP), and its two names — production's and
+the sandbox's — already pointed at it in DNS, so Caddy can take their certificates. Then, on it:
 
 ```console
-$ pip install pinecall             # or: uv tool install pinecall
-$ pinecall-runtime doctor          # what this machine lacks, one line each
+$ curl -LsSf https://astral.sh/uv/install.sh | sudo env UV_INSTALL_DIR=/usr/local/bin sh
+$ sudo uvx --from pinecall pinecall-runtime box up --domains voice.example.com,sandbox.example.com
 ```
 
-The wheel is the gateway, the worker and `pinecall-runtime`; what they stand on — Postgres with
-`vector` and `pg_textsearch`, LiveKit and its SIP and egress, Caddy — is `infra/box/` in this
-repository, which `make box` installs. The doctor names each missing piece and the variable that
-points at it ([the-environment.md](the-environment.md)).
+`box up` makes the machine a box from the package itself, no checkout: the system's packages
+(podman, Caddy, nftables, age), the containers (Postgres, LiveKit, its SIP and egress, Redis), the
+firewall, the box's secrets drawn and sealed and never printed, the runtime from PyPI at the same
+version, its migrations and its units, and the doctor. `--backup-key age1…` turns the nightly
+encrypted backup on, to a key whose private half stays with you; without it there is none. Run it
+again, or `sudo uvx --from pinecall@latest pinecall-runtime box upgrade`, and the box is brought to
+that version with its names and secrets kept. On the box, `sudo pinecall-runtime <verb>` runs any
+operator verb with the box's own credentials ([the-runtime-cli.md](the-runtime-cli.md)).
+
+The box then needs a vendor for each stage with a key it holds: the providers row
+(`/v1/ops/providers`, `/v1/ops/provider-keys/{vendor}`, or the console's Box screens).
+
+Pinecall's own box is made the other way, from this repository, so a change is deployed before it
+is released: `make box`, `make deploy` ([a-box-in-production.md](a-box-in-production.md)).
 
 ## 2. The first org and the first person
 
 ```bash
-PINECALL_GATEWAY_URL=https://voice.example.com PINECALL_OPS_KEY=… \
-  pinecall-runtime init --org clinica --email you@example.com --person "You"
+sudo pinecall-runtime init --org clinica --email you@example.com --person "You"
 ```
 
 The org, its first admin made an operator of the box, and the invitation link printed once. Open

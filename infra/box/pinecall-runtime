@@ -1,0 +1,11 @@
+#!/bin/sh
+# pinecall-runtime as the box's own units run it: its names, its sealed credentials, its loopback
+# gateway and SFU. install.sh puts this at /usr/local/bin/pinecall-runtime; run it with sudo.
+exec systemd-run --quiet --wait --pipe --collect \
+    -p EnvironmentFile=/etc/pinecall/box.env \
+    -p ImportCredential=DATABASE_URL -p ImportCredential=PINECALL_VAULT_KEY \
+    -p ImportCredential=PINECALL_OPS_KEY -p ImportCredential=LIVEKIT_API_KEY \
+    -p ImportCredential=LIVEKIT_API_SECRET \
+    -E PINECALL_GATEWAY_URL=http://127.0.0.1:8080 -E LIVEKIT_URL=ws://127.0.0.1:7880 \
+    -E PINECALL_RECORDINGS=/var/lib/pinecall/recordings \
+    /opt/pinecall/venv/bin/pinecall-runtime "$@"

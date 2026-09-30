@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.2 — A box from the package itself
+
+- `pinecall-runtime box up --domains …` makes the machine it runs on a box, with no checkout: the
+  wheel carries `infra/box` and `infra/postgres` as `pinecall/infra/`, and `box up` installs the
+  system's packages, runs `install.sh` and releases this version from PyPI. `box upgrade` brings a
+  box to the version it is run from, its names kept. `sudo uvx --from pinecall pinecall-runtime box up`.
+- `release.sh` releases a PyPI version or a wheel's path (`PACKAGE=`) besides a built wheel (`WHEEL=`).
+- `/usr/local/bin/pinecall-runtime` on a box runs any operator verb with the box's credentials.
+- A box made from the package encrypts its backups to the key `--backup-key` gives, or makes none:
+  the package carries no backup key, and `install.sh` enables the backup only with one.
+
 ## 0.1.1 — The runtime written again, in production
 
 The runtime written again from a blank page, and the one that runs `box.pinecall.io` since
