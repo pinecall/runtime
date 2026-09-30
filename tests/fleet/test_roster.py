@@ -1,10 +1,12 @@
 """Tests for the roster of each fleet."""
 
+import asyncio
 from collections.abc import Mapping
 
 from pinecall.fleet.roster import (
     ENDED_TO_JUDGE,
     FORGOTTEN_AFTER_S,
+    ROSTER_CHANNEL,
     SLOW_FIRST_AUDIO_S,
     STALE_AFTER_S,
     TURNS_TO_JUDGE,
@@ -12,6 +14,7 @@ from pinecall.fleet.roster import (
     failing,
     worker_state,
 )
+from pinecall.process.signal import LocalSignal
 from pinecall.wire.rest.fleet import HeartbeatRequest, WorkerStatus
 
 SANDBOX = "pinecall-sandbox"
@@ -153,3 +156,32 @@ def minute_as_seat(minute: Mapping[str, float]) -> WorkerStatus:
     roster.report(minute_of("w1", minute), 0.0)
     (seat,) = roster.of(SANDBOX, 0.0)
     return seat
+
+
+# Workers beat on whichever gateway the balancer hands them: every gateway counts them all.
+async def test_heartbeats_split_across_two_gateways_add_up_on_both_and_so_does_a_cordon() -> None:
+    signal = LocalSignal()
+    here, there = Roster(signal), Roster(signal)
+    here.shared.every_s = there.shared.every_s = 0.01
+    shares = await signal.subscribe(ROSTER_CHANNEL)
+    await here.start()
+    await there.start()
+    here.report(beat("w1", active=1), 0.0)
+    there.report(beat("w2", active=3), 0.0)
+
+    def both_count_both() -> bool:
+        return all(roster.totals(SANDBOX, 1.0).workers == 2 for roster in (here, there))
+
+    async with asyncio.timeout(2):
+        while not both_count_both():
+            await anext(shares)
+            await asyncio.sleep(0)
+    assert there.totals(SANDBOX, 1.0).active == 4
+    assert here.cordon(SANDBOX, "w2")
+    async with asyncio.timeout(2):
+        while not there.report(beat("w2", active=3), 2.0).cordoned:
+            await anext(shares)
+            await asyncio.sleep(0)
+    shares.close()
+    await here.close()
+    await there.close()

@@ -1,8 +1,14 @@
 """The roster of workers, one per fleet: who is up, what each holds, and whether a fleet is full."""
 
+import time
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 from typing import Literal
 
+from pydantic import TypeAdapter
+
+from pinecall.process.shared import Assigned, Shared, newest
+from pinecall.process.signal import LocalSignal, Signal
 from pinecall.wire.rest.fleet import FleetTotals, HeartbeatRequest, HeartbeatResponse, WorkerStatus
 
 type WorkerState = Literal["gone", "cordoned", "draining", "accepting", "failing", "full"]
@@ -22,20 +28,52 @@ ENDED_TO_JUDGE = 4
 SLOW_FIRST_AUDIO_S = 5.0
 TURNS_TO_JUDGE = 20
 
+# Every gateway says the heartbeats it heard and the cordons it set, once a heartbeat; each answers
+# a heartbeat's `full` from totals at most this old, not by walking the fleet every time.
+ROSTER_CHANNEL = "roster"
+TOTALS_KEPT_S = 1.0
+CORDONED = "cordoned"
 
-# In memory: after a restart the next round of heartbeats, five seconds, rebuilds it.
+
+@dataclass(frozen=True)
+class Heard:
+    """One gateway's share: the workers that beat on it lately, and the cordons it set."""
+
+    seats: tuple[WorkerStatus, ...] = ()
+    cordons: tuple[Assigned, ...] = ()
+
+
+# In memory, on every gateway: each keeps the heartbeats that reached it and hears the others', so
+# a worker beating on any gateway is counted on all of them. After a restart the next round of
+# heartbeats, five seconds, rebuilds it; a cordon set on one gateway stands on all, the newest
+# setting of a worker's cordon winning.
 class Roster:
-    """The workers of every fleet, by fleet and name, as their heartbeats say."""
+    """The workers of every fleet, by fleet and name, as their heartbeats say on any gateway."""
 
-    def __init__(self) -> None:
+    def __init__(self, signal: Signal | None = None) -> None:
         """Nobody heard from yet."""
+        # Every gateway's workers, the newest heartbeat of each: what every read answers from.
         self.seats: dict[tuple[str, str], WorkerStatus] = {}
+        self.heard_here: dict[tuple[str, str], WorkerStatus] = {}
+        self.cordons: dict[tuple[str, str], Assigned] = {}
+        self.cordoned: dict[tuple[str, str], str] = {}
+        self.shared = Shared(signal or LocalSignal(), ROSTER_CHANNEL, _HEARD, Heard(), self._merged)
+        self.shared.every_s = HEARTBEAT_S
+        self.shared.gathered = self._gathered
+        self._totals: dict[str, tuple[float, FleetTotals]] = {}
+
+    async def start(self) -> None:
+        """Hear the other gateways' workers, and say this one's every heartbeat."""
+        await self.shared.start()
+
+    async def close(self) -> None:
+        """Stop hearing and saying."""
+        await self.shared.close()
 
     def report(self, beat: HeartbeatRequest, now: float) -> HeartbeatResponse:
         """Keep the heartbeat and answer the worker's standing; a cordon outlives heartbeats."""
-        was = self.seats.get((beat.fleet, beat.worker))
-        cordoned = was is not None and was.cordoned
-        self.seats[(beat.fleet, beat.worker)] = WorkerStatus(
+        cordoned = (beat.fleet, beat.worker) in self.cordoned
+        seat = WorkerStatus(
             fleet=beat.fleet,
             worker=beat.worker,
             active=beat.active,
@@ -50,14 +88,18 @@ class Roster:
             turns=beat.turns,
             first_audio_p95_s=beat.first_audio_p95_s,
         )
-        return HeartbeatResponse(cordoned=cordoned, full=self.totals(beat.fleet, now).full)
+        self.heard_here[(beat.fleet, beat.worker)] = seat
+        self.seats[(beat.fleet, beat.worker)] = seat
+        return HeartbeatResponse(cordoned=cordoned, full=self._kept_totals(beat.fleet, now).full)
 
     def cordon(self, fleet: str, worker: str, *, on: bool = True) -> bool:
         """Cordon a worker, or take the cordon back; False for a name nobody has."""
-        seat = self.seats.get((fleet, worker))
-        if seat is None:
+        if (fleet, worker) not in self.seats:
             return False
-        self.seats[(fleet, worker)] = seat.model_copy(update={"cordoned": on})
+        holder = CORDONED if on else None
+        self.cordons[(fleet, worker)] = Assigned(fleet, worker, holder, time.time())
+        self._merged()
+        self.shared.put(self._gathered())
         return True
 
     def of(self, fleet: str, now: float) -> list[WorkerStatus]:
@@ -69,6 +111,33 @@ class Roster:
             (seat for seat in self.seats.values() if seat.fleet == fleet),
             key=lambda seat: seat.seen_at,
         )
+
+    def _kept_totals(self, fleet: str, now: float) -> FleetTotals:
+        kept = self._totals.get(fleet)
+        if kept is not None and 0 <= now - kept[0] < TOTALS_KEPT_S:
+            return kept[1]
+        totals = self.totals(fleet, now)
+        self._totals[fleet] = (now, totals)
+        return totals
+
+    def _gathered(self) -> Heard:
+        return Heard(seats=tuple(self.heard_here.values()), cordons=tuple(self.cordons.values()))
+
+    # Each worker's newest heartbeat, wherever it beat; each cordon's newest setting.
+    def _merged(self) -> None:
+        theirs = [heard.share for heard in self.shared.theirs.values()]
+        settings = (setting for share in theirs for setting in share.cordons)
+        self.cordoned = newest(self.cordons, settings)
+        merged = dict(self.heard_here)
+        for share in theirs:
+            for seat in share.seats:
+                known = merged.get((seat.fleet, seat.worker))
+                if known is None or known.seen_at < seat.seen_at:
+                    merged[(seat.fleet, seat.worker)] = seat
+        self.seats = {
+            key: seat.model_copy(update={"cordoned": key in self.cordoned})
+            for key, seat in merged.items()
+        }
 
     # A fleet nobody heard from is not full: a gateway with no worker yet refuses nobody.
     def totals(self, fleet: str, now: float) -> FleetTotals:
@@ -86,6 +155,9 @@ class Roster:
             accepting=accepting,
             full=bool(up) and accepting == 0,
         )
+
+
+_HEARD: TypeAdapter[Heard] = TypeAdapter(Heard)
 
 
 def heard_lately(seat: WorkerStatus, now: float) -> bool:

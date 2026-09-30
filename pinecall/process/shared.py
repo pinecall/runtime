@@ -68,6 +68,8 @@ class Shared[T]:
         self.signal = signal
         # How often the share is said whole: TOLD_EVERY_S unless its owner says sooner.
         self.every_s = TOLD_EVERY_S
+        # Set by an owner whose share changes too often to put: read as it is said.
+        self.gathered: Callable[[], T] | None = None
         self.channel = channel
         self.id = uuid4().hex
         self.mine = empty
@@ -92,7 +94,8 @@ class Shared[T]:
         await asyncio.gather(*self._tasks, return_exceptions=True)
 
     def _say(self) -> None:
-        message = Said(sender=self.id, share=self._adapter.dump_python(self.mine, mode="json"))
+        mine = self.mine if self.gathered is None else self.gathered()
+        message = Said(sender=self.id, share=self._adapter.dump_python(mine, mode="json"))
         self.signal.publish(self.channel, message.model_dump_json().encode())
 
     async def _beating(self) -> None:
