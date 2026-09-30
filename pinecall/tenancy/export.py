@@ -70,6 +70,15 @@ FROM eval_cases WHERE org = %(org)s
 ORDER BY agent, name
 """
 
+# Each block of prompt the org's calls were told, once per text, the same in both worlds.
+PROMPTS = """
+SELECT jsonb_build_object(
+    'kind', 'prompt', 'hash', hash, 'text', text, 'first_used_at', first_used_at
+)::text AS line
+FROM prompts WHERE org = %(org)s
+ORDER BY first_used_at, hash
+"""
+
 WORDS = """
 SELECT jsonb_build_object(
     'kind', 'lexicon', 'agent', agent, 'holder', holder, 'version', version,
@@ -131,6 +140,7 @@ AFTER_THE_CALLS = (
     DOCUMENTS,
     CONSENTS,
     CASES,
+    PROMPTS,
     STAGE_DAYS,
     JUDGE_DAYS,
 )

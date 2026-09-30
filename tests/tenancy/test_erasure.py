@@ -17,6 +17,7 @@ from pinecall.postgres.pool import Pool
 from pinecall.process.recordings import Bucket, Disk
 from pinecall.tenancy import canary, erasure
 from pinecall.tenancy.canary import Canary, CanarySet
+from pinecall.tenancy.prompts import Prompts
 from pinecall.wire.rest.evals import Expect
 from pinecall.wire.scores import CallScore
 from tests.conftest import issued, postgres
@@ -277,7 +278,8 @@ SELECT (SELECT count(*) FROM stage_days WHERE org = %(org)s)
      + (SELECT count(*) FROM judge_days WHERE org = %(org)s)
      + (SELECT count(*) FROM drift_calls WHERE org = %(org)s)
      + (SELECT count(*) FROM agent_canaries WHERE org = %(org)s)
-     + (SELECT count(*) FROM eval_cases WHERE org = %(org)s) AS rows
+     + (SELECT count(*) FROM eval_cases WHERE org = %(org)s)
+     + (SELECT count(*) FROM prompts WHERE org = %(org)s) AS rows
 """
 
 
@@ -298,6 +300,9 @@ async def test_the_drift_and_the_canary_of_an_org_go_with_it(
     await drift.fold(pool, call, entries, CallScore.model_validate(entries[-1].data))
     await canary.put(pool, Scope(org.id), AGENT, CanarySet(Canary(1, 10), "m_1", 1.0))
     await a_case(pool, org.id, call)
-    assert await orgs_rows(pool, org.id) == 4, "a verdict, the call counted, a canary, a case"
+    await Prompts().keep(pool, org.id, "Sos la recepción.")
+    assert await orgs_rows(pool, org.id) == 5, (
+        "a verdict, the call counted, a canary, a case, a prompt"
+    )
     await erasure.org(pool, Disk(tmp_path), org.id, by="operator")
     assert await orgs_rows(pool, org.id) == 0

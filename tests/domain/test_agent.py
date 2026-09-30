@@ -23,6 +23,7 @@ from pinecall.domain.agent import (
     Version,
     Versions,
     Voice,
+    block_hash,
 )
 from pinecall.domain.errors import DeclarationRefused
 from tests.domain.conftest import (
@@ -246,3 +247,10 @@ def test_versions_none_is_a_corner_that_had_set_nothing() -> None:
 def test_a_kept_value_carries_who_set_it_and_when() -> None:
     kept = Version("m_1", 3, "berna", None, datetime.now(UTC), Tuning(voice="clara"))
     assert (kept.version, kept.value.voice) == (3, "clara")
+
+
+def test_a_blocks_hash_is_sha256_hex_and_says_nothing_of_the_text() -> None:
+    text = block_hash("Sos la recepción")
+    assert len(text) == 64
+    assert all(character in "0123456789abcdef" for character in text)
+    assert block_hash("Sos la recepción") == text

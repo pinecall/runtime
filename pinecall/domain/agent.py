@@ -4,6 +4,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
+from hashlib import sha256
 from typing import Literal
 
 from pinecall.domain.errors import DeclarationRefused
@@ -393,6 +394,13 @@ class AgentConfig:
     def tools_by_name(self) -> Mapping[str, ToolSpec]:
         """Return the tools keyed by name."""
         return {tool.name: tool for tool in self.tools}
+
+
+# The log keeps a block's hash, never its words (prompt.changed); the org's prompts keep the words
+# under the same hash, so a call's prompt is read back whole.
+def block_hash(text: str) -> str:
+    """A block of the prompt as the log names it: the sha256 of its text."""
+    return sha256(text.encode()).hexdigest()
 
 
 def _check_call_limit(seconds: int) -> None:

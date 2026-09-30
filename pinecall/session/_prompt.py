@@ -2,12 +2,18 @@
 
 import json
 from collections.abc import Sequence
-from hashlib import sha256
 from typing import override
 
 from livekit.agents import llm
 
-from pinecall.domain.agent import DEFAULT_LAYOUT, KNOWLEDGE, Greeting, PromptBlock, PromptRegion
+from pinecall.domain.agent import (
+    DEFAULT_LAYOUT,
+    KNOWLEDGE,
+    Greeting,
+    PromptBlock,
+    PromptRegion,
+    block_hash,
+)
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import JsonObject
 from pinecall.wire.events import PromptChanged
@@ -120,17 +126,12 @@ def greeting_for(greeting: Greeting | None, run: str | None) -> Greeting | None:
     return None if run is not None else greeting
 
 
-def hashed(text: str) -> str:
-    """A block's text as the log keeps it: its hash, never its words."""
-    return sha256(text.encode()).hexdigest()
-
-
 # The app never sends prompt.set for this block, so without this entry the log would not show
 # that the file reached the model.
 def knowledge_changed(blocks: Blocks) -> PromptChanged | None:
     """The entry saying the knowledge file reached the prompt, when there is one."""
     text = blocks.texts.get(KNOWLEDGE, "")
-    return PromptChanged(name=KNOWLEDGE, hash=hashed(text), chars=len(text)) if text else None
+    return PromptChanged(name=KNOWLEDGE, hash=block_hash(text), chars=len(text)) if text else None
 
 
 # Lookups go before the caller's newest message (livekit appends it after
