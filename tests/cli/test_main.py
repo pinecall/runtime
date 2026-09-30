@@ -6,6 +6,7 @@ from functools import partial
 from pathlib import Path
 
 import pytest
+from cryptography.fernet import Fernet
 
 from pinecall.cli import main as cli
 from pinecall.cli._operator import fleet_key, runner_key
@@ -20,12 +21,14 @@ from pinecall.cli.main import (
     providers_seed,
     retention_due,
     retention_run,
+    vault_rotate,
 )
 from pinecall.domain.errors import Conflict, PinecallError
 from pinecall.log.store import Store
 from pinecall.postgres.pool import open_pool
+from pinecall.process.connections import vault_of
 from pinecall.process.settings import Settings
-from pinecall.tenancy import orgs, policy
+from pinecall.tenancy import orgs, policy, vault
 from pinecall.wire.rest.accounts import OrgPolicy
 from tests.conftest import DSN, configured, postgres
 from tests.log.conftest import logged_call
@@ -188,3 +191,36 @@ async def test_retention_says_what_is_due_then_erases_it_and_says_how_many(
     assert ran[1].endswith("dials forgotten past 24 months")
     assert await asyncio.to_thread(retention_due, settings, argparse.Namespace()) == 0
     assert capsys.readouterr().out == "0 calls past their org's days\n"
+
+
+@postgres
+async def test_vault_rotate_reseals_under_the_first_key_and_fails_while_a_row_opens_under_none(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    schema: str,
+) -> None:
+    monkeypatch.setattr(cli, "open_pool", partial(open_pool, schema=schema))
+    old, new = Fernet.generate_key().decode(), Fernet.generate_key().decode()
+    pool = await open_pool(DSN, schema=schema)
+    try:
+        await vault.put_box_credentials(pool, vault_of(old), "cartesia", "box-made-up")
+        settings = Settings.model_validate({"DATABASE_URL": DSN, "PINECALL_VAULT_KEY": new})
+        capsys.readouterr()
+        refused = await asyncio.to_thread(vault_rotate, settings, argparse.Namespace())
+        unopened = capsys.readouterr().out
+        rotating = Settings.model_validate(
+            {"DATABASE_URL": DSN, "PINECALL_VAULT_KEY": f"{new},{old}"}
+        )
+        rotated = await asyncio.to_thread(vault_rotate, rotating, argparse.Namespace())
+        printed = capsys.readouterr().out
+        assert await vault.box_credentials(pool, vault_of(new)) == {"cartesia": "box-made-up"}
+    finally:
+        await pool.close()
+    assert (refused, rotated) == (1, 0)
+    assert "box_settings.ciphertext: 0 re-sealed, 0 under the first key already, 1 opened" in (
+        unopened
+    )
+    assert (
+        "box_settings.ciphertext: 1 re-sealed, 0 under the first key already, 0 opened" in printed
+    )
+    assert len(printed.splitlines()) == len(vault.SEALED_COLUMNS)

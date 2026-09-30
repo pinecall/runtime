@@ -1,19 +1,21 @@
 """API keys: minted, revoked, found by fingerprint, and the world and scope a request acts in."""
 
 import secrets
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
 from psycopg import sql
 from psycopg.rows import DictRow
 
-from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotFound
+from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotFound, NotSignedIn
 from pinecall.domain.names import ENVS, PRODUCTION, SANDBOX, Env, parse_env
 from pinecall.domain.person import (
     HOLDING,
     KEY_SCOPES,
     READS_ITS_OWN_CALL,
     ROLE_SCOPES,
+    SERVER_SCOPES,
     THE_FLEET,
     THE_TEAM,
     Key,
@@ -61,6 +63,15 @@ NOT_AT_THIS_NAME = "this name is the {world}'s: {asked} answers at its own name"
 NOT_OPENED = "this key does not open {scope}: it opens {opens}"
 
 
+EXPIRED = "this key expired at {at}: it opens nothing now, and a new one is made in the console"
+
+
+NOT_A_SERVERS = "a server's token opens some of {scopes}, and at least one; not {wanted}"
+
+
+ALREADY_OVER = "a key's expiry is a moment to come, not {at}"
+
+
 NOT_YOURS_TO_GRANT = (
     "this key does not open everything {role} would: it opens {opens}, so it cannot grant {role}"
 )
@@ -93,14 +104,17 @@ NOT_THIS_FLEET = (
 
 # A key that names a person opens nothing once the person is gone, disabled, or (on a visit to
 # another org) no longer runs the box: the member row is read with the key, every request. Its
-# use is written at most once a minute, so a request is not a write.
+# use is written at most once a minute, so a request is not a write. An expired key is found, so
+# the refusal can say it expired; it opens nothing and its use is not written.
 VERIFY = sql.SQL("""
 WITH found AS (
-    SELECT id, org, label, env, scopes, subject, name, expires_at, last_used_at FROM api_keys
-    WHERE hash = %(hash)s AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())
+    SELECT id, org, label, env, scopes, subject, name, expires_at, last_used_at,
+           expires_at IS NOT NULL AND expires_at <= now() AS expired
+    FROM api_keys
+    WHERE hash = %(hash)s AND revoked_at IS NULL
 ), touched AS (
     UPDATE api_keys SET last_used_at = now() FROM found
-    WHERE api_keys.id = found.id
+    WHERE api_keys.id = found.id AND NOT found.expired
       AND (found.last_used_at IS NULL OR found.last_used_at < now() - interval '1 minute')
 )
 SELECT found.*, m.id AS member, {member}
@@ -282,11 +296,13 @@ async def person_key(
 
 
 async def verify(pool: Pool, bearer: str) -> Bearer | None:
-    """The key and its person; None for a key unknown, revoked, expired, or whose person is gone."""
+    """The key and its person; None for a key unknown, revoked, or whose person is gone."""
     async with pool.connection() as connection:
         row = await (await connection.execute(VERIFY, {"hash": fingerprint(bearer)})).fetchone()
     if row is None:
         return None
+    if row["expired"]:
+        raise NotSignedIn(EXPIRED.format(at=row["expires_at"].isoformat(timespec="seconds")))
     member = None if row["member"] is None else member_of(_member_columns(row))
     return Bearer(key=_key(row), member=member)
 
@@ -354,6 +370,26 @@ def scope_of(
     if looking_at.org != bearer.key.org or looking_at.status != "active":
         raise NotAllowed(NOT_A_COLLEAGUE)
     return Scope(bearer.key.org, world, looking_at.id)
+
+
+# Fewer scopes than a server's, never others: a token for pushing knowledge alone opens that.
+def server_scopes(wanted: Sequence[str] | None) -> frozenset[KeyScope]:
+    """The scopes a server's token is made with: all of a server's, or those of them asked for."""
+    if wanted is None:
+        return SERVER_SCOPES
+    scopes = frozenset[KeyScope](scope for scope in SERVER_SCOPES if scope in wanted)
+    if not scopes or len(scopes) != len(set(wanted)):
+        wanted = ", ".join(sorted(set(wanted))) or "none"
+        raise DeclarationRefused(
+            NOT_A_SERVERS.format(scopes=", ".join(sorted(SERVER_SCOPES)), wanted=wanted)
+        )
+    return scopes
+
+
+def check_expiry(expires_at: datetime | None, now: datetime) -> None:
+    """Refuse an expiry that is not a moment to come; None is a key that never expires."""
+    if expires_at is not None and expires_at <= now:
+        raise DeclarationRefused(ALREADY_OVER.format(at=expires_at.isoformat(timespec="seconds")))
 
 
 def check_opens(bearer: Bearer, *scopes: KeyScope) -> None:

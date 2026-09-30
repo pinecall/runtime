@@ -51,7 +51,8 @@ log.
 another org's call, whose existence is nobody else's business; `409` a request that disagrees with
 what is stored; `400` or `422` a body that is not the shape; `429` a quota; `502` a vendor or a
 carrier that did not answer, in its own words; `503` the request was right and this box cannot
-honour it. A socket closes with **1008** and the sentence.
+honour it. A socket closes with **1008** and the sentence. A key past its expiry is `401` saying
+when it expired, never the silence of a key nobody made.
 
 ## 1. Your own app: `WS /v1/apps`
 

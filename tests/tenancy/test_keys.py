@@ -9,15 +9,16 @@ import pytest
 from livekit.api import TokenVerifier
 from psycopg import AsyncConnection
 
-from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotFound
+from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotFound, NotSignedIn
 from pinecall.domain.org import Org
-from pinecall.domain.person import Key, Member
+from pinecall.domain.person import SERVER_SCOPES, Key, Member
 from pinecall.domain.scope import SCOPE_ATTRIBUTE, Scope
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy.keys import (
     Bearer,
     Issued,
     check_agent,
+    check_expiry,
     check_may_grant,
     check_opens,
     issue,
@@ -25,6 +26,7 @@ from pinecall.tenancy.keys import (
     person_key,
     revoke,
     scope_of,
+    server_scopes,
     verify,
     world_of,
 )
@@ -115,15 +117,43 @@ async def test_revoking_a_fingerprint_nobody_answers_to_is_false_and_not_an_erro
 
 
 @postgres
-async def test_an_expired_key_is_nothing_and_one_with_time_left_still_opens(pool: Pool) -> None:
+async def test_an_expired_key_is_refused_saying_so_and_one_with_time_left_still_opens(
+    pool: Pool,
+) -> None:
     org = await org_with_keys(pool)
     now = datetime.now(UTC)
     _, dead = await issue(pool, Issued(org=org.id, env="production", expires_at=now - timedelta(1)))
     _, alive = await issue(
         pool, Issued(org=org.id, env="production", expires_at=now + timedelta(1))
     )
-    assert await verify(pool, dead) is None
+    with pytest.raises(NotSignedIn, match="this key expired at 20"):
+        await verify(pool, dead)
     assert await verify(pool, alive) is not None
+    async with pool.connection() as connection:
+        used = await (
+            await connection.execute(
+                "SELECT last_used_at FROM api_keys WHERE hash = %(hash)s",
+                {"hash": fingerprint(dead)},
+            )
+        ).fetchone()
+    assert used is not None
+    assert used["last_used_at"] is None
+
+
+def test_a_servers_token_opens_all_a_servers_scopes_or_some_of_them_and_nothing_else() -> None:
+    assert server_scopes(None) == SERVER_SCOPES
+    assert server_scopes(["knowledge"]) == frozenset({"knowledge"})
+    for wanted in ([], ["knowledge", "team"], ["fleet"]):
+        with pytest.raises(DeclarationRefused, match="a server's token opens some of"):
+            server_scopes(wanted)
+
+
+def test_an_expiry_is_a_moment_to_come() -> None:
+    now = datetime.now(UTC)
+    check_expiry(None, now)
+    check_expiry(now + timedelta(days=30), now)
+    with pytest.raises(DeclarationRefused, match="a moment to come"):
+        check_expiry(now, now)
 
 
 @postgres

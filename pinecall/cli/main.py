@@ -20,7 +20,7 @@ from pinecall.domain.errors import NotAvailable, PinecallError
 from pinecall.gateway.app import announce_closing, app, embedder_of
 from pinecall.postgres.migrate import apply_migrations, migration_files, migrations_behind
 from pinecall.postgres.pool import open_pool
-from pinecall.process.connections import opened, server_of, vault_of
+from pinecall.process.connections import keyring_of, opened, server_of, vault_of
 from pinecall.process.settings import Settings, load
 from pinecall.providers import catalog, prices
 from pinecall.providers.build import installed
@@ -185,6 +185,18 @@ def retention_run(settings: Settings, _args: argparse.Namespace) -> int:
     return 0
 
 
+# Nothing is re-sealed that no key opens: that row is named, and the old key stays until it is 0.
+def vault_rotate(settings: Settings, _args: argparse.Namespace) -> int:
+    """Every sealed value re-sealed under PINECALL_VAULT_KEY's first key; 1 while one opens not."""
+    columns = asyncio.run(_rotated(settings))
+    for column in columns:
+        sys.stdout.write(
+            f"{column.column.named}: {column.resealed} re-sealed, {column.current} under the "
+            f"first key already, {column.unopened} opened by no key listed\n"
+        )
+    return 0 if all(column.unopened == 0 for column in columns) else 1
+
+
 def doctor(settings: Settings, _args: argparse.Namespace) -> int:
     """Each thing the box needs, a line each; the exit is 1 when one is missing."""
     lines = asyncio.run(_examined(settings))
@@ -219,6 +231,10 @@ def verbs() -> argparse.ArgumentParser:
     migrate.add_parser("plan", help="every migration, off the disk").set_defaults(run=migrate_plan)
     _operator.keys_group(under.add_parser("keys", help="keys"))
     under.add_parser("doctor", help="what this box lacks").set_defaults(run=doctor)
+    vault_verbs = under.add_parser("vault", help="the key every secret is sealed under")
+    vault_verbs.add_subparsers(required=True).add_parser(
+        "rotate", help="every sealed value re-sealed under the first key"
+    ).set_defaults(run=vault_rotate)
     vendors = under.add_parser(
         "providers", help="the vendors this build runs, and the row"
     ).add_subparsers(required=True)
@@ -305,6 +321,16 @@ async def _reembedded(settings: Settings) -> int:
         if embedder is None:
             raise NotAvailable("this box embeds nothing: no embedding in its providers row")
         return await memory.reembed(connections.pool, embedder)
+
+
+# The database and the vault's keys: no LiveKit, no HTTP.
+async def _rotated(settings: Settings) -> list[vault.Resealing]:
+    keyring = keyring_of(settings.vault_key)
+    pool = await open_pool(settings.database_url)
+    try:
+        return await vault.resealed(pool, keyring)
+    finally:
+        await pool.close()
 
 
 # The database alone: no vault, no LiveKit, so the nightly unit is handed nothing else.
