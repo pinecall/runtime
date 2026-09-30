@@ -30,3 +30,5 @@
 | **hosted app** | an org's agent process that the box runs itself, from sources the org uploaded, on a server's token the box minted for it (`tenancy/hosting.py`, `docs/protocol/hosting.md`) |
 | **release** | one upload of a hosted app's sources, numbered from 1 and never edited |
 | **secret** | a value of the org's, per world, that its hosted apps are started with as an environment variable; kept sealed and never read back by a door (`tenancy/org_secrets.py`) |
+| **runner** | the box's own process that builds and runs every org's hosted apps in one world, on a key that opens `runner` and nothing of an org's (`gateway/api/runner.py`) |
+| **host** | the name a hosted app's process runs under, one release under one set of the org's secrets; the app socket says it when it registers, which is how the gateway knows a release is serving |

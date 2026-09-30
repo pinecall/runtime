@@ -15,7 +15,7 @@ from pinecall.domain.person import SERVER_SCOPES
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy import keys
 from pinecall.tenancy.people import fingerprint
-from pinecall.tenancy.vault import sealed
+from pinecall.tenancy.vault import opened, sealed
 
 # The ceilings of one upload: what travels, what it unpacks to, and how many files.
 LARGEST_SOURCE = 10 * 1024 * 1024
@@ -25,6 +25,13 @@ LARGEST_UNPACKED = 100 * 1024 * 1024
 
 
 MOST_FILES = 5000
+
+
+# A host name is 63 characters at most: the app's name is cut to leave room for the rest.
+LONGEST_NAME_IN_A_HOST = 40
+
+
+STAMP = 8
 
 
 TOO_BIG = "a release's sources are {limit} MB at most packed, and this upload is {size:.1f} MB"
@@ -54,11 +61,21 @@ NO_RELEASE = "{name} has no release {release}"
 LABEL = "hosted app {name}"
 
 
-APPS = """
-SELECT app.name, app.created_by, app.created_at,
-       (SELECT max(release) FROM hosted_releases
-        WHERE org = app.org AND env = app.env AND name = app.name) AS release
-FROM hosted_apps app WHERE app.org = %(org)s AND app.env = %(env)s ORDER BY app.name
+# One row per app with a release: the newest, and a stamp of the org's secrets in that world,
+# which is what its host name is made of. An org's list leaves its other orgs out.
+STATUS = """
+SELECT app.org, app.name, app.created_by, app.created_at, app.live_release,
+       app.failed_host, app.failed_why, newest.release, newest.sha256,
+       (SELECT coalesce(string_agg(name || '@' || extract(epoch FROM set_at), ','
+                                   ORDER BY name), '')
+        FROM org_secrets WHERE org = app.org AND env = app.env) AS secrets
+FROM hosted_apps app
+LEFT JOIN LATERAL (
+    SELECT release, sha256 FROM hosted_releases
+    WHERE org = app.org AND env = app.env AND name = app.name ORDER BY release DESC LIMIT 1
+) newest ON true
+WHERE app.env = %(env)s AND (%(org)s::text IS NULL OR app.org = %(org)s)
+ORDER BY app.org, app.name
 """
 
 
@@ -100,6 +117,25 @@ WHERE org = %(org)s AND env = %(env)s AND name = %(name)s AND release = %(releas
 """
 
 
+SEALED_KEY = """
+SELECT sealed_key FROM hosted_apps WHERE org = %(org)s AND env = %(env)s AND name = %(name)s
+"""
+
+
+WENT_LIVE = """
+UPDATE hosted_apps SET live_release = %(release)s, live_host = %(host)s,
+       reported_by = %(runner)s, reported_at = now()
+WHERE org = %(org)s AND env = %(env)s AND name = %(name)s
+"""
+
+
+FAILED = """
+UPDATE hosted_apps SET failed_host = %(host)s, failed_why = %(why)s,
+       reported_by = %(runner)s, reported_at = now()
+WHERE org = %(org)s AND env = %(env)s AND name = %(name)s
+"""
+
+
 DROP_APP = """
 DELETE FROM hosted_apps WHERE org = %(org)s AND env = %(env)s AND name = %(name)s
 RETURNING key_fingerprint
@@ -121,13 +157,21 @@ class HostedApp:
 
 
 @dataclass(frozen=True)
-class ListedApp:
-    """A hosted app as the org's list shows it: its newest release, none before the first."""
+class AppStatus:
+    """A hosted app as the runner left it: its newest release, what serves it, and what failed."""
 
+    org: str
     name: str
-    release: int | None
     created_by: str
     created_at: datetime
+    # None before the first release; the rest of the newest release is None with it.
+    release: int | None
+    sha256: str | None
+    # The name the release's process runs under: one release under one set of secrets.
+    host: str | None
+    live_release: int | None
+    # Why the wanted host failed to build or start; None when it did not, or was never tried.
+    failed_why: str | None
 
 
 @dataclass(frozen=True)
@@ -150,6 +194,14 @@ class Release:
     created_at: datetime
 
 
+# What the process calls its machine, and so what the gateway's list of processes shows: the
+# release, and eight hex of it and of the org's secrets, so a changed secret is a new host.
+def host_of(name: str, release: int, sha256: str, secrets: str) -> str:
+    """The host name one release of the app runs under, with the org's secrets as they are."""
+    stamp = hashlib.sha256(f"{release}:{sha256}:{secrets}".encode()).hexdigest()[:STAMP]
+    return f"{name[:LONGEST_NAME_IN_A_HOST]}-r{release}-{stamp}"
+
+
 # Read here, before it is kept, so whoever unpacks a release later unpacks nothing but files
 # and folders under the project's own folder.
 def checked_source(data: bytes) -> Source:
@@ -165,19 +217,19 @@ def checked_source(data: bytes) -> Source:
     return Source(data=data, sha256=hashlib.sha256(data).hexdigest())
 
 
-async def apps_of(pool: Pool, org: str, env: Env) -> list[ListedApp]:
+async def apps_of(pool: Pool, org: str, env: Env) -> list[AppStatus]:
     """The apps the box hosts for the org in the world, by name."""
     async with pool.connection() as connection:
-        rows = await (await connection.execute(APPS, {"org": org, "env": env})).fetchall()
-    return [
-        ListedApp(
-            name=row["name"],
-            release=row["release"],
-            created_by=row["created_by"],
-            created_at=row["created_at"],
-        )
-        for row in rows
-    ]
+        rows = await (await connection.execute(STATUS, {"org": org, "env": env})).fetchall()
+    return [_status(row) for row in rows]
+
+
+# Every org's: what the world's runner is told to have running.
+async def hosted_in(pool: Pool, env: Env) -> list[AppStatus]:
+    """Every app the box hosts in the world, by org and name."""
+    async with pool.connection() as connection:
+        rows = await (await connection.execute(STATUS, {"org": None, "env": env})).fetchall()
+    return [_status(row) for row in rows]
 
 
 async def is_hosted(pool: Pool, app: HostedApp) -> bool:
@@ -249,6 +301,30 @@ async def source_of(pool: Pool, app: HostedApp, release: int) -> bytes:
     return bytes(row["source"])
 
 
+async def key_of(pool: Pool, vault: MultiFernet, app: HostedApp) -> str:
+    """The server's token the app's process runs on, opened; NotFound for an app not hosted."""
+    async with pool.connection() as connection:
+        row = await (await connection.execute(SEALED_KEY, app.columns)).fetchone()
+    secret = None if row is None else opened(vault, row["sealed_key"])
+    if not isinstance(secret, str):
+        raise NotFound(NOT_HOSTED.format(name=app.name, env=app.env))
+    return secret
+
+
+async def went_live(pool: Pool, app: HostedApp, status: AppStatus, *, runner: str) -> None:
+    """Record that the release wanted is the one serving the app now."""
+    values = {**app.columns, "release": status.release, "host": status.host, "runner": runner}
+    async with pool.connection() as connection:
+        await connection.execute(WENT_LIVE, values)
+
+
+async def failed(pool: Pool, app: HostedApp, status: AppStatus, *, why: str, runner: str) -> None:
+    """Record that the release wanted did not build or start, and why."""
+    values = {**app.columns, "host": status.host, "why": why, "runner": runner}
+    async with pool.connection() as connection:
+        await connection.execute(FAILED, values)
+
+
 async def drop_app(pool: Pool, app: HostedApp) -> None:
     """Stop hosting the app: its releases go, and its token opens nothing from the next request."""
     async with pool.connection() as connection:
@@ -271,6 +347,23 @@ def _check_members(tarball: tarfile.TarFile) -> None:
             raise DeclarationRefused(TOO_MANY_FILES.format(limit=MOST_FILES))
         if unpacked > LARGEST_UNPACKED:
             raise DeclarationRefused(UNPACKS_TOO_BIG.format(limit=LARGEST_UNPACKED >> 20))
+
+
+def _status(row: DictRow) -> AppStatus:
+    release = row["release"]
+    host = None if release is None else host_of(row["name"], release, row["sha256"], row["secrets"])
+    is_failed = host is not None and row["failed_host"] == host
+    return AppStatus(
+        org=row["org"],
+        name=row["name"],
+        created_by=row["created_by"],
+        created_at=row["created_at"],
+        release=release,
+        sha256=row["sha256"],
+        host=host,
+        live_release=row["live_release"],
+        failed_why=row["failed_why"] if is_failed else None,
+    )
 
 
 def _release(row: DictRow) -> Release:

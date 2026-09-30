@@ -17,12 +17,18 @@ from pinecall.tenancy.hosting import (
     apps_of,
     checked_source,
     drop_app,
+    failed,
+    host_of,
+    hosted_in,
     is_hosted,
     keep_release,
+    key_of,
     open_app,
     releases_of,
     source_of,
+    went_live,
 )
+from pinecall.tenancy.org_secrets import Secret, put_secret
 from pinecall.tenancy.orgs import remove
 from pinecall.tenancy.vault import opened
 from tests.conftest import postgres
@@ -204,3 +210,84 @@ async def test_removing_the_org_takes_its_hosted_apps_with_it(pool: Pool) -> Non
         left = await (await connection.execute("SELECT count(*) AS n FROM hosted_apps")).fetchone()
     assert left is not None
     assert left["n"] == 0
+
+
+def test_a_host_names_the_app_the_release_and_a_stamp_and_fits_a_host_name() -> None:
+    host = host_of("support", 7, "a" * 64, "")
+    assert host.startswith("support-r7-")
+    assert len(host) == len("support-r7-") + 8
+    assert host_of("support", 7, "a" * 64, "CRM_TOKEN@1.5") != host
+    assert host_of("support", 8, "a" * 64, "") != host
+    assert len(host_of("x" * 200, 1234, "a" * 64, "")) <= 63
+
+
+@postgres
+async def test_an_app_has_no_release_then_its_newest_under_a_host(pool: Pool) -> None:
+    org = await an_org(pool)
+    app = HostedApp(org=org.id, env="production", name="support")
+    await open_app(pool, VAULT, app, created_by="m_ana")
+    [before] = await hosted_in(pool, "production")
+    assert (before.release, before.host, before.failed_why) == (None, None, None)
+    await keep_release(pool, app, checked_source(PROJECT), author="m_ana", note="")
+    [status] = await hosted_in(pool, "production")
+    assert (status.org, status.name, status.release) == (org.id, "support", 1)
+    assert status.host is not None
+    assert status.host.startswith("support-r1-")
+    assert await hosted_in(pool, "sandbox") == []
+
+
+@postgres
+async def test_a_secret_set_or_a_release_uploaded_is_a_new_host(pool: Pool) -> None:
+    org = await an_org(pool)
+    app = HostedApp(org=org.id, env="production", name="support")
+    await open_app(pool, VAULT, app, created_by="m_ana")
+    await keep_release(pool, app, checked_source(PROJECT), author="m_ana", note="")
+    [first] = await hosted_in(pool, "production")
+    secret = Secret(env="production", name="CRM_TOKEN", value="x")
+    await put_secret(pool, VAULT, org.id, secret, set_by="m_ana")
+    [with_secret] = await hosted_in(pool, "production")
+    await keep_release(pool, app, checked_source(PROJECT), author="m_ana", note="")
+    [second] = await hosted_in(pool, "production")
+    assert len({first.host, with_secret.host, second.host}) == 3
+
+
+@postgres
+async def test_a_failure_is_the_wanted_hosts_until_a_newer_release_replaces_it(pool: Pool) -> None:
+    org = await an_org(pool)
+    app = HostedApp(org=org.id, env="production", name="support")
+    await open_app(pool, VAULT, app, created_by="m_ana")
+    await keep_release(pool, app, checked_source(PROJECT), author="m_ana", note="")
+    [status] = await hosted_in(pool, "production")
+    await failed(pool, app, status, why="npm install exited 1", runner="apps-1")
+    [after] = await hosted_in(pool, "production")
+    assert after.failed_why == "npm install exited 1"
+    await keep_release(pool, app, checked_source(PROJECT), author="m_ana", note="")
+    [newer] = await hosted_in(pool, "production")
+    assert newer.failed_why is None
+
+
+@postgres
+async def test_a_release_gone_live_is_what_serves_the_app_until_the_next_does(pool: Pool) -> None:
+    org = await an_org(pool)
+    app = HostedApp(org=org.id, env="production", name="support")
+    await open_app(pool, VAULT, app, created_by="m_ana")
+    await keep_release(pool, app, checked_source(PROJECT), author="m_ana", note="")
+    [status] = await hosted_in(pool, "production")
+    await went_live(pool, app, status, runner="apps-1")
+    await keep_release(pool, app, checked_source(PROJECT), author="m_ana", note="")
+    [newer] = await hosted_in(pool, "production")
+    assert (newer.release, newer.live_release) == (2, 1)
+
+
+@postgres
+async def test_the_apps_token_opens_for_whoever_starts_it_and_not_for_an_app_not_hosted(
+    pool: Pool,
+) -> None:
+    org = await an_org(pool)
+    app = HostedApp(org=org.id, env="sandbox", name="support")
+    await open_app(pool, VAULT, app, created_by="m_ana")
+    token = await key_of(pool, VAULT, app)
+    assert token.startswith("pc_test_")
+    assert await keys.verify(pool, token) is not None
+    with pytest.raises(NotFound, match="hosts no app called nobody"):
+        await key_of(pool, VAULT, HostedApp(org=org.id, env="sandbox", name="nobody"))

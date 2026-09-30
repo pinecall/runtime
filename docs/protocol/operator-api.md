@@ -80,8 +80,8 @@ mean is [limits.md](../limits.md).
 ## Keys
 
 - `POST /v1/ops/orgs/{named}/keys {env, label?, scopes?, subject?, name?}`: a key of the org in
-  the world named, `pc_live_` or `pc_test_`, answered this once; every scope but `fleet` when
-  `scopes` is left out; `subject` and `name` make it a person's key.
+  the world named, `pc_live_` or `pc_test_`, answered this once; every scope but `fleet` and
+  `runner` when `scopes` is left out; `subject` and `name` make it a person's key.
 - `GET /v1/ops/orgs/{named}/keys`: every key by fingerprint, the revoked ones said; never a key.
 - `POST /v1/ops/keys/{fingerprint}/revoke`: stops the key from the next request; the row stays, so
   the entries that name it still read.

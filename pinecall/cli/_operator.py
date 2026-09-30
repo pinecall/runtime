@@ -15,7 +15,7 @@ import httpx
 from pinecall.domain.errors import GatewayRefused, PinecallError
 from pinecall.domain.names import Json, JsonObject, parse_env
 from pinecall.domain.org import DEFAULT_ORG, QUOTAS
-from pinecall.domain.person import ROLES, THE_FLEET
+from pinecall.domain.person import ROLES, THE_FLEET, THE_RUNNER
 from pinecall.fleet import hub
 from pinecall.fleet.hub import Cloud, Line
 from pinecall.postgres.pool import open_pool
@@ -57,6 +57,9 @@ NO_BODY = 204
 
 
 A_FLEET_KEY = "the {env} fleet"
+
+
+A_RUNNER_KEY = "the {env} runner"
 
 
 def init_group(first: argparse.ArgumentParser) -> None:
@@ -129,6 +132,9 @@ def keys_group(group: argparse.ArgumentParser) -> None:
     fleet = keys.add_parser("fleet", help="mint a world's fleet key, printed once")
     fleet.add_argument("env", choices=("production", "sandbox"))
     fleet.set_defaults(run=fleet_key)
+    runner = keys.add_parser("runner", help="mint a world's runner key, printed once")
+    runner.add_argument("env", choices=("production", "sandbox"))
+    runner.set_defaults(run=runner_key)
 
 
 def routes_group(group: argparse.ArgumentParser) -> None:
@@ -185,6 +191,20 @@ def fleet_key(settings: Settings, args: argparse.Namespace) -> int:
     env = parse_env(str(args.env))
     issued = key_table.Issued(
         org=DEFAULT_ORG, env=env, scopes=frozenset({THE_FLEET}), label=A_FLEET_KEY.format(env=env)
+    )
+    sys.stdout.write(asyncio.run(_minted(settings, issued)))
+    return 0
+
+
+# It is told every org's hosted apps and handed their tokens and secrets: minted like the fleet's.
+def runner_key(settings: Settings, args: argparse.Namespace) -> int:
+    """Mint the runner key of a world, in the box's own org."""
+    env = parse_env(str(args.env))
+    issued = key_table.Issued(
+        org=DEFAULT_ORG,
+        env=env,
+        scopes=frozenset({THE_RUNNER}),
+        label=A_RUNNER_KEY.format(env=env),
     )
     sys.stdout.write(asyncio.run(_minted(settings, issued)))
     return 0

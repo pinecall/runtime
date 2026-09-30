@@ -396,3 +396,18 @@ async def test_a_release_is_numbered_from_one_of_an_app_hosted_in_a_world_that_e
             await connection.execute(release, ("billing", 1))
     assert await column_of(schema, "hosted_releases", "release") == ["1"]
     assert await column_of(schema, "quotas", "hosted_apps") == []
+
+
+@postgres
+async def test_a_hosted_app_starts_with_nothing_live_and_nothing_failed(schema: str) -> None:
+    await apply_migrations(DSN, schema=schema)
+    app = (
+        "insert into hosted_apps (org, env, name, key_fingerprint, sealed_key)"
+        " values ('default', 'production', 'support', 'f', 's')"
+    )
+    async with await connect(DSN) as connection:
+        await connection.execute(sql.SQL("set search_path to {}").format(sql.Identifier(schema)))
+        await connection.execute(app)
+    assert await column_of(schema, "hosted_apps", "live_release") == ["None"]
+    assert await column_of(schema, "hosted_apps", "failed_host") == ["None"]
+    assert await column_of(schema, "hosted_apps", "failed_why") == [""]
