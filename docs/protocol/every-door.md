@@ -105,6 +105,8 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `DELETE` | `/v1/contacts/{contact}` | team | Erase a contact in the world: every call they were on and every fact kept of them. |
 | `DELETE` | `/v1/contacts/{contact}/memory` | memory | Every fact of the contact deleted, history included; zero is an answer, not a 404. |
 | `GET` | `/v1/contacts/{contact}/memory` | memory | Every fact ever kept of the contact, current first. |
+| `GET` | `/v1/evals/calibration` | evals | Each judge's agreement with the labels on the key's world's calls, one agent's or all. |
+| `POST` | `/v1/evals/calibration` | evals | Keep what one judge should have answered on a finished call, replacing the last label. |
 | `POST` | `/v1/evals/caller` | evals | The persona's next line on the call so far, improvised by its model. |
 | `GET` | `/v1/evals/cases` | evals | The org's cases, one agent's or every one, by agent and name. |
 | `POST` | `/v1/evals/cases` | evals | A finished call's caller lines kept as a case of the org's dataset. |

@@ -28,11 +28,11 @@ LOGS_OF_ORG = "SELECT log, call, agent FROM call_log_head WHERE org = %(org)s"
 
 # What a call left besides its entries: the private values sealed beside them, its head, facts,
 # tokens, the memories it taught, its recording's key, the verdicts its day's drift counted (the
-# day's sums keep its numbers, which name nobody), and the case of the org's dataset made of it
-# (evals/dataset.py). A phone call's numbers, times and end stay in call_records, and the dials
-# ledger stays: they name numbers and times, never what was said, and a traceback asks for them
-# (0016_call_records.sql). Every statement of the WITH reads the rows as they were before it, so
-# the record reads the facts.
+# day's sums keep its numbers, which name nobody), the case of the org's dataset made of it
+# (evals/dataset.py) and the labels people gave its judges (evals/calibration.py). A phone call's
+# numbers, times and end stay in call_records, and the dials ledger stays: they name numbers and
+# times, never what was said, and a traceback asks for them (0016_call_records.sql). Every
+# statement of the WITH reads the rows as they were before it, so the record reads the facts.
 ERASE_LOGS = """
 WITH recorded AS (
     INSERT INTO call_records (call, org, env, direction, from_number, to_number, started_at,
@@ -50,7 +50,8 @@ WITH recorded AS (
      spent AS (DELETE FROM tokens WHERE call = ANY(%(calls)s) RETURNING 1),
      taught AS (DELETE FROM contact_memories WHERE source_call = ANY(%(calls)s) RETURNING 1),
      drifted AS (DELETE FROM drift_calls WHERE call = ANY(%(calls)s)),
-     promoted AS (DELETE FROM eval_cases WHERE source_call = ANY(%(calls)s))
+     promoted AS (DELETE FROM eval_cases WHERE source_call = ANY(%(calls)s)),
+     labels AS (DELETE FROM judge_labels WHERE call = ANY(%(calls)s))
 SELECT (SELECT count(*) FROM taught) AS memories
 """
 
