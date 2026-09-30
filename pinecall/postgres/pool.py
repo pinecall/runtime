@@ -1,6 +1,9 @@
 """The pool an instance opens on its database, and the names a schema and a DSN go by."""
 
 import re
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 
 import psycopg
 from psycopg.conninfo import conninfo_to_dict
@@ -25,17 +28,52 @@ _A_SCHEMA_NAME = re.compile(r"^[a-z_][a-z0-9_]*$")
 CONNECT_TIMEOUT_S = 10
 
 
-async def open_pool(dsn: str, *, schema: str = DEFAULT_SCHEMA, max_size: int = 10) -> Pool:
+# What a gateway's pool holds unless PINECALL_DB_POOL says otherwise.
+POOL_SIZE = 10
+
+
+# SET LOCAL: they end with the transaction, and the connection goes back to the pool as it came.
+UNBOUNDED = (
+    "SET LOCAL statement_timeout = 0",
+    "SET LOCAL idle_in_transaction_session_timeout = 0",
+)
+
+
+@dataclass(frozen=True)
+class Timeouts:
+    """How long a pool's statement may run, its transaction sit idle, and a request wait for it."""
+
+    # A door's statement past this is cancelled; what is long on purpose runs `unbounded`.
+    statement_ms: int = 30_000
+    # A transaction its process stopped talking in is ended, and its locks let go.
+    idle_in_transaction_ms: int = 60_000
+    # A request that finds the pool full this long is answered 503, which a worker outlasts.
+    wait_s: float = 2.0
+
+
+TIMEOUTS = Timeouts()
+
+
+async def open_pool(
+    dsn: str,
+    *,
+    schema: str = DEFAULT_SCHEMA,
+    max_size: int = POOL_SIZE,
+    timeouts: Timeouts = TIMEOUTS,
+) -> Pool:
     """Open a pool on the schema, rows as dicts; raise StoreUnreachable when nothing answers."""
+    options = (
+        f"-c search_path={','.join(schemas_of(schema))}"
+        f" -c statement_timeout={timeouts.statement_ms}"
+        f" -c idle_in_transaction_session_timeout={timeouts.idle_in_transaction_ms}"
+    )
     pool: Pool = AsyncConnectionPool(
         dsn,
         connection_class=psycopg.AsyncConnection[DictRow],
-        kwargs={
-            "row_factory": dict_row,
-            "options": f"-c search_path={','.join(schemas_of(schema))}",
-        },
+        kwargs={"row_factory": dict_row, "options": options},
         min_size=1,
         max_size=max_size,
+        timeout=timeouts.wait_s,
         open=False,
     )
     try:
@@ -44,6 +82,16 @@ async def open_pool(dsn: str, *, schema: str = DEFAULT_SCHEMA, max_size: int = 1
         await pool.close()
         raise StoreUnreachable(f"{database_named(dsn)}: {refused}") from refused
     return pool
+
+
+# Erasure, an export, the nightly retention and a knowledge base's index are long on purpose.
+@asynccontextmanager
+async def unbounded(pool: Pool) -> AsyncGenerator[Connection]:
+    """A connection in a transaction that no statement or idle timeout of the pool ends."""
+    async with pool.connection() as connection, connection.transaction():
+        for statement in UNBOUNDED:
+            await connection.execute(statement)
+        yield connection
 
 
 async def connect(dsn: str) -> Connection:

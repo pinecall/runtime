@@ -5,9 +5,10 @@ from pathlib import Path
 
 from pinecall.domain.names import parse_env
 from pinecall.domain.scope import Scope
-from pinecall.postgres.pool import Pool
+from pinecall.postgres.pool import Pool, unbounded
 from pinecall.tenancy import erasure
 
+# Every statement of the nightly run is unbounded: it reads and deletes across every org's years.
 # Sealed calls only: a call still running is the caller's, not the calendar's. Oldest first, so a
 # run cut short by its limit takes up where it stopped.
 DUE = """
@@ -49,7 +50,7 @@ class Due:
 
 async def due(pool: Pool, now: float, *, limit: int = A_RUN_ERASES) -> list[Due]:
     """The sealed calls whose org keeps fewer days than they have, oldest first."""
-    async with pool.connection() as connection:
+    async with unbounded(pool) as connection:
         rows = await (await connection.execute(DUE, {"now": now, "limit": limit})).fetchall()
     return [
         Due(
@@ -73,13 +74,13 @@ async def purge(
 
 async def forget_records(pool: Pool, now: float) -> int:
     """Forget the records of erased calls more than 24 months old; how many."""
-    async with pool.connection() as connection:
+    async with unbounded(pool) as connection:
         done = await connection.execute(FORGET_RECORDS, {"before": now - RECORDS_KEPT_S})
     return done.rowcount
 
 
 async def forget_dials(pool: Pool, now: float) -> int:
     """Forget the dials placed or refused more than 24 months ago; how many."""
-    async with pool.connection() as connection:
+    async with unbounded(pool) as connection:
         done = await connection.execute(FORGET_DIALS, {"before": now - RECORDS_KEPT_S})
     return done.rowcount

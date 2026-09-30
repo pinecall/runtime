@@ -12,6 +12,7 @@ from psycopg import sql
 
 from pinecall.domain.errors import MigrationsRefused
 from pinecall.postgres.migrate import (
+    ADVISORY_LOCK,
     FIRST,
     MIGRATIONS,
     MIGRATIONS_TABLE,
@@ -322,6 +323,29 @@ async def test_two_runs_at_once_do_not_both_migrate(schema: str) -> None:
     ran = [name for item in both for name in item.applied]
     assert len(ran) == len(set(ran)), "no migration was applied twice"
     assert set(ran) == {path.name for path in migration_files()}
+
+
+# PGOPTIONS stands for a timeout the role or the database was given: libpq sends it on connect.
+@postgres
+async def test_a_run_waits_for_another_runner_whatever_timeout_the_session_was_given(
+    schema: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    locked = asyncio.Event()
+
+    async def another_runner() -> None:
+        async with await connect(DSN) as connection:
+            await connection.execute("select pg_advisory_lock(%s)", (ADVISORY_LOCK,))
+            locked.set()
+            await asyncio.sleep(0.4)
+            await connection.execute("select pg_advisory_unlock(%s)", (ADVISORY_LOCK,))
+
+    async def once_locked() -> tuple[str, ...]:
+        await locked.wait()
+        monkeypatch.setenv("PGOPTIONS", "-c statement_timeout=100")
+        return (await apply_migrations(DSN, schema=schema)).applied
+
+    _, applied = await asyncio.gather(another_runner(), once_locked())
+    assert applied == tuple(path.name for path in migration_files())
 
 
 @postgres

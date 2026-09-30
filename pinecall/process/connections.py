@@ -48,7 +48,7 @@ async def opened(settings: Settings) -> AsyncGenerator[Connections]:
     """Open everything, the vault first: a box without its key starts nothing; closed in reverse."""
     sealed = vault_of(settings.vault_key)
     server = server_of(settings)
-    pool = await open_pool(settings.database_url)
+    pool = await open_pool(settings.database_url, max_size=settings.db_pool)
     try:
         async with httpx.AsyncClient() as http:
             yield Connections(settings=settings, pool=pool, vault=sealed, http=http, server=server)

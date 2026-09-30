@@ -13,7 +13,7 @@ from pinecall.domain.agent import KnowledgeFile
 from pinecall.domain.errors import WrongModel
 from pinecall.domain.names import Env
 from pinecall.domain.scope import Scope
-from pinecall.postgres.pool import Pool
+from pinecall.postgres.pool import Pool, unbounded
 from pinecall.retrieval._search import (
     CANDIDATES_PER_BRANCH,
     Evidence,
@@ -605,7 +605,8 @@ async def _written(
         "indexed": [indexed_text(piece) for piece in pieces],
         "vectors": [halfvec(vector) for vector in written],
     }
-    async with pool.connection() as connection:
+    # Unbounded: a base of thousands of chunks is that many rows into two indexes, in one statement.
+    async with unbounded(pool) as connection:
         await connection.execute(WRITE, named)
 
 

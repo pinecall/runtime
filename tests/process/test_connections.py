@@ -40,3 +40,12 @@ async def test_the_connections_open_on_the_settings_and_close_after() -> None:
     async with opened(settings) as connections, connections.pool.connection() as connection:
         assert (await (await connection.execute("select 1")).fetchone()) is not None
     assert connections.pool.closed
+
+
+@postgres
+async def test_the_pool_is_as_large_as_the_settings_say() -> None:
+    settings = settings_of().model_copy(
+        update={"database_url": DSN, "vault_key": Fernet.generate_key().decode(), "db_pool": 3}
+    )
+    async with opened(settings) as connections:
+        assert connections.pool.max_size == 3
