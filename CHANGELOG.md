@@ -222,3 +222,15 @@ console and the widget inside; `docs/from-zero.md` walks a box to its first call
   asked for). The time each app served is counted per UTC day while a process of the org runs under
   one of its hosts: `GET /v1/hosted/usage`, and every org's at `GET /v1/ops/hosted-usage`, for a
   billing layer. Migration 0021.
+- The hosting code reviewed, end to end. An org's secrets no longer ride podman's environment,
+  which is root's (a secret named `LD_PRELOAD` was root's to run): the runner writes each host's
+  environment to a tmpfs (`PINECALL_RUNNER_ENVIRONMENTS`, `/run/pinecall-runner/<world>`),
+  mounted read-only into that container, and its shell reads it. A live host whose process exits
+  is run again, its last lines kept as the app's logs; five exits in ten minutes and it is failed.
+  Each app's steps run in a task of their own, planned from numbers alone (`runner/_plan.py`); a
+  report is never lost to a beat that fails; release folders, environments and networks nothing
+  uses are swept. A host's name is stamped with the org and the world, an app's name is 40
+  characters at most, and the runner reads the gateway leniently (`live_host` is new): upgrade
+  the runner first. The time served is counted in one statement a beat; an upload is capped while
+  it streams. The operator's `pinecall-runtime` wrapper writes no bytecode, so a verb run as root
+  no longer breaks the next release.

@@ -78,14 +78,35 @@ its own fence. What that asked of the runner, and still asks of whoever touches 
 
 ## What the runner does, every five seconds
 
-It tells the gateway what happened and is told every app of its world with a release. For each:
-it installs a release it has not installed (the dependencies, inside gVisor, 5 minutes and 1 GB
-at most), starts it under the release's **host** name with the org's secrets and the app's token
-in its environment, and reports it `live` once the gateway sees an app socket say that host. The
-release it replaces keeps serving until then, and is stopped with SIGTERM and 45 seconds to
-drain. A release that does not install, exits, or registers nothing within two minutes is
-reported `failed` with its last lines, and the one before it keeps serving. An app dropped has its
-container stopped.
+It tells the gateway what happened and is told every app of its world with a release. What to do
+to each app is decided from numbers alone (`pinecall/runner/_plan.py`), and each app's steps run
+in a task of their own, so a slow install never holds another app back (two installs at most at
+once). For each app it installs a release it has not installed (the dependencies, inside gVisor,
+5 minutes and 1 GB at most; marked `r<n>.installed` beside the folder, never in it), writes its
+environment — the org's secrets, the app's token, the gateway's address — to
+`/run/pinecall-runner/<world>/<host>/env`, a tmpfs the unit mounts, and starts it under the
+release's **host** name with that file mounted read-only: podman never sees a secret. It reports
+it `live` once the gateway sees an app socket say that host. The release it replaces keeps serving
+until then, and is stopped with SIGTERM and 45 seconds to drain. A release that does not install,
+exits, or registers nothing within two minutes is reported `failed` with its last lines, and the
+one before it keeps serving. A live host whose process exits is run again, its last lines sent as
+the app's logs; five exits in ten minutes and it is reported failed. An app dropped has its
+container stopped. What nothing uses any more goes: a release's folder, a host's environment, and
+the world's networks no container is on.
+
+## Upgrading
+
+The runner reads what the gateway answers leniently, so a gateway may add a field before its
+runners know it, and never the other way round: **upgrade the runner first**, then deploy the box.
+
+```console
+$ gcloud compute scp dist/pinecall-<version>-py3-none-any.whl infra/apps/pinecall-runner@.service pinecall-apps-1:/tmp/
+$ gcloud compute ssh pinecall-apps-1 --command 'sudo /opt/pinecall-runner/venv/bin/pip install --force-reinstall --no-deps /tmp/pinecall-*.whl \
+    && sudo cp /tmp/pinecall-runner@.service /etc/systemd/system/ && sudo systemctl daemon-reload \
+    && sudo systemctl restart pinecall-runner@production pinecall-runner@sandbox'
+```
+
+The apps keep running while their runner restarts: they are podman's, not the runner's.
 
 ```console
 $ sudo podman ps --filter label=pinecall.app                # every app's container
