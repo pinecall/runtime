@@ -6,7 +6,7 @@ import math
 import sys
 import time
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import partial
@@ -143,9 +143,9 @@ class Tally:
 
 @dataclass(frozen=True)
 class Run:
-    """What every call of a run shares: the client, the plan, the tally and the window."""
+    """What every call of a run shares: how a slot knocks, the plan, the tally and the window."""
 
-    client: GatewayClient
+    knock: Callable[[], GatewayClient]
     plan: Plan
     tally: Tally
     window: Window
@@ -236,8 +236,8 @@ def log_holds(sent: Sequence[Entry], read: Sequence[Entry]) -> bool:
     return [(entry.seq, entry.type) for entry in read if entry.type in kinds] == written
 
 
-async def run_load(client: GatewayClient, plan: Plan) -> Tally:
-    """Hold the plan's calls on the client until the run ends, and count what happened."""
+async def run_load(knock: Callable[[], GatewayClient], plan: Plan) -> Tally:
+    """Hold the plan's calls, each slot on a client of its own, and count what happened."""
     tally = Tally()
     began = time.monotonic()
     window = Window(top_at=began + plan.ramp_s, ends_at=began + plan.ramp_s + plan.hold_s)
@@ -248,7 +248,7 @@ async def run_load(client: GatewayClient, plan: Plan) -> Tally:
             asyncio.TaskGroup() as group,
         ):
             group.create_task(_lag(tally, stopped))
-            run = Run(client, plan, tally, window)
+            run = Run(knock, plan, tally, window)
             slots = [
                 group.create_task(_slot(run, start)) for start in starts_of(plan.calls, plan.ramp_s)
             ]
@@ -288,20 +288,18 @@ def report_of(tally: Tally, hold_s: float) -> list[str]:
     return lines
 
 
+# A worker's job is a process with a client of its own, so a slot has one too: a pool shared by
+# every call is searched whole on each request, and the generator would measure that search.
 async def _measured(url: str, key: str, plan: Plan) -> Tally:
-    # One request in flight per call at most: a pool of --calls never makes a call wait on it.
-    limits = httpx.Limits(max_connections=plan.calls, max_keepalive_connections=plan.calls)
-    http = httpx.AsyncClient(
-        base_url=url,
-        headers={"Authorization": f"Bearer {key}"},
-        timeout=TIMEOUT_S,
-        limits=limits,
-    )
-    client = GatewayClient(http)
-    try:
-        return await run_load(client, plan)
-    finally:
-        await client.aclose()
+    headers = {"Authorization": f"Bearer {key}"}
+    # Built once: every client would otherwise load the machine's certificates for itself.
+    trusted = httpx.create_ssl_context()
+
+    def knock() -> GatewayClient:
+        http = httpx.AsyncClient(base_url=url, headers=headers, timeout=TIMEOUT_S, verify=trusted)
+        return GatewayClient(http)
+
+    return await run_load(knock, plan)
 
 
 def _entries_in(path: Path) -> list[Entry]:
@@ -324,15 +322,19 @@ async def _lag(tally: Tally, stopped: asyncio.Event) -> None:
 # A refusal ends that call, never the slot: the slot opens a fresh call after a pause.
 async def _slot(run: Run, start_s: float) -> None:
     await asyncio.sleep(start_s)
-    while time.monotonic() < run.window.ends_at:
-        try:
-            await _call(run)
-        except GatewayRefused as refused:
-            run.tally.refusals[_status(refused)] += 1
-            await asyncio.sleep(REFUSED_PAUSE_S)
+    client = run.knock()
+    try:
+        while time.monotonic() < run.window.ends_at:
+            try:
+                await _call(run, client)
+            except GatewayRefused as refused:
+                run.tally.refusals[_status(refused)] += 1
+                await asyncio.sleep(REFUSED_PAUSE_S)
+    finally:
+        await client.aclose()
 
 
-async def _call(run: Run) -> None:
+async def _call(run: Run, client: GatewayClient) -> None:
     plan, tally = run.plan, run.tally
     context = CallContext(
         call=new_call_id(),
@@ -342,30 +344,30 @@ async def _call(run: Run) -> None:
         route=Route(org=plan.org, agent=plan.agent, channel=CHANNEL, env=SANDBOX),
         today=datetime.now(UTC).date(),
     )
-    await run.client.open(OpenCallRequest(agent=plan.agent, context=context))
+    await client.open(OpenCallRequest(agent=plan.agent, context=context))
     tally.opened += 1
     tally.held += 1
     tally.most_held = max(tally.most_held, tally.held)
     try:
-        sent = await _replayed(run, context.call)
+        sent = await _replayed(run, client, context.call)
         started = time.monotonic()
-        await run.client.sealed(context.call, SealCallRequest(usage=[], outcome=OUTCOME))
+        await client.sealed(context.call, SealCallRequest(usage=[], outcome=OUTCOME))
         tally.seal_ms.append((time.monotonic() - started) * 1000)
         tally.sealed += 1
     finally:
         tally.held -= 1
-    await _verified(run, context.call, sent)
+    await _verified(run, client, context.call, sent)
 
 
 # At the script's own times from the open, queued on the worker's own writer, which sends what
 # is queued as one batch while the last is out; a call the run's end overtakes skips to its
 # call.ended. A refusal ends the call once what it queued has been answered.
-async def _replayed(run: Run, call: str) -> list[Entry]:
+async def _replayed(run: Run, client: GatewayClient, call: str) -> list[Entry]:
     script, ends_at = run.plan.script, run.window.ends_at
 
     async def batched(entries: list[BatchedEntry], *, after: int) -> list[Entry]:
         run.tally.batches.append(len(entries))
-        return await run.client.append_many(call, entries, after=after)
+        return await client.append_many(call, entries, after=after)
 
     writing = Writing(batched, call)
     writing.open()
@@ -408,13 +410,13 @@ def _landed(run: Run, queued_at: float, written: asyncio.Future[Entry]) -> None:
 
 
 # Read through the log's own door as a reader pages it; a key that may not read is counted apart.
-async def _verified(run: Run, call: str, sent: list[Entry]) -> None:
+async def _verified(run: Run, client: GatewayClient, call: str, sent: list[Entry]) -> None:
     tally = run.tally
     if not rising(sent):
         tally.wrong += 1
         return
     try:
-        read = [entry async for entry in run.client.since(call, 0)]
+        read = [entry async for entry in client.since(call, 0)]
     except GatewayRefused as refused:
         tally.unread[_status(refused)] += 1
         return
