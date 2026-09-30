@@ -9,7 +9,7 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 |---|---|---|---|
 | `GET` | `/.well-known/pinecall` | — | What this gateway is and how it signs people in, before anybody holds a key. |
 | `GET` | `/v1/agents` | calls | The org's held agents in the world: one row per slug, one per scope for a team reader. |
-| `GET` | `/v1/agents/{slug}/calls` | calls | An agent's own log: its registrations, its declarations, its errors. It never ends. |
+| `GET` | `/v1/agents/{slug}/calls` | calls · fleet | An agent's own log: its registrations, its declarations, its errors. It never ends. |
 | `GET` | `/v1/agents/{slug}/config` | app · calls · fleet | The agent as the scope runs it: its declaration under the scope's settings. |
 | `POST` | `/v1/agents/{slug}/dev/chat/{verb}` | talk | A chat verb, answered by the app holding the agent. |
 | `POST` | `/v1/agents/{slug}/dev/evals/{verb}` | evals | An evals verb, answered by the app holding the agent. |
@@ -67,17 +67,17 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `POST` | `/v1/calls/{call}/claim` | app · fleet | The caller keyed a page's code: tie the call to it. |
 | `GET` | `/v1/calls/{call}/commands` | app · fleet | The app's commands for the call, in order, until it is sealed. |
 | `POST` | `/v1/calls/{call}/entries` | app · fleet | Write a worker's batch of a call this gateway serves, once and in order, each entry at the worker's `ts` clamped to the gateway's clock; a retry of the last batch answers the same seqs. |
-| `GET` | `/v1/calls/{call}/events` | calls | A call's entries above the cursor: a page, or a stream that ends with the call. |
+| `GET` | `/v1/calls/{call}/events` | calls · fleet | A call's entries above the cursor: a page, or a stream that ends with the call. |
 | `POST` | `/v1/calls/{call}/events` | app · fleet | Write one entry of a call this gateway serves. |
 | `GET` | `/v1/calls/{call}/judging` | app · fleet | Whether the call's org judges its calls at hang-up. |
 | `POST` | `/v1/calls/{call}/listen` | supervise | A hidden seat that hears one live call. |
 | `POST` | `/v1/calls/{call}/lookup` | app · fleet | Recall or search for a call served here, answered as the model reads it. |
-| `GET` | `/v1/calls/{call}/recording` | calls | The call's audio, with byte ranges so a player can seek. |
+| `GET` | `/v1/calls/{call}/recording` | calls · fleet | The call's audio, with byte ranges so a player can seek. |
 | `POST` | `/v1/calls/{call}/remember` | app · fleet | Write what the call taught into its contact's memory now, as the seal would. |
 | `POST` | `/v1/calls/{call}/reopened` | app · fleet | Serve again a call the gateway forgot. |
 | `POST` | `/v1/calls/{call}/sealed` | app · fleet | Price the call, write its summary and score, and seal its log. |
 | `GET` | `/v1/calls/{call}/settings` | calls | The exact settings and lexicon a call was built on. |
-| `GET` | `/v1/calls/{call}/state` | calls | The call's folded state as this reader may see it, and the seq a stream resumes from. |
+| `GET` | `/v1/calls/{call}/state` | calls · fleet | The call's folded state as this reader may see it, and the seq a stream resumes from. |
 | `POST` | `/v1/calls/{call}/supervise` | supervise | A seat that speaks in one live call; its token also sends the verbs. |
 | `POST` | `/v1/calls/{call}/tools` | app · fleet | Run a worker's tool call through the app that holds its agent, and answer its result. |
 | `POST` | `/v1/calls/{call}/verbs` | calls | One supervise verb on a live call; the call's log says what it did. |

@@ -210,6 +210,30 @@ async def test_the_fleet_of_one_world_opens_no_call_of_the_other(knocking: Knock
 
 
 @postgres
+async def test_a_worker_reads_the_call_it_serves_with_the_fleets_key_alone(
+    knocking: Knocking,
+) -> None:
+    context = a_call(knocking)
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+        state = await worker.get(f"/v1/calls/{context.call}/state")
+        page = await worker.get(f"/v1/calls/{context.call}/events")
+    assert state.status_code == 200
+    assert state.json()["last_seq"] == 1
+    assert [entry["type"] for entry in page.json()["entries"]] == ["call.ringing"]
+
+
+@postgres
+async def test_the_fleet_of_one_world_reads_no_call_of_the_other(knocking: Knocking) -> None:
+    context = a_call(knocking, env="production")
+    async with knocking.http(knocking.fleet["production"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+    async with knocking.http(knocking.fleet["sandbox"]) as other:
+        refused = await other.get(f"/v1/calls/{context.call}/events")
+    assert refused.status_code == 404
+
+
+@postgres
 async def test_a_tool_goes_to_the_app_as_tool_call_and_its_answer_comes_back(
     knocking: Knocking,
 ) -> None:

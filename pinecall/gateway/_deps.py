@@ -378,14 +378,17 @@ async def reader(
     if verified is None:
         raise NotSignedIn(READ_WITH_A_KEY)
     key = Acting(bearer=verified, env=world_of_request(connection, verified, gateway))
-    keys.check_opens(verified, "calls")
+    keys.check_opens(verified, "calls", THE_FLEET)
+    # A worker reads the call it serves and names no scope to do it: the fleet's key has none.
+    if THE_FLEET in verified.key.scopes:
+        return Reader(acting=key)
     return Reader(acting=key, scope=await scope(connection, key, gateway, named))
 
 
 ReaderDep = Annotated[Reader, Depends(reader)]
 
 
-SCOPES_OF[reader] = frozenset({"calls"})
+SCOPES_OF[reader] = frozenset({"calls", THE_FLEET})
 
 
 def is_the_fleet(reading: Reader) -> bool:
@@ -408,10 +411,12 @@ async def check_readable(gateway: Gateway, reading: Reader, call: str) -> AgentC
 
 
 # The org's own calls and the reader's own scope; a token is checked by its call, the fleet's
-# key reads every call it serves.
+# key reads every call of the world it serves and none of the other.
 def _sees(reading: Reader, owner: Scope | None) -> bool:
-    if reading.visit is not None or is_the_fleet(reading):
+    if reading.visit is not None:
         return True
+    if reading.acting is not None and is_the_fleet(reading):
+        return owner is None or owner.env == reading.acting.env
     reader = reading.scope
     if reader is None or owner is None:
         return False
