@@ -29,11 +29,18 @@ pinecall-env: production | sandbox      the world a person's key acts in (the sa
 `403 this key does not open knowledge: it opens calls · evals`. A server's key holds `app` ·
 `calls` · `talk` · `knowledge` · `evals` and lives in the one world it was made for; a person's key
 holds their role's scopes and names the world per request, production only with production access,
-read from their row on every request ([people.md](people.md)). `fleet` is the box's own workers':
-at the worker's doors a key holding it resolves by the scope the request names,
-`?org=&env=&holder=`, the scope the call's dispatch named; at a call's reading doors (its events,
-its state, its recording) it names none and reads any call of the one world its fleet serves. `pinecall-corner: <member id>` answers an
+read from their row on every request ([people.md](people.md)). `pinecall-corner: <member id>` answers an
 HTTP door in a colleague's sandbox scope, for a key that opens `team` and `app`.
+
+`fleet` is the box's own workers', one key per world, and it acts for one call at a time. A request
+that names a call, in its path or as `?call=`, acts in the scope that call's head row keeps, and in
+no other: a `?org=&env=&holder=` that disagrees is `404`, and so is a call nobody opened yet. A call
+a dial placed is opened by the worker only in the scope the dial wrote. Before its call is opened, a
+worker asks in the scope its dispatch named, `?org=&env=&holder=` (the agent's routes, declaration,
+stages and hold audio, whether a ring is a developer's). It reads a call's events, state and
+recording without naming a scope, a call of its own world once opened; it reads no agent's log, no
+org's floor and no list of calls. The overflow's `POST /v1/callbacks` names the call it answered, and
+the agent must be that call's org's.
 
 **The one exception to the header** is `?token=`, because an `EventSource` cannot set one: only a
 token of ours for one call (a page's `log_token`), never an API key, since a URL ends up in an access

@@ -78,6 +78,9 @@ NO_SUCH_CALL = "no call {call} in this key's org and world"
 NOT_YOURS = "this token reads another call"
 
 
+NEVER_OPENED = "no call {call} was opened: the fleet's key reads and acts for a call once it is"
+
+
 NOBODY_ISSUED = (
     "no code {code} is waiting for agent {agent}: nobody issued it, it expired, or a call took it"
 )
@@ -352,7 +355,10 @@ async def scope(
         looking_at = await people.find(gateway.connections.pool, key.org, survey)
         if looking_at is None:
             raise NotAllowed(keys.NOT_A_COLLEAGUE)
-    return keys.scope_of(key.bearer, key.env, looking_at=looking_at, dispatched=named)
+    called = await _called(gateway, connection) if THE_FLEET in key.bearer.key.scopes else None
+    return keys.scope_of(
+        key.bearer, key.env, looking_at=looking_at, dispatched=named, called=called
+    )
 
 
 ScopeDep = Annotated[Scope, Depends(scope)]
@@ -366,6 +372,58 @@ async def reader(
     token: Annotated[str | None, Query()] = None,
 ) -> Reader:
     """A key that opens the calls, or a token of one call; 401 for anything else."""
+    return await _reader_of(connection, gateway, named, token, ("calls",))
+
+
+ReaderDep = Annotated[Reader, Depends(reader)]
+
+
+SCOPES_OF[reader] = frozenset({"calls"})
+
+
+# The one call's own reading doors (its events, its state, its recording): a worker reads the
+# call it serves there, and names no scope to do it, since the call's head row says whose it is.
+async def call_reader(
+    connection: HTTPConnection,
+    gateway: GatewayDep,
+    named: DispatchedDep,
+    token: Annotated[str | None, Query()] = None,
+) -> Reader:
+    """A reader of one call's log: a key that opens the calls, the fleet's, or the call's token."""
+    return await _reader_of(connection, gateway, named, token, ("calls", THE_FLEET))
+
+
+CallReaderDep = Annotated[Reader, Depends(call_reader)]
+
+
+SCOPES_OF[call_reader] = frozenset({"calls", THE_FLEET})
+
+
+# A key reads a call of its org in its world; a token, its own call alone. A call nobody wrote
+# yet is empty to a key, not another org's: a client that minted the id tails it before the room
+# opens. The fleet's key reads only a call that was opened, of the world it serves.
+async def check_readable(gateway: Gateway, reading: Reader, call: str) -> AgentConfig | None:
+    """Refuse a reader the call is not theirs; the declaration of its agent, when held."""
+    if reading.visit is not None and reading.visit.call != call:
+        raise NotAllowed(NOT_YOURS)
+    kept = await queries.scope_of_call(gateway.connections.pool, call)
+    fleet = reading.acting is not None and THE_FLEET in reading.acting.bearer.key.scopes
+    if fleet and (kept is None or kept.scope is None):
+        raise NotFound(NEVER_OPENED.format(call=call))
+    if kept is None:
+        return None
+    if not _sees(reading, kept.scope):
+        raise NotFound(NO_SUCH_CALL.format(call=call))
+    return gateway.sockets.declared(kept.agent)
+
+
+async def _reader_of(
+    connection: HTTPConnection,
+    gateway: Gateway,
+    named: Scope | None,
+    token: str | None,
+    opens: tuple[KeyScope, ...],
+) -> Reader:
     data = bearer_of(connection.headers) or token
     if data is None:
         raise NotSignedIn(READ_WITH_A_KEY)
@@ -378,47 +436,33 @@ async def reader(
     if verified is None:
         raise NotSignedIn(READ_WITH_A_KEY)
     key = Acting(bearer=verified, env=world_of_request(connection, verified, gateway))
-    keys.check_opens(verified, "calls", THE_FLEET)
-    # A worker reads the call it serves and names no scope to do it: the fleet's key has none.
+    keys.check_opens(verified, *opens)
     if THE_FLEET in verified.key.scopes:
         return Reader(acting=key)
     return Reader(acting=key, scope=await scope(connection, key, gateway, named))
 
 
-ReaderDep = Annotated[Reader, Depends(reader)]
-
-
-SCOPES_OF[reader] = frozenset({"calls", THE_FLEET})
-
-
-def is_the_fleet(reading: Reader) -> bool:
-    """Whether the reader is a fleet's key, which reads every call it serves."""
-    return reading.acting is not None and THE_FLEET in reading.acting.bearer.key.scopes
-
-
-# A key reads a call of its org in its world; a token, its own call alone. A call nobody wrote
-# yet is empty, not another org's: a client that minted the id tails it before the room opens.
-async def check_readable(gateway: Gateway, reading: Reader, call: str) -> AgentConfig | None:
-    """Refuse a reader the call is not theirs; the declaration of its agent, when held."""
-    if reading.visit is not None and reading.visit.call != call:
-        raise NotAllowed(NOT_YOURS)
-    kept = await queries.scope_of_call(gateway.connections.pool, call)
-    if kept is None:
-        return None
-    if not _sees(reading, kept.scope):
-        raise NotFound(NO_SUCH_CALL.format(call=call))
-    return gateway.sockets.declared(kept.agent)
-
-
 # The org's own calls and the reader's own scope; a token is checked by its call, the fleet's
-# key reads every call of the world it serves and none of the other.
+# key reads the calls of the world it serves and none of the other.
 def _sees(reading: Reader, owner: Scope | None) -> bool:
     if reading.visit is not None:
         return True
-    if reading.acting is not None and is_the_fleet(reading):
-        return owner is None or owner.env == reading.acting.env
+    if reading.acting is not None and THE_FLEET in reading.acting.bearer.key.scopes:
+        return owner is not None and owner.env == reading.acting.env
     reader = reading.scope
     if reader is None or owner is None:
         return False
     same = reader.org == owner.org and reader.env == owner.env
     return same and owner.holder in ("", reader.holder)
+
+
+# A worker's request that names a call, in its path or as ?call=, acts in that call's scope as its
+# head row keeps it; a call nobody opened yet is refused rather than trusted.
+async def _called(gateway: Gateway, connection: HTTPConnection) -> Scope | None:
+    call = connection.path_params.get("call") or connection.query_params.get("call")
+    if not call:
+        return None
+    kept = await queries.scope_of_call(gateway.connections.pool, call)
+    if kept is None or kept.scope is None:
+        raise NotFound(NEVER_OPENED.format(call=call))
+    return kept.scope

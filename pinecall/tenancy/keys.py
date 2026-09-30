@@ -7,7 +7,7 @@ from datetime import datetime
 from psycopg import sql
 from psycopg.rows import DictRow
 
-from pinecall.domain.errors import DeclarationRefused, NotAllowed
+from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotFound
 from pinecall.domain.names import ENVS, PRODUCTION, SANDBOX, Env, parse_env
 from pinecall.domain.person import (
     HOLDING,
@@ -76,6 +76,9 @@ NOT_A_COLLEAGUE = "no active member of this org answers to that corner"
 
 
 NO_DISPATCH = "the fleet's key acts in the corner of the call it serves: name the call"
+
+
+NOT_THE_CALLS = "the call named is not in the scope the dispatch names: a worker acts in its call's"
 
 
 NOT_THIS_FLEET = (
@@ -331,15 +334,11 @@ def scope_of(
     *,
     looking_at: Member | None = None,
     dispatched: Scope | None = None,
+    called: Scope | None = None,
 ) -> Scope:
     """The scope a request acts in: the org's in production, the person's own in the sandbox."""
     if THE_FLEET in bearer.key.scopes:
-        if dispatched is None:
-            raise DeclarationRefused(NO_DISPATCH)
-        # A fleet serves one world: a unit holding the other world's key is refused here too.
-        if dispatched.env != bearer.key.env:
-            raise NotAllowed(NOT_THIS_FLEET.format(world=bearer.key.env, asked=dispatched.env))
-        return dispatched
+        return _fleets_scope(bearer, dispatched, called)
     if world == PRODUCTION or bearer.member is None:
         return Scope(bearer.key.org, world, THE_ORGS_OWN)
     if looking_at is None or looking_at.id == bearer.member.id:
@@ -376,6 +375,19 @@ def check_may_grant(bearer: Bearer, role: Role | None, *, production: bool) -> N
     if production and not acts_there:
         name = bearer.key.name or "this key"
         raise NotAllowed(NOT_YOURS_TO_SWITCH.format(name=name))
+
+
+# The call's head row is the proof; the dispatch's word stands only where no call exists yet.
+def _fleets_scope(bearer: Bearer, dispatched: Scope | None, called: Scope | None) -> Scope:
+    acting = called if called is not None else dispatched
+    if acting is None:
+        raise DeclarationRefused(NO_DISPATCH)
+    if dispatched is not None and dispatched != acting:
+        raise NotFound(NOT_THE_CALLS)
+    # A fleet serves one world: a unit holding the other world's key is refused here too.
+    if acting.env != bearer.key.env:
+        raise NotAllowed(NOT_THIS_FLEET.format(world=bearer.key.env, asked=acting.env))
+    return acting
 
 
 def _key(row: DictRow) -> Key:

@@ -9,7 +9,7 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 |---|---|---|---|
 | `GET` | `/.well-known/pinecall` | — | What this gateway is and how it signs people in, before anybody holds a key. |
 | `GET` | `/v1/agents` | calls | The org's held agents in the world: one row per slug, one per scope for a team reader. |
-| `GET` | `/v1/agents/{slug}/calls` | calls · fleet | An agent's own log: its registrations, its declarations, its errors. It never ends. |
+| `GET` | `/v1/agents/{slug}/calls` | calls | An agent's own log: its registrations, its declarations, its errors. It never ends. |
 | `GET` | `/v1/agents/{slug}/config` | app · calls · fleet | The agent as the scope runs it: its declaration under the scope's settings. |
 | `POST` | `/v1/agents/{slug}/dev/chat/{verb}` | talk | A chat verb, answered by the app holding the agent. |
 | `POST` | `/v1/agents/{slug}/dev/evals/{verb}` | evals | An evals verb, answered by the app holding the agent. |

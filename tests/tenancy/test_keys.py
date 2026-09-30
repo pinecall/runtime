@@ -8,7 +8,7 @@ import pytest
 from livekit.api import TokenVerifier
 from psycopg import AsyncConnection
 
-from pinecall.domain.errors import DeclarationRefused, NotAllowed
+from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotFound
 from pinecall.domain.org import Org
 from pinecall.domain.person import Key, Member
 from pinecall.domain.scope import SCOPE_ATTRIBUTE, Scope
@@ -243,6 +243,17 @@ def test_the_fleets_key_acts_in_the_corner_of_the_call_it_serves_in_its_own_worl
         scope_of(fleet, "sandbox")
     with pytest.raises(NotAllowed, match="the sandbox fleet's key"):
         scope_of(fleet, "sandbox", dispatched=Scope("org_1", "production"))
+
+
+def test_the_fleets_key_acts_in_the_scope_the_calls_head_keeps_whatever_the_dispatch_says() -> None:
+    fleet = Bearer(Key("k_fleet", "default", env="sandbox", scopes=frozenset({"fleet"})))
+    head = Scope("org_1", "sandbox", "m_ana")
+    assert scope_of(fleet, "sandbox", called=head) == head
+    assert scope_of(fleet, "sandbox", dispatched=head, called=head) == head
+    with pytest.raises(NotFound, match="not in the scope the dispatch names"):
+        scope_of(fleet, "sandbox", dispatched=Scope("org_2", "sandbox"), called=head)
+    with pytest.raises(NotAllowed, match="the sandbox fleet's key"):
+        scope_of(fleet, "sandbox", called=Scope("org_1", "production"))
 
 
 def test_a_door_refused_names_what_the_key_does_open() -> None:
