@@ -11,7 +11,10 @@ SPOOL = "/var/lib/pinecall/wal"
 # The timer ships every 10 s: five minutes of segments waiting is a bucket that does not answer.
 SHIPPED_WITHIN_S = 300
 
-OFF = "off: no restore to a minute; PINECALL_BACKUP_BUCKET and `wal.sh apply` turn it on"
+OFF = (
+    "off: no restore to a minute; PINECALL_BACKUP_BUCKET, the object store and `wal.sh apply` "
+    "turn it on"
+)
 
 NOT_SPOOLED = (
     "segment {wal} could not be spooled at {at:%Y-%m-%d %H:%M:%S}Z: Postgres keeps it in pg_wal "

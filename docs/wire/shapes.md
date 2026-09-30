@@ -141,7 +141,7 @@ One of: `app`, `participant`.
 
 ### `Visibility`
 
-Who may see a field of the app's state: everyone in the call (public), the tenant's own readers (tenant, the default for a field never declared), or nobody without masking (pii).
+Who may see a field of the app's state: everyone in the call (public), the tenant's own readers (tenant, the default for a field never declared), or nobody but the app: the log keeps it as `***` and seals the value aside (pii).
 
 One of: `public`, `tenant`, `pii`.
 
@@ -193,7 +193,7 @@ What the app declares about one tool: the contract the model sees and the rules 
 | `parameters` | `object` | yes | The arguments, as a JSON Schema object the model must satisfy. |
 | `side_effect` | `"read" | "write" | "irreversible"` | no | read looks at the world; write changes it and can be undone; irreversible changes it for good, so the platform asks the caller first. Absent means read. |
 | `confirm` | `string` | no | A receipt the agent reads out once the tool has run, before the model replies to the result, with {{name}} placeholders filled from the arguments and {{result.name}} from what came back: 'Reservado: {{result.when}} con {{result.professional}}.'. It does not hold the tool, so it is written as a receipt and never as a question. Absent means no read-back. |
-| `pii` | `string[]` | no | Argument names that carry personal data, masked in the log by declaration. |
+| `pii` | `string[]` | no | Argument names that carry personal data: the log keeps them as `***` and seals the value aside, for the app alone (docs/security/private-values.md). |
 | `timeout_s` | `number` | no | How long the platform waits for the app's result before reporting an error to the model, in seconds. |
 
 ### `ToolResult`
@@ -327,7 +327,7 @@ What the app declares about one field of its state: who may see it. A field neve
 | field | type | required | meaning |
 |---|---|---|---|
 | `name` | `string` | yes | The field's name in the app's state, as state.set sends it: patient, slots. |
-| `visibility` | `Visibility` | yes | Who may see a field of the app's state: everyone in the call (public), the tenant's own readers (tenant, the default for a field never declared), or nobody without masking (pii). |
+| `visibility` | `Visibility` | yes | Who may see a field of the app's state: everyone in the call (public), the tenant's own readers (tenant, the default for a field never declared), or nobody but the app: the log keeps it as `***` and seals the value aside (pii). |
 
 ### `ViewSpec`
 

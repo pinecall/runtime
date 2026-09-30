@@ -8,9 +8,11 @@ from psycopg import sql
 
 from pinecall.domain.names import JsonObject
 from pinecall.fleet.worlds import FLEETS, Fleets, set_fleets
+from pinecall.log import private
+from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.process.connections import keyring_of, vault_of
-from pinecall.tenancy import carriers, hosting, mail, org_secrets, sso
+from pinecall.tenancy import carriers, hosting, mail, org_secrets, recording_keys, sso
 from pinecall.tenancy.carriers import SipPeer
 from pinecall.tenancy.orgs import create, remove
 from pinecall.tenancy.vault import (
@@ -68,6 +70,9 @@ async def everything_sealed(pool: Pool, vault: MultiFernet) -> None:
     await hosting.open_app(pool, vault, app, created_by="m_ana")
     secret = org_secrets.Secret(env="production", name="CRM_TOKEN", value="made-up")
     await org_secrets.put_secret(pool, vault, org.id, secret, set_by="m_ana")
+    phone: JsonObject = {"arguments": {"phone": "+34600111222"}}
+    await private.kept_aside(Store(pool), vault, "CA_private", [(3, phone)])
+    await recording_keys.key_for(pool, vault, org.id, "CA_recorded")
 
 
 async def tokens_by_column(pool: Pool, schema: str) -> dict[str, list[str]]:

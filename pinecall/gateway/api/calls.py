@@ -1,13 +1,14 @@
 """The call doors a worker writes through and a reader reads: open, append, seal, the log."""
 
 import asyncio
+import base64
+import logging
 import time
 from collections.abc import AsyncIterator
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Header, Query, Response
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from pinecall.domain.agent import AgentConfig, Versions
@@ -50,13 +51,22 @@ from pinecall.gateway.ending.seal import remembered, sealed
 from pinecall.log import queries
 from pinecall.log.readers import Filter, parse_filter, project_entry, project_state
 from pinecall.log.store import DEFAULT_LIMIT, Claim
-from pinecall.process.recordings import recordings_of
+from pinecall.process.recordings import (
+    recordings_of,
+)
 from pinecall.providers import catalog
 from pinecall.providers.build import vendor_named_in
 from pinecall.providers.catalog import judge_ceiling
 from pinecall.session.call import ToolUse
-from pinecall.tenancy import disclosure, erasure, keys, orgs, policy, reads, tokens
-from pinecall.tenancy.reads import Read
+from pinecall.tenancy import (
+    disclosure,
+    erasure,
+    keys,
+    orgs,
+    policy,
+    recording_keys,
+    tokens,
+)
 from pinecall.tenancy.scopes import Picked
 from pinecall.wire.commands import CallClaim
 from pinecall.wire.events import (
@@ -80,13 +90,16 @@ from pinecall.wire.rest.calls import (
     LookupResponse,
     OpenCallRequest,
     OpenCallResponse,
-    ReadKind,
+    RecordingKeyResponse,
     RememberResponse,
     SealCallRequest,
     SessionScore,
 )
 
 router = APIRouter()
+
+
+logger = logging.getLogger(__name__)
 
 
 A_SCREENFUL = 20
@@ -110,13 +123,10 @@ ERROR = "error"
 ALREADY_SPENT = "call {call} was opened by its token already: a token opens one call, once"
 
 
-NEVER_MINTED = "call {call} names a token this runtime never minted"
+ELSEWHERE = "call %s was opened in org %s, %s, agent %s: its token was minted for another"
 
 
-NOT_RECORDED = "call {call} kept no recording"
-
-
-NOT_HERE = "the recording of {call} is at {path} on the box that took the call, not on this one"
+UNOPENED_KEY = "the key of call {call}'s recording is sealed under a key the vault no longer lists"
 
 
 STILL_LIVE = "call {call} is still running: it can be erased once it has ended"
@@ -171,7 +181,7 @@ async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) 
     keys.check_agent(key.bearer, body.agent)
     scope = _call_corner(key, context)
     await _unclaimed_or_in(gateway, context.call, scope)
-    await _spent(gateway, context, body.agent)
+    await _spent(gateway, context, scope, body.agent)
     ceiling = await _deps.admit_call(gateway, scope, body.agent)
     found = serving_agent(gateway.sockets, scope, body.agent, body.app, context)
     _refuse_unserved(gateway, scope, body, found)
@@ -213,7 +223,7 @@ async def reopen_call(
     config, _ = await _tuned(gateway, scope, body.agent, registration, call)
     served_call(gateway.serving, None, body.context, config, scope)
     if registration is not None:
-        await attach(gateway.live, gateway.logs.store, call, registration.owner)
+        await attach(gateway.live, call, registration.owner)
 
 
 # The entry comes back with its seq: only the gateway numbers a log.
@@ -275,6 +285,20 @@ async def run_tool(
         call_id=tool_call.call_id, name=tool_call.name, arguments=dict(tool_call.arguments)
     )
     return await served.tools.ran(use, tool_call.speech_id)
+
+
+# The worker seals the call's recording with it before storing it; asked again, the same key.
+@router.post("/v1/calls/{call}/recording/key")
+async def recording_key(call: str, key: WorkerKey, gateway: GatewayDep) -> RecordingKeyResponse:
+    """The key the call's recording is sealed under, made once for the call."""
+    served = _orgs_call(gateway, key, call)
+    connections = gateway.connections
+    found = await recording_keys.key_for(
+        connections.pool, connections.vault, served.scope.org, call
+    )
+    if found is None:
+        raise Conflict(UNOPENED_KEY.format(call=call))
+    return RecordingKeyResponse(key=base64.urlsafe_b64encode(found).decode())
 
 
 # No id: commands have no seq, and a worker that loses the stream asks again.
@@ -339,7 +363,7 @@ async def stream_events(
 ) -> Response | StreamingResponse | LogPage:
     """A call's entries above the cursor: a page, or a stream that ends with the call."""
     config = await _deps.check_readable(gateway, reading, call)
-    await _read_by(gateway, reading, call, "log")
+    await _deps.record_read(gateway, reading, call, "log")
     cursor = max(query.after, _seq_of(options.last_event_id))
     only = parse_filter(query.types, durable=query.durable)
     store = gateway.logs.store
@@ -380,7 +404,7 @@ async def stream_agent_events(
 async def call_state(call: str, reading: CallReaderDep, gateway: GatewayDep) -> JsonObject:
     """The call's folded state as this reader may see it, and the seq a stream resumes from."""
     config = await _deps.check_readable(gateway, reading, call)
-    await _read_by(gateway, reading, call, "log")
+    await _deps.record_read(gateway, reading, call, "log")
     state = await gateway.logs.reading(call).snapshot()
     if state.seq == 0:
         raise NotFound(_deps.NO_SUCH_CALL.format(call=call))
@@ -390,48 +414,6 @@ async def call_state(call: str, reading: CallReaderDep, gateway: GatewayDep) -> 
         "last_seq": state.seq,
         "live": not await gateway.logs.store.sealed(call),
     }
-
-
-# From the bucket once the worker moved it there, else the file the recorder wrote on this disk.
-@router.get("/v1/calls/{call}/recording", response_model=None)
-async def recording(
-    call: str,
-    reading: CallReaderDep,
-    gateway: GatewayDep,
-    byte_range: Annotated[str | None, Header(alias="range")] = None,
-) -> FileResponse | StreamingResponse:
-    """The call's audio, with byte ranges so a player can seek."""
-    await _deps.check_readable(gateway, reading, call)
-    await _read_by(gateway, reading, call, "recording")
-    state = await gateway.logs.reading(call).snapshot()
-    summary = next(
-        (
-            item
-            for item in reversed(await gateway.logs.store.whole(call))
-            if item.type == "call.summary"
-        ),
-        None,
-    )
-    pointer = None if summary is None else summary.data.get("recording")
-    if state.seq == 0 or not isinstance(pointer, str) or not pointer:
-        raise NotFound(NOT_RECORDED.format(call=call))
-    kept = await queries.scope_of_call(gateway.connections.pool, call)
-    if kept is not None and kept.scope is not None:
-        connections = gateway.connections
-        stored = recordings_of(connections.settings, connections.http)
-        fetched = await stored.fetch(kept.scope.org, call, byte_range)
-        if fetched is not None:
-            headers = {
-                **fetched.headers,
-                "content-disposition": f'attachment; filename="{call}.ogg"',
-            }
-            return StreamingResponse(
-                fetched.body, status_code=fetched.status, headers=headers, media_type="audio/ogg"
-            )
-    path = Path(pointer)
-    if not await asyncio.to_thread(path.is_file):
-        raise NotFound(NOT_HERE.format(call=call, path=pointer))
-    return FileResponse(path, media_type="audio/ogg", filename=f"{call}.ogg")
 
 
 # The one door that deletes from a call's log: through erasure's own path, never the trigger's.
@@ -518,16 +500,17 @@ async def _unclaimed_or_in(gateway: Gateway, call: str, scope: Scope) -> None:
         raise NotFound(_deps.NO_SUCH_CALL.format(call=call))
 
 
-async def _spent(gateway: Gateway, context: CallContext, agent: str) -> None:
-    scope = context.metadata.get("scope")
-    if not isinstance(scope, str):
+# A web call opens by the token its room was minted with: once, and only in the org, the world
+# and for the agent it was minted for. Asked of the ledger by the call's id, whatever the worker
+# says: a call no token was minted for (a phone, a dial, a run) is not a token's to refuse.
+async def _spent(gateway: Gateway, context: CallContext, scope: Scope, agent: str) -> None:
+    spending = await tokens.spend(gateway.connections.pool, context.call, scope, agent)
+    if spending in {"spent", "never_minted"}:
         return
-    spending = await tokens.spend(gateway.connections.pool, context.call)
-    if spending == "spent":
-        return
-    sentence = (ALREADY_SPENT if spending == "already_spent" else NEVER_MINTED).format(
-        call=context.call
-    )
+    if spending == "minted_elsewhere":
+        logger.warning(ELSEWHERE, context.call, scope.org, scope.env, agent)
+        raise NotFound(_deps.NO_SUCH_CALL.format(call=context.call))
+    sentence = ALREADY_SPENT.format(call=context.call)
     refused = ErrorEvent(code=SPENT, message=sentence, recoverable=True)
     await gateway.logs.agent(agent).append("error", refused.written())
     raise Conflict(sentence)
@@ -551,15 +534,6 @@ async def _tuned(
     config = AgentConfig(slug=agent) if declared is None else declared.config
     configured = await catalog.providers(gateway.connections.pool)
     return await tuned(gateway.connections.pool, config, scope, configured, Picked(call=call))
-
-
-# A person's read and a server's are written down, by the person or the key; a visitor reads
-# its own call and the fleet the call it serves, neither of which is an access to record.
-async def _read_by(gateway: Gateway, reading: Reader, call: str, what: ReadKind) -> None:
-    acting = reading.acting
-    if acting is None or reading.scope is None:
-        return
-    await reads.record(gateway.connections.pool, reading.scope, Read(call, what, asked_by(acting)))
 
 
 # The worker says the disclosure before the greeting, and the notice only where it records.

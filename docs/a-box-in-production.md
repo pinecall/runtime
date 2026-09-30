@@ -143,22 +143,60 @@ subprocessor: the Privacy Policy's table names every one, and it is edited by ha
 change. The journal keeps a month
 (`journald.conf.d/pinecall.conf`, 1 GB at most) and Caddy writes no access log.
 
+### The object store
+
+What leaves the box's disk — the nightly backup, the WAL archive, the recordings — goes to one
+object store, spoken in S3: AWS S3, Google Cloud Storage through its S3 interoperability, Cloudflare
+R2, Backblaze B2, a MinIO of your own. It is named in `/etc/pinecall/backup.env` (the operator's
+file, which `install.sh` never writes), and its secret is a sealed credential like the box's
+others, never in that file:
+
+```sh
+# /etc/pinecall/backup.env
+PINECALL_S3_ENDPOINT=https://s3.eu-west-1.amazonaws.com   # the store's address
+PINECALL_S3_REGION=eu-west-1                              # what the signature names
+PINECALL_S3_ACCESS_KEY_ID=AKIA…                           # the key the box writes with
+PINECALL_BACKUP_BUCKET=acme-pinecall-backups              # backups and the WAL archive
+PINECALL_RECORDINGS_BUCKET=acme-pinecall-recordings       # recordings, when they leave the disk
+# then the secret, on stdin, and the units that read the file:
+#   sudo /opt/pinecall/infra/box/install.sh secret PINECALL_S3_SECRET_ACCESS_KEY
+#   sudo systemctl restart pinecall-gateway 'pinecall-worker@*'; sudo /opt/pinecall/infra/box/wal.sh apply
+```
+
+| store | `PINECALL_S3_ENDPOINT` | `PINECALL_S3_REGION` | the key |
+|---|---|---|---|
+| AWS S3 | `https://s3.<region>.amazonaws.com` | the buckets' region | an IAM user's access key |
+| Google Cloud Storage | `https://storage.googleapis.com` | `auto` | an HMAC key of a service account (below) |
+| MinIO | `http://10.0.0.9:9000`, your own | `us-east-1`, unless yours says otherwise | a MinIO user's access key |
+
+The key needs, on both buckets, to write, read, delete and list objects (`s3:PutObject`,
+`GetObject`, `DeleteObject`, `ListBucket` on AWS; without the list right a missing object reads as
+refused, not missing). The shell speaks it with `rclone` (`infra/box/objects.sh`), the runtime with
+its own signed requests (`process/_objects.py`). Unset, everything stays on the disk, as before. Only
+making machines names a cloud (the fleet loop's `--cloud`, a script per cloud in `infra/fleet/`).
+
+**A box on Google Cloud** keeps its buckets and takes an HMAC key: in the console, Cloud Storage →
+Settings → Interoperability → create a key for a service account (or `gcloud storage hmac create
+<service-account-email>`); give that account `roles/storage.objectUser` on both buckets; put its
+access id in `PINECALL_S3_ACCESS_KEY_ID`, the endpoint and `auto` as above, and seal its secret with
+`install.sh secret PINECALL_S3_SECRET_ACCESS_KEY`. The VM's own identity is no longer used.
+
 ### Recordings, off the disk
 
-A recording is the file egress writes under `/var/lib/pinecall/recordings/<call>/`. With
-`PINECALL_RECORDINGS_BUCKET=<bucket>` in `/etc/pinecall/backup.env` (read by the gateway, the
-workers and the retention run; restart them after adding it), the worker uploads that file to
-`gs://<bucket>/<org>/<call>/audio.ogg` with the VM's own identity before it seals the call, and
-removes it from the disk. `GET /v1/calls/{call}/recording` then reads it from the bucket with the
-player's byte range, so any gateway serves it and it outlives the machine that took the call. A
-recording whose upload failed stays on the disk, the worker's journal says `the recording of
-<call> stays on this disk`, and the door serves it from there, as it does every recording made
-before the bucket was set. Erasing a call, a contact or an org, and the nightly retention, delete
-the object as well as any file left. It is a bucket of its own, not the backup's: it has no
-lifecycle rule (each org's `retention_days` is the rule, and the backup bucket's 35 days would
-forget what an org keeps longer), and the VM's identity needs `roles/storage.objectUser` on it
-(create, read, delete). The nightly tar then holds only what is still on the disk. Unset, nothing
-changes.
+A recording is the file egress writes under `/var/lib/pinecall/recordings/<call>/`, sealed by
+the worker under the call's own key as soon as it is written (`audio.sealed`, the plain file
+removed; [security/private-values.md](security/private-values.md)). With
+`PINECALL_RECORDINGS_BUCKET` and the object store in `backup.env` (read by the gateway, the workers
+and the retention run; restart them after adding it), the worker uploads that file to
+`<bucket>/<org>/<call>/audio.sealed` before it seals the call, and removes it from the disk.
+`GET /v1/calls/{call}/recording` then reads it from the bucket with the player's byte range, so any
+gateway serves it and it outlives the machine that took the call. A recording whose upload failed
+stays on the disk, the worker's journal says `the recording of <call> stays on this disk`, and the
+door serves it from there, as it does every recording made before the bucket was set. Erasing a
+call, a contact or an org, and the nightly retention, delete the object as well as any file left.
+It is a bucket of its own, not the backup's: it has no lifecycle rule (each org's
+`retention_days` is the rule, and the backup bucket's 35 days would forget what an org keeps
+longer). The nightly tar then holds only what is still on the disk. Unset, nothing changes.
 
 ### Backups
 
@@ -166,12 +204,12 @@ changes.
 back whole by `pg_restore -f /dev/null` before anything else, and a tar of the recordings, each encrypted with
 `age` to `/etc/pinecall/backup.age.pub` — the key `box up --backup-key` wrote, or Pinecall's own
 (`infra/box/backup.age.pub`) on a box made from the checkout — with a manifest of their sha256
-before encryption. A box with no key there makes no backup: `install.sh` enables the timer only
-when the key exists. The private key is never on the box: whoever restores holds it. They
-are kept 7 days in `/var/lib/pinecall/backups`; with `PINECALL_BACKUP_BUCKET=<bucket>` in
-`/etc/pinecall/backup.env` (the operator's file, which `install.sh` never writes) each night's
-files are copied to that bucket with the VM's own identity, which needs `storage.objects.create`
-on it and nothing else; the bucket's lifecycle rule deletes them after 35 days. A backup taken
+before encryption. A box with no key there makes no backup (`install.sh` enables the timer only
+when the key exists); the private key is never on the box: whoever restores holds it. They are
+kept 7 days in `/var/lib/pinecall/backups`; with `PINECALL_BACKUP_BUCKET` and the object store in
+`backup.env`, each night's files are copied to `<bucket>/<stamp>/` too; the bucket's lifecycle
+rule deletes them after 35 days. A store half named (no region, no key id, no sealed secret) is
+said in `journalctl -u pinecall-backup` and the night's files stay on the box. A backup taken
 before an erasure still holds what went: 7 days on the box, 35 in the bucket, which an answer to
 a person's "delete my data" says.
 
@@ -185,33 +223,35 @@ pg_restore --clean --if-exists -d "$DATABASE_URL" db.dump    # on the box being 
 
 ### The WAL archive: a restore to any minute
 
-With a bucket in `backup.env` and the backup key on the box, `infra/box/wal.sh apply` (which
-`install.sh` runs, and the operator runs after editing `backup.env`) turns Postgres's WAL
-archiving on: `archive_mode`, `archive_timeout = 60s` and an `archive_command` set with `ALTER
+With the backup bucket and the object store in `backup.env` and the backup key on the box,
+`infra/box/wal.sh apply` (which `install.sh` runs, and the operator runs after editing `backup.env`)
+turns Postgres's WAL archiving on: `archive_mode`, `archive_timeout = 60s` and an `archive_command` set with `ALTER
 SYSTEM`, and Postgres restarted once, a few seconds, when `archive_mode` changes. Each finished
 segment is copied by Postgres to `/var/lib/pinecall/wal` on the same disk (the spool: Postgres
 never waits on the network), and `pinecall-wal.timer` runs `wal.sh ship` every 10 s: each segment
-gzipped, encrypted to the backup key and copied to `gs://<bucket>/wal/`, then removed from the
+gzipped, encrypted to the backup key and copied to `<bucket>/wal/`, then removed from the
 spool. A quiet minute still closes its segment, so a committed write is off the box within about
 70 s: **the RPO is one minute**, where the nightly dump alone lost up to 24 hours. With the
 archive on, the 03:00 backup also takes a base backup (`pg_basebackup -Ft -z -X stream`),
-encrypted the same way, to `gs://<bucket>/<stamp>/` only. The bucket's 35-day lifecycle rule
-forgets segments and base backups alike, so any minute of the last 34 days can be restored. The
-VM's identity needs `storage.objects.get` on the bucket besides `create`: a segment sent twice
-after a crash is skipped (`--no-clobber`), never overwritten. Without a bucket nothing changes:
+encrypted the same way, to `<bucket>/<stamp>/` only. The bucket's 35-day lifecycle rule
+forgets segments and base backups alike, so any minute of the last 34 days can be restored. A
+segment sent twice after a crash is skipped (rclone's `--ignore-existing`, each segment looked for by
+name), never overwritten; only one shipper runs at a time, so the look and the write are never
+raced. Without a bucket nothing changes:
 archiving stays off, as it has always been, and the doctor's line says so.
 
 **When the bucket does not answer**, nothing waits: Postgres goes on, the spool grows by what the
 box writes (a busy segment compresses to a few MB, a quiet one to almost nothing), and after five
 minutes the doctor says `NO  archive: … segments waiting since …`; `journalctl -u pinecall-wal`
-has gcloud's reason. The spool empties itself when the bucket is back. If it is not back before
+has rclone's reason. The spool empties itself when the bucket is back. If it is not back before
 the disk fills, the copy fails, Postgres keeps its segments in `pg_wal` on the same disk, and a
 full disk stops Postgres: the doctor's line is the warning, hours ahead at the box's rate.
 
 **A restore to a point in time**, on the box (or a new `box up` box of the same version, with the
-same `backup.env`; there, add the old box's vault key with `install.sh vault-add`). The private
-backup key comes to the box for the restore and leaves after it. `<stamp>` is the newest night
-before the target minute (`gcloud storage ls gs://<bucket>/`):
+same `backup.env` and the store's secret sealed; there, add the old box's vault key with
+`install.sh vault-add`). The private backup key comes to the box for the restore and leaves after
+it. `<stamp>` is the newest night before the target minute (`sudo bash -c '. /opt/pinecall/infra/box/objects.sh
+&& rclone lsf store:$PINECALL_BACKUP_BUCKET/'`):
 
 ```sh
 # 1. Nothing writes while the database goes back; the database as it stands is kept aside.
@@ -245,8 +285,8 @@ sudo systemctl start pinecall-wal.timer pinecall-gateway pinecall-worker@product
 ```
 
 A target the archive does not reach yet ends step 4 in `FATAL: recovery ended before configured
-recovery target was reached`: pick a minute before the newest segment (`gcloud storage ls -l
-gs://<bucket>/wal/`) and run step 3 again. If the replay is wrong,
+recovery target was reached`: pick a minute before the newest segment (`rclone lsl
+store:<bucket>/wal/`, with `objects.sh` sourced as above) and run step 3 again. If the replay is wrong,
 `podman volume import pinecall-postgres /var/lib/pinecall/before-restore.tar` (Postgres stopped)
 puts back what stood before step 3.
 
@@ -295,7 +335,8 @@ sudo uvx --from pinecall==<the box's version> pinecall-runtime box failover
 It refuses a Postgres that is not a standby, promotes it (`pg_promote`), checks it left
 recovery, prints when the last replayed write was (what the failover lost), and prints the rest:
 keep the old box from coming back as a second primary, point the names (and any trunk that names
-the old box's address) at this machine, copy `backup.env` and `backup.age.pub`, `box up --domains
+the old box's address) at this machine, copy `backup.env` and `backup.age.pub` and seal the store's
+secret, `box up --domains
 …` here, and the doctor. It repoints, stops and deletes nothing itself. `box up` finds the
 database running and keeps the three secrets sealed above; its numbers go back on the SIP service
 when the gateway starts. Afterwards this machine is the box, and a new replica joins it the same way.

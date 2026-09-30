@@ -21,9 +21,13 @@ a client may not set.
    (`contact` in the body) and nothing else. A name is refused: the log would carry it. What the
    backend seals in `metadata` rides the signed dispatch; the browser reads its token and changes
    none of it.
-3. **One dispatch opens one call.** The call the token names is written into a ledger when it is
-   minted, and the dispatch that opens the call spends it. A join that creates the room again after
-   the call ended is refused at `POST /v1/calls` with `409` and `token_spent` on the agent's log. A
+3. **One dispatch opens one call, where the token was minted.** The call the token names is
+   written into a ledger when it is minted, with the org, the world and the agent it was minted
+   for, and the dispatch that opens the call spends it: the gateway asks the ledger by the call's
+   id at every `POST /v1/calls`, whatever the worker says. A worker that names another org, world
+   or agent is answered `404`, as for a call nobody opened, and the token is left unspent. A join
+   that creates the room again after the call ended is refused with `409` and `token_spent` on
+   the agent's log. A
    second join with the same token while its call is live is bounded by the TTL alone, since
    LiveKit reads a token's room config only on the join that creates the room: keep it short.
 
