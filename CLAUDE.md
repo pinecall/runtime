@@ -93,7 +93,7 @@ beside the runtime (it pushes calls of both worlds to phones and browsers).
 
 ## Open, waiting on Bernardo
 
-- The first real phone call on the new box, and `pinecall` 0.9.9 published (the apps run it from a tarball).
+- The first real phone call on the new box.
 - Android pushes: the new VM needs the `pinecall-fleet` service account (a VM stop).
 - `notify.pinecall.io` DNS to the new box; WhatsApp needs a Meta token.
 - Publishing the `pinecall` CLI and `@pinecall/room` to npm (their GitHub repos do not exist yet).
