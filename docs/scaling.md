@@ -35,10 +35,30 @@ because LiveKit re-reads the load every half second.
 ## The gateway hears every worker
 
 Every five seconds a worker posts its heartbeat, `{fleet, worker, active, max_jobs, load,
-draining}`, and the answer says whether it is cordoned and whether its fleet is full. A worker
-silent 30 s is no longer capacity; one silent an hour is forgotten. The roster is in memory: a
-gateway that restarts has it back after one round of heartbeats. `GET /v1/ops/fleet` and
-`fleet list` read it.
+draining}` and its last minute, `{ended, failed, errors, turns, first_audio_p95_s}`, and the
+answer says whether it is cordoned and whether its fleet is full. A worker silent 30 s is no longer
+capacity; one silent an hour is forgotten. The roster is in memory: a gateway that restarts has it
+back after one round of heartbeats. `GET /v1/ops/fleet` and `fleet list` read it.
+
+## A worker that is up but bad
+
+A worker's calls run in livekit's job processes, and each tells its worker's main process, over a
+datagram socket the worker binds (`fleet/measures.py`), what its batches say: a turn's first
+audio (`e2e_latency`), an `error`, and how the call ended. The heartbeat carries the last minute of
+it: the calls that ended and those that ended in an error, the error entries, the turns measured
+and their first audio at the p95 (from five turns). Every `call.started` names the worker that ran
+it (`worker`).
+
+The roster stops counting a worker as accepting when its minute is past the line
+(`fleet/roster.py`): at least half the calls that ended in it ended in an error, over four calls
+at least, or first audio's p95 is over five seconds, over twenty turns at least. It is left out
+only while another worker of its fleet accepts and is not past the line, so the line never empties
+a fleet: a box of one worker per world keeps counting its one, and a fleet whose every worker is
+past it counts them all. Such a worker reads `failing` in `fleet list` and in `/metrics`
+(`pinecall_worker_state`, with `pinecall_worker_first_audio_p95_seconds`), and the fleet's
+`accepting` and `full` count without it. LiveKit's own dispatch is by load and does not read the
+roster: the worker keeps its seats with LiveKit, and a worker that stays past the line is the
+operator's to cordon. A worker of an older release carries no minute and is never past the line.
 
 ## Full, at the door
 
@@ -56,6 +76,22 @@ A worker told to stop takes no new call and drains what it holds for up to ten m
 what is left in sixty seconds; systemd waits fifteen. A **cordon** (`fleet cordon`,
 `POST /v1/ops/fleet/{worker}/cordon`) is told on the worker's next heartbeat: it takes no new call,
 finishes what it holds, and exits **3**, which its unit's `RestartPreventExitStatus=3` leaves down.
+
+A deploy never closes a fleet. The box runs two workers per world and replaces one at a time
+([../infra/box/README.md](../infra/box/README.md)): each comes back registered and heard before the
+other is stopped. A fleet of machines is replaced by **generation**, with the loop's own verbs:
+
+1. make the new generation's image (the new wheel, the same units and `fleets/<world>.env`) and
+   point the cloud script at it (`PINECALL_FLEET_IMAGE`);
+2. stop the loop, and run it once with `--min` at the machines up now plus the new ones wanted and
+   `--grow-at-most` as many (`fleet loop --once …`): it creates them from the new image; wait
+   until `fleet list` shows each new one `accepting`;
+3. `fleet cordon` every machine of the old generation: each takes no new call, drains, and exits 3;
+4. start the loop again with its usual flags: it deletes each cordoned machine once it has drained,
+   and grows or shrinks the new generation by the numbers.
+
+The loop is stopped while the new machines come up, or it would cordon the quietest of them as one
+too many. At every step some machine takes new calls, and no call is moved.
 
 ## A worker that dies
 

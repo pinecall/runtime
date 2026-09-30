@@ -68,7 +68,7 @@ PROMOTED = """
 this machine's Postgres is the primary now; the last write it replayed was at {replayed}.
 Nothing else was changed, repointed or deleted. To serve from it:
   1. keep the old box from coming back as a second primary: on it, if it answers,
-       sudo systemctl disable --now pinecall-gateway 'pinecall-worker@*' 'pinecall-overflow@*' \\
+       sudo systemctl disable --now pinecall-gateway 'pinecall-worker*@*' 'pinecall-overflow@*' \\
          pinecall-postgres
   2. point the box's names, production's and the sandbox's, at this machine, and any carrier
      trunk that reaches the old box by its address

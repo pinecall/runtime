@@ -1,7 +1,18 @@
 """Tests for the roster of each fleet."""
 
-from pinecall.fleet.roster import FORGOTTEN_AFTER_S, STALE_AFTER_S, Roster
-from pinecall.wire.rest.fleet import HeartbeatRequest
+from collections.abc import Mapping
+
+from pinecall.fleet.roster import (
+    ENDED_TO_JUDGE,
+    FORGOTTEN_AFTER_S,
+    SLOW_FIRST_AUDIO_S,
+    STALE_AFTER_S,
+    TURNS_TO_JUDGE,
+    Roster,
+    failing,
+    worker_state,
+)
+from pinecall.wire.rest.fleet import HeartbeatRequest, WorkerStatus
 
 SANDBOX = "pinecall-sandbox"
 
@@ -70,3 +81,75 @@ def test_a_cordon_outlives_the_next_heartbeat_and_is_told_back() -> None:
 
 def test_cordoning_a_name_nobody_has_is_refused() -> None:
     assert not Roster().cordon(SANDBOX, "ghost")
+
+
+FAILING: dict[str, float] = {
+    "ended": ENDED_TO_JUDGE,
+    "failed": ENDED_TO_JUDGE // 2 + 1,
+    "errors": 3,
+}
+
+
+SLOW: dict[str, float] = {"turns": TURNS_TO_JUDGE, "first_audio_p95_s": SLOW_FIRST_AUDIO_S + 1}
+
+
+def minute_of(worker: str, minute: Mapping[str, float]) -> HeartbeatRequest:
+    """A heartbeat of the sandbox's fleet that carries its last minute."""
+    return beat(worker).model_copy(update=minute)
+
+
+def test_the_heartbeats_last_minute_is_kept_with_the_worker() -> None:
+    roster = Roster()
+    roster.report(minute_of("w1", SLOW), 0.0)
+    (seat,) = roster.of(SANDBOX, 1.0)
+    assert (seat.turns, seat.first_audio_p95_s) == (TURNS_TO_JUDGE, SLOW_FIRST_AUDIO_S + 1)
+
+
+def test_a_worker_whose_calls_fail_is_not_counted_while_another_takes_calls() -> None:
+    roster = Roster()
+    roster.report(minute_of("w1", FAILING), 0.0)
+    roster.report(beat("w2"), 0.0)
+    assert roster.totals(SANDBOX, 1.0).accepting == 1
+    seats = roster.of(SANDBOX, 1.0)
+    assert [worker_state(seat, seats, 1.0) for seat in seats] == ["failing", "accepting"]
+
+
+def test_a_worker_whose_callers_wait_is_not_counted_while_another_takes_calls() -> None:
+    roster = Roster()
+    roster.report(minute_of("w1", SLOW), 0.0)
+    roster.report(beat("w2"), 0.0)
+    assert roster.totals(SANDBOX, 1.0).accepting == 1
+
+
+# The box runs one worker per world: the line may never leave a fleet with nobody to take a call.
+def test_a_fleet_whose_every_worker_fails_still_counts_them_all() -> None:
+    roster = Roster()
+    roster.report(minute_of("w1", FAILING), 0.0)
+    totals = roster.totals(SANDBOX, 1.0)
+    assert (totals.accepting, totals.full) == (1, False)
+    (seat,) = roster.of(SANDBOX, 1.0)
+    assert worker_state(seat, [seat], 1.0) == "accepting"
+
+
+def test_a_few_calls_or_a_few_turns_say_nothing_about_a_worker() -> None:
+    few = {"ended": ENDED_TO_JUDGE - 1, "failed": ENDED_TO_JUDGE - 1}
+    short = {"turns": TURNS_TO_JUDGE - 1, "first_audio_p95_s": SLOW_FIRST_AUDIO_S + 1}
+    assert not failing(minute_as_seat(few))
+    assert not failing(minute_as_seat(short))
+    assert not failing(minute_as_seat({}))
+
+
+def test_a_worker_of_an_older_release_carries_no_minute_and_is_never_failing() -> None:
+    roster = Roster()
+    roster.report(beat("w1"), 0.0)
+    (seat,) = roster.of(SANDBOX, 1.0)
+    assert seat.ended is None
+    assert not failing(seat)
+
+
+def minute_as_seat(minute: Mapping[str, float]) -> WorkerStatus:
+    """A worker's status as the roster keeps it, with this minute."""
+    roster = Roster()
+    roster.report(minute_of("w1", minute), 0.0)
+    (seat,) = roster.of(SANDBOX, 0.0)
+    return seat

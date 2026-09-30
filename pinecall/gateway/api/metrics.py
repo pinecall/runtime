@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
 
 from pinecall.domain.errors import NotAllowed
+from pinecall.fleet.roster import heard_lately, worker_state
 from pinecall.gateway._deps import GatewayDep, client_of
 from pinecall.gateway._gateway import Gateway
 from pinecall.process.metrics import family, histogram
@@ -38,6 +39,7 @@ def _measures_of(gateway: Gateway, now: float) -> str:
     live = gateway.live
     fleets = sorted({seat.fleet for seat in gateway.roster.seats.values()})
     totals = [gateway.roster.totals(fleet, now) for fleet in fleets]
+    workers = {fleet: gateway.roster.of(fleet, now) for fleet in fleets}
     errors = sorted(counted.errors.items())
     return "".join(
         (
@@ -109,6 +111,28 @@ def _measures_of(gateway: Gateway, now: float) -> str:
                         ("busy", total.active),
                         ("accepting", total.accepting),
                     )
+                ],
+            ),
+            family(
+                "pinecall_worker_state",
+                "How the roster counts each worker: accepting, failing, full, draining, cordoned.",
+                "gauge",
+                [
+                    ({"fleet": fleet, "worker": seat.worker, "state": state}, 1)
+                    for fleet, seats in workers.items()
+                    for seat in seats
+                    if (state := worker_state(seat, seats, now)) != "gone"
+                ],
+            ),
+            family(
+                "pinecall_worker_first_audio_p95_seconds",
+                "Each worker's first audio at the p95 over its last minute, as its heartbeat says.",
+                "gauge",
+                [
+                    ({"fleet": fleet, "worker": seat.worker}, seat.first_audio_p95_s)
+                    for fleet, seats in workers.items()
+                    for seat in seats
+                    if seat.first_audio_p95_s is not None and heard_lately(seat, now)
                 ],
             ),
         )

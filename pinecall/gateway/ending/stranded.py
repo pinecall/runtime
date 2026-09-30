@@ -59,6 +59,7 @@ async def stranded(serving: Serving, server: api.LiveKitAPI, event: WebhookEvent
         env=scope.env,
         holder=scope.holder or None,
         worker_gone=True,
+        entries_written=kept.written,
     )
     await rooms.dispatched(server, call, fleet, dispatch)
     reason = api.DisconnectReason.Name(event.participant.disconnect_reason)

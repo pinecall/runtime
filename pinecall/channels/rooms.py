@@ -70,6 +70,8 @@ class Dispatch(BaseModel):
     diverted_from: Env | None = None
     # The call's worker went away mid-call: the job tells the caller once and closes the room.
     worker_gone: bool = False
+    # How many entries the log took from the worker that went: where the told job's writer follows.
+    entries_written: int = 0
 
 
 def written(dispatch: Dispatch) -> str:

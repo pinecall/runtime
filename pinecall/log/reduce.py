@@ -31,11 +31,7 @@ from pinecall.wire.events import (
     EventReceived,
     LogGap,
     MemoryOps,
-    ParticipantJoined,
-    ParticipantLeft,
-    ParticipantSpeaking,
     PromptChanged,
-    RoomOpened,
     StateChanged,
     SupervisorReleased,
     SupervisorTookOver,
@@ -62,6 +58,7 @@ from pinecall.wire.metrics import (
     VADMetrics,
 )
 from pinecall.wire.parts import ToolResult
+from pinecall.wire.room import ParticipantJoined, ParticipantLeft, ParticipantSpeaking, RoomOpened
 from pinecall.wire.scores import CallScore
 from pinecall.wire.state import (
     AgentTurn,

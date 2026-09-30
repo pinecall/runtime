@@ -13,6 +13,15 @@ FAILED = (
 )
 
 
+A_BEAT: JsonObject = {
+    "fleet": "pinecall-sandbox",
+    "active": 0,
+    "max_jobs": 4,
+    "load": 0.1,
+    "draining": False,
+}
+
+
 def line_of(text: str, starting: str) -> str:
     """The one line of the exposition that starts so."""
     found = [line for line in text.splitlines() if line.startswith(starting)]
@@ -69,3 +78,26 @@ async def test_a_request_that_came_through_the_proxy_is_refused(knocking: Knocki
         from_the_box = await outside.get("/metrics", headers={"x-forwarded-for": "127.0.0.1"})
     assert (forwarded.status_code, from_the_box.status_code) == (403, 403)
     assert "loopback alone" in forwarded.json()["detail"]
+
+
+# A failing minute beside a sound one: the sound one takes the calls the other is not counted for.
+@postgres
+async def test_each_worker_says_how_the_roster_counts_it_and_its_first_audio(
+    knocking: Knocking,
+) -> None:
+    bad: JsonObject = {**A_BEAT, "worker": "w1", "ended": 4, "failed": 3, "errors": 5}
+    good: JsonObject = {**A_BEAT, "worker": "w2", "turns": 12, "first_audio_p95_s": 0.9}
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        assert (await worker.post("/v1/fleet/heartbeat", json=bad)).is_success
+        assert (await worker.post("/v1/fleet/heartbeat", json=good)).is_success
+    async with httpx.AsyncClient(base_url=knocking.url) as scraper:
+        text = (await scraper.get("/metrics")).text
+    state = 'pinecall_worker_state{fleet="pinecall-sandbox",worker="w1",state="failing"}'
+    assert line_of(text, state) == f"{state} 1.0"
+    state = 'pinecall_worker_state{fleet="pinecall-sandbox",worker="w2",state="accepting"}'
+    assert line_of(text, state) == f"{state} 1.0"
+    waited = 'pinecall_worker_first_audio_p95_seconds{fleet="pinecall-sandbox",worker="w2"}'
+    assert line_of(text, waited) == f"{waited} 0.9"
+    assert 'first_audio_p95_seconds{fleet="pinecall-sandbox",worker="w1"}' not in text
+    accepting = 'pinecall_fleet{fleet="pinecall-sandbox",what="accepting"}'
+    assert line_of(text, accepting) == f"{accepting} 1.0"

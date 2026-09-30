@@ -17,11 +17,11 @@ from pinecall.wire.events import (
     CallRinging,
     CallStarted,
     CallSummary,
-    RoomOpened,
     UserTurnEnded,
     event_of,
 )
 from pinecall.wire.frames import Entry, WireModel
+from pinecall.wire.room import RoomOpened
 from pinecall.wire.scores import CallScore
 
 # The judge whose broken verdict raises the promise flag (evals/judges.py).
@@ -99,7 +99,7 @@ ON CONFLICT (call) DO UPDATE SET lent = excluded.lent
 # Head rows older than the env and holder columns read as production, the org's own.
 CORNER_OF_CALL = """
 select org, coalesce(env, 'production') as env, coalesce(holder, '') as holder, agent,
-       config_version, lexicon_version, sealed, started_at
+       config_version, lexicon_version, sealed, started_at, written
 from call_log_head where log = %(call)s and call is not null
 """
 
@@ -304,6 +304,8 @@ class CallScope:
     versions: Versions
     sealed: bool
     started_at: float | None
+    # The entries its worker's writer sent: where a writer that takes the call over follows on.
+    written: int
 
 
 # The whole row is written every time: the merge happened in fold(), in one place.

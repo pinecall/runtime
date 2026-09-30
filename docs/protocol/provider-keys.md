@@ -71,6 +71,20 @@ speaks the row's voice for its vendor and the call's language, never the agent's
 own vendor's). The worker's door, `GET /v1/agents/{slug}/provider-keys`, hands each stage with its
 `fallbacks` beside it; a worker of an earlier release reads the stage and runs the default alone.
 
+The row's order is the operator's, and it stands but for a vendor over its error line: the
+gateway keeps, for the last two minutes, how many calls it handed each vendor first for a stage and
+how many calls saw that vendor fail (an `error` whose message names its plugin, or a
+`vendor.switched` away from it, counted once per call however often it failed). A vendor handed at
+least five calls, half or more of which saw it fail, goes behind every vendor that is not, when the
+next call's stages are resolved (`providers/credentials.py` `stage`, at the worker's door); among
+themselves the ones over the line keep the row's order. It stays last until its failures leave the
+two minutes: then it is back in its place, and the next calls try it again. With no fallbacks, or
+no failures, the order is exactly the row's; an agent that names its own vendor runs it whatever
+its failures. Nothing is ordered by price. The window is in each gateway process's memory, counted
+from what the worker's append doors take: a restarted gateway starts it empty, and with several
+gateways each orders by what it saw itself. A written call, which the gateway runs itself and
+whose failures reach no append door, runs the row's order.
+
 Each switch is a `vendor.switched` entry on the call's log (which vendor went down or came back, and
 which serves the stage now), and every metrics block keeps the vendor that served it. Usage is
 counted per vendor and model that answered, so a call is priced at the rates of the vendors that

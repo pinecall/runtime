@@ -16,7 +16,7 @@ from pinecall.domain.errors import DeclarationRefused, GatewayRefused, PinecallE
 from pinecall.domain.names import Json, JsonObject, parse_env
 from pinecall.domain.org import DEFAULT_ORG, QUOTAS
 from pinecall.domain.person import ROLES, THE_FLEET, THE_RUNNER
-from pinecall.fleet import hub
+from pinecall.fleet import hub, roster
 from pinecall.fleet.hub import Cloud, Line
 from pinecall.postgres.pool import open_pool
 from pinecall.process.settings import Settings
@@ -455,7 +455,7 @@ def fleet_list(client: httpx.Client, args: argparse.Namespace) -> int:
         _line_out(
             f"{seat.fleet:18} {seat.worker:18} {seat.active:>4} "
             f"{seat.max_jobs if seat.max_jobs is not None else 'cpu':>5} {seat.load:>5.2f}  "
-            f"{_state_of(seat, now):10} {now - seat.seen_at:.0f}s ago"
+            f"{_state_of(seat, workers, now):10} {now - seat.seen_at:.0f}s ago"
         )
     for summed in _rows(listed["totals"]):
         if args.fleet is not None and summed["fleet"] != args.fleet:
@@ -580,14 +580,8 @@ def _cordon(client: httpx.Client, worker: str, *, on: bool) -> None:
     _answered(client.post(path) if on else client.delete(path))
 
 
-def _state_of(seat: WorkerStatus, now: float) -> str:
-    if not hub.heard_lately(seat, now):
-        return "gone"
-    if seat.cordoned:
-        return "cordoned"
-    if seat.draining:
-        return "draining"
-    return "accepting" if hub.accepting_now(seat, now) else "full"
+def _state_of(seat: WorkerStatus, workers: list[WorkerStatus], now: float) -> str:
+    return roster.worker_state(seat, [other for other in workers if other.fleet == seat.fleet], now)
 
 
 async def _minted(settings: Settings, issued: key_table.Issued) -> str:

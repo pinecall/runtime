@@ -325,3 +325,37 @@ def test_the_seal_is_told_of_every_lent_vendor_a_fallback_may_run_on(
     row = with_fallbacks(configured, llm=(Stage(vendor="openai"),), tts=(Stage(vendor="hume"),))
     keys = Keyring(own={"anthropic": "mine", "hume": "h"}, box={**THE_BOX, "openai": "box-o"})
     assert pipeline(AGENT, row, keys).lent == ["openai", "deepgram", "cartesia"]
+
+
+def test_a_vendor_over_its_error_line_goes_behind_the_ones_that_are_not(
+    configured: Providers,
+) -> None:
+    row = with_fallbacks(
+        configured,
+        llm=(Stage(vendor="openai"), Stage(vendor="groq")),
+        tts=(Stage(vendor="elevenlabs"),),
+    )
+    keys = Keyring(box={**THE_BOX, "openai": "o", "groq": "g", "elevenlabs": "e"})
+    stages = pipeline(AGENT, row, keys, frozenset({"anthropic", "openai", "cartesia"}))
+    assert [item.vendor for item in (stages.llm, *stages.llm.fallbacks)] == [
+        "groq",
+        "anthropic",
+        "openai",
+    ]
+    assert [item.vendor for item in (stages.tts, *stages.tts.fallbacks)] == [
+        "elevenlabs",
+        "cartesia",
+    ]
+
+
+def test_with_nothing_failing_or_nothing_to_step_to_the_order_is_the_rows(
+    configured: Providers,
+) -> None:
+    row = with_fallbacks(configured, llm=(Stage(vendor="openai"),))
+    keys = Keyring(box={**THE_BOX, "openai": "o"})
+    assert pipeline(AGENT, row, keys) == pipeline(AGENT, row, keys, frozenset())
+    alone = pipeline(AGENT, configured, Keyring(box=THE_BOX), frozenset({"deepgram"}))
+    assert (alone.stt.vendor, alone.stt.fallbacks) == ("deepgram", ())
+    agent = AgentConfig(slug="clinica-norte", llm=Model(provider="groq", model="llama-3.3-70b"))
+    named = pipeline(agent, row, Keyring(own={"groq": "g"}, box=THE_BOX), frozenset({"groq"}))
+    assert (named.llm.vendor, named.llm.fallbacks) == ("groq", ())

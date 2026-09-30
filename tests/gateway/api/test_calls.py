@@ -870,3 +870,39 @@ async def test_a_web_call_opens_once_and_only_where_its_token_was_minted(
     assert opened.status_code == 200
     assert again.status_code == 409
     assert "a token opens one call, once" in again.json()["detail"]
+
+
+# What a stage's fallbacks are ordered by: each call a vendor failed, however often it failed it.
+@postgres
+async def test_a_vendor_that_failed_a_call_is_counted_once_for_it_at_the_append_doors(
+    knocking: Knocking,
+) -> None:
+    context = a_call(knocking)
+    failed: JsonObject = {
+        "code": "component_failed",
+        "message": "type='stt_error' label='livekit.plugins.deepgram.stt.STT' recoverable=True",
+        "recoverable": True,
+    }
+    down: JsonObject = {
+        "stage": "tts",
+        "vendor": "cartesia",
+        "model": "sonic-3",
+        "available": False,
+        "serving": "elevenlabs",
+        "serving_model": "eleven_flash_v2_5",
+    }
+    batch: JsonObject = {
+        "after": 0,
+        "entries": [
+            {"type": "error", "data": failed, "ts": 0.1},
+            {"type": "error", "data": failed, "ts": 0.2},
+            {"type": "vendor.switched", "data": down, "ts": 0.3},
+            {"type": "vendor.switched", "data": {**down, "available": True}, "ts": 0.4},
+        ],
+    }
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+        assert (await worker.post(f"/v1/calls/{context.call}/entries", json=batch)).is_success
+    failures = knocking.gateway.counters.failures
+    assert [call for _, call in failures["deepgram"]] == [context.call, context.call]
+    assert [call for _, call in failures["cartesia"]] == [context.call]

@@ -1,8 +1,8 @@
 # The box
 
 One machine, v2's alone: Caddy, LiveKit (server, SIP, egress), Redis and Postgres as Quadlet
-containers, and the runtime as four systemd units — one gateway for both worlds and a worker
-fleet per world. Every file here is one thing systemd, podman, Caddy or nftables reads.
+containers, and the runtime as systemd units — one gateway for both worlds, two workers of each
+world's fleet, and the overflow. Every file here is one thing systemd, podman, Caddy or nftables reads.
 
 ```
 cloud-init.yaml        first boot: packages, the deploy account, uv
@@ -14,7 +14,9 @@ livekit.yaml sip.yaml egress.yaml
 nftables.conf          5060 from the carrier alone; 22, 80, 443, WebRTC for anyone
 caddy/Caddyfile        TLS for PINECALL_DOMAINS; LiveKit's paths to the SFU, the rest to the gateway
 fleets/<world>.env     PINECALL_FLEET and the worker's health port, per world
+fleets/<world>-<a|b>.env   each of the box's two workers of a world: its health port, its warm processes
 pinecall-gateway.service · pinecall-worker@.service · pinecall-overflow@.service
+pinecall-worker-slot.conf  the drop-in that makes the worker template the box's a@ and b@
 pinecall-migrate.service · pinecall-doctor.service · pinecall-fleet-key@.service
 pinecall-retention.service · pinecall-retention.timer   the nightly erasure of calls past their org's days
 pinecall-backup.service · pinecall-backup.timer · backup.sh · backup.age.pub   the nightly encrypted backup
@@ -58,11 +60,34 @@ box's vault key is added: `… install.sh vault-add`, the old key on stdin.
 
 ## The worlds
 
-`pinecall-worker@production` registers with LiveKit as `pinecall`, `@sandbox` as
-`pinecall-sandbox` (`fleets/*.env`). The gateway dispatches every call to the fleet of its world,
-so a sandbox call never reaches a production process. Each unit holds its own world's fleet key
-(`/etc/pinecall/fleets/<world>.credstore/`), and the gateway refuses a call of the other world.
-The overflow runs for production only: a full sandbox refuses at the token door.
+`pinecall-worker-a@production` and `pinecall-worker-b@production` register with LiveKit as
+`pinecall`, `-a@sandbox` and `-b@sandbox` as `pinecall-sandbox` (`fleets/*.env`). The gateway
+dispatches every call to the fleet of its world, so a sandbox call never reaches a production
+process. Each unit holds its own world's fleet key (`/etc/pinecall/fleets/<world>.credstore/`),
+and the gateway refuses a call of the other world. The overflow runs for production only: a full
+sandbox refuses at the token door.
+
+## Two workers per world
+
+`install.sh` installs `pinecall-worker@.service` twice, as `pinecall-worker-a@` and
+`pinecall-worker-b@`, each with `pinecall-worker-slot.conf` as its drop-in: `%i` is still the
+world (its fleet, its key), and `%j`, the letter, picks `fleets/<world>-<letter>.env` and names the
+worker `<host>-<letter>` in the roster. Both take calls. The unit is `Type=notify`: the worker
+tells systemd it is ready once LiveKit registered it and the gateway answered its heartbeat, so a
+`systemctl restart` returns only when the new process can take calls. `release.sh` restarts every
+`b@` (each drains while its `a@` takes the calls, then comes back), then every `a@` (drains while
+the new `b@` takes them). The fleet is never closed and the overflow's sentence is never the
+answer to a deploy; the release waits for both drains, up to ten minutes each.
+
+The warm processes are split so the box keeps the five it kept with one worker per world
+(livekit's four on four CPUs for production, one for the sandbox): production `a` 2 and `b` 1,
+sandbox 1 and 1. Each warm process is one Python interpreter with every plugin imported; what a
+worker holds, its warm processes included, is `systemctl show -p MemoryCurrent
+pinecall-worker-a@production` on the box.
+
+A box installed with one worker per world moves to two with `make box` (the new units enabled,
+the old `pinecall-worker@<world>` disabled and left running) and then `make deploy`: the release
+starts each `b@`, drains the old unit once `b@` is ready, then starts each `a@`.
 
 ## Traps
 
