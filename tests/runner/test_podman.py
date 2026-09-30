@@ -64,8 +64,10 @@ def test_a_secrets_value_is_never_in_the_argv_only_its_name(tmp_path: Path) -> N
 def test_the_lockfile_picks_the_install(tmp_path: Path, lockfile: str | None, install: str) -> None:
     if lockfile is not None:
         (tmp_path / lockfile).write_text("")
-    argv = install_argv(ENGINE, tmp_path, "pinecall-net")
+    argv = install_argv(ENGINE, tmp_path, "pinecall-net", tmp_path / "scratch")
     assert argv[-1] == install
+    assert f"--volume={tmp_path / 'scratch'}:/scratch:U" in argv
+    assert "--env=HOME=/scratch" in argv
     assert "--runtime=runsc" in argv
     assert f"--volume={tmp_path}:/app:U" in argv
 

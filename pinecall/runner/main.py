@@ -160,8 +160,13 @@ class Runner:
         if hashlib.sha256(answer.content).hexdigest() != app.sha256:
             raise UpstreamFailed(NOT_THE_RELEASE.format(release=app.release))
         await asyncio.to_thread(unpacked, answer.content, folder)
-        argv = podman.install_argv(self.engine, folder, network)
-        done = await self.ran(argv, within_s=podman.INSTALL_WITHIN_S)
+        scratch = folder.with_name(f"{folder.name}.scratch")
+        scratch.mkdir(exist_ok=True)
+        argv = podman.install_argv(self.engine, folder, network, scratch)
+        try:
+            done = await self.ran(argv, within_s=podman.INSTALL_WITHIN_S)
+        finally:
+            await asyncio.to_thread(shutil.rmtree, scratch, ignore_errors=True)
         if done.returncode != 0:
             shutil.rmtree(folder / "node_modules", ignore_errors=True)
             raise UpstreamFailed(INSTALL_FAILED.format(output=_tail(done.output)))
