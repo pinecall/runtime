@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from functools import partial
@@ -15,8 +15,18 @@ from pinecall.domain.names import CHANNELS_WITH_A_NUMBER, Env, JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.gateway._sockets import Process, Registration, SocketId, Sockets, orgs_own
 from pinecall.gateway.calls.commands import COMMANDS_CHANNEL, SUPERVISOR_VERB
+from pinecall.gateway.calls.inbox import (
+    ANSWER_CHANNEL,
+    Bound,
+    Elsewhere,
+    ForApp,
+    SocketRow,
+    answered_back,
+    told_app,
+    told_bound,
+)
 from pinecall.gateway.calls.owners import Owners
-from pinecall.gateway.calls.pump import Bound, Send, pumped, told_bound
+from pinecall.gateway.calls.pump import Send, pumped
 from pinecall.log import queries
 from pinecall.log.logs import Log, Logs, arrival_entry
 from pinecall.log.private import Privacy
@@ -87,8 +97,11 @@ class ServedCalls:
     def __init__(self, signal: Signal | None = None) -> None:
         """Nothing open; bindings to other gateways' sockets told on the signal."""
         self.signal = signal or LocalSignal()
-        # Which written calls and threads run here, and on the other gateways.
+        # Which written calls and threads run here, and on the other gateways; their sockets.
         self.owners = Owners(self.signal)
+        self.elsewhere = Elsewhere(self.signal)
+        # Each dev.request asked here, listening for its answer from the socket's gateway.
+        self.answers: dict[str, asyncio.Task[None]] = {}
         self.sockets: dict[SocketId, Send] = {}
         self.processes: dict[SocketId, Process] = {}
         self.calls: dict[str, Served] = {}
@@ -100,50 +113,83 @@ class ServedCalls:
         self.pumps: dict[str, asyncio.Task[None]] = {}
         self.listening: dict[str, tuple[asyncio.Event, asyncio.Task[None]]] = {}
 
+    async def listen(self) -> None:
+        """Hear the other gateways' owners and sockets, and say this one's."""
+        await self.owners.start()
+        await self.elsewhere.start()
+
+    async def quiet(self) -> None:
+        """Stop hearing and saying."""
+        await self.owners.close()
+        await self.elsewhere.close()
+
     def connect(self, process: Process, send: Send) -> None:
         """An app socket opened."""
         self.sockets[process.app] = send
         self.processes[process.app] = process
+        self._say_sockets()
 
     def disconnect(self, app: SocketId) -> None:
         """An app socket closed; its calls go on until another socket takes them."""
         self.sockets.pop(app, None)
         self.processes.pop(app, None)
+        self._say_sockets()
 
     def named(self, app: SocketId, host: str | None) -> None:
         """The machine the app said it runs on."""
         process = self.processes.get(app)
         if process is not None and host is not None:
             self.processes[app] = replace(process, host=host)
+            self._say_sockets()
 
+    # The other gateways' sockets are stopped through their inbox, as any message to them is.
     def processes_of(self, org: str, env: Env) -> list[Process]:
-        """The org's sockets in the world, oldest first."""
-        mine = (
+        """The org's sockets in the world on every gateway, oldest first."""
+        mine = [
             value
             for value in self.processes.values()
             if value.scope.org == org and value.scope.env == env
-        )
-        return sorted(mine, key=lambda one: one.connected_at)
+        ]
+        theirs = [
+            Process(
+                row.app, row.scope, row.address, row.connected_at, self._stop(row.app), row.host
+            )
+            for row in self.elsewhere.rows_of(org, env)
+        ]
+        return sorted([*mine, *theirs], key=lambda one: one.connected_at)
 
-    # dev.request is never stored: it goes straight down the socket.
+    # dev.request is never stored: it goes straight down the socket, wherever it is held.
     async def tell(self, app: SocketId, entry: Entry) -> bool:
-        """Send an entry to one socket; False when it is not open here."""
+        """Send an entry to one socket; False when no gateway holds it."""
         send = self.sockets.get(app)
         if send is None:
-            return False
+            return await told_app(self.signal, app, ForApp(entry=entry))
         await send(entry)
         return True
 
-    def ask(self, params: str) -> asyncio.Future[DevAnswer]:
-        """A future for the answer to a dev.request."""
+    async def ask(self, params: str) -> asyncio.Future[DevAnswer]:
+        """A future for the answer to a dev.request, answered here or by the socket's gateway."""
         answer: asyncio.Future[DevAnswer] = asyncio.get_running_loop().create_future()
         self.pending_answers[params] = answer
+        heard = asyncio.Event()
+        task = asyncio.create_task(self._answer_from_there(params, answer, heard))
+        self.answers[params] = task
+
+        # Answered, or given up on (the asker cancels it): the listener goes with it.
+        def over(_: asyncio.Future[DevAnswer]) -> None:
+            self.answers.pop(params, None)
+            task.cancel()
+
+        answer.add_done_callback(over)
+        await heard.wait()
         return answer
 
-    def dev_answered(self, answer: DevAnswer) -> bool:
+    async def dev_answered(self, answer: DevAnswer) -> bool:
         """Hand an app's dev.answer to the door waiting for it; False when nobody waits."""
         waiting = self.pending_answers.pop(answer.id, None)
-        if waiting is None or waiting.done():
+        if waiting is None:
+            return await answered_back(self.signal, answer)
+        if waiting.done():
             return False
         waiting.set_result(answer)
         return True
@@ -271,6 +317,37 @@ class ServedCalls:
             model = command_of(command)
             declared_for_the_call(served, model)
             await served.session.apply(model)
+
+    def _say_sockets(self) -> None:
+        self.elsewhere.put(
+            tuple(
+                SocketRow(item.app, item.scope, item.address, item.connected_at, item.host)
+                for item in self.processes.values()
+            )
+        )
+
+    def _stop(self, app: SocketId) -> Callable[[str], Awaitable[None]]:
+        async def stop(why: str) -> None:
+            await told_app(self.signal, app, ForApp(stop=why))
+
+        return stop
+
+    async def _answer_from_there(
+        self, params: str, answer: asyncio.Future[DevAnswer], heard: asyncio.Event
+    ) -> None:
+        try:
+            listening = await self.signal.subscribe(ANSWER_CHANNEL.format(id=params))
+        except NotAvailable:
+            return
+        finally:
+            heard.set()
+        try:
+            async for data in listening:
+                if not answer.done():
+                    answer.set_result(DevAnswer.model_validate_json(data))
+                return
+        finally:
+            listening.close()
 
     def _stopped(self, call: str) -> None:
         pump = self.pumps.pop(call, None)

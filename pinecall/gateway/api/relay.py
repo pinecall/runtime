@@ -127,16 +127,18 @@ async def _relayed(gateway: Gateway, key: Acting, relay: Relay, params: Ask) -> 
         raise NotFound(NO_AGENT.format(slug=relay.slug))
     ask_id = f"dev_{uuid4().hex[:12]}"
     request = DevRequest.model_validate({"id": ask_id, "verb": relay.verb, "data": params.said})
-    waiting = gateway.live.ask(ask_id)
+    waiting = await gateway.live.ask(ask_id)
     if not await gateway.live.tell(
         registration.owner, _deps.ephemeral_entry(relay.slug, request, kind="dev.request")
     ):
         gateway.live.pending_answers.pop(ask_id, None)
+        waiting.cancel()
         raise AppRefused(502, APP_LEFT.format(slug=relay.slug, verb=relay.verb))
     try:
         answer = await asyncio.wait_for(waiting, ANSWERED_WITHIN_S)
     except TimeoutError:
         gateway.live.pending_answers.pop(ask_id, None)
+        waiting.cancel()
         said_late = NO_ANSWER.format(slug=relay.slug, verb=relay.verb, seconds=ANSWERED_WITHIN_S)
         raise AppRefused(504, said_late) from None
     if answer.refused is not None:
