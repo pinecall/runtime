@@ -177,9 +177,11 @@ usage totals (what admission counts, a row per org, world and month) again from 
 the log, as the usage feed folds each one, and rewrites the table in one transaction that holds
 it: a summary written meanwhile waits and is counted after; it prints how many summaries and rows.
 `doctor` asks each thing the box needs one question, a line each, and exits 1
-when one is missing; it is the last line of every deploy. Its `facts` line names every log whose
-head gave out fewer seqs than its rows hold, and refolds 20 sealed calls from a random point of
-the call ids, naming each whose stored facts differ and the columns that do: `facts rebuild
+when one is missing; it is the last line of every deploy. Its `facts` line examines the 20 newest
+calls and 20 heads from a random point of the call ids (never every head: on a box that is a probe
+per call), names each whose head gave out fewer seqs than its rows hold and how many it examined,
+and refolds 20 sealed calls from a random point of the call ids, naming each whose stored facts
+differ and the columns that do: `facts rebuild
 --call` mends one. `drift rebuild [--org <org id>] [--since YYYY-MM-DD]` forgets the drift of
 the days the flags name (every org's and every day's when none), each stage's histogram and each
 judge's count that `/v1/insights` and `/v1/insights/drift` read, and counts every sealed call of
