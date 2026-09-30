@@ -19,6 +19,7 @@ from pinecall.gateway import _streams
 from pinecall.gateway._deps import GatewayDep, operator, public_url
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._streams import frame, paced, streamed, wants_sse
+from pinecall.gateway.api import hosting as hosting_doors
 from pinecall.gateway.api.org import mailbox_of
 from pinecall.gateway.api.providers import credentials_of, installed_vendor
 from pinecall.gateway.api.sso_login import NO_BOX_WIDE
@@ -28,7 +29,7 @@ from pinecall.log.reduce import totals_by_org
 from pinecall.log.store import DEFAULT_LIMIT, Store
 from pinecall.providers import catalog
 from pinecall.providers.catalog import Providers
-from pinecall.tenancy import admission, letters, mail, orgs, vault
+from pinecall.tenancy import admission, hosted_running, letters, mail, orgs, vault
 from pinecall.tenancy.admission import Admission
 from pinecall.tenancy.mail import MailboxStatus
 from pinecall.wire.frames import Entry
@@ -38,6 +39,7 @@ from pinecall.wire.rest.accounts import (
     SendTestLetterRequest,
     SendTestLetterResponse,
 )
+from pinecall.wire.rest.hosting import ServedPage
 from pinecall.wire.rest.ops import (
     BoxEvent,
     BoxMailResponse,
@@ -139,6 +141,16 @@ async def put_admission(body: Admission, gateway: GatewayDep) -> Admission:
     """What a newborn org is given, replaced whole."""
     await admission.set_admission(gateway.connections.pool, body)
     return body
+
+
+@router.get("/v1/ops/hosted-usage")
+async def box_hosted_usage(
+    gateway: GatewayDep, month: Annotated[str | None, Query()] = None
+) -> ServedPage:
+    """The time every org's apps served, both worlds, per UTC day, one month: what bills them."""
+    since, until = hosting_doors.month_of(month)
+    rows = await hosted_running.served(gateway.connections.pool, since, until)
+    return hosting_doors.served_page(since, until, rows)
 
 
 @router.get("/v1/ops/fleets")

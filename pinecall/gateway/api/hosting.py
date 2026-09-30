@@ -1,30 +1,43 @@
 """The hosting doors: the apps the box hosts for an org, their releases, and the org's secrets."""
 
 import asyncio
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Request, Response
 
-from pinecall.domain.names import parse_slug
+from pinecall.domain.errors import DeclarationRefused
+from pinecall.domain.names import parse_env, parse_slug
 from pinecall.gateway._deps import Acting, AppKey, GatewayDep, asked_by
 from pinecall.postgres.pool import Pool
-from pinecall.tenancy import admission, hosting, org_secrets
+from pinecall.tenancy import admission, hosted_running, hosting, org_secrets
+from pinecall.tenancy.hosted_running import Served
 from pinecall.tenancy.hosting import HostedApp, Release
 from pinecall.tenancy.org_secrets import Secret
 from pinecall.wire.rest.hosting import (
+    AppLogsResponse,
     HostedAppList,
     HostedAppRow,
     PutSecretRequest,
     ReleaseList,
     ReleaseRow,
+    RollbackRequest,
     SecretList,
     SecretRow,
+    ServedPage,
+    ServedRow,
 )
 
 router = APIRouter()
 
 
 GZIP = "application/gzip"
+
+
+ROLLED_BACK = "rollback to release {release}"
+
+
+NOT_A_MONTH = "{month!r} is not a month: YYYY-MM, like 2026-09"
 
 
 @router.get("/v1/hosted")
@@ -38,6 +51,7 @@ async def list_hosted_apps(key: AppKey, gateway: GatewayDep) -> HostedAppList:
                 release=app.release,
                 live_release=app.live_release,
                 failed_why=app.failed_why,
+                stopped=app.stopped,
                 created_by=app.created_by,
                 created_at=app.created_at.timestamp(),
             )
@@ -86,6 +100,59 @@ async def release_source(name: str, release: int, key: AppKey, gateway: GatewayD
     )
 
 
+@router.post("/v1/hosted/{name}/stop", status_code=204)
+async def stop_hosted_app(name: str, key: AppKey, gateway: GatewayDep) -> None:
+    """Stop running the app: its process drains, and its releases and token stay."""
+    app = HostedApp(org=key.org, env=key.env, name=name)
+    await hosted_running.stop_app(gateway.connections.pool, app, by=asked_by(key))
+
+
+@router.post("/v1/hosted/{name}/start", status_code=204)
+async def start_hosted_app(name: str, key: AppKey, gateway: GatewayDep) -> None:
+    """Run a stopped app again, its newest release."""
+    app = HostedApp(org=key.org, env=key.env, name=name)
+    await hosted_running.start_app(gateway.connections.pool, app)
+
+
+@router.post("/v1/hosted/{name}/rollback")
+async def roll_back_release(
+    name: str, body: RollbackRequest, key: AppKey, gateway: GatewayDep
+) -> ReleaseRow:
+    """An earlier release's sources kept again as the app's next release."""
+    pool = gateway.connections.pool
+    app = HostedApp(org=key.org, env=key.env, name=name)
+    source = hosting.checked_source(await hosting.source_of(pool, app, body.release))
+    note = ROLLED_BACK.format(release=body.release)
+    kept = await hosting.keep_release(pool, app, source, author=asked_by(key), note=note)
+    return _release_row(app, kept)
+
+
+# The runner sends them on its next beat: a first ask answers what it sent last, or nothing.
+@router.get("/v1/hosted/{name}/logs")
+async def app_logs(name: str, key: AppKey, gateway: GatewayDep) -> AppLogsResponse:
+    """The last lines of the app's process, and the runner told to send them again."""
+    app = HostedApp(org=key.org, env=key.env, name=name)
+    logs = await hosted_running.ask_for_logs(gateway.connections.pool, app)
+    return AppLogsResponse(
+        name=name,
+        host=logs.host,
+        lines=logs.lines,
+        at=None if logs.at is None else logs.at.timestamp(),
+    )
+
+
+@router.get("/v1/hosted/usage")
+async def hosted_usage(
+    key: AppKey, gateway: GatewayDep, month: Annotated[str | None, Query()] = None
+) -> ServedPage:
+    """The time the org's apps served here per UTC day, in one month: this one by default."""
+    since, until = month_of(month)
+    rows = await hosted_running.served(
+        gateway.connections.pool, since, until, org=key.org, env=key.env
+    )
+    return served_page(since, until, rows)
+
+
 @router.delete("/v1/hosted/{name}", status_code=204)
 async def drop_hosted_app(name: str, key: AppKey, gateway: GatewayDep) -> None:
     """Stop hosting the app: its releases go, and its token is revoked."""
@@ -118,6 +185,37 @@ async def drop_secret(name: str, key: AppKey, gateway: GatewayDep) -> SecretList
     pool = gateway.connections.pool
     await org_secrets.drop_secret(pool, key.org, key.env, name)
     return await _secrets(pool, key)
+
+
+def month_of(month: str | None) -> tuple[date, date]:
+    """The first day of the month named (YYYY-MM), or of this UTC one, and of the next."""
+    if month is None:
+        first = datetime.now(UTC).date().replace(day=1)
+    else:
+        try:
+            first = datetime.strptime(month, "%Y-%m").replace(tzinfo=UTC).date()
+        except ValueError:
+            raise DeclarationRefused(NOT_A_MONTH.format(month=month)) from None
+    after = (first.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return first, after
+
+
+def served_page(since: date, until: date, rows: list[Served]) -> ServedPage:
+    """The time apps served, as the doors answer it."""
+    return ServedPage(
+        since=since.isoformat(),
+        until=until.isoformat(),
+        rows=[
+            ServedRow(
+                org=row.org,
+                env=parse_env(row.env),
+                name=row.name,
+                day=row.day.isoformat(),
+                seconds=round(row.seconds, 1),
+            )
+            for row in rows
+        ],
+    )
 
 
 async def _secrets(pool: Pool, key: Acting) -> SecretList:

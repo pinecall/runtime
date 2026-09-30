@@ -12,6 +12,7 @@ def test_an_app_nobody_released_yet_says_so_with_a_null() -> None:
         release=None,
         live_release=None,
         failed_why=None,
+        stopped=False,
         created_by="m_ana",
         created_at=1.0,
     )
