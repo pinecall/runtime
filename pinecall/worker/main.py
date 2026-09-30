@@ -11,7 +11,7 @@ from livekit.agents.voice import Agent, AgentSession
 from livekit.protocol.room import DeleteRoomRequest
 from pydantic import TypeAdapter
 
-from pinecall.channels.rooms import read_dispatch
+from pinecall.channels.rooms import Dispatch, read_dispatch, room_closed
 from pinecall.domain.errors import GatewayRefused, SettingsRefused
 from pinecall.domain.scope import Scope
 from pinecall.fleet.client import GatewayClient, gateway_at
@@ -65,6 +65,12 @@ A_CALLER_MAY_TAKE_S = 15.0
 THE_ONE_SENTENCE = "sp_1"
 
 
+NOT_TOLD = "call %s: the caller its worker left was not told all of it; the room closes anyway"
+
+
+NOT_SEALED = "call %s: the gateway did not take the seal; its reaper seals the call"
+
+
 class OverflowGate:
     """The overflow's load: full until the gateway says every worker of the fleet is."""
 
@@ -80,9 +86,14 @@ class OverflowGate:
 # Module-level: livekit pickles the entrypoint by module and name, so the gateway it reaches is
 # built in the job's own process.
 async def job(ctx: JobContext) -> None:
-    """Every job of the fleet: one call."""
+    """Every job of the fleet: one call, or telling the caller of a call whose worker went away."""
     settings = load()
-    await answer(ctx, _gateway_of(ctx.proc, settings), settings)
+    gateway = _gateway_of(ctx.proc, settings)
+    dispatch = read_dispatch(ctx.job.metadata)
+    if dispatch.worker_gone:
+        await _sentence_job(ctx, gateway, settings, dispatch)
+        return
+    await answer(ctx, gateway, settings)
 
 
 # A process is warmed before a job reaches it: the gateway's client and the tracer are its own.
@@ -146,6 +157,9 @@ async def overflow_job(ctx: JobContext) -> None:
     began = time.monotonic()
     ctx.log_context_fields = {"room": ctx.job.room.name}
     dispatch = read_dispatch(ctx.job.metadata)
+    if dispatch.worker_gone:
+        await _sentence_job(ctx, gateway, settings, dispatch)
+        return
     await ctx.connect()
     arrival = await arrival_of(dispatch, ctx.room)
     number = arrival.number if dispatch.org is None else None
@@ -210,6 +224,30 @@ async def overflow(settings: Settings) -> int:
     await server.aclose()
     await gateway.aclose()
     return 0
+
+
+# The gateway ended the call as drained before sending this job, and offered the call back; a
+# gateway that no longer serves the call refuses the entry and the seal, and its reaper seals it.
+async def _sentence_job(
+    ctx: JobContext, gateway: GatewayClient, settings: Settings, dispatch: Dispatch
+) -> None:
+    call = ctx.job.room.name
+    ctx.log_context_fields = {"room": call}
+    scope = named_by(dispatch)
+    await ctx.connect()
+    says = settings.overflow_says
+    try:
+        if scope is not None and dispatch.agent is not None:
+            stages = _STAGES.validate_python(await gateway.stages(dispatch.agent, scope))
+            await _said_once(ctx, gateway, call, stages, says)
+    except GatewayRefused:
+        logger.warning(NOT_TOLD, call, exc_info=True)
+    finally:
+        await room_closed(ctx.api, call)
+    try:
+        await gateway.sealed(call, SealCallRequest(usage=[], outcome=says))
+    except GatewayRefused:
+        logger.warning(NOT_SEALED, call, exc_info=True)
 
 
 async def _said_once(

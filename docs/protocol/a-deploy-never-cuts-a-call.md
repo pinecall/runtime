@@ -61,6 +61,11 @@ log, and the app's socket hears `call.attached`.
 
 ## A call nobody is running
 
+A worker that dies mid-call is heard of at once: LiveKit's webhook says its agent's connection was
+lost, and the gateway ends the call as `drained`, offers the caller a call back and sends a job into
+the room that says the overflow's sentence and closes it ([scaling.md](../scaling.md)). What that
+leaves, and a call whose caller had already gone, is the reaper's.
+
 The reaper looks every minute. A call in a room with no **agent** left in it, quiet five minutes,
 is ended as `drained` and its room taken down. A written call no process serves is ended as
 `timeout` once quiet as long as its door waits: five minutes for a chat, two hours for WhatsApp.
