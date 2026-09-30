@@ -1,8 +1,10 @@
 # infra — what runs where
 
-Three folders, each one thing a machine reads:
+Each folder is one thing a machine reads:
 
 ```
+apps/       the machine that runs the orgs' hosted apps, one gVisor container each, beside the box
+            and never on it. Its page: apps/README.md
 box/        the box: cloud-init, install.sh, release.sh, the systemd units, the Quadlet containers
             of the media plane (LiveKit, SIP, egress, Redis, Postgres), Caddy, nftables. Its page:
             box/README.md; the walk from a VM to a call: docs/a-box-in-production.md

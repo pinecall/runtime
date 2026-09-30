@@ -38,6 +38,8 @@ EDGES: dict[str, frozenset[str]] = {
             "fleet",
         }
     ),
+    # The one process that runs code of an org's: no database, no vault, no call.
+    "runner": frozenset({"process", "domain", "wire"}),
     "worker": frozenset(
         {"process", "domain", "wire", "session", "providers", "fleet", "channels", "log"}
     ),
@@ -56,6 +58,7 @@ EDGES: dict[str, frozenset[str]] = {
             "channels",
             "fleet",
             "gateway",
+            "runner",
             "worker",
         }
     ),

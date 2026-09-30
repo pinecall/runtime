@@ -35,7 +35,7 @@ async def beat(knocking: Knocking, runner: str, *reports: JsonObject) -> httpx.R
 @postgres
 async def test_a_world_that_hosts_nothing_wants_nothing_running(knocking: Knocking) -> None:
     answer = await beat(knocking, await a_runner(knocking))
-    assert (answer.status_code, answer.json()) == (200, {"apps": []})
+    assert (answer.status_code, answer.json()) == (200, {"world": "production", "apps": []})
 
 
 @postgres
@@ -64,7 +64,7 @@ async def test_what_the_sandbox_hosts_the_production_runner_is_not_told(
 ) -> None:
     async with knocking.http(knocking.app["sandbox"]) as http:
         await http.post("/v1/hosted/support/releases", content=PROJECT)
-    assert (await beat(knocking, await a_runner(knocking))).json() == {"apps": []}
+    assert (await beat(knocking, await a_runner(knocking))).json()["apps"] == []
 
 
 @postgres

@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import Field
 
+from pinecall.domain.names import Env
 from pinecall.wire.frames import WireModel
 
 
@@ -100,8 +101,9 @@ class WantedApp(WireModel):
 
 
 class RunnerHeartbeatResponse(WireModel):
-    """The answer to a heartbeat: every app of the world that has a release."""
+    """The answer to a heartbeat: the runner's world, and every app of it that has a release."""
 
+    world: Env
     apps: list[WantedApp]
 
 
