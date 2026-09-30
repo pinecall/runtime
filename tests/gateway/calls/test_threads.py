@@ -14,6 +14,7 @@ from websockets.asyncio.client import ClientConnection
 from pinecall.channels import routes, whatsapp
 from pinecall.domain.call import Route
 from pinecall.domain.names import Env, JsonObject
+from pinecall.domain.scope import Scope
 from pinecall.providers import catalog
 from pinecall.tenancy import admission, vault
 from tests.conftest import AGENT, Knocking, configured, postgres, received_until, sent
@@ -419,4 +420,36 @@ async def test_a_message_from_the_desk_is_refused_outside_whatsapp_and_on_a_seal
     assert sealed.status_code == 409
     assert "went quiet" in sealed.json()["detail"]
     assert nobody.status_code == 404
+    await closed(app)
+
+
+# The thread is held by the gateway that opened it: Meta's next delivery lands on the other, which
+# hands it on, and the contact goes on in one conversation, answered once.
+@postgres
+async def test_a_message_landing_on_another_gateway_goes_on_in_the_thread_its_holder_runs(
+    knocking: Knocking, knocking_two: Knocking, graph: Graph
+) -> None:
+    await catalog.configure(knocking.gateway.connections.pool, configured([["uno"], ["dos"]]))
+    await a_whatsapp_line(knocking)
+    app = await an_app(knocking)
+    await written(knocking, "hola", message="wamid.1")
+    await until(lambda: len(graph.sent) == 1)
+    owners = knocking_two.gateway.live.owners
+    await until(
+        lambda: (
+            bool(owners.shared.theirs)
+            and any(share.share.threads for share in owners.shared.theirs.values())
+        )
+    )
+    await until(
+        lambda: (
+            knocking_two.gateway.sockets.of(Scope(knocking.org.id, "sandbox"), AGENT) is not None
+        )
+    )
+    assert await written(knocking_two, "sigo", message="wamid.2") == 200
+    await until(lambda: len(graph.sent) == 2)
+    (call,) = calls_open(knocking)
+    assert knocking_two.gateway.threads.open == {}
+    kinds = [item.type for item in await knocking.gateway.logs.store.whole(call)]
+    assert kinds.count("turn.user") == 2
     await closed(app)

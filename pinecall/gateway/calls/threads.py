@@ -5,16 +5,18 @@ import logging
 from dataclasses import dataclass, field
 
 import httpx
+from pydantic import TypeAdapter
 
 from pinecall.channels import routes, whatsapp
 from pinecall.channels.whatsapp import IDLE_S, WINDOW_S, Inbound, Waiting
 from pinecall.domain.call import CallContext, Contact, Route, new_call_id, today_in
-from pinecall.domain.errors import PinecallError, QuotaExhausted, UpstreamFailed
+from pinecall.domain.errors import NotAvailable, PinecallError, QuotaExhausted, UpstreamFailed
 from pinecall.domain.scope import Scope
 from pinecall.gateway._call_setup import exhausted
 from pinecall.gateway._served import Serving
 from pinecall.gateway._sockets import Registration, Sockets
 from pinecall.gateway._text_calls import open_text, resume_text, tokens_of
+from pinecall.gateway.calls.owners import THREAD_CHANNEL
 from pinecall.log import queries
 from pinecall.postgres.pool import Pool
 from pinecall.session import text
@@ -53,6 +55,15 @@ TURN_FAILED = "whatsapp: a turn of call %s failed and was not answered"
 
 NOT_SENT = "whatsapp_not_sent"
 
+
+HANDED = "whatsapp: a message for %s was handed to the gateway holding its thread"
+
+NOT_HANDED = "whatsapp: a message handed on by another gateway was not read: %s"
+
+# How long the listener for messages handed on waits for the signal before listening again.
+HANDED_RETRY_S = 1.0
+
+_INBOUND: TypeAdapter[Inbound] = TypeAdapter(Inbound)
 
 # However the call ends, the conversation is over with it: a written call a supervisor ends
 # only says so, and its session is closed here.
@@ -104,6 +115,11 @@ class Threads:
         self.open: dict[Door, OpenThread] = {}
         self.waiting: list[Waiting] = []
         self.answering_now: set[asyncio.Task[None]] = set()
+        self.handed: asyncio.Task[None] | None = None
+
+    async def start(self) -> None:
+        """Take the messages other gateways hand on for the threads held here."""
+        self.handed = asyncio.create_task(self._handed_here())
 
     # Meta delivers a message again when it thinks it unanswered. The row is claimed before the
     # message is read, so of two deliveries at once only one reads it; it is marked read once the
@@ -129,10 +145,17 @@ class Threads:
         return True
 
     # Returns once the message is queued or kept: Meta sends a slow webhook again.
+    # A contact's thread is held by one gateway: a message landing on another is handed to it,
+    # and taken here only when nobody holds it, or its holder no longer listens.
     async def _heard(self, route: Route, inbound: Inbound) -> None:
         scope = Scope(route.org, route.env)
         registration = self.sockets.taking(scope, route.agent, inbound.caller)
-        thread = self.open.get(_door(registration.scope if registration else scope, inbound))
+        door = _door(registration.scope if registration else scope, inbound)
+        thread = self.open.get(door)
+        holder = self.serving.live.owners.threads_elsewhere.get("|".join(door))
+        if thread is None and holder is not None and await self._handed_to(holder, inbound):
+            logger.info(HANDED, inbound.number)
+            return
         if thread is None and registration is None:
             self.waiting.append(await whatsapp.kept(self.serving.logs, route, inbound))
             logger.warning(KEPT, route.agent, inbound.number)
@@ -181,6 +204,7 @@ class Threads:
         """Stop answering: the threads stay open in their logs for the next process."""
         serving = [value.served for value in self.open.values() if value.served is not None]
         serving += list(self.answering_now)
+        serving += [] if self.handed is None else [self.handed]
         for task in serving:
             task.cancel()
         await asyncio.gather(*serving, return_exceptions=True)
@@ -216,8 +240,44 @@ class Threads:
             await session.start()
         door = _door(registration.scope, inbound)
         self.open[door] = thread
+        self.serving.live.owners.holding("|".join(door), here=True)
         thread.served = asyncio.create_task(self._served(door, thread))
         return thread
+
+    async def _handed_to(self, holder: str, inbound: Inbound) -> bool:
+        channel = THREAD_CHANNEL.format(gateway=holder)
+        try:
+            return (
+                await self.serving.live.signal.published(channel, _INBOUND.dump_json(inbound)) > 0
+            )
+        except NotAvailable:
+            return False
+
+    # Claimed and read by the gateway it landed on: here it is only heard.
+    async def _handed_here(self) -> None:
+        signal = self.serving.live.signal
+        channel = THREAD_CHANNEL.format(gateway=self.serving.live.owners.id)
+        while True:
+            try:
+                listening = await signal.subscribe(channel)
+            except NotAvailable:
+                await asyncio.sleep(HANDED_RETRY_S)
+                continue
+            try:
+                async for data in listening:
+                    await self._taken_on(_INBOUND.validate_json(data))
+            finally:
+                listening.close()
+            await asyncio.sleep(HANDED_RETRY_S)
+
+    async def _taken_on(self, inbound: Inbound) -> None:
+        route = await _route_of(self.serving.connections.pool, inbound)
+        if route is None:
+            return
+        try:
+            await self._heard(route, inbound)
+        except PinecallError as refused:
+            logger.warning(NOT_HANDED, refused)
 
     # A conversation this process never saw is taken up from its log while it has idle time left.
     async def _taken_up(self, registration: Registration, inbound: Inbound) -> Session | None:
@@ -288,6 +348,7 @@ class Threads:
                     logger.warning(TURN_FAILED, session.call.context.call, exc_info=True)
         finally:
             self.open.pop(door, None)
+            self.serving.live.owners.holding("|".join(door), here=False)
             self.serving.live.close(session.call.context.call)
             self.serving.logs.forget(session.call.context.call)
 

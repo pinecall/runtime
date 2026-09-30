@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime
 
 from pinecall.domain.agent import AgentConfig, Versions
 from pinecall.domain.call import CallContext, Route, today_in
+from pinecall.domain.errors import Conflict
 from pinecall.domain.names import CHANNELS_WITH_A_NUMBER, JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.evals import goldens
@@ -33,6 +34,10 @@ from pinecall.wire.frames import Entry
 from pinecall.wire.metrics import LLMModelUsage, ModelUsage
 from pinecall.wire.parts import PlatformTool
 from pinecall.wire.rest.calls import LookupRequest, SealCallRequest
+
+# A written call's session runs on one gateway, which says so: another takes it up only once that
+# gateway fell silent.
+RUNS_ELSEWHERE = "call {call} runs on another gateway: it is taken up there"
 
 
 @dataclass(frozen=True)
@@ -87,6 +92,8 @@ async def resume_text(
     kept = await queries.scope_of_call(serving.connections.pool, call)
     if kept is None or kept.sealed or kept.scope is None or kept.agent != registration.slug:
         return None
+    if serving.live.owners.text_elsewhere(call):
+        raise Conflict(RUNS_ELSEWHERE.format(call=call))
     if kept.scope.org != registration.scope.org:
         return None
     # The model reads the tools' arguments as they were sent: the private ones opened.
@@ -138,6 +145,7 @@ def _session(
     )
     session = text_session(Call(served.context, served.config, platform), model)
     serving.live.calls[served.call] = replace(served, session=session)
+    serving.live.owners.running(served.call, here=True)
     return session
 
 
