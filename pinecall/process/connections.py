@@ -15,6 +15,11 @@ from pinecall.process.settings import Settings
 VARIABLE = "PINECALL_VAULT_KEY"
 
 
+# The log's writer holds a connection per lane (log/_writer.py LANES), open for the process's
+# life; the doors share the rest of PINECALL_DB_POOL.
+WRITING = 2
+
+
 NO_LIVEKIT = "LIVEKIT_API_KEY and LIVEKIT_API_SECRET are unset: this process cannot reach the SFU"
 
 
@@ -23,7 +28,10 @@ class Connections:
     """The settings a process was given, and the four things it holds open on them."""
 
     settings: Settings
+    # The doors'.
     pool: Pool
+    # The log writer's own: never waits for a door, and a door never waits for it.
+    writing: Pool
     vault: MultiFernet
     # The carriers', Meta's and the identity providers' HTTP, one pool per process.
     http: httpx.AsyncClient
@@ -48,12 +56,25 @@ async def opened(settings: Settings) -> AsyncGenerator[Connections]:
     """Open everything, the vault first: a box without its key starts nothing; closed in reverse."""
     sealed = vault_of(settings.vault_key)
     server = server_of(settings)
-    pool = await open_pool(settings.database_url, max_size=settings.db_pool)
+    pool = await open_pool(settings.database_url, max_size=settings.db_pool - WRITING)
+    try:
+        writing = await open_pool(settings.database_url, max_size=WRITING, min_size=WRITING)
+    except BaseException:
+        await pool.close()
+        raise
     try:
         async with httpx.AsyncClient() as http:
-            yield Connections(settings=settings, pool=pool, vault=sealed, http=http, server=server)
+            yield Connections(
+                settings=settings,
+                pool=pool,
+                writing=writing,
+                vault=sealed,
+                http=http,
+                server=server,
+            )
     finally:
         await server.aclose()
+        await writing.close()
         await pool.close()
 
 

@@ -28,7 +28,8 @@ _A_SCHEMA_NAME = re.compile(r"^[a-z_][a-z0-9_]*$")
 CONNECT_TIMEOUT_S = 10
 
 
-# What a gateway's pool holds unless PINECALL_DB_POOL says otherwise.
+# What a gateway holds open to Postgres unless PINECALL_DB_POOL says otherwise: its writer's and
+# its doors' together.
 POOL_SIZE = 10
 
 
@@ -59,6 +60,7 @@ async def open_pool(
     *,
     schema: str = DEFAULT_SCHEMA,
     max_size: int = POOL_SIZE,
+    min_size: int = 1,
     timeouts: Timeouts = TIMEOUTS,
 ) -> Pool:
     """Open a pool on the schema, rows as dicts; raise StoreUnreachable when nothing answers."""
@@ -72,7 +74,7 @@ async def open_pool(
         connection_class=psycopg.AsyncConnection[DictRow],
         # A statement alone is one round trip; what belongs together opens connection.transaction().
         kwargs={"autocommit": True, "row_factory": dict_row, "options": options},
-        min_size=1,
+        min_size=min_size,
         max_size=max_size,
         timeout=timeouts.wait_s,
         open=False,

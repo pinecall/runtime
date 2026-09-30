@@ -78,7 +78,12 @@ async def line(pool: Pool, graph: Graph) -> AsyncIterator[Line]:
         sealed = vault_of(Fernet.generate_key().decode())
         yield Line(
             Connections(
-                settings=settings_of(DOMAIN), pool=pool, vault=sealed, http=http, server=server
+                settings=settings_of(DOMAIN),
+                pool=pool,
+                writing=pool,
+                vault=sealed,
+                http=http,
+                server=server,
             ),
             org.id,
             twilio,

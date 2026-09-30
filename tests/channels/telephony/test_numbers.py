@@ -339,7 +339,12 @@ async def test_an_agent_answers_at_numbers_of_different_kinds_from_different_acc
     scope = Scope(org, "production")
     async with httpx.AsyncClient(transport=either_account(first, second)) as http:
         connections = Connections(
-            settings=settings_of(DOMAIN), pool=pool, vault=sealed, http=http, server=server
+            settings=settings_of(DOMAIN),
+            pool=pool,
+            writing=pool,
+            vault=sealed,
+            http=http,
+            server=server,
         )
         for found in (first, second):
             account = TwilioAccount(
