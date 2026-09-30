@@ -43,7 +43,7 @@ class Unusual:
 
 async def unusual(pool: Pool, org: str, at: float) -> Unusual | None:
     """Today's spend against the org's usual day, when it is over the line; None when usual."""
-    day = day_of(at)
+    day = _day_of(at)
     params = {"org": org, "day": day, "trailing": TRAILING_DAYS * A_DAY_S}
     async with pool.connection() as connection:
         row = await (await connection.execute(SPENT, params)).fetchone()
@@ -58,12 +58,12 @@ async def unusual(pool: Pool, org: str, at: float) -> Unusual | None:
 
 async def said_today(pool: Pool, org: str, at: float) -> bool:
     """Whether spend.unusual was already written for the org today."""
-    params = {"org": org, "day": day_of(at)}
+    params = {"org": org, "day": _day_of(at)}
     async with pool.connection() as connection:
         return await (await connection.execute(SAID_TODAY, params)).fetchone() is not None
 
 
-def day_of(at: float) -> float:
+def _day_of(at: float) -> float:
     """The UTC midnight the moment falls after, as a timestamp."""
     moment = datetime.fromtimestamp(at, UTC)
     return moment.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()

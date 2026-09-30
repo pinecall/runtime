@@ -87,7 +87,7 @@ async def sealed(
             await store.release_seal(served.call)
             raise
         await drifted(serving.connections.pool, served.call, entries, score)
-        await watched(serving, served)
+        await _watched(serving, served)
         serving.logs.forget(served.call)
         serving.live.close(served.call)
 
@@ -190,30 +190,6 @@ async def drifted(pool: Pool, call: str, entries: Sequence[Entry], score: CallSc
         logger.warning("call %s was not counted into its day's drift", call, exc_info=True)
 
 
-# The org's spend is watched once the summary priced the call: today against its own trailing
-# weeks, said once a day on the agent's log and held up on /metrics for the alert. A check that
-# breaks is logged and the call seals all the same.
-async def watched(serving: Serving, served: Served) -> None:
-    """Say once a day, on the agent's log, that the org spends more today than it usually does."""
-    pool, org = serving.connections.pool, served.scope.org
-    at = serving.logs.store.clock()
-    try:
-        found = await spend.unusual(pool, org, at)
-        serving.counters.spending(org, None if found is None else found.multiple)
-        if found is None or await spend.said_today(pool, org, at):
-            return
-        text = SpendUnusual(
-            org=org,
-            day=found.day,
-            today_usd=found.today_usd,
-            usual_usd=found.usual_usd,
-            multiple=found.multiple,
-        )
-        await serving.logs.agent(served.agent).append("spend.unusual", text.written())
-    except psycopg.Error:
-        logger.warning("call %s: the org's spend was not looked at", served.call, exc_info=True)
-
-
 async def summed_up(pool: Pool, store: Store, log: Log, sealing: SealCallRequest) -> None:
     """call.summary: how the call ended, what it used, what that cost."""
     entries = await store.whole(log.name)
@@ -268,3 +244,27 @@ async def _sealed_elsewhere(serving: Serving, served: Served) -> None:
         await asyncio.sleep(LOOKED_AGAIN_S)
     serving.logs.forget(served.call)
     serving.live.close(served.call)
+
+
+# The org's spend is watched once the summary priced the call: today against its own trailing
+# weeks, said once a day on the agent's log and held up on /metrics for the alert. A check that
+# breaks is logged and the call seals all the same.
+async def _watched(serving: Serving, served: Served) -> None:
+    """Say once a day, on the agent's log, that the org spends more today than it usually does."""
+    pool, org = serving.connections.pool, served.scope.org
+    at = serving.logs.store.clock()
+    try:
+        found = await spend.unusual(pool, org, at)
+        serving.counters.spending(org, None if found is None else found.multiple)
+        if found is None or await spend.said_today(pool, org, at):
+            return
+        text = SpendUnusual(
+            org=org,
+            day=found.day,
+            today_usd=found.today_usd,
+            usual_usd=found.usual_usd,
+            multiple=found.multiple,
+        )
+        await serving.logs.agent(served.agent).append("spend.unusual", text.written())
+    except psycopg.Error:
+        logger.warning("call %s: the org's spend was not looked at", served.call, exc_info=True)

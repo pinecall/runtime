@@ -132,9 +132,9 @@ async def rebuild(pool: Pool, refolding: Refolding, *, page: int = A_PAGE) -> Re
     return Rebuilt(calls=calls, rewritten=rewritten)
 
 
-async def heads_behind(pool: Pool, *, examined: int = HEADS_EXAMINED) -> Heads:
+async def heads_behind(pool: Pool) -> Heads:
     """The newest heads and a sample of the rest, and those that gave out fewer seqs than rows."""
-    params = {"limit": examined, "start": f"{A_CALL}{uuid4().hex}"}
+    params = {"limit": HEADS_EXAMINED, "start": f"{A_CALL}{uuid4().hex}"}
     async with pool.connection() as connection:
         rows = await (await connection.execute(HEADS_BEHIND, params)).fetchall()
     return Heads(examined=len(rows), behind=tuple(str(row["log"]) for row in rows if row["behind"]))

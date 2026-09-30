@@ -151,15 +151,20 @@ async def test_a_reader_whose_connection_was_lost_gets_a_gap_and_hears_again(
     await came_up(second)
     here, there = Logs(store, first), Logs(store, second)
     try:
-        stream = there.reading(call).stream()
-        assert (await next_of(stream)).type == "log.caught_up"
+        # Two readers of one log: both are dropped, and both hear again on a fresh subscription.
+        streams = [there.reading(call).stream() for _ in range(2)]
+        for stream in streams:
+            assert (await next_of(stream)).type == "log.caught_up"
         await here.writing(call, AGENT).append("custom", note(1))
-        assert (await next_of(stream)).seq == 1
+        for stream in streams:
+            assert (await next_of(stream)).seq == 1
         assert await killed(f"pinecall-{second.id}") == 1
-        assert (await next_of(stream)).type == "log.gap"
-        assert (await next_of(stream)).type == "log.caught_up"
+        for stream in streams:
+            assert (await next_of(stream)).type == "log.gap"
+            assert (await next_of(stream)).type == "log.caught_up"
         await here.writing(call, AGENT).append("custom", note(2))
-        assert (await next_of(stream)).seq == 2
+        for stream in streams:
+            assert (await next_of(stream)).seq == 2
     finally:
         await here.close()
         await there.close()
