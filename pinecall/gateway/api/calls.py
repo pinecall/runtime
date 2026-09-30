@@ -195,6 +195,7 @@ async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) 
     await gateway.prompts.keep(gateway.connections.pool, scope.org, config.knowledge or "")
     owner = None if found is None else found.owner
     served = served_call(gateway.serving, owner, context, config, scope)
+    await gateway.live.commands_heard(context.call)
     await opened(served.log, context, body.agent)
     first, notice = await _opening(gateway, scope, config.language)
     return OpenCallResponse(
@@ -313,6 +314,7 @@ async def recording_key(call: str, key: WorkerKey, gateway: GatewayDep) -> Recor
 async def stream_commands(call: str, key: WorkerKey, gateway: GatewayDep) -> StreamingResponse:
     """The app's commands for the call, in order, until it is sealed."""
     served = await _known(gateway, key, call)
+    await gateway.live.commands_heard(call)
     return streamed(_commanded(served.commands), gateway.closing)
 
 

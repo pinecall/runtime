@@ -11,6 +11,7 @@ from pinecall.domain.person import RoomScope
 from pinecall.gateway import _deps
 from pinecall.gateway._deps import Acting, GatewayDep, Reader, ReaderDep
 from pinecall.gateway._gateway import Gateway
+from pinecall.gateway.calls.commands import SUPERVISOR_VERB, commanded
 from pinecall.log import queries
 from pinecall.tenancy import keys, reads, tokens
 from pinecall.tenancy.reads import Read
@@ -62,15 +63,15 @@ async def queue_verb(
         raise NotFound(_deps.NO_SUCH_CALL.format(call=call))
     if await gateway.logs.store.sealed(call):
         raise Conflict(IS_OVER.format(call=call))
-    served = gateway.live.calls.get(call)
-    if served is None:
-        raise NotFound(_deps.NO_SUCH_CALL.format(call=call))
     wanted = SupervisorVerb(by=_who(reading), verb=verb)
-    if served.session is not None:
+    served = gateway.live.calls.get(call)
+    if served is not None and served.session is not None:
         await served.session.supervise(wanted)
-    else:
-        sent = Command(type="supervisor.verb", agent=served.agent, call=call, data=wanted.written())
-        served.commands.put_nowait(sent)
+        return VerbResponse(call=call, verb=verb.verb, seq=None)
+    # Whichever gateway runs the call's worker stream or its session takes it.
+    sent = Command(type=SUPERVISOR_VERB, agent=state.agent, call=call, data=wanted.written())
+    if not await commanded(gateway.connections.signal, sent):
+        raise NotFound(_deps.NO_SUCH_CALL.format(call=call))
     return VerbResponse(call=call, verb=verb.verb, seq=None)
 
 

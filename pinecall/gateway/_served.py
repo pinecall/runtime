@@ -10,9 +10,11 @@ from typing import Literal
 
 from pinecall.domain.agent import AgentConfig
 from pinecall.domain.call import CallContext
+from pinecall.domain.errors import NotAvailable
 from pinecall.domain.names import CHANNELS_WITH_A_NUMBER, Env, JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.gateway._sockets import Process, Registration, SocketId, Sockets, orgs_own
+from pinecall.gateway.calls.commands import COMMANDS_CHANNEL, SUPERVISOR_VERB
 from pinecall.gateway.calls.pump import Bound, Send, pumped, told_bound
 from pinecall.log import queries
 from pinecall.log.logs import Log, Logs, arrival_entry
@@ -23,16 +25,17 @@ from pinecall.process.signal import LocalSignal, Signal
 from pinecall.retrieval import lookups
 from pinecall.retrieval.embed import Embedder
 from pinecall.retrieval.lookups import OnTheCall
+from pinecall.session.call import with_app_fields
 from pinecall.session.session import Session
 from pinecall.session.tools import ToolCalls
 from pinecall.tenancy import admission
 from pinecall.tenancy.codes import Codes
 from pinecall.tenancy.prompts import Prompts
-from pinecall.wire.commands import DevAnswer
+from pinecall.wire.commands import DevAnswer, SessionConfigure, SupervisorVerb, command_of
 from pinecall.wire.events import (
     CallClaimed,
 )
-from pinecall.wire.frames import Command, Entry
+from pinecall.wire.frames import Command, Entry, WireModel
 from pinecall.wire.rest.calls import LookupRequest
 
 logger = logging.getLogger(__name__)
@@ -89,9 +92,10 @@ class ServedCalls:
         # The calls first seen here, by when a door last asked for one: let go once idle.
         self.seen: dict[str, float] = {}
         self.pending_answers: dict[str, asyncio.Future[DevAnswer]] = {}
-        # Each bound call's pump to its socket, by call: held here, since asyncio keeps weak
-        # references to tasks, and cancelled when the call moves or ends.
+        # Each bound call's pump to its socket, and each call's listener for its commands, by call:
+        # held here, since asyncio keeps weak references to tasks, and cancelled when it ends.
         self.pumps: dict[str, asyncio.Task[None]] = {}
+        self.listening: dict[str, tuple[asyncio.Event, asyncio.Task[None]]] = {}
 
     def connect(self, process: Process, send: Send) -> None:
         """An app socket opened."""
@@ -147,6 +151,17 @@ class ServedCalls:
             return
         self.calls[served.call] = served
         self.pumped(served.call, after=0)
+        heard = asyncio.Event()
+        self.listening[served.call] = (
+            heard,
+            asyncio.create_task(self._commands(served.call, heard)),
+        )
+
+    async def commands_heard(self, call: str) -> None:
+        """Return once the call's commands are listened for here."""
+        listening = self.listening.get(call)
+        if listening is not None:
+            await listening[0].wait()
 
     # Synchronous, so two sockets taking one parked call cannot both have it. The new socket's pump
     # starts once call.attached is written (`attach`), from it.
@@ -212,14 +227,6 @@ class ServedCalls:
             if call not in self.pumps:
                 self.close(call)
 
-    def commanded(self, call: str | None, agent: str, command: Command) -> bool:
-        """Queue an app's command for the worker running the call; False when it is not here."""
-        served = None if call is None else self.calls.get(call)
-        if served is None or served.agent != agent or served.session is not None:
-            return False
-        served.commands.put_nowait(command)
-        return True
-
     def close(self, call: str) -> None:
         """Forget a finished call: its entries end, and its worker's command stream."""
         self.seen.pop(call, None)
@@ -228,6 +235,38 @@ class ServedCalls:
             return
         self._stopped(call)
         served.commands.put_nowait(None)
+        listening = self.listening.pop(call, None)
+        if listening is not None:
+            listening[1].cancel()
+
+    # A voice call's commands wait here for its worker's stream; a written call's session takes
+    # them at once. Heard whichever gateway the app or the desk sent them to.
+    async def _commands(self, call: str, heard: asyncio.Event) -> None:
+        try:
+            listening = await self.signal.subscribe(COMMANDS_CHANNEL.format(call=call))
+        except NotAvailable:
+            logger.warning("call %s: its commands are not heard here, the signal is down", call)
+            return
+        finally:
+            heard.set()
+        try:
+            async for data in listening:
+                await self._applied(call, Command.model_validate_json(data))
+        finally:
+            listening.close()
+
+    async def _applied(self, call: str, command: Command) -> None:
+        served = self.calls.get(call)
+        if served is None or served.agent != command.agent:
+            return
+        if served.session is None:
+            served.commands.put_nowait(command)
+        elif command.type == SUPERVISOR_VERB:
+            await served.session.supervise(SupervisorVerb.model_validate(command.data))
+        else:
+            model = command_of(command)
+            declared_for_the_call(served, model)
+            await served.session.apply(model)
 
     def _stopped(self, call: str) -> None:
         pump = self.pumps.pop(call, None)
@@ -339,3 +378,11 @@ async def claim_code(
 def now_of(serving: Serving) -> datetime:
     """This moment by the store's clock, the one every entry of a call is stamped with."""
     return datetime.fromtimestamp(serving.logs.store.clock(), UTC)
+
+
+def declared_for_the_call(served: Served, model: WireModel) -> None:
+    """A written call's own declaration of what is private, as the app configured it."""
+    privacy = served.log.privacy
+    if isinstance(model, SessionConfigure) and model.config is not None and privacy is not None:
+        declared = with_app_fields(privacy.config, model.config)
+        served.log.privacy = replace(privacy, config=declared)

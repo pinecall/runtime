@@ -1,7 +1,6 @@
 """The app socket a tenant's process holds, and the org's list of connected apps."""
 
 import asyncio
-import dataclasses
 import logging
 import time
 
@@ -22,7 +21,7 @@ from pinecall.gateway import _deps
 from pinecall.gateway._call_setup import exhausted, tuned
 from pinecall.gateway._deps import Acting, AppKey, CallsKey, GatewayDep, ScopeDep
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import Served, claim_code
+from pinecall.gateway._served import Served, claim_code, declared_for_the_call
 from pinecall.gateway._sockets import (
     NOT_REGISTERED,
     Process,
@@ -31,6 +30,7 @@ from pinecall.gateway._sockets import (
     new_socket_id,
 )
 from pinecall.gateway.calls.binding import handed_on, parked_calls_of
+from pinecall.gateway.calls.commands import commanded
 from pinecall.gateway.calls.known import known_here
 from pinecall.gateway.calls.pump import BOUND_CHANNEL, Bound
 from pinecall.providers import catalog
@@ -49,7 +49,6 @@ from pinecall.wire.commands import (
     DevAnswer,
     Ping,
     PromptSet,
-    SessionConfigure,
     command_of,
 )
 from pinecall.wire.events import ErrorEvent, Pong
@@ -276,12 +275,11 @@ class AppSocket:
     async def _on_the_call(self, command: Command, model: WireModel) -> None:
         self._holds(command.agent)
         served = None if command.call is None else self.gateway.live.calls.get(command.call)
-        if served is not None and served.agent == command.agent:
-            _declared_for_the_call(served, model)
         if served is not None and served.agent == command.agent and served.session is not None:
+            declared_for_the_call(served, model)
             await served.session.apply(model)
             return
-        if self.gateway.live.commanded(command.call, command.agent, command):
+        if command.call is not None and await commanded(self.gateway.connections.signal, command):
             return
         text = NO_SESSION.format(kind=command.type, call=command.call)
         await self.refuse(command.agent, "no_session", text, command.written())
@@ -408,13 +406,6 @@ def _named(raw: Json, field: str) -> str:
 
 # What the call's log masks follows a declaration sent for this call alone, before the call
 # writes the state it declares, whichever process runs it.
-def _declared_for_the_call(served: Served, model: WireModel) -> None:
-    privacy = served.log.privacy
-    if isinstance(model, SessionConfigure) and model.config is not None and privacy is not None:
-        declared = with_app_fields(privacy.config, model.config)
-        served.log.privacy = dataclasses.replace(privacy, config=declared)
-
-
 # The list is the org's, not the call's, and nothing lands in the log: an SDK that predates the
 # command would refuse to read an entry it has no shape for.
 async def _opted_out(gateway: Gateway, served: Served, agent: str, wanted: CallOptOut) -> None:
