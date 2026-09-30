@@ -12,11 +12,24 @@ import httpx
 
 from pinecall.domain.errors import UpstreamFailed
 from pinecall.process._objects import ObjectStore, object_store_of
+from pinecall.process.sealed_audio import (
+    BROKEN,
+    HEADER,
+    MAGIC,
+    Sealed,
+    Span,
+    opened,
+    recorded_size,
+    span_of,
+)
 from pinecall.process.settings import Settings
 
 # The recorder's file in the call's own directory: `<root>/<call>/audio.ogg` on the disk,
-# `<org>/<call>/audio.ogg` in the bucket.
+# `<org>/<call>/audio.ogg` in the bucket. Sealed under the call's own key, it is `audio.sealed`
+# beside it (sealed_audio.py): the name says which a stored recording is.
 AUDIO_FILE = "audio.ogg"
+
+SEALED_FILE = "audio.sealed"
 
 # An hour of a call is tens of megabytes: the default five seconds is a small file's. Under what
 # a job is given to seal (worker/main.py SEALING_S): an upload that hangs leaves the file on the
@@ -61,6 +74,9 @@ class Disk:
     async def fetch(self, org: str, call: str, byte_range: str | None) -> Fetched | None:
         """None: the file on the disk is the recording, and the door serves it as a file."""
 
+    async def sealed(self, org: str, call: str) -> Sealed | None:
+        """None: a sealed file on the disk is read from where the call's summary says it is."""
+
     async def erase(self, org: str, calls: list[str]) -> int:
         """Remove each call's recording directory; how many calls had one."""
         return len(await asyncio.to_thread(_removed, self.root, calls))
@@ -76,10 +92,11 @@ class Bucket:
 
     async def store(self, org: str, call: str, audio: Path) -> None:
         """Upload the file under the org, then remove it from the disk; raise if it stayed."""
-        what = _object_name(org, call)
+        what = _object_name(org, call, audio.name)
         size, digest = await asyncio.to_thread(_measured, audio)
         url = self.objects.url_of(self.name, what)
-        wanted = {"content-type": "audio/ogg", "content-length": str(size)}
+        kind = "audio/ogg" if audio.name == AUDIO_FILE else "application/octet-stream"
+        wanted = {"content-type": kind, "content-length": str(size)}
         request = self.objects.http.build_request(
             "PUT",
             url,
@@ -95,8 +112,30 @@ class Bucket:
         await asyncio.to_thread(_removed, self.root, [call])
 
     async def fetch(self, org: str, call: str, byte_range: str | None) -> Fetched | None:
-        """The object's bytes, the range asked for when one is; None while it is not there."""
-        what = _object_name(org, call)
+        """The recording's bytes, the range asked for when one is; None while it is not there."""
+        return await self._fetched(_object_name(org, call, AUDIO_FILE), byte_range)
+
+    async def sealed(self, org: str, call: str) -> Sealed | None:
+        """The call's sealed object, read by ranges; None while it is not in the bucket."""
+        what = _object_name(org, call, SEALED_FILE)
+        first = await self._fetched(what, f"bytes=0-{HEADER - 1}")
+        if first is None:
+            return None
+        header = b"".join([piece async for piece in first.body])
+        size = first.headers.get("content-range", "").rpartition("/")[2]
+        if not header.startswith(MAGIC) or not size.isdigit():
+            raise UpstreamFailed(BROKEN.format(call=call, why=f"{what} is not a sealed recording"))
+
+        async def read(offset: int, length: int) -> AsyncIterator[bytes]:
+            part = await self._fetched(what, f"bytes={offset}-{offset + length - 1}")
+            if part is None:
+                raise UpstreamFailed(BROKEN.format(call=call, why=f"{what} went while it was read"))
+            async for piece in part.body:
+                yield piece
+
+        return Sealed(call, int(size), header[len(MAGIC) :], read)
+
+    async def _fetched(self, what: str, byte_range: str | None) -> Fetched | None:
         url = self.objects.url_of(self.name, what)
         wanted = {} if byte_range is None else {"range": byte_range}
         # The bytes as stored, so the length and the range passed on are the file's own.
@@ -114,7 +153,7 @@ class Bucket:
         return Fetched(answer.status_code, kept, _streamed(answer))
 
     async def erase(self, org: str, calls: list[str]) -> int:
-        """Delete each call's object, and its file where one stayed; how many calls had either."""
+        """Delete each call's objects, and its file where one stayed; how many calls had either."""
         deleted: set[str] = set()
         for start in range(0, len(calls), DELETED_AT_ONCE):
             chunk = calls[start : start + DELETED_AT_ONCE]
@@ -122,10 +161,13 @@ class Bucket:
             deleted |= {call for call, was_there in zip(chunk, gone, strict=True) if was_there}
         return len(deleted | await asyncio.to_thread(_removed, self.root, calls))
 
-    # S3 answers a delete of nothing as it answers a delete: the object is looked for first, so
+    # S3 answers a delete of nothing as it answers a delete: each object is looked for first, so
     # the trail counts the recordings there were.
     async def _deleted(self, org: str, call: str) -> bool:
-        what = _object_name(org, call)
+        kept = [await self._deleted_named(_object_name(org, call, name)) for name in NAMES]
+        return any(kept)
+
+    async def _deleted_named(self, what: str) -> bool:
         url = self.objects.url_of(self.name, what)
         existing = await self._response_to("HEAD", url, what)
         if existing.status_code == HTTPStatus.NOT_FOUND:
@@ -171,6 +213,10 @@ class Bucket:
         )
 
 
+# Every object a call's recording may be kept as.
+NAMES = (AUDIO_FILE, SEALED_FILE)
+
+
 type Recordings = Disk | Bucket
 
 
@@ -183,8 +229,27 @@ def recordings_of(settings: Settings, http: httpx.AsyncClient) -> Recordings:
     return Bucket(root, settings.recordings_bucket, objects)
 
 
-def _object_name(org: str, call: str) -> str:
-    return f"{org}/{call}/{AUDIO_FILE}"
+def served_sealed(sealed: Sealed, key: bytes, byte_range: str | None) -> Fetched:
+    """A sealed recording as a player reads it: the range it asked for, or the whole, opened."""
+    size = recorded_size(sealed.size)
+    span = span_of(byte_range, size)
+    if span is not None and span.first >= size:
+        return Fetched(
+            HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE,
+            {"content-range": f"bytes */{size}"},
+            _nothing(),
+        )
+    whole = span or Span(0, size - 1)
+    body = opened(sealed, key, whole) if size else _nothing()
+    headers = {"accept-ranges": "bytes", "content-length": str(whole.length)}
+    if span is None:
+        return Fetched(HTTPStatus.OK, headers, body)
+    shown = {**headers, "content-range": f"bytes {span.first}-{span.last}/{size}"}
+    return Fetched(HTTPStatus.PARTIAL_CONTENT, shown, body)
+
+
+def _object_name(org: str, call: str, name: str) -> str:
+    return f"{org}/{call}/{name}"
 
 
 def _measured(audio: Path) -> tuple[int, str]:
@@ -199,6 +264,11 @@ async def _read(audio: Path) -> AsyncIterator[bytes]:
     with audio.open("rb") as source:
         while chunk := await asyncio.to_thread(source.read, READ_BYTES):
             yield chunk
+
+
+async def _nothing() -> AsyncIterator[bytes]:
+    for piece in ():
+        yield piece
 
 
 async def _streamed(answer: httpx.Response) -> AsyncIterator[bytes]:

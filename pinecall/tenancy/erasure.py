@@ -25,10 +25,10 @@ WHERE head.org = %(org)s AND head.env = %(env)s AND facts.contact = %(contact)s
 LOGS_OF_ORG = "SELECT log, call, agent FROM call_log_head WHERE org = %(org)s"
 
 # What a call left: its entries and the private values sealed beside them, its head, its facts,
-# its tokens, the memories it taught. A phone call's numbers, times and end stay in call_records,
-# and the dials ledger stays: they name numbers and times, never what was said, and a traceback
-# asks for them (0016_call_records.sql). Every statement of the WITH reads the rows as they were
-# before it, so the record reads the facts.
+# its tokens, the memories it taught, and its recording's key. A phone call's numbers, times and
+# end stay in call_records, and the dials ledger stays: they name numbers and times, never what
+# was said, and a traceback asks for them (0016_call_records.sql). Every statement of the WITH
+# reads the rows as they were before it, so the record reads the facts.
 ERASE_LOGS = """
 WITH recorded AS (
     INSERT INTO call_records (call, org, env, direction, from_number, to_number, started_at,
@@ -41,6 +41,7 @@ WITH recorded AS (
 ),
      entries AS (DELETE FROM call_log WHERE log = ANY(%(logs)s) RETURNING 1),
      private AS (DELETE FROM call_private WHERE log = ANY(%(logs)s)),
+     keys AS (DELETE FROM recording_keys WHERE call = ANY(%(calls)s)),
      heads AS (DELETE FROM call_log_head WHERE log = ANY(%(logs)s) RETURNING 1),
      facts AS (DELETE FROM call_facts WHERE call = ANY(%(calls)s) RETURNING 1),
      spent AS (DELETE FROM tokens WHERE call = ANY(%(calls)s) RETURNING 1),

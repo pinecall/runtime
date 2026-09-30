@@ -16,7 +16,7 @@ from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.process.connections import vault_of
 from pinecall.process.recordings import Bucket, Disk
-from pinecall.tenancy import erasure
+from pinecall.tenancy import erasure, recording_keys
 from tests.conftest import issued, postgres
 from tests.fakes.bucket import Bucket as Remote
 from tests.log.conftest import AGENT, ACall, logged_call
@@ -44,7 +44,8 @@ SELECT (SELECT count(*) FROM call_log WHERE log = %(call)s) AS entries,
        (SELECT count(*) FROM call_facts WHERE call = %(call)s) AS facts,
        (SELECT count(*) FROM tokens WHERE call = %(call)s) AS tokens,
        (SELECT count(*) FROM contact_memories WHERE source_call = %(call)s) AS memories,
-       (SELECT count(*) FROM call_private WHERE log = %(call)s) AS private
+       (SELECT count(*) FROM call_private WHERE log = %(call)s) AS private,
+       (SELECT count(*) FROM recording_keys WHERE call = %(call)s) AS keys
 """
 
 
@@ -78,7 +79,15 @@ INSERT INTO thread_reads (org, env, holder, agent, reader, contact, read_at)
 VALUES (%s, 'production', '', %s, 'm_1', '+1', 1)
 """
 
-NOTHING_LEFT = {"entries": 0, "heads": 0, "facts": 0, "tokens": 0, "memories": 0, "private": 0}
+NOTHING_LEFT = {
+    "entries": 0,
+    "heads": 0,
+    "facts": 0,
+    "tokens": 0,
+    "memories": 0,
+    "private": 0,
+    "keys": 0,
+}
 
 
 async def test_a_call_erased_in_a_box_with_a_bucket_leaves_no_object_and_is_counted(
@@ -122,7 +131,9 @@ async def test_a_call_erased_leaves_no_row_no_recording_and_a_trail_that_counts_
     async with pool.connection() as connection:
         await connection.execute(A_ROOM_TICKET, {"call": call, "org": org.id, "agent": AGENT})
     phone: JsonObject = {"arguments": {"phone": ANA}}
-    await private.kept_aside(store, vault_of(Fernet.generate_key().decode()), call, [(3, phone)])
+    vault = vault_of(Fernet.generate_key().decode())
+    await private.kept_aside(store, vault, call, [(3, phone)])
+    await recording_keys.key_for(pool, vault, org.id, call)
     recording = a_recording(tmp_path, call)
 
     erased = await erasure.call(pool, Disk(tmp_path), Scope(org.id), call, by="m_1")

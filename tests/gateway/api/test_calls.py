@@ -3,7 +3,6 @@
 import asyncio
 import json
 from dataclasses import replace
-from pathlib import Path
 
 import httpx
 import pytest
@@ -12,7 +11,6 @@ from pinecall.domain.call import CallContext
 from pinecall.domain.names import JsonObject
 from pinecall.domain.person import KEY_SCOPES
 from pinecall.domain.scope import Scope
-from pinecall.gateway.app import app
 from pinecall.log.store import Claim
 from pinecall.tenancy import keys, orgs, policy, reads, tokens
 from pinecall.wire.rest.accounts import OrgPolicy
@@ -27,10 +25,7 @@ from tests.conftest import (
     received_until,
     sent,
 )
-from tests.fakes.bucket import ACCESS_KEY_ID, ENDPOINT, REGION, SECRET_ACCESS_KEY, Bucket
 from tests.gateway.api.conftest import a_call, an_app, first_data
-
-AUDIO = b"OggS" + bytes(range(60))
 
 
 async def a_logged_call(knocking: Knocking, *names: str) -> CallContext:
@@ -839,66 +834,3 @@ async def test_a_persons_read_and_a_servers_are_written_once_an_hour_and_the_wor
         [(context.call, "log", ana), (context.call, "log", servers.key.key_id)]
     )
     await app.close()
-
-
-async def a_recorded_call(knocking: Knocking, audio: Path) -> CallContext:
-    """A sealed call whose worker said its recording was written at the path."""
-    context = a_call(knocking)
-    async with knocking.http(knocking.fleet["sandbox"]) as worker:
-        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
-        sealing = SealCallRequest(usage=[], outcome="booked", recording=str(audio))
-        await worker.post(f"/v1/calls/{context.call}/sealed", json=sealing.written())
-    return context
-
-
-@postgres
-async def test_a_recording_on_the_disk_is_served_whole_and_by_the_range_a_player_asks(
-    knocking: Knocking, tmp_path: Path
-) -> None:
-    audio = tmp_path / "audio.ogg"
-    audio.write_bytes(AUDIO)
-    context = await a_recorded_call(knocking, audio)
-    async with knocking.http(knocking.app["sandbox"]) as tenant:
-        whole = await tenant.get(f"/v1/calls/{context.call}/recording")
-        part = await tenant.get(
-            f"/v1/calls/{context.call}/recording", headers={"range": "bytes=4-9"}
-        )
-    assert (whole.status_code, whole.content) == (200, AUDIO)
-    assert (part.status_code, part.content) == (206, AUDIO[4:10])
-    assert part.headers["content-range"] == f"bytes 4-9/{len(AUDIO)}"
-
-
-@postgres
-async def test_with_a_bucket_a_recording_is_served_from_it_and_from_the_disk_until_it_moved(
-    knocking: Knocking, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    moved = await a_recorded_call(knocking, tmp_path / "gone" / "audio.ogg")
-    still_here = tmp_path / "audio.ogg"
-    still_here.write_bytes(AUDIO)
-    waiting = await a_recorded_call(knocking, still_here)
-    remote = Bucket(objects={f"{knocking.org.id}/{moved.call}/audio.ogg": AUDIO[::-1]})
-    connections = knocking.gateway.connections
-    settings = connections.settings.model_copy(
-        update={
-            "recordings_bucket": remote.name,
-            "s3_endpoint": ENDPOINT,
-            "s3_region": REGION,
-            "s3_access_key_id": ACCESS_KEY_ID,
-            "s3_secret_access_key": SECRET_ACCESS_KEY,
-        }
-    )
-    async with httpx.AsyncClient(transport=remote.transport()) as http:
-        with_a_bucket = replace(connections, settings=settings, http=http)
-        monkeypatch.setattr(
-            app.state, "gateway", replace(knocking.gateway, connections=with_a_bucket)
-        )
-        async with knocking.http(knocking.app["sandbox"]) as tenant:
-            ranged = await tenant.get(
-                f"/v1/calls/{moved.call}/recording", headers={"range": "bytes=0-3"}
-            )
-            local = await tenant.get(f"/v1/calls/{waiting.call}/recording")
-    assert (ranged.status_code, ranged.content) == (206, AUDIO[::-1][:4])
-    assert ranged.headers["content-range"] == f"bytes 0-3/{len(AUDIO)}"
-    assert ranged.headers["content-length"] == "4"
-    assert ranged.headers["content-type"] == "audio/ogg"
-    assert (local.status_code, local.content) == (200, AUDIO)

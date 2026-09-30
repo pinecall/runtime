@@ -1,6 +1,7 @@
 """The worker's one door to the platform: the gateway over HTTP, on its fleet's key."""
 
 import asyncio
+import base64
 import json
 import logging
 import time
@@ -33,6 +34,7 @@ from pinecall.wire.rest.calls import (
     LogPage,
     OpenCallRequest,
     OpenCallResponse,
+    RecordingKeyResponse,
     SealCallRequest,
 )
 from pinecall.wire.rest.fleet import FleetTotals, HeartbeatRequest, HeartbeatResponse
@@ -201,6 +203,18 @@ class GatewayClient:
             await self._on_the_call(call, "POST", f"/v1/calls/{call}/lookup", data)
         )
         return _OBJECT.validate_python(answer.get("output") or {})
+
+    # Asked once, at the call's end: a gateway away leaves the recording plain, never unsealed
+    # waiting. A gateway of before sealed recordings has no such door and answers 404.
+    async def recording_key(self, call: str) -> bytes | None:
+        """The key the call's recording is sealed under; None from a gateway that seals none."""
+        try:
+            answer = await self._on_the_call(call, "POST", f"/v1/calls/{call}/recording/key")
+        except GatewayRefused as refused:
+            if refused.answered != NOT_SERVED:
+                raise
+            return None
+        return base64.urlsafe_b64decode(RecordingKeyResponse.model_validate(answer).key)
 
     # A code nobody issued is an ordinary answer: the caller may be dialling an extension.
     async def claim(self, call: str, code: str) -> bool:
