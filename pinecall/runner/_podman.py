@@ -53,6 +53,10 @@ DRAIN_S = 45
 A_VERB_WITHIN_S = 60.0
 
 
+# What podman says of a container whose process is over; "created" and "initialized" are not.
+ENDED = frozenset({"exited", "stopped", "dead"})
+
+
 # Where a container finds what it is started with: a file the runner wrote, mounted read-only.
 ENVIRONMENT = "/run/pinecall"
 
@@ -101,9 +105,9 @@ class Container:
     started_at: float
 
     @property
-    def is_running(self) -> bool:
-        """Whether its process is up."""
-        return self.state == "running"
+    def has_exited(self) -> bool:
+        """Whether its process ended; one still being created or started has not."""
+        return self.state in ENDED
 
 
 @dataclass(frozen=True)

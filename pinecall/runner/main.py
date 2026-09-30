@@ -125,8 +125,9 @@ class Runner:
 
     async def reconcile(self, wanted: RunnerHeartbeatResponse, now: float) -> None:
         """Make the containers what the gateway wants; the long steps go on past this beat."""
-        containers = await self._containers(wanted.world)
+        # Finished first: a step that ends after the listing would be planned again on a stale one.
         self._finished()
+        containers = await self._containers(wanted.world)
         for label, steps in planned(wanted.apps, containers, self.crashes, now).items():
             if label not in self.working:
                 self.working[label] = asyncio.create_task(self._done(wanted.world, steps, now))

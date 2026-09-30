@@ -100,14 +100,14 @@ def test_podmans_listing_is_read_for_the_name_the_app_and_the_state() -> None:
       {"Names": [], "Labels": null, "State": "exited"}
     ]"""
     first, second = containers_in(listing)
-    assert (first.name, first.app, first.release, first.is_running, first.started_at) == (
+    assert (first.name, first.app, first.release, first.has_exited, first.started_at) == (
         "support-r1-abcdef12",
         "org_1/support",
         1,
-        True,
+        False,
         1700000000.0,
     )
-    assert (second.release, second.is_running) == (2, False)
+    assert (second.release, second.has_exited) == (2, True)
     assert containers_in("") == []
 
 

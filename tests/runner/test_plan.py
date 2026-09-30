@@ -118,3 +118,10 @@ def test_the_old_host_exiting_while_the_new_installs_is_run_again_too() -> None:
 
 def test_crashes_outside_the_window_are_forgotten() -> None:
     assert crashes_within([NOW - CRASH_WINDOW_S, NOW - 1], NOW) == [NOW - 1]
+
+
+# Found in production: a container listed while podman was still creating it was taken for dead.
+def test_a_container_still_being_created_is_left_alone() -> None:
+    assert planned([wanted()], [OLD, container(NEW.name, "created")], {}, NOW) == {}
+    settled = wanted(host=OLD.name, release=1, live_host=OLD.name)
+    assert planned([settled], [container(OLD.name, "initialized")], {}, NOW) == {}
