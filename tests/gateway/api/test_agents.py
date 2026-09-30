@@ -55,6 +55,8 @@ async def test_the_fleet_is_handed_the_stages_with_the_key_each_runs_on(knocking
     assert stages["llm"]["credentials"] == "a key of the box"
     assert stages["tts"]["lent"] is True
     assert without.status_code == 400
+    # Each call counts once for each vendor it was handed first: what a failure rate is over.
+    assert len(knocking.gateway.counters.handed["acme"]) == 1
     await socket.close()
 
 

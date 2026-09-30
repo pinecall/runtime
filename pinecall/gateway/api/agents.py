@@ -1,5 +1,6 @@
 """What a worker asks about an agent, and the agents and routes the org holds."""
 
+import time
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Response
@@ -66,11 +67,11 @@ async def agent_credentials(
     found = _registration_of(gateway, where, slug)
     configured = await catalog.providers(gateway.connections.pool)
     tuned_config, _ = await tuned(gateway.connections.pool, found.config, where, configured)
-    return pipeline(
-        tuned_config,
-        configured,
-        await keys_of(gateway.connections.pool, gateway.connections.vault, where),
-    )
+    keys = await keys_of(gateway.connections.pool, gateway.connections.vault, where)
+    now = time.monotonic()
+    stages = pipeline(tuned_config, configured, keys, gateway.counters.failing(now))
+    gateway.counters.handed_out((stages.llm.vendor, stages.stt.vendor, stages.tts.vendor), now)
+    return stages
 
 
 @router.get("/v1/agents/{slug}/hold-audio")
