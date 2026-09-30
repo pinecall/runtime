@@ -14,7 +14,7 @@ from pinecall.channels.rooms import Dispatch, read_dispatch, room_closed
 from pinecall.domain.errors import GatewayRefused, SettingsRefused
 from pinecall.domain.scope import Scope
 from pinecall.fleet.client import GatewayClient, gateway_at
-from pinecall.fleet.heartbeat import CORDONED_EXIT, Heartbeats, Load
+from pinecall.fleet.heartbeat import CORDONED_EXIT, Heartbeats, Load, announced_ready
 from pinecall.fleet.measures import LastMinute, listening, measures_path
 from pinecall.fleet.roster import HEARTBEAT_S
 from pinecall.process.settings import Settings, load
@@ -148,6 +148,7 @@ async def run(settings: Settings) -> int:
     stopping = _stop_on_a_signal()
     running = asyncio.create_task(server.run())
     beating = asyncio.create_task(beats.run())
+    ready = asyncio.create_task(announced_ready(beats, settings.notify_socket))
     waits = {running, asyncio.create_task(stopping.wait()), asyncio.create_task(beats.leave.wait())}
     await asyncio.wait(waits, return_when=asyncio.FIRST_COMPLETED)
     try:
@@ -156,7 +157,7 @@ async def run(settings: Settings) -> int:
         # livekit raises when the drain runs out; the close is what shuts and seals the calls left.
         logger.warning(STILL_UP, len(server.active_jobs), DRAIN_S)
     await server.aclose()
-    for task in (*waits, beating):
+    for task in (*waits, beating, ready):
         task.cancel()
     hearing.close()
     measures_path(settings).unlink(missing_ok=True)

@@ -134,6 +134,12 @@ class Settings(BaseModel):
         alias="PINECALL_IDLE_PROCESSES",
         description="Job processes the worker keeps warm. Unset: livekit's, one per CPU.",
     )
+    # systemd's own, set on a Type=notify unit: a release waits for the worker to say it is ready.
+    notify_socket: str | None = Field(
+        None,
+        alias="NOTIFY_SOCKET",
+        description="Where a worker tells systemd it is registered and heard. Set by systemd.",
+    )
     overflow_says: str = Field(
         OVERFLOW_SAYS,
         alias="PINECALL_OVERFLOW_SAYS",

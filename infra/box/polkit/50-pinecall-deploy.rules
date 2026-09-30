@@ -1,12 +1,18 @@
-// The deploy account may start and restart the runtime's units, and nothing else, without sudo.
+// The deploy account may start and restart the runtime's units, and stop the one worker per world
+// of a box installed before it ran two, and nothing else, without sudo.
 polkit.addRule(function (action, subject) {
     if (action.id !== "org.freedesktop.systemd1.manage-units" || subject.user !== "deploy") {
         return polkit.Result.NOT_HANDLED;
     }
     var unit = action.lookup("unit");
     var verb = action.lookup("verb");
-    var ours = /^pinecall-(migrate|gateway|doctor|worker@(production|sandbox)|overflow@production)\.service$/;
+    var ours = /^pinecall-(migrate|gateway|doctor|worker-[ab]@(production|sandbox)|overflow@production)\.service$/;
     if (ours.test(unit) && (verb === "start" || verb === "restart")) {
+        return polkit.Result.YES;
+    }
+    // The one worker per world of a box installed before the two: a release drains it once.
+    var before = /^pinecall-worker@(production|sandbox)\.service$/;
+    if (before.test(unit) && verb === "stop") {
         return polkit.Result.YES;
     }
     return polkit.Result.NOT_HANDLED;

@@ -100,7 +100,14 @@ install -m 0644 "$HERE/caddy/Caddyfile" /etc/caddy/Caddyfile
 install -d /etc/systemd/system/caddy.service.d
 printf '[Service]\nEnvironmentFile=/etc/pinecall/box.env\n' > /etc/systemd/system/caddy.service.d/pinecall.conf
 install -m 0644 "$HERE"/pinecall-*.service "$HERE"/pinecall-*.timer /etc/systemd/system/
-for unit in pinecall-gateway pinecall-worker@ pinecall-overflow@ pinecall-migrate pinecall-retention; do
+# Two workers per world, the one template under two names, each told its slot by its drop-in.
+for slot in a b; do
+    install -m 0644 "$HERE/pinecall-worker@.service" "/etc/systemd/system/pinecall-worker-$slot@.service"
+    install -D -m 0644 "$HERE/pinecall-worker-slot.conf" \
+        "/etc/systemd/system/pinecall-worker-$slot@.service.d/slot.conf"
+done
+for unit in pinecall-gateway pinecall-worker@ pinecall-worker-a@ pinecall-worker-b@ \
+    pinecall-overflow@ pinecall-migrate pinecall-retention; do
     install -d "/etc/systemd/system/$unit.service.d"
     install -m 0644 "$HERE/hardening.conf" "/etc/systemd/system/$unit.service.d/hardening.conf"
 done
@@ -113,9 +120,12 @@ systemctl restart systemd-journald
 systemctl start pinecall-postgres-image.service
 systemctl start pinecall-redis pinecall-livekit pinecall-sip pinecall-egress pinecall-postgres
 systemctl restart caddy
-# Started by the first deploy, which brings the code they run.
-systemctl enable pinecall-migrate pinecall-gateway pinecall-worker@production \
-    pinecall-worker@sandbox pinecall-overflow@production
+# Started by the first deploy, which brings the code they run. The one worker per world of a box
+# installed before the two is left running, not enabled: the next release drains it.
+systemctl disable pinecall-worker@production pinecall-worker@sandbox 2>/dev/null || true
+systemctl enable pinecall-migrate pinecall-gateway pinecall-worker-a@production \
+    pinecall-worker-b@production pinecall-worker-a@sandbox pinecall-worker-b@sandbox \
+    pinecall-overflow@production
 systemctl enable --now pinecall-retention.timer
 # No key, no backup: an unencrypted dump of every call is not written anywhere.
 if [ -f /etc/pinecall/backup.age.pub ]; then

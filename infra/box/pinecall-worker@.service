@@ -1,11 +1,18 @@
 # The worker fleet of world %i: a livekit AgentServer registered under that fleet's agent name
-# (fleets/%i.env), holding that world's fleet key and nothing else of the box.
+# (fleets/%i.env), holding that world's fleet key and nothing else of the box. The box installs it
+# twice, as pinecall-worker-a@ and pinecall-worker-b@, each with pinecall-worker-slot.conf beside
+# it: two workers per world, so a release replaces one while the other takes the calls.
 [Unit]
 Description=Pinecall worker, fleet %i
 Wants=network-online.target pinecall-gateway.service pinecall-fleet-key@%i.service
 After=network-online.target pinecall-livekit.service pinecall-gateway.service pinecall-fleet-key@%i.service
 
 [Service]
+# Ready once LiveKit registered it and the gateway heard it: `systemctl restart` waits for that,
+# after the old process drained, and a release moves to the next worker only then.
+Type=notify
+NotifyAccess=main
+TimeoutStartSec=150
 User=pinecall
 Group=pinecall
 WorkingDirectory=/opt/pinecall

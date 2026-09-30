@@ -3,6 +3,9 @@
 import asyncio
 import logging
 import socket
+import tempfile
+from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from livekit.agents import AgentServer
@@ -10,10 +13,18 @@ from livekit.agents import AgentServer
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.fleet import heartbeat
 from pinecall.fleet.client import gateway_at
-from pinecall.fleet.heartbeat import Heartbeats, Load, livekits_measure, worker_name_of
+from pinecall.fleet.heartbeat import (
+    UNREGISTERED,
+    Heartbeats,
+    Load,
+    announced_ready,
+    livekits_measure,
+    worker_name_of,
+)
 from pinecall.fleet.measures import JobReport, LastMinute
 from pinecall.process.settings import Settings
 from pinecall.worker._traces import otlp_headers
+from tests.conftest import Knocking, postgres
 from tests.fakes.livekit import A_SECRET
 
 
@@ -78,3 +89,40 @@ async def test_a_beat_carries_what_the_workers_calls_did_in_its_last_minute(
     await gateway.aclose()
     assert (beat.worker, beat.ended, beat.failed, beat.errors, beat.turns) == ("w-7", 1, 1, 0, 5)
     assert beat.first_audio_p95_s == 3.0
+
+
+# systemd's end of NOTIFY_SOCKET: a datagram socket the test binds and reads.
+@postgres
+async def test_the_worker_tells_systemd_it_is_ready_once_registered_and_heard(
+    knocking: Knocking, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(AgentServer, "active_jobs", property(_no_jobs))
+    ids = iter([UNREGISTERED, "AW_registered"])
+    monkeypatch.setattr(AgentServer, "id", property(lambda _server: next(ids, "AW_registered")))
+    monkeypatch.setattr(heartbeat, "HEARTBEAT_S", 0.01)
+    path = Path(tempfile.gettempdir()) / f"pc-{uuid4().hex[:8]}.notify"
+    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as systemd:
+        systemd.bind(str(path))
+        systemd.settimeout(0)
+        settings = Settings.model_validate({"PINECALL_FLEET": "pinecall-sandbox"})
+        server = AgentServer(ws_url="ws://127.0.0.1:7880", api_key="APIfake", api_secret=A_SECRET)
+        gateway = gateway_at(knocking.url, knocking.fleet["sandbox"])
+        beats = Heartbeats(server, gateway, settings, LastMinute())
+        beating = asyncio.create_task(beats.run())
+        try:
+            assert await asyncio.wait_for(announced_ready(beats, str(path)), 5)
+        finally:
+            beating.cancel()
+            await gateway.aclose()
+        assert systemd.recv(64) == b"READY=1"
+    path.unlink()
+
+
+async def test_outside_systemd_nobody_is_told() -> None:
+    settings = Settings.model_validate({})
+    server = AgentServer(ws_url="ws://127.0.0.1:7880", api_key="APIfake", api_secret=A_SECRET)
+    gateway = gateway_at("http://127.0.0.1:9", None)
+    beats = Heartbeats(server, gateway, settings, LastMinute())
+    beats.ready.set()
+    assert not await announced_ready(beats, settings.notify_socket)
+    await gateway.aclose()

@@ -77,6 +77,22 @@ what is left in sixty seconds; systemd waits fifteen. A **cordon** (`fleet cordo
 `POST /v1/ops/fleet/{worker}/cordon`) is told on the worker's next heartbeat: it takes no new call,
 finishes what it holds, and exits **3**, which its unit's `RestartPreventExitStatus=3` leaves down.
 
+A deploy never closes a fleet. The box runs two workers per world and replaces one at a time
+([../infra/box/README.md](../infra/box/README.md)): each comes back registered and heard before the
+other is stopped. A fleet of machines is replaced by **generation**, with the loop's own verbs:
+
+1. make the new generation's image (the new wheel, the same units and `fleets/<world>.env`) and
+   point the cloud script at it (`PINECALL_FLEET_IMAGE`);
+2. stop the loop, and run it once with `--min` at the machines up now plus the new ones wanted and
+   `--grow-at-most` as many (`fleet loop --once …`): it creates them from the new image; wait
+   until `fleet list` shows each new one `accepting`;
+3. `fleet cordon` every machine of the old generation: each takes no new call, drains, and exits 3;
+4. start the loop again with its usual flags: it deletes each cordoned machine once it has drained,
+   and grows or shrinks the new generation by the numbers.
+
+The loop is stopped while the new machines come up, or it would cordon the quietest of them as one
+too many. At every step some machine takes new calls, and no call is moved.
+
 ## A worker that dies
 
 A worker killed, a machine gone or a job's process dead leaves its callers in rooms with nobody
