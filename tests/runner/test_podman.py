@@ -99,4 +99,5 @@ async def test_a_verb_past_its_time_is_killed_and_said() -> None:
 def test_an_apps_network_is_on_a_bridge_the_fence_knows_by_its_name() -> None:
     argv = network_argv("pinecall-0123456789ab", "pca0123456789ab")
     assert "--interface-name=pca0123456789ab" in argv
+    assert "--disable-dns" in argv
     assert len("pca0123456789ab") <= 15
