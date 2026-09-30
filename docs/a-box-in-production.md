@@ -110,6 +110,25 @@ The archive's line is `ok  archive: off: …` on a box without a bucket, and `ok
 with what waits to ship and when the last segment was spooled; it says `NO` when Postgres could
 not spool a segment, or when a segment has waited more than five minutes for the bucket.
 
+### What the gateway measures: `GET /metrics`
+
+`curl -s http://127.0.0.1:8080/metrics` on the box answers the gateway's measures in Prometheus's
+text format, for a scraper on the same machine. It takes no key: the address is the fence. A
+request from anywhere but the box's loopback is refused `403`, and so is anything that came
+through Caddy, which marks every request it passes on with `X-Forwarded-For`. The families:
+
+| family | what |
+|---|---|
+| `pinecall_append_seconds` | histogram: how long a worker's entry or batch took to write, at the door |
+| `pinecall_entries_appended_total` | entries written through the two append doors |
+| `pinecall_errors_total{code,vendor}` | `error` entries workers wrote; `vendor` is the plugin a failed component's label names, empty for the rest |
+| `pinecall_pool_connections{state}` · `pinecall_pool_waiting` | the database pool: open, in use, its most; requests waiting now |
+| `pinecall_pool_requests_total` · `pinecall_pool_wait_seconds_total` | connections asked of the pool, and the time spent waiting for one: their rates' ratio is the mean wait |
+| `pinecall_held{what}` | live log readers, app sockets and calls served, now |
+| `pinecall_fleet{fleet,what}` | each fleet as its heartbeats say: workers, seats, busy, accepting |
+
+Counts start at zero when the gateway starts; the roster fills within one heartbeat, five seconds.
+
 ### What the box keeps, and for how long
 
 Every call's log is kept until it is erased: by its org (`DELETE /v1/calls/{call}`,

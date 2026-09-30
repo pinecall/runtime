@@ -499,3 +499,15 @@ def test_the_start_carries_the_persona_and_its_rules_for_the_judges() -> None:
         "a slot on friday",
         "production",
     )
+
+
+@postgres
+async def test_the_readers_held_are_every_log_and_feed_subscriber(store: Store, call: str) -> None:
+    logs = Logs(store)
+    assert logs.readers == 0
+    call_reader = logs.reading(call).fanout.subscribe()
+    logs.feed("org_1", "production").subscribe()
+    logs.box.subscribe()
+    assert logs.readers == 3
+    call_reader.close()
+    assert logs.readers == 2

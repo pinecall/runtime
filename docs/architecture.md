@@ -13,7 +13,7 @@ surface is the URL.
 | folder | what it holds | imports of ours |
 |---|---|---|
 | `domain/` | the words (`names.py`), an agent's declaration (`agent.py`), a call (`call.py`), an org (`org.py`), people and keys (`person.py`), the scope a request acts in (`scope.py`), the E.164 country codes (`country_codes.py`), the errors with their HTTP status (`errors.py`); no IO | nothing |
-| `process/` | what one process is given and holds open: `settings.py` (every variable), `connections.py` (`Connections`: the pool, the vault key, an HTTP client, the LiveKit client; opened once, closed in reverse), where a call's audio is kept (`recordings.py`: the disk it was recorded on, or the recordings bucket under its org, read with byte ranges and erased there too), and the installation's own configuration kept in Postgres (`box_settings.py`: the rows the operator edits) | `domain` `postgres` |
+| `process/` | what one process is given and holds open: `settings.py` (every variable), `connections.py` (`Connections`: the pool, the vault key, an HTTP client, the LiveKit client; opened once, closed in reverse), what the gateway counts as it works and the Prometheus text it is read as (`metrics.py`), where a call's audio is kept (`recordings.py`: the disk it was recorded on, or the recordings bucket under its org, read with byte ranges and erased there too), and the installation's own configuration kept in Postgres (`box_settings.py`: the rows the operator edits) | `domain` `postgres` |
 | `wire/` | every frame, event, command, part, state, metric as pydantic models, one file per family; `rest/` holds the doors' bodies per family (`accounts`, `agents`, `calls`, `evals`, `fleet`, `hosting`, `numbers`, `retrieval`) | `domain` |
 | `postgres/` | the pool and the migration runner, with `migrations/0001_schema.sql` beside it | `domain` |
 | `log/` | a call's log: the store, the facts folded at write (`facts.py`), the queries over them (`queries.py`), the logs open in this process and their live readers (`logs.py`), the reducer, the two read projections | `domain` `wire` `postgres` `process` |
@@ -52,11 +52,11 @@ core under `_` names.
 | `domain/` | 8 | 1156 | — |
 | `evals/` | 9 | 2471 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
 | `fleet/` | 5 | 924 | `domain`, `postgres`, `process`, `wire` |
-| `gateway/` | 43 | 9480 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
-| `log/` | 6 | 2563 | `domain`, `postgres`, `wire` |
+| `gateway/` | 44 | 9620 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `log/` | 6 | 2569 | `domain`, `postgres`, `wire` |
 | `postgres/` | 2 | 229 | `domain` |
-| `process/` | 4 | 705 | `domain`, `postgres` |
-| `providers/` | 6 | 1073 | `domain`, `postgres`, `process`, `wire` |
+| `process/` | 5 | 787 | `domain`, `postgres` |
+| `providers/` | 6 | 1088 | `domain`, `postgres`, `process`, `wire` |
 | `retrieval/` | 6 | 2351 | `domain`, `log`, `postgres`, `providers`, `wire` |
 | `runner/` | 2 | 534 | `domain`, `process`, `wire` |
 | `session/` | 12 | 3149 | `domain`, `log`, `providers`, `wire` |
