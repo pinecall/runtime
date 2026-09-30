@@ -284,6 +284,9 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
     await threads.loaded()
     await threads.start()
     stack.push_async_callback(threads.closed)
+    roster = Roster(connections.signal)
+    await roster.start()
+    stack.push_async_callback(roster.close)
     paced = Window(signal=connections.signal)
     await paced.start()
     stack.push_async_callback(paced.close)
@@ -294,7 +297,7 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
         logs=logs,
         sockets=sockets,
         live=live,
-        roster=Roster(),
+        roster=roster,
         codes=codes,
         signer=Signer(settings.livekit_api_key, settings.livekit_api_secret),
         threads=threads,

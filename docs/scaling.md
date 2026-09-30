@@ -37,8 +37,11 @@ because LiveKit re-reads the load every half second.
 Every five seconds a worker posts its heartbeat, `{fleet, worker, active, max_jobs, load,
 draining}` and its last minute, `{ended, failed, errors, turns, first_audio_p95_s}`, and the
 answer says whether it is cordoned and whether its fleet is full. A worker silent 30 s is no longer
-capacity; one silent an hour is forgotten. The roster is in memory: a gateway that restarts has it
-back after one round of heartbeats. `GET /v1/ops/fleet` and `fleet list` read it.
+capacity; one silent an hour is forgotten. The roster is in memory, on every gateway: each keeps the
+heartbeats that reached it and says them to the others once a heartbeat, so a worker is counted on
+every gateway whichever it beats on, and a cordon set on one stands on all (the newest setting of a
+worker's cordon wins). A gateway that restarts has it back after one round of heartbeats; a
+heartbeat's `full` is answered from totals at most a second old. `GET /v1/ops/fleet` and `fleet list` read it.
 
 ## A worker that is up but bad
 
