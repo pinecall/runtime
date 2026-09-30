@@ -16,6 +16,7 @@
 | **hooked number** | a number the org points at the box itself, from its own carrier, admitted by its networks; as opposed to one imported from an account the box can configure |
 | **app socket** | the WebSocket a tenant's agent process holds open on `/v1/agents/{slug}/app`; tool calls cross it |
 | **the box** | one machine running the gateway, the workers, LiveKit, SIP, Redis and Postgres, from `infra/box/` |
+| **signal** | what the gateway processes tell each other as it happens: an entry just written, who holds an agent. Lossy on purpose and never a record, since every reader resumes from the store; on Redis when `PINECALL_REDIS_URL` is set, inside the one process when it is not (`process/signal.py`) |
 | **desk** | the supervisor's seat in a live call: listening in, whispering to the agent, taking the line, ending the call (`gateway/api/desk.py`) |
 | **line** | a developer's terminal holding an agent: the ring at a production number lands there, and the phones they call from route to their copy (`gateway/api/line.py`) |
 | **relay** | the console asking a running app to do something, chat, render the view, run an eval, forwarded over the app socket and answered (`gateway/api/relay.py`) |

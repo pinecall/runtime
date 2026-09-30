@@ -70,6 +70,12 @@ SUPPRESSIONS: tuple[Allowed, ...] = (
         "pyright: " + "ignore",
         "AgentSession.start carries livekit's unparameterised generics",
     ),
+    Allowed(
+        "pinecall/process/signal.py",
+        "pyright: " + "ignore",
+        "redis-py's asyncio client takes untyped **kwargs (from_url, publish), an untyped "
+        "callback, and hands its messages over as dicts it does not type",
+    ),
 )
 
 # importlib, getattr on a string.
@@ -111,6 +117,11 @@ NOT_YET_REACHED: tuple[Allowed, ...] = (
     Allowed(
         "pinecall/wire/rest/retrieval.py", "rest.retrieval", "the bodies of those doors, the same"
     ),
+    Allowed(
+        "pinecall/process/signal.py",
+        "signal",
+        "the log's live readers (P3 3.2) and the gateway's registries (3.3) are its first users",
+    ),
 )
 
 # Rule 14: the files that create a task, and who cancels or awaits it.
@@ -129,6 +140,11 @@ TASK_OWNERS: tuple[Allowed, ...] = (
         "pinecall/gateway/_threads.py",
         "create_task",
         "answering_now holds them; closed() awaits the set",
+    ),
+    Allowed(
+        "pinecall/process/signal.py",
+        "create_task",
+        "the sender and the listener are cancelled and awaited in RedisSignal.close()",
     ),
     Allowed(
         "pinecall/session/session.py", "create_task", "closing and waiting are cancelled in close()"

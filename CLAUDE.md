@@ -19,7 +19,7 @@ replaces `../runtime` (v1) at the cutover. The full history of decisions is in
 ```
 uv sync                           the venv and every dev tool
 make check                        the rules (tests/rules/) and the suites with no database
-make test [T=tests/log]           every suite on a local Postgres (colima; `make db` starts it)
+make test [T=tests/log]           every suite on a local Postgres and Redis (colima; `make db`)
 make deploy BOX=pinecall-runtime-v2   console built in, wheel on the box, migrations, live tests
 make logs BOX=pinecall-runtime-v2     the journal of the three units, whole
 vibesmell check                   the hygiene findings; must say "nothing to fix"

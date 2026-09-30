@@ -1,4 +1,5 @@
-# The bus livekit-server, livekit-sip and egress meet on, persisted for the SIP trunks.
+# The bus livekit-server, livekit-sip and egress meet on, persisted for the SIP trunks; also the
+# gateway's live signal (a host process, so published on loopback alone, as Postgres is).
 [Unit]
 Description=Pinecall media plane: redis
 
@@ -8,6 +9,7 @@ Image=docker.io/library/redis:8.10.2-alpine@sha256:3811787313eba226a2ef38658c6cc
 Exec=redis-server --save 60 1 --appendonly yes
 Volume=pinecall-redis.volume:/data
 Network=pinecall.network
+PublishPort=127.0.0.1:6379:6379
 HealthCmd=redis-cli ping
 HealthInterval=5s
 HealthRetries=12
