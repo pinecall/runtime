@@ -9,7 +9,11 @@ A limit nobody set is no limit; zero is a limit that refuses everything, which i
 leaves a feature out. The set is replaced whole, so a limit left out stops being one.
 
 What an org used is counted from its calls' summaries in that world, every time a call or a
-turn asks to start: nothing is kept in memory, so a restart counts what the database holds.
+turn asks to start. The database keeps the count, one row per org, world and calendar month (UTC)
+in `usage_totals`: a summary adds to it in the transaction that writes it, an erasure takes its
+calls out, and admission sums every month (a quota is counted for ever). Nothing is kept in
+memory, so a restart counts what the database holds; `pinecall-runtime usage rebuild` folds the
+table again from the summaries in the log.
 What the sandbox spent never closes production.
 
 - **A call** is refused past `concurrent_calls`, `minutes`, `messages` or `llm_tokens`. One that

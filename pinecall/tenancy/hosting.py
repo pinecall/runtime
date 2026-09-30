@@ -304,6 +304,7 @@ async def keep_release(
 
 async def releases_of(pool: Pool, app: HostedApp) -> list[Release]:
     """The app's releases, newest first; NotFound for an app the box does not host."""
+    # independent: the app looked for, then its releases read
     async with pool.connection() as connection:
         if await (await connection.execute(IS_HOSTED, app.columns)).fetchone() is None:
             raise NotFound(NOT_HOSTED.format(name=app.name, env=app.env))

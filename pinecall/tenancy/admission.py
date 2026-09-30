@@ -7,21 +7,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from pinecall.domain.errors import QuotaExhausted
 from pinecall.domain.names import Env
 from pinecall.domain.org import QuotaName, Quotas
-from pinecall.log.reduce import Metered, Usage, usage_row
-from pinecall.log.store import entry_of
 from pinecall.postgres.pool import Connection, Pool
 from pinecall.process import box_settings
+from pinecall.tenancy import usage
 
 REFUSED = "the org has used {used} of its {limit} {quota} in the {env}"
-
-
-# Every call.summary the org's calls wrote in the world, whenever they were: what the limits are
-# counted against. Nothing is kept in memory, so a restart counts what the database holds.
-SUMMARIES = """
-SELECT entry.call, entry.seq, entry.ts, entry.agent, entry.type, entry.ephemeral, entry.data
-FROM call_log_head head JOIN call_log entry ON entry.log = head.log
-WHERE head.org = %(org)s AND head.env = %(env)s AND entry.type = 'call.summary'
-"""
 
 
 ADMISSION = "admission"
@@ -70,23 +60,13 @@ class Admission(BaseModel):
     later: dict[Env, Quotas] | None = None
 
 
-async def used(pool: Pool, org: str, env: Env) -> Usage:
-    """What the org's calls in the world consumed: minutes, turns, tokens, characters, cost."""
-    async with pool.connection() as connection:
-        rows = await (await connection.execute(SUMMARIES, {"org": org, "env": env})).fetchall()
-    total = Usage()
-    for row in rows:
-        total += usage_row(Metered(position=0, org=org, entry=entry_of(row))).used
-    return total
-
-
 async def admit_call(pool: Pool, org: str, env: Env, *, running: int) -> Ceiling | None:
     """Admit one more call, with its ceiling; None when the org's minutes have no limit."""
     quotas = await quotas_of(pool, org, env)
     _refuse_past(quotas, env, "concurrent_calls", running)
     if quotas.minutes is None and quotas.messages is None and quotas.llm_tokens is None:
         return None
-    spent = await used(pool, org, env)
+    spent = await usage.used(pool, org, env)
     _refuse_past(quotas, env, "minutes", spent.minutes)
     _refuse_past(quotas, env, "messages", spent.messages)
     _refuse_past(quotas, env, "llm_tokens", spent.input_tokens + spent.output_tokens)
@@ -103,7 +83,7 @@ async def admit_turn(pool: Pool, org: str, env: Env, *, turns: int, tokens: int)
     quotas = await quotas_of(pool, org, env)
     if quotas.messages is None and quotas.llm_tokens is None:
         return
-    spent = await used(pool, org, env)
+    spent = await usage.used(pool, org, env)
     _refuse_past(quotas, env, "messages", spent.messages + turns)
     _refuse_past(quotas, env, "llm_tokens", spent.input_tokens + spent.output_tokens + tokens)
 

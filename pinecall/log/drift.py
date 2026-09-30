@@ -290,6 +290,7 @@ async def tally(pool: Pool, scope: Scope, agent: str, side: Side) -> Tally:
         "day": side.day,
         "version": side.version,
     }
+    # independent: two reads of counted days; a call counted between them moves one by a call
     async with pool.connection() as connection:
         stages = await (await connection.execute(SIDE_STAGES, params)).fetchall()
         verdicts = await (await connection.execute(SIDE_VERDICTS, params)).fetchall()

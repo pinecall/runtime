@@ -5,10 +5,11 @@ import time
 from collections.abc import AsyncIterator
 
 from pinecall.domain.names import Env
-from pinecall.postgres.pool import Pool
+from pinecall.postgres.pool import Pool, unbounded
 
 # One page of calls at a time, each with its whole log, so an org of any size streams in bounded
-# memory. Postgres writes the JSON: timestamps, jsonb and nulls come out as they are stored.
+# memory. Every read is unbounded: an org's list of anything has no size. Postgres writes the
+# JSON: timestamps, jsonb and nulls come out as they are stored.
 CALLS = """
 SELECT jsonb_build_object(
     'kind', 'call', 'call', head.call, 'agent', head.agent, 'holder', head.holder,
@@ -151,7 +152,7 @@ async def lines(pool: Pool, org: str, env: Env) -> AsyncIterator[str]:
     yield json.dumps({"kind": "export", "org": org, "env": env, "exported_at": time.time()})
     at, call = -1.0, ""
     while True:
-        async with pool.connection() as connection:
+        async with unbounded(pool) as connection:
             params = {"org": org, "env": env, "at": at, "call": call, "page": A_PAGE_OF_CALLS}
             rows = await (await connection.execute(CALLS, params)).fetchall()
         for row in rows:
@@ -160,7 +161,7 @@ async def lines(pool: Pool, org: str, env: Env) -> AsyncIterator[str]:
             break
         at, call = float(rows[-1]["at"]), str(rows[-1]["call"])
     for query in AFTER_THE_CALLS:
-        async with pool.connection() as connection:
+        async with unbounded(pool) as connection:
             rows = await (await connection.execute(query, {"org": org, "env": env})).fetchall()
         for row in rows:
             yield str(row["line"])

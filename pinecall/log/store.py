@@ -3,18 +3,17 @@
 import logging
 import time
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from psycopg.rows import DictRow
-from psycopg.types.json import Jsonb
 
 from pinecall.domain.agent import Versions
-from pinecall.domain.errors import Conflict, DeclarationRefused
+from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import Env, JsonObject, parse_env
 from pinecall.domain.scope import Scope
-from pinecall.log.facts import record
+from pinecall.log._writer import FED_TYPES, Append, Batch, Unnumbered, Writer
 from pinecall.log.reduce import Metered
-from pinecall.postgres.pool import Connection, Pool
+from pinecall.postgres.pool import Pool
 from pinecall.wire.frames import Entry
 
 logger = logging.getLogger(__name__)
@@ -24,71 +23,8 @@ DEFAULT_LIMIT = 500
 # An agent's own log is named "@<agent>", a name the CHECK on call_log keeps from any call id.
 AGENT_LOG_PREFIX = "@"
 
-# The head row's lock puts concurrent appends in order. A sealed log matches no row, so the
-# statement returns nothing: that is the refusal. An ephemeral entry takes a seq and writes no row.
-APPEND = """
-with numbered as (
-    insert into call_log_head as head (log, agent, call, seq, started_at)
-    values (%(log)s, %(agent)s, %(call)s, 1, %(ts)s)
-    on conflict (log) do update
-        set seq        = head.seq + 1,
-            agent      = coalesce(head.agent, excluded.agent),
-            call       = coalesce(head.call, excluded.call),
-            started_at = coalesce(head.started_at, excluded.started_at)
-        where not head.sealed
-    returning seq
-), written as (
-    insert into call_log (call, seq, ts, agent, type, ephemeral, data)
-    select %(call)s, numbered.seq, %(ts)s, %(agent)s, %(type)s, %(ephemeral)s, %(data)s
-    from numbered
-    where not %(ephemeral)s
-)
-select seq from numbered
-"""
-
 # The most entries a worker's batch may carry.
 MOST_IN_A_BATCH = 256
-
-# One statement, as APPEND: the head moves n seqs only when the log is open and has taken `after`
-# entries from its worker, and the durable entries are inserted from the seq it returns. A log
-# nothing was written to is proposed only for a first batch; one the guard refuses returns no row.
-# On a conflict the right-hand side reads the row as it was, so written_seq is the last of the n.
-APPEND_MANY = """
-with moved as (
-    insert into call_log_head as head (log, agent, call, seq, written, written_seq, started_at)
-    select %(log)s, %(agent)s, %(call)s, %(n)s, %(n)s, %(n)s, %(started_at)s
-    where %(after)s = 0 or exists (select 1 from call_log_head where log = %(log)s)
-    on conflict (log) do update
-        set seq         = head.seq + %(n)s,
-            written     = head.written + %(n)s,
-            written_seq = head.seq + %(n)s,
-            agent       = coalesce(head.agent, excluded.agent),
-            call        = coalesce(head.call, excluded.call),
-            started_at  = coalesce(head.started_at, excluded.started_at)
-        where not head.sealed and head.written = %(after)s
-    returning seq
-), kept as (
-    insert into call_log (call, seq, ts, agent, type, ephemeral, data)
-    select %(call)s, moved.seq - %(n)s + durable.place, durable.ts, %(agent)s, durable.type,
-           false, durable.data
-    from moved,
-         unnest(%(places)s::bigint[], %(stamps)s::float8[], %(types)s::text[], %(data)s::jsonb[])
-             as durable(place, ts, type, data)
-)
-select seq from moved
-"""
-
-# The one write a sealed log takes: the same lock, no sealed check.
-RESCORED = """
-with numbered as (
-    update call_log_head set seq = seq + 1 where log = %(log)s returning seq
-), written as (
-    insert into call_log (call, seq, ts, agent, type, ephemeral, data)
-    select %(log)s, numbered.seq, %(ts)s, %(agent)s, 'call.score', false, %(data)s
-    from numbered
-)
-select seq from numbered
-"""
 
 PAGE = """
 select call, seq, ts, agent, type, ephemeral, data
@@ -105,11 +41,6 @@ on conflict (log) do update set sealed = true
 """
 
 HEAD = "select seq, sealed, written, written_seq from call_log_head where log = %(log)s"
-
-# Taken before the look, so a second writer waits for the first to commit and then sees its entry.
-HEAD_HELD = "select 1 from call_log_head where log = %(log)s and not sealed for update"
-
-OF_ITS_TYPE = "select 1 from call_log where log = %(log)s and type = %(type)s limit 1"
 
 
 # The first claim wins, and it may come before the first entry.
@@ -133,6 +64,8 @@ MOVED = """
 with moved as (update call_log_head set org = %(org)s where agent = %(agent)s returning log)
 select count(*) as moved from moved
 """
+
+NOT_FED = "{types}: only the fed types are read across every log (log/_writer.py FED_TYPES)"
 
 # Served by call_log_metered (type, position).
 ACROSS = """
@@ -176,66 +109,37 @@ class Claim:
     versions: Versions = field(default_factory=Versions)
 
 
-@dataclass(frozen=True, slots=True)
-class Unnumbered:
-    """An entry the log has not numbered yet: what it is, whether a store keeps it, and when."""
-
-    type: str
-    data: JsonObject
-    ephemeral: bool
-    ts: float
-
-
-@dataclass(frozen=True, slots=True)
-class Batch:
-    """A worker's batch as the log numbered it, and whether the log had taken it before."""
-
-    entries: list[Entry]
-    replayed: bool
-
-
 class Store:
     """The log tables on a pool the store is given and never closes."""
 
-    def __init__(self, pool: Pool, *, clock: Callable[[], float] = time.time) -> None:
-        """Keep the pool and the clock the entries are stamped with."""
+    def __init__(
+        self, pool: Pool, *, clock: Callable[[], float] = time.time, writing: Pool | None = None
+    ) -> None:
+        """Keep the pools and the clock entries are stamped with; appends go through a writer."""
         self.pool = pool
         # ts is the runtime's clock, when it saw the event, never the database's.
         self.clock = clock
+        # A gateway's writer has connections of its own; a verb's and a test's share the pool.
+        self.writer = Writer(pool if writing is None else writing)
 
     async def append(
         self, call: str | None, agent: str, kind: str, data: JsonObject, *, ephemeral: bool
     ) -> Entry:
         """Write the entry with the next seq of its log, folding the call's facts with it."""
-        entry = Entry(
-            seq=0,
-            ts=self.clock(),
-            call=call,
-            agent=agent,
-            type=kind,
-            ephemeral=ephemeral,
-            data=data,
-        )
-        async with self.pool.connection() as connection, connection.transaction():
-            await _appended(connection, entry)
-        return entry
+        entry = Unnumbered(type=kind, data=data, ephemeral=ephemeral, ts=self.clock())
+        append = Append("entry", log_name(call, agent), call, agent, [entry])
+        [written] = (await self.writer.written(append)).entries
+        return written
 
-    # The look is a statement of its own after the lock: read committed gives it a fresh snapshot.
+    # Two writers deciding the same end (a webhook delivered twice) write it once: the writer looks
+    # under the head's lock, in the transaction that would write it.
     async def append_first(
         self, call: str, agent: str, kind: str, data: JsonObject
     ) -> Entry | None:
         """Write a durable entry unless the call's log holds one of its type or is sealed."""
-        entry = Entry(
-            seq=0, ts=self.clock(), call=call, agent=agent, type=kind, ephemeral=False, data=data
-        )
-        async with self.pool.connection() as connection, connection.transaction():
-            if await (await connection.execute(HEAD_HELD, {"log": call})).fetchone() is None:
-                return None
-            wanted = {"log": call, "type": kind}
-            if await (await connection.execute(OF_ITS_TYPE, wanted)).fetchone() is not None:
-                return None
-            await _appended(connection, entry)
-        return entry
+        entry = Unnumbered(type=kind, data=data, ephemeral=False, ts=self.clock())
+        written = (await self.writer.written(Append("first", call, call, agent, [entry]))).entries
+        return written[0] if written else None
 
     # One writer, in order: `after` is how many entries the log took from it before this batch.
     async def append_many(
@@ -246,51 +150,18 @@ class Store:
             raise DeclarationRefused(
                 f"a batch carries 1 to {MOST_IN_A_BATCH} entries, not {len(entries)}"
             )
-        log, n = log_name(call, agent), len(entries)
-        stamps = _stamps(entries, self.clock())
-        durable = [place for place, item in enumerate(entries, 1) if not item.ephemeral]
-        moved = {
-            "log": log,
-            "agent": agent,
-            "call": call,
-            "n": n,
-            "after": after,
-            "started_at": stamps[0],
-            "places": durable,
-            "stamps": [stamps[place - 1] for place in durable],
-            "types": [entries[place - 1].type for place in durable],
-            "data": [Jsonb(entries[place - 1].data) for place in durable],
-        }
-        async with self.pool.connection() as connection, connection.transaction():
-            row = await (await connection.execute(APPEND_MANY, moved)).fetchone()
-            if row is None:
-                head = await (await connection.execute(HEAD, {"log": log})).fetchone()
-                first = _replayed_from(call, head, n=n, after=after)
-                numbered = _numbered(call, agent, entries, first=first, stamps=stamps)
-                return Batch(entries=numbered, replayed=True)
-            numbered = _numbered(call, agent, entries, first=int(row["seq"]) - n + 1, stamps=stamps)
-            await record(connection, numbered)
-        return Batch(entries=numbered, replayed=False)
+        stamped = [
+            replace(item, ts=stamp)
+            for item, stamp in zip(entries, _stamps(entries, self.clock()), strict=True)
+        ]
+        append = Append("batch", log_name(call, agent), call, agent, stamped, after=after)
+        return await self.writer.written(append)
 
     async def rescored(self, call: str, agent: str, data: JsonObject) -> Entry:
         """Write a call.score to a sealed log, the one entry a sealed log still takes."""
-        entry = Entry(
-            seq=0,
-            ts=self.clock(),
-            call=call,
-            agent=agent,
-            type="call.score",
-            ephemeral=False,
-            data=data,
-        )
-        written = {"log": call, "agent": agent, "ts": entry.ts, "data": Jsonb(data)}
-        async with self.pool.connection() as connection, connection.transaction():
-            row = await (await connection.execute(RESCORED, written)).fetchone()
-            if row is None:
-                raise Conflict(f"call {call} has no log to judge")
-            entry.seq = int(row["seq"])
-            await record(connection, [entry])
-        return entry
+        score = Unnumbered(type="call.score", data=data, ephemeral=False, ts=self.clock())
+        [written] = (await self.writer.written(Append("score", call, call, agent, [score]))).entries
+        return written
 
     async def since(self, log: str, *, after: int = 0, limit: int = DEFAULT_LIMIT) -> list[Entry]:
         """Return one page of the log's durable entries above the cursor, in seq order."""
@@ -376,7 +247,10 @@ class Store:
     async def across(
         self, types: Sequence[str], *, after: int = 0, limit: int = DEFAULT_LIMIT
     ) -> list[Metered]:
-        """Return one page of the metered entries of every log, by position, with their owners."""
+        """Return one page of the fed entries of every log, by position, with their owners."""
+        unfed = sorted(set(types) - FED_TYPES)
+        if unfed:
+            raise DeclarationRefused(NOT_FED.format(types=", ".join(unfed)))
         params = {"types": list(types), "after": after, "limit": limit}
         async with self.pool.connection() as connection:
             rows = await (await connection.execute(ACROSS, params)).fetchall()
@@ -418,41 +292,6 @@ def entry_of(row: DictRow) -> Entry:
     )
 
 
-async def _appended(connection: Connection, entry: Entry) -> None:
-    written = {
-        **entry.written(),
-        "log": log_name(entry.call, entry.agent),
-        "data": Jsonb(entry.data),
-    }
-    row = await (await connection.execute(APPEND, written)).fetchone()
-    if row is None:
-        raise Conflict(f"call {entry.call} has ended: {entry.type} cannot be appended")
-    entry.seq = int(row["seq"])
-    await record(connection, [entry])
-
-
-def _numbered(
-    call: str | None,
-    agent: str,
-    entries: Sequence[Unnumbered],
-    *,
-    first: int,
-    stamps: Sequence[float],
-) -> list[Entry]:
-    return [
-        Entry(
-            seq=seq,
-            ts=ts,
-            call=call,
-            agent=agent,
-            type=item.type,
-            ephemeral=item.ephemeral,
-            data=item.data,
-        )
-        for seq, item, ts in zip(range(first, first + len(entries)), entries, stamps, strict=True)
-    ]
-
-
 # The worker's clock says when each thing happened; the gateway's bounds it, and a batch never
 # steps back inside itself.
 def _stamps(entries: Sequence[Unnumbered], now: float) -> list[float]:
@@ -461,17 +300,3 @@ def _stamps(entries: Sequence[Unnumbered], now: float) -> list[float]:
         stamp = min(item.ts, now)
         stamps.append(stamp if not stamps else max(stamp, stamps[-1]))
     return stamps
-
-
-# A retry of a batch the log took is answered even after the seal, so the replay is asked first.
-def _replayed_from(call: str | None, head: DictRow | None, *, n: int, after: int) -> int:
-    written = 0 if head is None else int(head["written"])
-    last = None if head is None else head["written_seq"]
-    if after + n == written and last is not None:
-        return int(last) - n + 1
-    if head is not None and head["sealed"]:
-        raise Conflict(f"call {call} has ended: its batch cannot be appended")
-    raise Conflict(
-        f"call {call}: the log took {written} entries from its worker, "
-        f"and the batch says {after} before its {n}"
-    )

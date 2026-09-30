@@ -9,6 +9,8 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from psycopg.errors import QueryCanceled
+from psycopg_pool import PoolTimeout
 from starlette.datastructures import Headers
 from starlette.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -20,6 +22,7 @@ from pinecall.domain.errors import (
     NotSignedIn,
     PinecallError,
     SettingsRefused,
+    StoreUnreachable,
     Throttled,
 )
 from pinecall.domain.names import other_world
@@ -72,6 +75,7 @@ from pinecall.gateway.api.providers import SAMPLES_A_MINUTE
 from pinecall.gateway.ending.reaper import reap_forever
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store
+from pinecall.postgres.pool import TIMEOUTS
 from pinecall.process.connections import Connections, opened
 from pinecall.process.settings import Settings, load
 from pinecall.providers import catalog
@@ -96,6 +100,13 @@ NO_LIVEKIT = "LIVEKIT_API_KEY and LIVEKIT_API_SECRET: the gateway signs every ro
 
 
 NO_BOX_MAIL = "PINECALL_SMTP_URL does not read (%s): the box posts no letter of its own"
+
+
+# The two ways a database too busy to answer now shows; a worker outlasts a 503 and retries.
+NO_CONNECTION = "the database is busy: no connection came free within {wait:g} s; try again"
+
+
+TOO_SLOW = "the database took more than {took:g} s to answer; try again"
 
 
 # Capacitor's WebView origins: iOS serves from capacitor://localhost, Android from https://localhost.
@@ -265,7 +276,10 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
     connections = await stack.enter_async_context(opened(settings))
     if not settings.livekit_api_key or not settings.livekit_api_secret:
         raise SettingsRefused(NO_LIVEKIT)
-    logs = Logs(Store(connections.pool))
+    logs = Logs(Store(connections.pool, writing=connections.writing))
+    # Pushed before everything that appends on its way out, so it runs after them and before the
+    # pool closes: every append a request was promised is written.
+    stack.push_async_callback(logs.store.writer.drained)
     codes = Codes(logs)
     await codes.loaded()
     sockets, live = Sockets(logs), ServedCalls()
@@ -314,6 +328,20 @@ async def refused(_request: Request, error: Exception) -> Response:
 
 
 app.add_exception_handler(PinecallError, refused)
+
+
+async def busy(request: Request, error: Exception) -> Response:
+    """A full pool or a statement past its timeout, answered 503 with its one sentence."""
+    if isinstance(error, PoolTimeout):
+        return await refused(request, StoreUnreachable(NO_CONNECTION.format(wait=TIMEOUTS.wait_s)))
+    took = TIMEOUTS.statement_ms / 1000
+    return await refused(request, StoreUnreachable(TOO_SLOW.format(took=took)))
+
+
+app.add_exception_handler(PoolTimeout, busy)
+
+
+app.add_exception_handler(QueryCanceled, busy)
 
 
 def origins_allowed(settings: Settings) -> tuple[str, ...]:

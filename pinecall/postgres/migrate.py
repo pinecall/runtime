@@ -69,6 +69,9 @@ async def apply_migrations(dsn: str, *, schema: str = DEFAULT_SCHEMA) -> Applied
     """Apply every pending migration in name order under an advisory lock."""
     schemas = schemas_of(schema)
     async with await connect(dsn) as connection:
+        # Before the lock, which may wait on another runner: nothing here is cut by a timeout the
+        # role or PGOPTIONS set. A file waits on a table's lock LOCK_TIMEOUT_MS at most.
+        await connection.execute("set statement_timeout = 0")
         # Session-level, released with the connection. Taken before any DDL: concurrent
         # `create schema if not exists` can still fail on pg_namespace's unique index.
         await connection.execute("select pg_advisory_lock(%s)", (ADVISORY_LOCK,))

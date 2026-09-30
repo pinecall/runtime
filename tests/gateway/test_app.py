@@ -6,10 +6,12 @@ import httpx
 from fastapi import Request
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
+from psycopg.errors import QueryCanceled
+from psycopg_pool import PoolTimeout
 
 from pinecall.domain.errors import Conflict, NotSignedIn
 from pinecall.gateway._deps import SCOPES_OF, operator
-from pinecall.gateway.app import ROUTERS, app, origins_allowed, page_marked, refused
+from pinecall.gateway.app import ROUTERS, app, busy, origins_allowed, page_marked, refused
 from pinecall.process.settings import Settings
 from tests.conftest import Knocking, postgres
 
@@ -87,6 +89,18 @@ async def test_a_refusal_is_its_status_and_its_sentence() -> None:
     answered = await refused(request, Conflict("the corner moved"))
     assert answered.status_code == 409
     assert answered.body == b'{"detail":"the corner moved"}'
+
+
+async def test_a_full_pool_and_a_statement_past_its_timeout_are_a_503_in_one_sentence() -> None:
+    request = Request({"type": "http", "method": "GET", "path": "/", "headers": []})
+    waited = await busy(request, PoolTimeout("couldn't get a connection after 2.00 sec"))
+    assert waited.status_code == 503
+    assert waited.body == (
+        b'{"detail":"the database is busy: no connection came free within 2 s; try again"}'
+    )
+    cancelled = await busy(request, QueryCanceled("canceling statement due to statement timeout"))
+    assert cancelled.status_code == 503
+    assert cancelled.body == b'{"detail":"the database took more than 30 s to answer; try again"}'
 
 
 def test_the_apps_two_webviews_are_always_let_in_and_the_variable_adds_after_them() -> None:

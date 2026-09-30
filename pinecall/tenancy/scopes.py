@@ -352,6 +352,7 @@ async def _at(
 async def _put(
     pool: Pool, table: VersionedTable, statement: LiteralString, values: dict[str, object]
 ) -> int:
+    # independent: a write the version refused, then the newest version read to say so
     async with pool.connection() as connection:
         row = await (await connection.execute(statement, values)).fetchone()
         if row is not None:

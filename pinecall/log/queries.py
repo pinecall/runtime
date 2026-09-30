@@ -21,7 +21,6 @@ from pinecall.log.facts import (
     FOUND_PAGE,
     PERSONA_RUNS_COUNT,
     PERSONA_RUNS_PAGE,
-    SPENT_BETWEEN,
     THREADS,
     UNSEALED_SPOKEN,
     UNSEALED_WRITTEN,
@@ -237,6 +236,7 @@ async def found(pool: Pool, scope: Scope, wanted: ListFilters, *, limit: int) ->
         "words": None if wanted.q is None else _like_escaped(wanted.q),
         "digits": "".join(item for item in (wanted.q or "") if item.isdigit()),
     }
+    # independent: the total and the page are read apart, as a list always was
     async with pool.connection() as connection:
         total = await (await connection.execute(FOUND_COUNT, params)).fetchone()
         page = {**params, "before": wanted.before, "limit": limit + 1}
@@ -254,6 +254,7 @@ async def runs_of_persona(
 ) -> PersonaRuns:
     """Return a page of the persona's calls to the agent in the scope, newest first, and a total."""
     params = {**asdict(scope), "agent": wanted.agent, "persona": wanted.persona}
+    # independent: the total and the page are read apart, as a list always was
     async with pool.connection() as connection:
         total = await (await connection.execute(PERSONA_RUNS_COUNT, params)).fetchone()
         page = {**params, "before": wanted.before, "limit": limit + 1}
@@ -269,6 +270,7 @@ async def runs_of_persona(
 async def counted_day(pool: Pool, scope: Scope, start: float) -> Day:
     """Return the scope's day that begins at start, in numbers."""
     params = {**asdict(scope), "start": start, "end": start + A_DAY_S}
+    # independent: four counts of one day, each its own snapshot
     async with pool.connection() as connection:
         counted = await (await connection.execute(DAY, params)).fetchone()
         median = await (await connection.execute(DAY_MEDIAN_E2E, params)).fetchone()
@@ -289,14 +291,6 @@ async def counted_day(pool: Pool, scope: Scope, start: float) -> Day:
         total=int(counted["total"]),
         live=int(counted["live"]),
     )
-
-
-async def spent_between(pool: Pool, org: str, start: float, end: float) -> float:
-    """Return what the org's calls started in [start, end) cost, every env and holder counted."""
-    params = {"org": org, "start": start, "end": end}
-    async with pool.connection() as connection:
-        row = await (await connection.execute(SPENT_BETWEEN, params)).fetchone()
-    return 0.0 if row is None else float(row["spent"])
 
 
 async def threads(pool: Pool, inbox: Inbox, *, after: str | None, limit: int) -> InboxPage:

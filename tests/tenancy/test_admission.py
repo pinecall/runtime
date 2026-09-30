@@ -21,9 +21,9 @@ from pinecall.tenancy.admission import (
     admit_turn,
     quotas_of,
     set_quotas,
-    used,
 )
 from pinecall.tenancy.orgs import create, remove
+from pinecall.tenancy.usage import used
 from tests.conftest import postgres
 
 CLOSED = Quotas(minutes=0, messages=0, concurrent_calls=0)

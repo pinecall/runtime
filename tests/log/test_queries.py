@@ -14,7 +14,6 @@ from pinecall.log.queries import (
     found,
     read,
     runs_of_persona,
-    spent_between,
     threads,
 )
 from pinecall.log.store import Store
@@ -129,8 +128,6 @@ async def test_a_day_is_counted_in_its_corner(store: Store, org: str) -> None:
     assert [(agent.slug, agent.calls, agent.score) for agent in day.agents] == [(AGENT, 3, 0.5)]
     tomorrow = await counted_day(store.pool, Scope(org), THE_DAY + A_DAY_S)
     assert (tomorrow.calls, tomorrow.yesterday) == (0, 3)
-    assert await spent_between(store.pool, org, THE_DAY, 60.0) == 4.75, "a budget spans both worlds"
-    assert await spent_between(store.pool, org, 60.0, 120.0) == 0.0
 
 
 @postgres

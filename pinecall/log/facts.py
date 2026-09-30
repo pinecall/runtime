@@ -1,6 +1,6 @@
 """What is known of every call without folding its log: the facts row, written as entries land."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 
 from psycopg import sql
@@ -87,7 +87,8 @@ COLUMNS = (
 ARRAYS = frozenset({"e2e", "heard_at"})
 
 
-FACTS_LOCKED = "select * from call_facts where call = %(call)s for update"
+# In the order of the calls, as the heads are locked: two writers never wait in a circle.
+FACTS_LOCKED = "select * from call_facts where call = any(%(calls)s) order by call for update"
 
 
 LENT = """
@@ -368,14 +369,6 @@ order by calls desc, slug
 """).format(day=_ITS_DAY)
 
 
-# A budget is the org's: every env and holder is summed.
-SPENT_BETWEEN = sql.SQL("""
-select coalesce(sum(f.cost_usd), 0) as spent
-from call_log_head head join call_facts f on f.call = head.log
-where head.org = %(org)s and head.call is not null and {day}
-""").format(day=_ITS_DAY)
-
-
 PERSONA_RUNS_COUNT = sql.SQL("select count(*) as total ") + _THE_PERSONAS_RUNS
 
 
@@ -409,24 +402,32 @@ def fold(facts: CallFacts, entry: Entry) -> CallFacts:
     return folded
 
 
-# On the append's connection, so folds land in seq order under the head row's lock. The entries
-# are one log's, in seq order: a batch is folded in memory and written once.
+# On the writer's connection, so folds land in seq order under the head rows' locks. The entries
+# are each call's in seq order: every call's row is locked at once, folded in memory, and the rows
+# that moved are written in one round of statements.
 async def record(connection: Connection, entries: Sequence[Entry]) -> None:
-    """Fold the entries into their call's facts row, in the transaction they are written in."""
-    call = entries[0].call if entries else None
-    kept = [entry for entry in entries if not entry.ephemeral]
-    if call is None or not kept:
+    """Fold the entries into their calls' facts rows, in the transaction they are written in."""
+    by_call: dict[str, list[Entry]] = {}
+    for entry in entries:
+        if entry.call is not None and not entry.ephemeral:
+            by_call.setdefault(entry.call, []).append(entry)
+    if not by_call:
         return
-    row = await (await connection.execute(FACTS_LOCKED, {"call": call})).fetchone()
-    facts = CallFacts(call=call) if row is None else facts_of(row)
-    folded = facts
-    for entry in kept:
-        folded = fold(folded, entry)
-    if folded == facts:
-        return
-    written = {**asdict(folded), "e2e": list(folded.e2e), "heard_at": list(folded.heard_at)}
-    written.pop("agent")
-    await connection.execute(FACTS_WRITTEN, written)
+    locked = await connection.execute(FACTS_LOCKED, {"calls": sorted(by_call)})
+    known = {str(row["call"]): facts_of(row) for row in await locked.fetchall()}
+    written: list[Mapping[str, object]] = []
+    for call, kept in by_call.items():
+        facts = known.get(call, CallFacts(call=call))
+        folded = facts
+        for entry in kept:
+            folded = fold(folded, entry)
+        if folded != facts:
+            row = {**asdict(folded), "e2e": list(folded.e2e), "heard_at": list(folded.heard_at)}
+            row.pop("agent")
+            written.append(row)
+    if written:
+        async with connection.cursor() as cursor:
+            await cursor.executemany(FACTS_WRITTEN, written)
 
 
 def facts_of(row: DictRow) -> CallFacts:

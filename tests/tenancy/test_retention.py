@@ -11,7 +11,7 @@ from pinecall.process.recordings import Disk
 from pinecall.tenancy import erasure, policy, retention, traceback
 from pinecall.wire.rest.accounts import OrgPolicy
 from pinecall.wire.rest.evals import Expect
-from tests.conftest import postgres
+from tests.conftest import outlasting_a_lock, postgres
 from tests.log.conftest import ACall, logged_call
 from tests.tenancy.conftest import an_org
 
@@ -109,3 +109,21 @@ async def test_an_erased_calls_record_is_kept_24_months_and_then_forgotten(
     ]
     assert await retention.forget_records(pool, 1.0 + 731 * A_DAY_S) >= 1
     assert (await traceback.of_number(pool, "+34600555666", 0)).calls == []
+
+
+async def test_the_nightly_run_reads_and_forgets_past_the_pools_statement_timeout(
+    pool: Pool, impatient_pool: Pool, schema: str
+) -> None:
+    org = await an_org(pool)
+    async with pool.connection() as connection:
+        await connection.execute(A_DIAL, {"org": org.id})
+    later = 4_000_000_000.0
+
+    async def due() -> list[retention.Due]:
+        return await retention.due(impatient_pool, later)
+
+    async def forgotten() -> int:
+        return await retention.forget_dials(impatient_pool, later)
+
+    assert await outlasting_a_lock(schema, "call_log_head", due) == []
+    assert await outlasting_a_lock(schema, "dials", forgotten) == 1
