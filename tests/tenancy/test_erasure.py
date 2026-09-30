@@ -88,7 +88,7 @@ async def test_a_call_erased_in_a_box_with_a_bucket_leaves_no_object_and_is_coun
     call = await logged_call(store, org.id)
     remote = Remote(objects={f"{org.id}/{call}/audio.ogg": b"OggS", "org_x/CA_x/audio.ogg": b"x"})
     async with httpx.AsyncClient(transport=remote.transport()) as http:
-        kept = Bucket(tmp_path, remote.name, http)
+        kept = Bucket(tmp_path, remote.name, remote.store_on(http))
         erased = await erasure.call(pool, kept, Scope(org.id), call, by="m_1")
     assert remote.objects == {"org_x/CA_x/audio.ogg": b"x"}
     assert erased.trail.recordings == 1
@@ -103,7 +103,11 @@ async def test_a_bucket_that_refuses_leaves_the_call_whole_and_no_trail(
     async with httpx.AsyncClient(transport=remote.transport()) as http:
         with pytest.raises(UpstreamFailed, match="answered 503 to a delete of"):
             await erasure.call(
-                pool, Bucket(tmp_path, remote.name, http), Scope(org.id), call, by="m_1"
+                pool,
+                Bucket(tmp_path, remote.name, remote.store_on(http)),
+                Scope(org.id),
+                call,
+                by="m_1",
             )
     assert (await left_of(pool, call))["entries"] > 0
     assert await erasure.trail(pool, org.id) == []

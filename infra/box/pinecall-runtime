@@ -6,7 +6,7 @@ exec systemd-run --quiet --wait --pipe --collect \
     -p EnvironmentFile=-/etc/pinecall/backup.env \
     -p ImportCredential=DATABASE_URL -p ImportCredential=PINECALL_VAULT_KEY \
     -p ImportCredential=PINECALL_OPS_KEY -p ImportCredential=LIVEKIT_API_KEY \
-    -p ImportCredential=LIVEKIT_API_SECRET \
+    -p ImportCredential=LIVEKIT_API_SECRET -p ImportCredential=PINECALL_S3_SECRET_ACCESS_KEY \
     -E PINECALL_GATEWAY_URL=http://127.0.0.1:8080 -E LIVEKIT_URL=ws://127.0.0.1:7880 \
     -E PINECALL_RECORDINGS=/var/lib/pinecall/recordings \
     /opt/pinecall/venv/bin/pinecall-runtime "$@"

@@ -14,7 +14,8 @@ from pinecall.domain.errors import DeclarationRefused
 from pinecall.process.settings import Settings
 
 # What cloud-init installs on a box `make box` reaches; `box up` installs it on this one.
-SYSTEM_PACKAGES = ("podman", "caddy", "nftables", "curl", "rsync", "openssl", "age")
+# rclone speaks the object store the backups and the WAL archive go to (infra/box/objects.sh).
+SYSTEM_PACKAGES = ("podman", "caddy", "nftables", "curl", "rsync", "openssl", "age", "rclone")
 
 OPT = Path("/opt/pinecall")
 
@@ -72,7 +73,8 @@ Nothing else was changed, repointed or deleted. To serve from it:
   2. point the box's names, production's and the sandbox's, at this machine, and any carrier
      trunk that reaches the old box by its address
   3. copy the old box's /etc/pinecall/backup.env and /etc/pinecall/backup.age.pub here, if it
-     had them
+     had them, and seal its object store's secret here the same way:
+       sudo /opt/pinecall/infra/box/install.sh secret PINECALL_S3_SECRET_ACCESS_KEY
   4. sudo uvx --from pinecall=={version} pinecall-runtime box up --domains <production>,<sandbox>
   5. sudo pinecall-runtime doctor
 """

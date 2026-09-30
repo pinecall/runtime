@@ -13,8 +13,10 @@ Environment=LIVEKIT_URL=ws://127.0.0.1:7880
 Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
 Environment=PINECALL_RECORDINGS=/var/lib/pinecall/recordings
 EnvironmentFile=/etc/pinecall/box.env
-# The operator's buckets, when there are: PINECALL_RECORDINGS_BUCKET moves recordings there.
+# The operator's object store, when there is one: PINECALL_RECORDINGS_BUCKET moves recordings
+# there, signed with the key's secret, a credential like the others.
 EnvironmentFile=-/etc/pinecall/backup.env
+ImportCredential=PINECALL_S3_SECRET_ACCESS_KEY
 EnvironmentFile=/etc/pinecall/fleets/%i.env
 LoadCredentialEncrypted=PINECALL_WORKER_KEY:/etc/pinecall/fleets/%i.credstore/PINECALL_WORKER_KEY
 ImportCredential=LIVEKIT_API_KEY
