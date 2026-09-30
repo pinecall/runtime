@@ -44,6 +44,7 @@ async def of_number(pool: Pool, number: str, since: float | None = None) -> Trac
     kept = parse_e164(number)
     start = time.time() - RECORDS_KEPT_S if since is None else since
     params = {"number": kept, "since": start}
+    # independent: the calls and the dials of a number, read apart
     async with pool.connection() as connection:
         calls = await (await connection.execute(CALLS, params)).fetchall()
         dials = await (await connection.execute(DIALS, params)).fetchall()

@@ -190,12 +190,11 @@ async def carrier_named(
     pool: Pool, sealed: MultiFernet, org: str, account: str | None = None
 ) -> Carrier:
     """The account named, or the org's only one; NotFound or Conflict otherwise."""
+    statement = CARRIERS if account is None else CARRIER
     async with pool.connection() as connection:
-        if account is None:
-            rows = await (await connection.execute(CARRIERS, {"org": org})).fetchall()
-        else:
-            params = {"org": org, "account": account}
-            rows = await (await connection.execute(CARRIER, params)).fetchall()
+        rows = await (
+            await connection.execute(statement, {"org": org, "account": account})
+        ).fetchall()
     carriers = [carrier for carrier in (_open_carrier(sealed, org, row) for row in rows) if carrier]
     if account is not None and not carriers:
         raise NotFound(NO_SUCH_ACCOUNT.format(account=account))

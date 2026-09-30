@@ -361,6 +361,7 @@ async def waiting_in(store: Store) -> list[Waiting]:
 async def claimed(pool: Pool, org: str, message_id: str, now: float) -> Claim:
     """Claim the org's message for this delivery, unless another has read it or is reading it."""
     params = {"org": org, "message": message_id, "now": now, "stale": now - READING_S}
+    # independent: the look after a claim refused reads what the other delivery left
     async with pool.connection() as connection:
         if await (await connection.execute(CLAIM, params)).fetchone() is not None:
             return "new"
