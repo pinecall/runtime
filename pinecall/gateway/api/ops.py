@@ -244,10 +244,12 @@ async def invite_member(
     )
     invited = await people.invite(pool, org.id, invitee, seats=None, vouched=True)
     mailed = False
+    card = None
     if invited.token is not None:
+        card = letters.card_link(public_url(request, gateway), invited.token)
         link = Link(
             org=org.name,
-            link=letters.card_link(public_url(request, gateway), invited.token),
+            link=card,
             by=THE_OPERATOR,
             dies=invited.expires_at,
         )
@@ -258,6 +260,7 @@ async def invite_member(
         token=invited.token,
         expires_at=invited.expires_at,
         mailed=mailed,
+        link=card,
     )
 
 

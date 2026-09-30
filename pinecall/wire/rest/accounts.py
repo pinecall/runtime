@@ -67,6 +67,8 @@ class InvitationResponse(WireModel):
     token: str | None
     expires_at: datetime | None
     mailed: bool
+    # The card the token opens, on the box's public name: what a terminal prints, a letter carries.
+    link: str | None = None
 
 
 class ChangeMemberRequest(WireModel):

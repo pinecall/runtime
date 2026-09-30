@@ -21,7 +21,17 @@ pinecall-backup.service · pinecall-backup.timer · backup.sh · backup.age.pub 
 pinecall-postgres-image.service · hardening.conf · polkit/ · sysusers.d/ · tmpfiles.d/ · journald.conf.d/
 ```
 
-## A new box
+## A new box, from the package
+
+On an Ubuntu 24.04 machine whose names already point at it, as root, no checkout:
+`sudo uvx --from pinecall pinecall-runtime box up --domains <production>,<sandbox> [--backup-key age1…]`.
+The wheel carries this directory and `../postgres` as `pinecall/infra/`; `box up` installs the
+system's packages cloud-init would, copies them to `/opt/pinecall/infra/`, runs `install.sh`, then
+`release.sh` with `PACKAGE=pinecall==<its version>`. `box upgrade`, run from a newer `uvx --from
+pinecall@latest`, does it again at the names in `/etc/pinecall/box.env`. The walk-through, the
+ports and the options: `docs/a-box-in-production.md`.
+
+## A new box, from a checkout
 
 1. A VM (GCP `e2-standard-4`, Ubuntu 24.04) with `cloud-init.yaml` as its user-data, your ssh
    key in it; an ssh alias for it (`example-box`, the Makefile's `BOX`).

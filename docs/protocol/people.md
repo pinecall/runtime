@@ -116,7 +116,7 @@ under `min_password` is `400`.
  "status": "active", "scopes": [...], "operator": false, "production": false, "verified": true}
 ```
 
-`POST {email, name, role, agents, production}` invites, `201 {member, token, expires_at, mailed}`,
+`POST {email, name, role, agents, production}` invites, `201 {member, token, expires_at, mailed, link}`,
 within the org's `seats` (`429` past them). The invitation is mailed where a mailbox can post it;
 `mailed` says it was queued. The token is handed to the admin only when the address is in no other
 org: the link sets the person's one password, so for somebody known elsewhere it is mailed only,

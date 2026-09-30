@@ -10,7 +10,7 @@ import pytest
 from pinecall.cli.main import main, verbs
 from pinecall.domain.errors import GatewayRefused, PinecallError
 from pinecall.process.settings import Settings
-from tests.conftest import AGENT, FLEETS, Knocking, postgres
+from tests.conftest import AGENT, BOX_DOMAIN, FLEETS, Knocking, postgres
 from tests.gateway.api.test_ops import THE_OPS_KEY, with_an_ops_key
 
 
@@ -41,8 +41,9 @@ async def test_init_makes_the_org_seats_the_first_admin_and_hands_them_the_box(
     printed = capsys.readouterr().out
     assert "tienda" in printed.splitlines()[0]
     assert "runs this box" in printed
-    assert f"{knocking.url}/invitations/" in printed
-    assert "pinecall login" in printed
+    # The box's public name, never the loopback address the verb knocked at.
+    assert f"https://{BOX_DOMAIN}/invitations/inv_" in printed
+    assert f"pinecall login https://{BOX_DOMAIN}" in printed
     assert (
         await ran(settings, "init", "--org", "tienda", "--email", "you@t.test", "--person", "You")
         == 0
@@ -92,7 +93,7 @@ async def test_a_person_is_invited_made_operator_and_removed_by_their_address(
     settings = settings_of(knocking)
     org = knocking.org.id
     assert await ran(settings, "orgs", "invite", org, "ana@clinica.test", "--name", "Ana") == 0
-    assert "/invitations/" in capsys.readouterr().out
+    assert f"https://{BOX_DOMAIN}/invitations/inv_" in capsys.readouterr().out
     assert await ran(settings, "orgs", "operator", org, "ana@clinica.test") == 0
     assert "runs this box" in capsys.readouterr().out
     assert await ran(settings, "orgs", "operator", org, "ana@clinica.test", "--revoke") == 0

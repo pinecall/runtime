@@ -65,8 +65,8 @@ mean is [limits.md](../limits.md).
 
 - `GET /v1/ops/orgs/{named}/members`: `{members, seated}`.
 - `POST /v1/ops/orgs/{named}/members {email, name, role, agents?, production?}`: a person invited
-  into the org, taking no seat of its plan, the link's token answered this once and mailed when
-  the box can mail. How an org gets its first admin on a box that takes no sign-up.
+  into the org, taking no seat of its plan, the link's token and the `link` itself (on the box's
+  public name) answered this once, and mailed when the box can mail. How an org gets its first admin on a box that takes no sign-up.
 - `PUT /v1/ops/orgs/{named}/members/{id}/operator {operator}`: whether the member runs the box;
   false takes it back at once. Here and not on the tenant door, or an admin could make itself one.
 - `DELETE /v1/ops/orgs/{named}/members/{id}`: out for good, keys revoked; `409` for the last

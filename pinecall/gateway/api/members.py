@@ -97,6 +97,7 @@ async def invite_member(
         token=None if elsewhere else invited.token,
         expires_at=invited.expires_at,
         mailed=mailed,
+        link=_card(request, gateway, None if elsewhere else invited.token),
     )
 
 
@@ -154,7 +155,12 @@ async def reset_password(
         token=None if elsewhere else issued.token,
         expires_at=issued.expires_at,
         mailed=mailed,
+        link=_card(request, gateway, None if elsewhere else issued.token),
     )
+
+
+def _card(request: Request, gateway: Gateway, token: str | None) -> str | None:
+    return None if token is None else letters.card_link(public_url(request, gateway), token)
 
 
 async def _member_elsewhere(gateway: Gateway, org: str, email: str) -> bool:
