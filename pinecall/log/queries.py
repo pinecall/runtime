@@ -21,6 +21,7 @@ from pinecall.log.facts import (
     FOUND_PAGE,
     PERSONA_RUNS_COUNT,
     PERSONA_RUNS_PAGE,
+    STAGES,
     THREADS,
     UNSEALED_SPOKEN,
     UNSEALED_WRITTEN,
@@ -83,11 +84,14 @@ class Unsealed:
 
 @dataclass(frozen=True, slots=True)
 class AgentDay:
-    """One agent's calls in a day and the share of judgments it held."""
+    """One agent's day: its calls, the share of judgments it held, what it cost by stage."""
 
     slug: str
     calls: int
     score: float | None
+    # Dollars by stage (llm, stt, tts, phone, platform), and the minutes of the calls that ended.
+    spend: dict[str, float]
+    minutes: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -286,7 +290,14 @@ async def counted_day(pool: Pool, scope: Scope, start: float) -> Day:
         spent=float(counted["spent"]),
         channels={door: int(counted[door]) for door in ("phone", "web", "whatsapp")},
         agents=[
-            AgentDay(slug=row["slug"], calls=row["calls"], score=row["score"]) for row in agents
+            AgentDay(
+                slug=row["slug"],
+                calls=row["calls"],
+                score=row["score"],
+                spend={stage: float(row[stage]) for stage in STAGES},
+                minutes=float(row["minutes"]),
+            )
+            for row in agents
         ],
         total=int(counted["total"]),
         live=int(counted["live"]),

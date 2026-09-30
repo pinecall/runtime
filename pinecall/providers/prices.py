@@ -10,7 +10,7 @@ from pinecall.domain.call import PhoneLeg
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.providers.catalog import Providers, Rate
 from pinecall.wire.metrics import LLMModelUsage, ModelUsage, STTModelUsage, TTSModelUsage
-from pinecall.wire.parts import Cost, CostRow, UnpricedRow
+from pinecall.wire.parts import PLATFORM, Cost, CostRow, UnpricedRow
 
 type Unit = Literal["input_tokens", "cached_input_tokens", "cache_creation_tokens", "output_tokens"]
 
@@ -32,6 +32,11 @@ FIELD_OF_UNIT = {
 
 COLUMNS = ("vendor", "model", "unit", "usd", "as_of", "source")
 
+# The box's own compute, priced by the operator as `pinecall,pinecall-compute,minutes,<usd>` in
+# the prices file: a call's seconds on the worker, every one counted, never minutes begun. With no
+# such row nothing is priced and nothing is listed: a box that never priced itself is not unpriced.
+COMPUTE = "pinecall-compute"
+
 
 @dataclass(frozen=True)
 class RatesChange:
@@ -45,9 +50,13 @@ class RatesChange:
 
 
 def cost(
-    usage: Iterable[ModelUsage], configured: Providers, *, legs: Sequence[PhoneLeg] = ()
+    usage: Iterable[ModelUsage],
+    configured: Providers,
+    *,
+    legs: Sequence[PhoneLeg] = (),
+    seconds: float = 0.0,
 ) -> Cost:
-    """Price every usage row and phone leg; what has no rate is listed unpriced, never at zero."""
+    """Price every usage row, phone leg and the call's seconds of compute; no rate is unpriced."""
     rows: list[CostRow] = []
     unpriced: list[UnpricedRow] = []
     for used in usage:
@@ -62,6 +71,9 @@ def cost(
             unpriced.append(UnpricedRow(provider=leg.carrier, model=_leg_name(leg)))
         elif billed.quantity > 0:
             rows.append(billed)
+    compute = _compute_row(seconds, configured.rates)
+    if compute is not None:
+        rows.append(compute)
     return Cost(usd=round(sum(row.usd for row in rows), 6), rows=rows, unpriced=unpriced)
 
 
@@ -196,6 +208,21 @@ def _leg_row(leg: PhoneLeg, rates: Mapping[str, Rate]) -> CostRow | None:
         quantity=minutes,
         unit_price_usd=per,
         usd=round(minutes * per, 6),
+    )
+
+
+def _compute_row(seconds: float, rates: Mapping[str, Rate]) -> CostRow | None:
+    rate = rates.get(COMPUTE)
+    if seconds <= 0 or rate is None or rate.minutes is None:
+        return None
+    minutes = round(seconds / A_MINUTE_S, 4)
+    return CostRow(
+        provider=PLATFORM,
+        model=COMPUTE,
+        unit="minutes",
+        quantity=minutes,
+        unit_price_usd=rate.minutes,
+        usd=round(minutes * rate.minutes, 6),
     )
 
 

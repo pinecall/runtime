@@ -1,6 +1,9 @@
 # What each model and phone leg costs, in US dollars: tokens per million; characters, seconds
 # and minutes each. `model` is a prefix of the model id a call reports; a phone leg is
 # `<carrier>-<inbound|outbound>/<number>`, priced by the longest prefix, minutes begun billed whole.
+# The box's own compute is `pinecall,pinecall-compute,minutes,<usd>`: a call's seconds on the
+# worker, every one counted, so the platform's cost sits beside the vendors' on each call. The
+# operator writes that row; nothing ships priced.
 # Model rows from voice-prices (github.com/mahimailabs/voice-prices, MIT, notice in
 # prices.LICENSE); every row was checked against its source on `as_of`.
 vendor,model,unit,usd,as_of,source

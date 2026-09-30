@@ -176,13 +176,15 @@ async def summed_up(pool: Pool, store: Store, log: Log, sealing: SealCallRequest
     ended = next((entry for entry in reversed(entries) if entry.type == "call.ended"), None)
     over = None if ended is None else CallEnded.model_validate(ended.data)
     state = reduce(entries)
+    duration = 0.0 if over is None else over.duration_s
+    configured = await catalog.providers(pool)
     summary = CallSummary(
         reason="error" if over is None else over.reason,
         outcome=sealing.outcome,
-        duration_s=0.0 if over is None else over.duration_s,
+        duration_s=duration,
         turns=sum(1 for turn in state.turns if isinstance(turn, AgentTurn)),
         usage=sealing.usage,
-        cost=prices.cost(sealing.usage, await catalog.providers(pool), legs=phone_legs(entries)),
+        cost=prices.cost(sealing.usage, configured, legs=phone_legs(entries), seconds=duration),
         recording=sealing.recording,
     )
     await log.append("call.summary", summary.written())

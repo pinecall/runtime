@@ -134,7 +134,7 @@ What the call was about, how it went, what it consumed and what that cost. Writt
 | `duration_s` | `number` | yes | Seconds of conversation. |
 | `turns` | `integer` | yes | How many turns, both sides together. |
 | `usage` | `ModelUsage[]` | yes | One row per model used, as the session summed them. |
-| `cost` | `Cost` | yes | What the call cost in provider fees, informational, in US dollars, the currency providers price in. |
+| `cost` | `Cost` | yes | What the call cost in provider fees and, when the box priced its own compute (`pinecall-compute`), the platform's, in US dollars; informational. |
 | `recording` | `string` | no | Where the recorder wrote the recording, when one was made; `GET /v1/calls/{call}/recording` serves it from wherever it is kept. |
 
 ### `call.transferred`

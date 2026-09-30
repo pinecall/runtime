@@ -69,12 +69,25 @@ class InsightsChannels(WireModel):
     whatsapp: int
 
 
+class InsightsSpend(WireModel):
+    """What one agent's day cost by stage, in US dollars, and per minute of its ended calls."""
+
+    llm_usd: float
+    stt_usd: float
+    tts_usd: float
+    phone_usd: float
+    platform_usd: float
+    minutes: float
+    per_minute_usd: float | None
+
+
 class InsightsAgent(WireModel):
-    """One agent's day: its calls, and the share of judgments it held."""
+    """One agent's day: its calls, the share of judgments it held, what it cost by stage."""
 
     slug: str
     today: int
     score: float | None
+    spend: InsightsSpend
 
 
 class InsightsStage(WireModel):

@@ -14,6 +14,7 @@ from pinecall.gateway._deps import ActingDep, CallsKey, GatewayDep, ScopeDep, Us
 from pinecall.log import drift, queries
 from pinecall.log.drift import Side, Tally
 from pinecall.log.facts import A_DAY_S
+from pinecall.log.queries import AgentDay
 from pinecall.log.reduce import Usage, UsageRow, totals_by_org
 from pinecall.log.store import DEFAULT_LIMIT
 from pinecall.tenancy import admission, people, scopes, usage
@@ -27,6 +28,7 @@ from pinecall.wire.rest.usage import (
     InsightsBudget,
     InsightsChannels,
     InsightsConversations,
+    InsightsSpend,
     Limit,
     Limits,
     UsagePage,
@@ -103,7 +105,9 @@ async def insights(
         sessions_total=counted.total,
         live=counted.live,
         agents=[
-            InsightsAgent(slug=agent.slug, today=agent.calls, score=agent.score)
+            InsightsAgent(
+                slug=agent.slug, today=agent.calls, score=agent.score, spend=_spend(agent)
+            )
             for agent in counted.agents
         ],
         stages=await drift.stages_of_day(pool, scope, counted_on),
@@ -230,6 +234,19 @@ def _side(side: Side, tallied: Tally) -> DriftSide:
         day=None if side.day is None else side.day.isoformat(),
         version=side.version,
         versions=sorted(tallied.versions),
+    )
+
+
+def _spend(agent: AgentDay) -> InsightsSpend:
+    total = sum(agent.spend.values())
+    return InsightsSpend(
+        llm_usd=agent.spend["llm"],
+        stt_usd=agent.spend["stt"],
+        tts_usd=agent.spend["tts"],
+        phone_usd=agent.spend["phone"],
+        platform_usd=agent.spend["platform"],
+        minutes=round(agent.minutes, 3),
+        per_minute_usd=round(total / agent.minutes, 6) if agent.minutes > 0 else None,
     )
 
 

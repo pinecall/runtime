@@ -5,7 +5,7 @@ from dataclasses import replace
 import pytest
 
 from pinecall.domain.errors import Conflict
-from pinecall.domain.names import JsonObject
+from pinecall.domain.names import Json, JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.log.facts import CallFacts, fold, lent
 from pinecall.log.queries import (
@@ -95,6 +95,44 @@ def test_the_reason_the_call_ended_with_is_kept_over_the_summarys() -> None:
         },
     }
     assert fold(facts, entry("call.summary", summary)).end_reason == "transferred"
+
+
+def test_a_summarys_rows_fold_to_the_calls_cost_by_stage_and_the_boxs_own_apart() -> None:
+    def row(provider: str, unit: str, usd: float) -> JsonObject:
+        return {
+            "provider": provider,
+            "model": "m",
+            "unit": unit,
+            "quantity": 1,
+            "unit_price_usd": usd,
+            "usd": usd,
+        }
+
+    rows: list[Json] = [
+        row("anthropic", "input_tokens", 0.1),
+        row("anthropic", "output_tokens", 0.2),
+        row("cartesia", "characters", 0.4),
+        row("deepgram", "audio_seconds", 0.8),
+        row("twilio", "minutes", 1.6),
+        row("pinecall", "minutes", 3.2),
+    ]
+    summary: JsonObject = {
+        "reason": "caller_hung_up",
+        "outcome": "o",
+        "duration_s": 8.0,
+        "turns": 1,
+        "usage": [],
+        "cost": {"usd": 6.3, "rows": rows, "unpriced": []},
+    }
+    facts = fold(CallFacts(call="CA_x"), entry("call.summary", summary))
+    by_stage = (
+        facts.cost_llm_usd,
+        facts.cost_stt_usd,
+        facts.cost_tts_usd,
+        facts.cost_phone_usd,
+        facts.cost_platform_usd,
+    )
+    assert (facts.cost_usd, by_stage) == (6.3, (0.3, 0.8, 0.4, 1.6, 3.2))
 
 
 def test_a_verdict_nobody_settled_is_no_score() -> None:
