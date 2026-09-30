@@ -126,6 +126,7 @@ through Caddy, which marks every request it passes on with `X-Forwarded-For`. Th
 | `pinecall_errors_total{code,vendor}` | `error` entries workers wrote; `vendor` is the plugin a failed component's label names, empty for the rest |
 | `pinecall_pool_connections{state}` · `pinecall_pool_waiting` | the database pool: open, in use, its most; requests waiting now |
 | `pinecall_pool_requests_total` · `pinecall_pool_wait_seconds_total` | connections asked of the pool, and the time spent waiting for one: their rates' ratio is the mean wait |
+| `pinecall_writer_waiting` | appends queued for the log's writer and not in a transaction yet: past a few hundred, the database is behind the calls |
 | `pinecall_held{what}` | live log readers, app sockets and calls served, now |
 | `pinecall_fleet{fleet,what}` | each fleet as its heartbeats say: workers, seats, busy, accepting |
 | `pinecall_vendor_failing{vendor}` | 1 for each vendor over its error line (half the calls handed it in two minutes saw it fail), as this gateway saw; its calls step over to their fallbacks |

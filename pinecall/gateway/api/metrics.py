@@ -118,6 +118,12 @@ def _measures_of(gateway: Gateway, now: float, replicas: list[tuple[str, float]]
                 ],
             ),
             family(
+                "pinecall_writer_waiting",
+                "Appends queued for the log's writer and not yet in a transaction.",
+                "gauge",
+                [({}, gateway.logs.store.writer.waiting)],
+            ),
+            family(
                 "pinecall_fleet",
                 "Each fleet as its workers' heartbeats say: workers, seats, calls held, accepting.",
                 "gauge",
