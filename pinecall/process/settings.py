@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from pinecall.domain.errors import SettingsRefused
 from pinecall.domain.names import PRODUCTION, SANDBOX, Env
+from pinecall.postgres.pool import POOL_SIZE
 
 # Checked in each directory up to the repository root; `runtime/.env` serves a process started
 # from the checkout root. When both exist the later wins.
@@ -78,6 +79,12 @@ class Settings(BaseModel):
         alias="DATABASE_URL",
         repr=False,
         description="Postgres 17 with pgvector and pg_textsearch: the one stateful service.",
+    )
+    db_pool: int = Field(
+        POOL_SIZE,
+        alias="PINECALL_DB_POOL",
+        ge=1,
+        description="Connections the gateway holds open to Postgres at most.",
     )
 
     # ── recordings ──

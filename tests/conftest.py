@@ -6,7 +6,7 @@ import logging
 import os
 import socket
 import sys
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from dataclasses import dataclass
 from uuid import uuid4
 
@@ -33,7 +33,7 @@ from pinecall.gateway.app import app
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store
 from pinecall.postgres.migrate import apply_migrations
-from pinecall.postgres.pool import Pool, connect, open_pool
+from pinecall.postgres.pool import Pool, Timeouts, connect, open_pool
 from pinecall.process.connections import Connections, vault_of
 from pinecall.process.settings import Settings
 from pinecall.providers import catalog
@@ -77,6 +77,45 @@ async def pool(schema: str) -> AsyncIterator[Pool]:
     opened = await open_pool(DSN, schema=schema, max_size=4)
     yield opened
     await opened.close()
+
+
+# What is long on purpose runs past a pool's statement timeout: this pool's is short, and a lock
+# held past it stands for a table of years.
+A_SHORT_TIMEOUT_MS = 100
+
+
+HELD_PAST_THE_TIMEOUT_S = 0.4
+
+
+@pytest.fixture
+async def impatient_pool(schema: str) -> AsyncIterator[Pool]:
+    """A pool on the test's schema that cuts a statement and an idle transaction at 100 ms."""
+    short = Timeouts(statement_ms=A_SHORT_TIMEOUT_MS, idle_in_transaction_ms=A_SHORT_TIMEOUT_MS)
+    opened = await open_pool(DSN, schema=schema, max_size=2, timeouts=short)
+    yield opened
+    await opened.close()
+
+
+async def outlasting_a_lock[T](schema: str, table: str, work: Callable[[], Awaitable[T]]) -> T:
+    """Run the work while another session holds the table past the timeout; the work's result."""
+    locked = asyncio.Event()
+
+    async def locking() -> None:
+        async with await connect(DSN) as connection:
+            path = sql.SQL("set search_path to {}").format(sql.Identifier(schema))
+            await connection.execute(path)
+            async with connection.transaction():
+                taken = sql.SQL("lock table {} in access exclusive mode")
+                await connection.execute(taken.format(sql.Identifier(table)))
+                locked.set()
+                await asyncio.sleep(HELD_PAST_THE_TIMEOUT_S)
+
+    async def once_locked() -> T:
+        await locked.wait()
+        return await work()
+
+    _, result = await asyncio.gather(locking(), once_locked())
+    return result
 
 
 @pytest.fixture

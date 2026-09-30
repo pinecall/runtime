@@ -10,7 +10,7 @@ from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy import consents, export
 from pinecall.tenancy.consents import Given
-from tests.conftest import postgres
+from tests.conftest import outlasting_a_lock, postgres
 from tests.log.conftest import ACall, logged_call
 from tests.tenancy.conftest import an_org
 
@@ -110,3 +110,16 @@ async def test_the_calls_come_a_page_at_a_time_and_none_twice(
     lines = await exported(pool, org.id)
     listed = [str(line["call"]) for line in lines if line["kind"] == "call"]
     assert sorted(listed) == sorted(calls)
+
+
+async def test_an_export_runs_past_the_pools_statement_timeout(
+    pool: Pool, impatient_pool: Pool, store: Store, schema: str
+) -> None:
+    org = await an_org(pool)
+    call = await logged_call(store, org.id)
+
+    async def lines() -> list[JsonObject]:
+        return await exported(impatient_pool, org.id)
+
+    exported_lines = await outlasting_a_lock(schema, "call_log", lines)
+    assert [line["call"] for line in exported_lines if line["kind"] == "call"] == [call]

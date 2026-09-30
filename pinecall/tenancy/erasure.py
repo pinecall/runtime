@@ -11,10 +11,12 @@ from psycopg.rows import DictRow
 from pinecall.domain.errors import Conflict, StoreUnreachable
 from pinecall.domain.names import Env
 from pinecall.domain.scope import Scope
-from pinecall.postgres.pool import Pool
+from pinecall.postgres.pool import Pool, unbounded
 from pinecall.wire.rest.calls import Erasure, ErasureSubject
 
-# The trigger on call_log lets a DELETE through in this transaction alone (0011_erasure.sql).
+# The trigger on call_log lets a DELETE through in this transaction alone (0011_erasure.sql). An
+# erasure is unbounded: an org's logs are long to delete, and its recordings go inside the
+# transaction.
 ERASING = "SET LOCAL pinecall.erasing = 'on'"
 
 CALLS_OF_CONTACT = """
@@ -112,7 +114,7 @@ class _Taking:
 
 async def call(pool: Pool, recordings: Path, scope: Scope, call_id: str, *, by: str) -> Erased:
     """Erase one call: its log, facts, tokens, the memories it taught, and its recording."""
-    async with pool.connection() as connection, connection.transaction():
+    async with unbounded(pool) as connection:
         await connection.execute(ERASING)
         entries, memories = await _logs(connection, [call_id], [call_id])
         taking = _Taking(scope.org, scope.env, "call", call_id, by, [call_id], entries, memories)
@@ -124,7 +126,7 @@ async def contact(
 ) -> Erased:
     """Erase a contact in the world: every call they were on and every fact kept of them."""
     params = {"org": scope.org, "env": scope.env, "contact": contact_id}
-    async with pool.connection() as connection, connection.transaction():
+    async with unbounded(pool) as connection:
         await connection.execute(ERASING)
         rows = await (await connection.execute(CALLS_OF_CONTACT, params)).fetchall()
         live = next((str(row["call"]) for row in rows if not row["sealed"]), None)
@@ -140,7 +142,7 @@ async def contact(
 
 async def org(pool: Pool, recordings: Path, org_id: str, *, by: str) -> Erased:
     """Erase an org whole: every log it owns, every recording, then the org and what cascades."""
-    async with pool.connection() as connection, connection.transaction():
+    async with unbounded(pool) as connection:
         await connection.execute(ERASING)
         rows = await (await connection.execute(LOGS_OF_ORG, {"org": org_id})).fetchall()
         logs = [str(row["log"]) for row in rows]
