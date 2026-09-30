@@ -57,6 +57,21 @@ what is left in sixty seconds; systemd waits fifteen. A **cordon** (`fleet cordo
 `POST /v1/ops/fleet/{worker}/cordon`) is told on the worker's next heartbeat: it takes no new call,
 finishes what it holds, and exits **3**, which its unit's `RestartPreventExitStatus=3` leaves down.
 
+## A worker that dies
+
+A worker killed, a machine gone or a job's process dead leaves its callers in rooms with nobody
+answering. LiveKit says so: its agent leaves without a goodbye (the connection lost, not closed),
+and LiveKit's webhook tells the gateway (`POST /v1/livekit/webhook`). If the call is still open
+and its caller still in the room, the gateway ends it as `drained`, puts a call back on the agent's
+log for a phone caller, and sends the world's fleet into the room with a job that says one
+sentence, the overflow's `PINECALL_OVERFLOW_SAYS`, deletes the room and seals the call. So the
+caller hears that sentence, not silence: LiveKit notices a connection lost in seconds (it waits
+five for it to come back), and the job starts on any worker with a seat, or on the overflow when
+the fleet is full. On a box of one worker per world, a dead worker's calls wait for its unit to
+come back (systemd restarts it in seconds), since the overflow opens only for a full fleet and a
+fleet nobody hears from is not full. A drain, a cordon and a call that ends leave on purpose, and
+are not this. If no job comes, the reaper seals the call after five quiet minutes, as before.
+
 ## The fleet loop
 
 `pinecall-runtime fleet loop --cloud infra/fleet/gcp --seats 4 --fleet pinecall` keeps a fleet at a

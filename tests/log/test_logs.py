@@ -135,6 +135,21 @@ async def test_every_live_reader_hears_the_entry_the_store_already_has(
 
 
 @postgres
+async def test_a_first_entry_reaches_the_readers_once_and_an_agents_log_takes_none(
+    store: Store, call: str
+) -> None:
+    log = Log(store, call, AGENT)
+    await log.append("call.started", {})
+    reader = log.fanout.subscribe()
+    written = await log.append_first("call.ended", {"reason": "drained"})
+    assert written is not None
+    assert await log.append_first("call.ended", {"reason": "drained"}) is None
+    assert (await anext(reader)).seq == written.seq
+    with pytest.raises(DeclarationRefused, match="only a call's log"):
+        await Log(store, None, AGENT).append_first("call.ended", {})
+
+
+@postgres
 async def test_a_tap_runs_on_every_append_before_append_returns(store: Store, call: str) -> None:
     heard: list[str] = []
 

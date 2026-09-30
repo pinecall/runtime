@@ -1,4 +1,4 @@
-"""The dispatch that sends a call to the fleet of its world, and the rooms an agent is in."""
+"""The dispatch to a world's fleet, the rooms an agent is in, and LiveKit's signed events."""
 
 import json
 from collections.abc import Collection, Mapping
@@ -7,9 +7,10 @@ from google.protobuf.json_format import ParseDict, ParseError
 from livekit import api
 from livekit.protocol.agent_dispatch import RoomAgentDispatch
 from livekit.protocol.room import RoomConfiguration
+from livekit.protocol.webhook import WebhookEvent
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from pinecall.domain.errors import DeclarationRefused
+from pinecall.domain.errors import DeclarationRefused, NotAllowed
 from pinecall.domain.names import Direction, Env, Json, JsonObject
 
 NOT_A_ROOM_CONFIG = "room_config is not a LiveKit RoomConfiguration: {reason}"
@@ -19,6 +20,11 @@ ROOMS_A_REQUEST = 100
 
 # livekit's code for a room that is not there.
 ROOM_GONE = "not_found"
+
+UNSIGNED = "the event carries no signature of this box's LiveKit key: {reason}"
+
+# The seats a person sits in: a browser's, and a phone's leg.
+A_PERSON = frozenset({api.ParticipantInfo.Kind.STANDARD, api.ParticipantInfo.Kind.SIP})
 
 
 # `trunk` names the carrier account the leg is dialled through; the worker asks the gateway for
@@ -62,6 +68,8 @@ class Dispatch(BaseModel):
     accepts_when: str | None = None
     declines_when: str | None = None
     diverted_from: Env | None = None
+    # The call's worker went away mid-call: the job tells the caller once and closes the room.
+    worker_gone: bool = False
 
 
 def written(dispatch: Dispatch) -> str:
@@ -134,3 +142,26 @@ async def room_closed(server: api.LiveKitAPI, name: str) -> None:
     except api.TwirpError as refused:
         if refused.code != ROOM_GONE:
             raise
+
+
+# A room gone is nobody left in it.
+async def left_alone(server: api.LiveKitAPI, name: str) -> bool:
+    """Whether a person is still in the room and no agent is."""
+    try:
+        seats = await server.room.list_participants(api.ListParticipantsRequest(room=name))
+    except api.TwirpError as refused:
+        if refused.code != ROOM_GONE:
+            raise
+        return False
+    kinds = {seat.kind for seat in seats.participants}
+    return api.ParticipantInfo.Kind.AGENT not in kinds and bool(kinds & A_PERSON)
+
+
+# livekit signs each event with a key of the server's: a token whose sha256 claim is the body's.
+# The library raises a bare Exception for a body that does not match its token.
+def livekit_event(body: str, token: str, key: str, secret: str) -> WebhookEvent:
+    """The event of a body LiveKit signed with this key, or NotAllowed."""
+    try:
+        return api.WebhookReceiver(api.TokenVerifier(key, secret)).receive(body, token)
+    except Exception as refused:
+        raise NotAllowed(UNSIGNED.format(reason=refused)) from refused

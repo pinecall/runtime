@@ -124,6 +124,19 @@ from in the last 30 s. `POST /v1/ops/fleet/{worker}/cordon?fleet=` and `DELETE â
 worker is told on its next heartbeat, takes no new call, finishes what it holds and leaves;
 `404` for a name nobody has. The loop that grows and shrinks a fleet is [scaling.md](../scaling.md).
 
+`POST /v1/livekit/webhook` is LiveKit's own door, not the operator's: `livekit.yaml` sends it every
+room event, signed with the box's LiveKit key (`Authorization: <token>`, the body's sha256 in the
+token; anything else is a `403`), and it answers `204` to all of them. One event is acted on: an
+**agent lost** mid-call, `participant_left` of kind `AGENT` whose `disconnect_reason` says its
+connection was lost (`SIGNAL_CLOSE`, `CONNECTION_TIMEOUT`, `STATE_MISMATCH`, `JOIN_FAILURE`,
+`MEDIA_FAILURE`, `AGENT_ERROR`), in a room whose call is open, has no `call.ended`, still holds a
+person and no agent. The gateway then writes `call.ended {reason: "drained", ended_by: "platform"}`
+once (the head row locked: a second delivery finds it written and does nothing), writes
+`callback.requested` on the agent's log for a phone call, and dispatches the call's world's fleet
+into the room with `worker_gone: true`. That job says `PINECALL_OVERFLOW_SAYS`, deletes the room
+and seals the call. A worker that ends a call, drains or hands a ring to the sandbox leaves with
+`CLIENT_INITIATED`, and a deleted room says `ROOM_DELETED`: neither is acted on.
+
 ## Usage
 
 `GET /v1/ops/usage?after=&limit=&org=`: every org's metered rows after the cursor, `{rows, totals:

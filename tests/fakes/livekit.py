@@ -1,5 +1,7 @@
 """LiveKit as the suites see it: seats, a room, the SIP and rooms doors of a server, a player."""
 
+import base64
+import hashlib
 import types
 from collections.abc import Mapping
 from typing import override
@@ -55,6 +57,12 @@ from tests.fakes.acme import ACME, AcmeLLM, AcmeStreamedTTS, AcmeSTT, AcmeTTS, s
 
 # Long enough for the JWT livekit signs with it; a secret of nothing.
 A_SECRET = "a secret of thirty-two bytes or more"
+
+
+def signed(body: str, key: str, secret: str = A_SECRET) -> str:
+    """The token livekit sends with a webhook's body: the body's sha256 in a claim, signed."""
+    digest = base64.b64encode(hashlib.sha256(body.encode()).digest()).decode()
+    return api.AccessToken(key, secret).with_sha256(digest).to_jwt()
 
 
 class Seated(rtc.LocalParticipant):
@@ -277,6 +285,8 @@ class Rooms(RoomService):
     requests: list[object]
     # Each standing room and whether an agent is in it.
     existing: dict[str, bool]
+    # The rooms a caller still sits in.
+    people: set[str]
 
     @override
     async def list_rooms(self, list: ListRoomsRequest) -> ListRoomsResponse:
@@ -288,10 +298,12 @@ class Rooms(RoomService):
 
     @override
     async def list_participants(self, list: ListParticipantsRequest) -> ListParticipantsResponse:
-        """An agent in the room, or nobody."""
+        """An agent in the room if the test says so, and its caller if one is left."""
         agent = api.ParticipantInfo(identity="agent", kind=api.ParticipantInfo.Kind.AGENT)
+        caller = api.ParticipantInfo(identity="sip_caller", kind=api.ParticipantInfo.Kind.SIP)
+        seated = [agent] if self.existing.get(list.room) else []
         return ListParticipantsResponse(
-            participants=[agent] if self.existing.get(list.room) else []
+            participants=[*seated, caller] if list.room in self.people else seated
         )
 
     @override
@@ -299,6 +311,7 @@ class Rooms(RoomService):
         """The room goes, whoever was in it."""
         self.requests.append(delete)
         self.existing.pop(delete.room, None)
+        self.people.discard(delete.room)
         return DeleteRoomResponse()
 
     @override
@@ -344,7 +357,7 @@ class Server(api.LiveKitAPI):
             status=SIPTransferStatus.STS_TRANSFER_SUCCESSFUL
         )
         self.rooms = Rooms.__new__(Rooms)
-        self.rooms.requests, self.rooms.existing = [], {}
+        self.rooms.requests, self.rooms.existing, self.rooms.people = [], {}, set()
         self.dispatcher = Dispatcher.__new__(Dispatcher)
         self.dispatcher.made, self.dispatcher.refusal = [], None
 
