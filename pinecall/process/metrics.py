@@ -1,12 +1,21 @@
 """What a process counts as it works, in memory, and the Prometheus text it is read as."""
 
 from bisect import bisect_left
-from collections import Counter
+from collections import Counter, deque
 from collections.abc import Iterable, Mapping
 from typing import Literal
 
 # Seconds: an append waits on one Postgres transaction, so the buckets are a transaction's.
 APPEND_BOUNDS_S = (0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0)
+
+# A stage's fallbacks are ordered by the last two minutes of each vendor: judged once five calls
+# were handed it as a stage's first, and over the line once half of those calls saw it fail.
+VENDOR_WINDOW_S = 120.0
+CALLS_TO_JUDGE = 5
+FAILED_SHARE = 0.5
+# A busy window is thousands of calls: past this many, a vendor's oldest are forgotten early.
+MOST_KEPT = 10_000
+
 
 type Rows = Iterable[tuple[Mapping[str, str], float]]
 
@@ -38,6 +47,9 @@ class Counters:
         self.appended = 0
         # By the entry's code and the vendor whose plugin failed, "" when none did.
         self.errors: Counter[tuple[str, str]] = Counter()
+        # By vendor: when a call was handed it first for a stage, and when a call saw it fail.
+        self.handed: dict[str, deque[float]] = {}
+        self.failures: dict[str, deque[tuple[float, str]]] = {}
 
     def appended_in(self, seconds: float, entries: int) -> None:
         """One append at the door: how long it took and how many entries it wrote."""
@@ -47,6 +59,30 @@ class Counters:
     def failed(self, code: str, vendor: str) -> None:
         """One error entry a worker wrote."""
         self.errors[(code, vendor)] += 1
+
+    def failed_on(self, vendor: str, call: str, at: float) -> None:
+        """A call saw the vendor fail: an error naming it, or its stage's switch away from it."""
+        self.failures.setdefault(vendor, deque(maxlen=MOST_KEPT)).append((at, call))
+
+    def handed_out(self, vendors: Iterable[str], at: float) -> None:
+        """A call's stages were resolved with these vendors first, each counted once."""
+        for vendor in set(vendors):
+            self.handed.setdefault(vendor, deque(maxlen=MOST_KEPT)).append(at)
+
+    def failing(self, at: float) -> frozenset[str]:
+        """The vendors over their error line in the window up to now."""
+        since = at - VENDOR_WINDOW_S
+        for failures in self.failures.values():
+            while failures and failures[0][0] < since:
+                failures.popleft()
+        over: set[str] = set()
+        for vendor, handed in self.handed.items():
+            while handed and handed[0] < since:
+                handed.popleft()
+            calls = len({call for _, call in self.failures.get(vendor, ())})
+            if len(handed) >= CALLS_TO_JUDGE and calls >= FAILED_SHARE * len(handed):
+                over.add(vendor)
+        return frozenset(over)
 
 
 def family(name: str, what: str, kind: Kind, rows: Rows) -> str:
