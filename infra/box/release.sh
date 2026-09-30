@@ -19,7 +19,7 @@ UV=/opt/pinecall/bin/uv
 "$UV" pip install --quiet --python /opt/pinecall/venv/bin/python --reinstall-package pinecall "$installed"
 systemctl restart pinecall-migrate
 systemctl restart pinecall-gateway
-for _ in $(seq 60); do curl -fsS -o /dev/null http://127.0.0.1:8080/ && break; sleep 1; done
+for _ in $(seq 60); do curl -fs -o /dev/null http://127.0.0.1:8080/ && break; sleep 1; done
 curl -fsS -o /dev/null http://127.0.0.1:8080/ || { echo "the gateway did not answer in 60 s" >&2; exit 1; }
 systemctl restart pinecall-worker@production pinecall-worker@sandbox pinecall-overflow@production
 systemctl start pinecall-doctor

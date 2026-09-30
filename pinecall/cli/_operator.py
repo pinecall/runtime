@@ -8,6 +8,7 @@ import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -206,8 +207,10 @@ def init(client: httpx.Client, args: argparse.Namespace) -> int:
     member = _object(invited["member"])
     client.put(f"{ORGS}/{named}/members/{member['id']}/operator", json={"operator": True})
     _line_out(f"{member['id']}  {member['email']}  {member['role']}  runs this box")
-    _line_out(f"  {_base(client)}/invitations/{invited['token']}")
-    _line_out(WHAT_TO_DO_NEXT.format(url=_base(client)))
+    card = str(invited.get("link") or "")
+    if card:
+        _line_out(f"  {card}")
+    _line_out(WHAT_TO_DO_NEXT.format(url=_origin_of(card) or _base(client)))
     return 0
 
 
@@ -231,8 +234,8 @@ def orgs_invite(client: httpx.Client, args: argparse.Namespace) -> int:
     invited = _object(_answered(client.post(f"{ORGS}/{args.org}/members", json=body)))
     member = _object(invited["member"])
     _line_out(f"{member['id']}  {member['email']}  {member['role']}  {member['status']}")
-    if invited.get("token"):
-        _line_out(f"  {_base(client)}/invitations/{invited['token']}")
+    if invited.get("link"):
+        _line_out(f"  {invited['link']}")
     else:
         _line_out(
             "  already a person on this box: seated, they sign in with the password they have"
@@ -515,6 +518,12 @@ def _list(value: Json) -> list[Json]:
     if not isinstance(value, list):
         raise GatewayRefused(f"the gateway answered {type(value).__name__}, not a list")
     return value
+
+
+# The box's public name, read off the link the gateway made on it; the client knows loopback only.
+def _origin_of(card: str) -> str:
+    parts = urlsplit(card)
+    return f"{parts.scheme}://{parts.netloc}" if parts.scheme and parts.netloc else ""
 
 
 def _base(client: httpx.Client) -> str:

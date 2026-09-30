@@ -170,7 +170,7 @@ async def test_the_operator_seats_an_orgs_first_admin_and_makes_or_unmakes_an_op
         removed = await operator.delete(f"{ORGS}/{org}/members/{member}")
         nobody = await operator.delete(f"{ORGS}/{org}/members/{member}")
     assert invited.status_code == 201
-    assert invited.json()["token"]
+    assert invited.json()["link"].endswith(f"/invitations/{invited.json()['token']}")
     assert runs.json()["operator"] is True
     assert stops.json()["operator"] is False
     assert [row["email"] for row in listed.json()["members"]] == ["root@clinica.test"]

@@ -8,7 +8,7 @@ from pinecall.domain.org import Quotas
 from pinecall.domain.person import ROLE_SCOPES, Member, Role
 from pinecall.tenancy import admission, keys, orgs, people
 from pinecall.tenancy.keys import NOT_YOURS_TO_GRANT
-from tests.conftest import Knocking, postgres
+from tests.conftest import BOX_DOMAIN, Knocking, postgres
 from tests.fakes.mail import Postbox
 from tests.gateway.api.conftest import box_can_mail, delivered, text_of
 
@@ -55,6 +55,7 @@ async def test_an_invite_answers_the_row_and_the_token_once_and_the_listing_neve
         answer = await invited(console)
         listing = await console.get(MEMBERS)
     assert answer["token"].startswith("inv_")
+    assert answer["link"] == f"https://{BOX_DOMAIN}/invitations/{answer['token']}"
     assert answer["mailed"] is False, "nothing on this box can post a letter"
     assert (answer["member"]["status"], answer["member"]["agents"]) == ("invited", ["a"])
     assert answer["member"]["scopes"] == sorted(ROLE_SCOPES["developer"])

@@ -7,10 +7,72 @@ box is made of is in `infra/box/` ([its page](../infra/box/README.md)); every va
 
 ## 1. The machine
 
-A VM (GCP `e2-standard-4`, Ubuntu 24.04), `infra/box/cloud-init.yaml` as its user-data with your ssh
-key in it, and an ssh alias for it. Each name the box answers at is a DNS record pointing at it.
+- **Ubuntu 24.04** (Debian 13 works too: `box up` needs apt and systemd), 4 vCPU, 16 GB, 30 GB of
+  disk, a public IPv4. GCP's `e2-standard-4` is what Pinecall runs on.
+- **Two DNS names pointed at it**, production's and the sandbox's (`voice.example.com`,
+  `sandbox.voice.example.com`), before the box is made: Caddy takes their certificates from Let's
+  Encrypt the moment it starts, and a name that points elsewhere makes it wait and retry. One name
+  alone serves both worlds, and the console there is production's.
+- **The cloud's firewall open for**: tcp 22, tcp 80 and 443 (the console, the API, LiveKit's
+  signalling), tcp 7881 and udp 7882 (WebRTC), udp 10000–10199 (the phone's audio, RTP), and tcp
+  and udp 5060 from your carrier's signalling addresses alone (Twilio's are in
+  `infra/box/nftables.conf`). The box fences 5060 again itself, with nftables.
 
-## 2. The box, once
+## 2. The box, from the package
+
+On the machine, as root — no checkout, no build:
+
+```console
+$ curl -LsSf https://astral.sh/uv/install.sh | sudo env UV_INSTALL_DIR=/usr/local/bin sh
+$ sudo uvx --from pinecall pinecall-runtime box up \
+    --domains voice.example.com,sandbox.voice.example.com \
+    --backup-key age1…
+```
+
+The wheel on PyPI carries `infra/box` and `infra/postgres` as `pinecall/infra/`, and `box up` does
+with them what `make box` and `make deploy` do from a laptop, printing each step:
+
+1. the system's packages: podman, Caddy, nftables, curl, rsync, openssl, age (apt), and nftables on
+   at boot;
+2. `uv` copied to `/opt/pinecall/bin/uv`, where the release runs it;
+3. the package's `infra/` copied to `/opt/pinecall/infra/`;
+4. `install.sh <names>`: the `deploy` and `pinecall` accounts, the directories, the fence, Caddy for
+   the names, the containers (Postgres with `vector` and `pg_textsearch` built here, LiveKit, its SIP
+   and egress, Redis), the units and timers, and the box's secrets — the LiveKit pair, the
+   database password, `PINECALL_VAULT_KEY`, `PINECALL_OPS_KEY` — drawn once and sealed with
+   `systemd-creds` in `/etc/credstore.encrypted/`, never printed;
+5. `release.sh` with `PACKAGE=pinecall==<the version running>`: the runtime from PyPI into
+   `/opt/pinecall/venv`, the migrations, the gateway, both worlds' workers and the overflow
+   started, the doctor;
+6. the address, the next three commands, and whether backups are on.
+
+`--backup-key` is an age public key (`age-keygen -o box.key` makes a pair; keep `box.key` off the
+box): the nightly backup encrypts to it, and with no key there is no backup at all — an
+unencrypted copy of every call is never written. `--package <wheel path>` installs a wheel you
+carry instead of PyPI's, for a machine that reaches no index. Run again, `box up` rotates nothing
+and loses nothing: it is also how a box changes version.
+
+**On the box, afterwards**, `/usr/local/bin/pinecall-runtime` runs any operator verb with the box's
+own settings and sealed credentials:
+
+```console
+$ sudo pinecall-runtime init --org clinica --email you@example.com --person "You"
+$ sudo pinecall-runtime doctor
+$ sudo pinecall-runtime orgs invite clinica ana@example.com --name Ana
+```
+
+`init` prints the first admin's invitation on the box's public name
+(`https://voice.example.com/invitations/…`); opening it sets their password, and from there the
+console holds the rest.
+
+**A newer version**: `sudo uvx --from pinecall@latest pinecall-runtime box upgrade` — the same steps
+at the names the box already has (`/etc/pinecall/box.env`): the new package's `infra/`, the new
+runtime, its migrations, the restarts. A version of your choosing: `--from pinecall==0.1.3`.
+
+## 3. Or: the box, from a checkout
+
+How Pinecall's own box is made, so a change is deployed before it is released. The machine is the
+same, with `infra/box/cloud-init.yaml` as its user-data (your ssh key in it) and an ssh alias.
 
 ```bash
 make box BOX=my-box DOMAINS=voice.example.com,sandbox.voice.example.com
@@ -26,7 +88,7 @@ nftables fence, the containers of the media plane, and the box's own secrets dra
 secret you bring goes in from stdin: `ssh my-box sudo /opt/pinecall/infra/box/install.sh secret
 PINECALL_SMTP_URL`.
 
-## 3. Deploy
+Then each deploy:
 
 ```bash
 make deploy BOX=my-box DOMAINS=voice.example.com,sandbox.voice.example.com
@@ -63,8 +125,10 @@ change. The journal keeps a month
 
 `pinecall-backup.timer` runs `infra/box/backup.sh` at 03:00: `pg_dump -Fc` of the database, read
 back whole by `pg_restore -f /dev/null` before anything else, and a tar of the recordings, each encrypted with
-`age` to `/etc/pinecall/backup.age.pub` (`infra/box/backup.age.pub`), with a manifest of their
-sha256 before encryption. The private key is never on the box: whoever restores holds it. They
+`age` to `/etc/pinecall/backup.age.pub` — the key `box up --backup-key` wrote, or Pinecall's own
+(`infra/box/backup.age.pub`) on a box made from the checkout — with a manifest of their sha256
+before encryption. A box with no key there makes no backup: `install.sh` enables the timer only
+when the key exists. The private key is never on the box: whoever restores holds it. They
 are kept 7 days in `/var/lib/pinecall/backups`; with `PINECALL_BACKUP_BUCKET=<bucket>` in
 `/etc/pinecall/backup.env` (the operator's file, which `install.sh` never writes) each night's
 files are copied to that bucket with the VM's own identity, which needs `storage.objects.create`
@@ -95,11 +159,13 @@ From the console's box screens, or the operator's doors with the ops key
 
 ## 6. The first org and the first person
 
-From a laptop, with `PINECALL_GATEWAY_URL` the box's address and `PINECALL_OPS_KEY` the box's key:
+On the box, with its own credentials:
 
 ```bash
-pinecall-runtime init --org clinica --email you@example.com --person "Your Name"
+sudo pinecall-runtime init --org clinica --email you@example.com --person "Your Name"
 ```
+
+Or from a laptop, with `PINECALL_GATEWAY_URL` the box's address and `PINECALL_OPS_KEY` its key.
 
 The org, its first admin invited and made an operator of the box, and the link printed once. That
 person signs in at the console and makes the rest: keys, people, numbers.
@@ -120,7 +186,15 @@ fleets, and `pinecall-runtime fleet loop` grows and shrinks them through a cloud
 
 ## When it does not come up
 
-- `make logs` first, whole: the sentence that stopped a unit is in it.
+- The journal first, whole: `make logs` from a checkout, or on the box
+  `journalctl -u pinecall-gateway -u 'pinecall-worker@*' -u pinecall-migrate --since today`. The
+  sentence that stopped a unit is in it.
+- `box up` stops at the first step that fails and names it (`→ the box installed`); fix what it
+  said and run it again: every step is safe to repeat.
+- A name that does not point at the machine yet: Caddy retries its certificate, and after five
+  failed tries Let's Encrypt refuses that name for an hour. Point the DNS first.
+- The console loads but a call has no audio: the cloud's firewall does not let udp 7882 or
+  10000–10199 in (section 1).
 - A Quadlet key the box's podman does not know makes the generator skip the whole unit: "not found",
   not failed. `/usr/lib/systemd/system-generators/podman-system-generator --dryrun` says which.
 - A gateway without `PINECALL_VAULT_KEY` does not start, and says so.
