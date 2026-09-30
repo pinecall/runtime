@@ -49,6 +49,8 @@ dependencies = [
   # TypeIs reaches `typing` in 3.13; the box runs 3.12.
   "typing-extensions>=4.12,<5",
   "phonenumbers>=9,<10",
+  # The live signal between gateways, when PINECALL_REDIS_URL names one: its asyncio client.
+  "redis>=8.1,<9",
 ]
 
 # Every livekit plugin that exports an STT, a TTS or an LLM is a vendor once installed; the box
@@ -224,3 +226,13 @@ why = "the world is what the door knows; the box's name is read where a Twilio t
 path = "pinecall/gateway/_gateway.py"
 checks = ["unstable_dependency"]
 why = "Gateway is the process's state: it holds each part, the WhatsApp threads among them"
+
+[[tool.vibesmell.skip]]
+path = "pinecall/process/signal.py"
+checks = ["tests_only"]
+why = "connected() is what the log's relay waits on to follow its channels again (P3 3.2): the signal lands before its users"
+
+[[tool.vibesmell.skip]]
+path = "pinecall/process/connections.py"
+checks = ["unread_field"]
+why = "Connections.signal is read by the log's relay and the gateway's registries from P3 3.2 on: the signal lands before its users"

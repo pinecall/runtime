@@ -2,7 +2,8 @@
 [Unit]
 Description=Pinecall gateway (both worlds: apps, calls, the log)
 Wants=network-online.target pinecall-migrate.service
-After=network-online.target pinecall-migrate.service pinecall-livekit.service
+# Only ordered after Redis, never bound to it: a gateway whose Redis is away still serves.
+After=network-online.target pinecall-migrate.service pinecall-livekit.service pinecall-redis.service
 
 [Service]
 User=pinecall
@@ -11,6 +12,8 @@ WorkingDirectory=/opt/pinecall
 Environment=LIVEKIT_URL=ws://127.0.0.1:7880
 Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
 Environment=PINECALL_RECORDINGS=/var/lib/pinecall/recordings
+# LiveKit's Redis, published on loopback; database 1, so its keys are never among LiveKit's.
+Environment=PINECALL_REDIS_URL=redis://127.0.0.1:6379/1
 EnvironmentFile=/etc/pinecall/box.env
 # The operator's buckets, when there are: PINECALL_RECORDINGS_BUCKET moves recordings there.
 EnvironmentFile=-/etc/pinecall/backup.env

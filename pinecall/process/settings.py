@@ -80,6 +80,15 @@ class Settings(BaseModel):
         description="Postgres 17 with pgvector and pg_textsearch: the one stateful service.",
     )
 
+    # ── the signal between gateways ──
+    # A URL may carry a password. Unset, the gateway is alone on its box and keeps it in memory.
+    redis_url: str | None = Field(
+        None,
+        alias="PINECALL_REDIS_URL",
+        repr=False,
+        description="The Redis the gateways tell each other what just happened on. Unset: one.",
+    )
+
     # ── recordings ──
     recordings_root: str = Field(
         "recordings",

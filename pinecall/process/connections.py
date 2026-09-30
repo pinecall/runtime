@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import httpx
 from cryptography.fernet import Fernet, MultiFernet
@@ -11,6 +11,7 @@ from livekit import api
 from pinecall.domain.errors import NotAvailable, SettingsRefused
 from pinecall.postgres.pool import Pool, open_pool
 from pinecall.process.settings import Settings
+from pinecall.process.signal import LocalSignal, Signal, opened_signal
 
 VARIABLE = "PINECALL_VAULT_KEY"
 
@@ -20,7 +21,7 @@ NO_LIVEKIT = "LIVEKIT_API_KEY and LIVEKIT_API_SECRET are unset: this process can
 
 @dataclass(frozen=True)
 class Connections:
-    """The settings a process was given, and the four things it holds open on them."""
+    """The settings a process was given, and the five things it holds open on them."""
 
     settings: Settings
     pool: Pool
@@ -29,6 +30,8 @@ class Connections:
     http: httpx.AsyncClient
     # The SFU's server API, one per process.
     server: api.LiveKitAPI
+    # What the gateways tell each other; a process given no Redis keeps it to itself.
+    signal: Signal = field(default_factory=LocalSignal)
 
 
 UNSET = (
@@ -50,8 +53,10 @@ async def opened(settings: Settings) -> AsyncGenerator[Connections]:
     server = server_of(settings)
     pool = await open_pool(settings.database_url)
     try:
-        async with httpx.AsyncClient() as http:
-            yield Connections(settings=settings, pool=pool, vault=sealed, http=http, server=server)
+        async with httpx.AsyncClient() as http, opened_signal(settings) as signal:
+            yield Connections(
+                settings=settings, pool=pool, vault=sealed, http=http, server=server, signal=signal
+            )
     finally:
         await server.aclose()
         await pool.close()
