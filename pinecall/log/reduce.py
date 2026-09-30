@@ -100,13 +100,17 @@ METERED_TYPES = ("call.summary", "call.score")
 UNOWNED = "unowned"
 
 
-# livekit's names, in the order they happen within a turn.
+# livekit's names, in the order they happen within a turn, then two of ours: dead air is the
+# silence from the caller stopping to the agent starting, one per reply that followed the caller;
+# talk share is the agent's part of the time anybody spoke, one per call, a fraction and no seconds.
 MEASURES = (
     "transcription_delay",
     "end_of_turn_delay",
     "llm_node_ttft",
     "tts_node_ttfb",
     "e2e_latency",
+    "dead_air",
+    "talk_share",
 )
 
 
@@ -298,22 +302,39 @@ def totals_by_org(rows: Iterable[UsageRow]) -> dict[str, Usage]:
     return totals
 
 
+# One call's turns: dead air pairs a reply with the caller's turn before it, and a speaker's time
+# is what each of its turns says it spoke, from starting to stopping.
 def samples(turns: Iterable[Turn]) -> dict[str, list[float]]:
     """Return each measure's values in turn order; a measure nobody took is left out."""
     found: dict[str, list[float]] = {name: [] for name in MEASURES}
+    spoke = {"user": 0.0, "agent": 0.0}
+    before: Turn | None = None
     for turn in turns:
         for name, value in _measured(turn):
             if value is not None:
                 found[name].append(value)
+        gap = _dead_air(before, turn)
+        if gap is not None:
+            found["dead_air"].append(gap)
+        spoke[turn.role] += _spoken_s(turn)
+        before = turn
+    if spoke["agent"] + spoke["user"] > 0:
+        found["talk_share"].append(spoke["agent"] / (spoke["agent"] + spoke["user"]))
     return {name: values for name, values in found.items() if values}
 
 
-# The median, not the mean: one interrupted turn would move an average.
-def medians(turns: Iterable[Turn]) -> list[Median]:
-    """Return one Median per measure some turn reported, in the order a turn takes them."""
+# The median, not the mean: one interrupted turn would move an average. Each call is measured
+# on its own, so no reply is paired with the caller of another call.
+def medians(calls: Iterable[Iterable[Turn]]) -> list[Median]:
+    """Return one Median per measure some call reported, pooled over the calls."""
+    pooled: dict[str, list[float]] = {name: [] for name in MEASURES}
+    for turns in calls:
+        for name, values in samples(turns).items():
+            pooled[name] += values
     return [
         Median(name=name, seconds=median(values), turns=len(values))
-        for name, values in samples(turns).items()
+        for name, values in pooled.items()
+        if values
     ]
 
 
@@ -577,6 +598,23 @@ def _measured(turn: Turn) -> tuple[tuple[str, float | None], ...]:
                 ("tts_node_ttfb", took.tts_node_ttfb),
                 ("e2e_latency", took.e2e_latency),
             )
+
+
+# A reply that started before the caller stopped talked over them: that is no silence.
+def _dead_air(before: Turn | None, turn: Turn) -> float | None:
+    if not isinstance(before, UserTurn) or not isinstance(turn, AgentTurn):
+        return None
+    stopped, started = before.metrics.stopped_speaking_at, turn.metrics.started_speaking_at
+    if stopped is None or started is None or started < stopped:
+        return None
+    return started - stopped
+
+
+def _spoken_s(turn: Turn) -> float:
+    started, stopped = turn.metrics.started_speaking_at, turn.metrics.stopped_speaking_at
+    if started is None or stopped is None or stopped < started:
+        return 0.0
+    return stopped - started
 
 
 def _leg_of(attributes: Mapping[str, object]) -> PhoneLeg | None:

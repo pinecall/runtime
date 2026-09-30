@@ -179,12 +179,10 @@ def _greeting(greeting: Greeting | None) -> GreetingConfig | None:
     )
 
 
-async def _recent_turns(gateway: Gateway, slug: str) -> tuple[int, list[Turn]]:
+async def _recent_turns(gateway: Gateway, slug: str) -> tuple[int, list[list[Turn]]]:
     store = gateway.logs.store
     calls = await store.newest_calls(LAST_CALLS, agent=slug)
-    turns: list[Turn] = []
-    for call in calls:
-        turns += reduce(await store.whole(call)).turns
+    turns = [reduce(await store.whole(call)).turns for call in calls]
     return len(calls), turns
 
 
