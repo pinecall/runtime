@@ -126,9 +126,11 @@ def ticking() -> Callable[[], float]:
 
 
 @pytest.fixture
-def store(pool: Pool, ticking: Callable[[], float]) -> Store:
-    """The store on the test's schema, stamping entries with the ticking clock."""
-    return Store(pool, clock=ticking)
+async def store(pool: Pool, ticking: Callable[[], float]) -> AsyncIterator[Store]:
+    """The store on the test's schema, stamping entries with the ticking clock; drained after."""
+    opened = Store(pool, clock=ticking)
+    yield opened
+    await opened.writer.drained()
 
 
 @pytest.fixture
@@ -316,6 +318,7 @@ async def wired(
     )
     await outbox.drained()
     await threads.closed()
+    await store.writer.drained()
     await http.aclose()
     await server.aclose()
 

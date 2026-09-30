@@ -32,6 +32,16 @@ from tests.session.conftest import Box, context_of
 BOOK = ToolSpec("book", "Book a table.", {"type": "object", "properties": {}}, timeout_s=0.1)
 
 
+# A tool.call goes out once the log has written it: waited for, never guessed at with a sleep.
+async def gone_out(calls: ToolCalls, n: int) -> None:
+    """Return once n tool.call entries went out and nobody answered them yet."""
+    async with asyncio.timeout(5):
+        while True:
+            if len(calls.pending()) >= n:
+                return
+            await asyncio.sleep(0.001)
+
+
 def _call(box: Box, config: AgentConfig) -> Call:
     assert box.log.call is not None
     return Call(context_of(box.log.call), config, box.platform())
@@ -138,7 +148,7 @@ async def test_a_tool_asked_twice_by_call_id_is_written_once_and_answered_once(
     use = ToolUse("t1", "book", {"day": "lunes"})
     first = asyncio.create_task(calls.ran(use, "speech_1"))
     second = asyncio.create_task(calls.ran(use, "speech_1"))
-    await asyncio.sleep(0.02)
+    await gone_out(calls, 1)
     assert calls.answered(ToolResult(call_id="t1", name="book", output="ok"))
     assert (await first, await second) == (await first, await first)
     written = [entry.type for entry in await store.whole(call)]
@@ -149,7 +159,7 @@ async def test_a_tool_asked_twice_by_call_id_is_written_once_and_answered_once(
 async def test_the_tools_still_waiting_are_the_entries_that_went_out_in_order(box: Box) -> None:
     calls = ToolCalls(AgentConfig(slug="a", tools=(BOOK,)), box.log.append)
     running = [asyncio.create_task(calls.ran(ToolUse(f"t{n}", "book", {}), None)) for n in (1, 2)]
-    await asyncio.sleep(0.02)
+    await gone_out(calls, 2)
     assert [entry.data["call_id"] for entry in calls.pending()] == ["t1", "t2"]
     for task in running:
         task.cancel()
@@ -172,7 +182,7 @@ async def test_a_cancelled_wait_is_cancelled_and_never_a_lapsed_result(
     slow = ToolSpec("book", "Book.", {"type": "object"}, timeout_s=5)
     calls = ToolCalls(AgentConfig(slug="a", tools=(slow,)), box.log.append)
     asking = asyncio.create_task(calls.ran(ToolUse("t1", "book", {}), None))
-    await asyncio.sleep(0.02)
+    await gone_out(calls, 1)
     calls.running["t1"].cancel()
     with pytest.raises(asyncio.CancelledError):
         await asking
