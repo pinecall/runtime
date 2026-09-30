@@ -38,7 +38,6 @@ from pinecall.gateway._deps import (
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import (
     Served,
-    attach,
     claim_code,
     first_seen,
     looked_up,
@@ -48,6 +47,7 @@ from pinecall.gateway._served import (
 )
 from pinecall.gateway._sockets import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registration
 from pinecall.gateway._streams import frame, paced, streamed, wants_sse
+from pinecall.gateway.calls.binding import attach
 from pinecall.gateway.ending.seal import remembered, sealed
 from pinecall.log import openings, queries
 from pinecall.log.readers import Filter, parse_filter, project_entry, project_state

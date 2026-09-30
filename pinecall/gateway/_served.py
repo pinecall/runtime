@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from functools import partial
@@ -17,7 +17,6 @@ from pinecall.gateway.calls.pump import Bound, Send, pumped, told_bound
 from pinecall.log import queries
 from pinecall.log.logs import Log, Logs, arrival_entry
 from pinecall.log.private import Privacy
-from pinecall.log.reduce import reduce
 from pinecall.process.connections import Connections
 from pinecall.process.metrics import Counters
 from pinecall.process.signal import LocalSignal, Signal
@@ -25,15 +24,13 @@ from pinecall.retrieval import lookups
 from pinecall.retrieval.embed import Embedder
 from pinecall.retrieval.lookups import OnTheCall
 from pinecall.session.session import Session
-from pinecall.session.tools import ToolCalls, unanswered
+from pinecall.session.tools import ToolCalls
 from pinecall.tenancy import admission
 from pinecall.tenancy.codes import Codes
 from pinecall.tenancy.prompts import Prompts
 from pinecall.wire.commands import DevAnswer
 from pinecall.wire.events import (
-    CallAttached,
     CallClaimed,
-    CallStarted,
 )
 from pinecall.wire.frames import Command, Entry
 from pinecall.wire.rest.calls import LookupRequest
@@ -326,57 +323,6 @@ async def looked_up(serving: Serving, served: Served, request: LookupRequest) ->
         now=now_of(serving),
     )
     return await lookups.lookup(pool, serving.embedder, on_the_call, request, quotas=quotas)
-
-
-async def attach(live: ServedCalls, call: str, app: SocketId) -> Entry | None:
-    """Give the call to this socket: call.attached first, then the tools still waiting."""
-    served = live.attach(call, app)
-    if served is None:
-        return None
-    entries = await served.log.whole()
-    started = next((entry for entry in entries if entry.type == STARTED), None)
-    if started is None:
-        # Not started yet: the socket hears it from what comes next.
-        live.pumped(call, after=entries[-1].seq if entries else 0)
-        return None
-    claimed = next(
-        (str(entry.data["code"]) for entry in reversed(entries) if entry.type == CLAIMED), None
-    )
-    data = CallAttached(
-        app=app,
-        started=CallStarted.model_validate(started.data),
-        state=reduce(entries).app_state,
-        seq=entries[-1].seq,
-        claimed=claimed,
-    )
-    entry = await served.log.append("call.attached", data.written())
-    # After call.attached, so the result lands on the call id still awaited: read off the log, since
-    # the worker may have asked them of another gateway.
-    live.pumped(call, after=entry.seq - 1, then=unanswered(entries))
-    return entry
-
-
-async def parked_calls_of(live: ServedCalls, scope: Scope, slug: str, app: SocketId) -> None:
-    """Give every parked call of the agent in the scope to this socket."""
-    for call in live.parked(scope, slug):
-        await attach(live, call, app)
-
-
-# Each call of a leaving socket goes where a new call would, or waits parked.
-async def handed_on(live: ServedCalls, sockets: Sockets, calls: Iterable[str]) -> tuple[int, int]:
-    """Hand the calls on; how many were handed and how many parked."""
-    handed = parked = 0
-    for call in calls:
-        served = live.calls.get(call)
-        if served is None:
-            continue
-        taking = sockets.serving(served.scope, served.agent, None)
-        if taking is not None and await attach(live, call, taking.owner) is not None:
-            handed += 1
-        else:
-            live.attach(call, None)
-            parked += 1
-    return handed, parked
 
 
 async def claim_code(
