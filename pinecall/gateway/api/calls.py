@@ -211,7 +211,7 @@ async def reopen_call(
     config, _ = await _tuned(gateway, scope, body.agent, registration)
     served_call(gateway.serving, None, body.context, config, scope)
     if registration is not None:
-        await attach(gateway.live, gateway.logs.store, call, registration.owner)
+        await attach(gateway.live, call, registration.owner)
 
 
 # The entry comes back with its seq: only the gateway numbers a log.

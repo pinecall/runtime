@@ -18,7 +18,14 @@ from tests.conftest import (
     received_until,
     sent,
 )
-from tests.gateway.api.conftest import A_NUMBER, THE_CALLER, a_call, an_app, bound_to
+from tests.gateway.api.conftest import (
+    A_NUMBER,
+    HER_PHONE,
+    THE_CALLER,
+    a_call,
+    an_app,
+    bound_to,
+)
 
 
 @postgres
@@ -217,6 +224,62 @@ async def test_the_tools_still_waiting_are_re_sent_to_the_socket_that_takes_the_
     assert attached.call == context.call
     assert again.seq == called.seq
     assert result.json()["output"] == {"ok": True}
+    await second.close()
+
+
+A_TOOL_WITH_PII: JsonObject = {
+    "name": "find_patient",
+    "description": "Find the patient by their phone.",
+    "parameters": {"type": "object", "properties": {"phone": {"type": "string"}}},
+    "pii": ["phone"],
+}
+
+HER_STATE: JsonObject = {"patient": {"name": "Ana"}, "slots": ["12:00"]}
+
+
+@postgres
+async def test_what_is_private_reaches_the_app_whole_and_the_log_only_masked(
+    knocking: Knocking,
+) -> None:
+    declared: JsonObject = {
+        "tools": [A_TOOL_WITH_PII],
+        "state_fields": [{"name": "patient", "visibility": "pii"}],
+    }
+    first = await an_app(knocking)
+    await sent(first, "agent.configure", {"config": declared})
+    await received_until(first, "agent.configured")
+    context = a_call(knocking)
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+        started = started_entry(context, A_NUMBER, time.time())
+        state: JsonObject = {"state": HER_STATE, "changed": ["patient"]}
+        batch = [
+            {"type": "call.started", "data": started, "ts": time.time()},
+            {"type": "state.changed", "data": state, "ts": time.time()},
+        ]
+        await worker.post(f"/v1/calls/{context.call}/entries", json={"after": 0, "entries": batch})
+        params = asyncio.create_task(
+            worker.post(
+                f"/v1/calls/{context.call}/tools?agent={AGENT}",
+                json={"call_id": "c1", "name": "find_patient", "arguments": {"phone": HER_PHONE}},
+            )
+        )
+        heard = await received_until(first, "state.changed")
+        called = await received_until(first, "tool.call")
+        await first.close()
+        await asyncio.sleep(0.1)
+        second = await an_app(knocking)
+        attached = await received_until(second, "call.attached")
+        again = await received_until(second, "tool.call")
+        answer: JsonObject = {"call_id": "c1", "name": "find_patient", "output": {"ok": True}}
+        await sent(second, "tool.result", answer, call=context.call)
+        await asyncio.wait_for(params, 5)
+    kept = await knocking.gateway.logs.store.whole(context.call)
+    assert heard.data["state"] == attached.data["state"] == HER_STATE
+    assert called.data["arguments"] == again.data["arguments"] == {"phone": HER_PHONE}
+    logged = json.dumps([item.data for item in kept])
+    assert HER_PHONE not in logged
+    assert "Ana" not in logged
     await second.close()
 
 

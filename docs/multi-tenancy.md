@@ -95,7 +95,8 @@ bodies and their refusals are [protocol/people.md](protocol/people.md).
 ## Secrets
 
 Every secret an org or the box keeps — an org's vendor keys, the box's vendor keys, a mailbox's
-password, an org's identity provider secret, a carrier account — is sealed with
+password, an org's identity provider secret, a carrier account, and a value a call's agent declared
+private ([security/private-values.md](security/private-values.md)) — is sealed with
 `PINECALL_VAULT_KEY` (Fernet) before it is written. The gateway does not start without it. To
 rotate, put a new key in front of the list; secrets sealed under the old one still open, and
 `pinecall-runtime vault rotate` re-seals every one of them under the new key, so the old one can

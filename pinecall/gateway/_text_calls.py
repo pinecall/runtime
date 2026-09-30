@@ -13,7 +13,7 @@ from pinecall.gateway._call_setup import keys_of, tuned
 from pinecall.gateway._served import Served, Serving, attach, looked_up, served_call
 from pinecall.gateway._sockets import Registration
 from pinecall.gateway.ending.seal import sealed
-from pinecall.log import queries
+from pinecall.log import private, queries
 from pinecall.log.store import Claim
 from pinecall.providers import catalog
 from pinecall.providers.build import Running
@@ -79,7 +79,8 @@ async def resume_text(
         return None
     if kept.scope.org != registration.scope.org:
         return None
-    entries = await serving.logs.store.whole(call)
+    # The model reads the tools' arguments as they were sent: the private ones opened.
+    entries = await private.opened_whole(serving.logs.store, serving.connections.vault, call)
     if not entries or any(entry.type == TERMINAL_EVENT for entry in entries):
         return None
     configured = await catalog.providers(serving.connections.pool)
@@ -95,7 +96,7 @@ async def resume_text(
     # The session's batches go on from what the log already took from it, never from zero.
     session.call.writing.after = await serving.logs.store.written(call)
     await text.resume(session, text.taken_up(entries))
-    await attach(serving.live, serving.logs.store, call, registration.owner)
+    await attach(serving.live, call, registration.owner)
     return session
 
 
