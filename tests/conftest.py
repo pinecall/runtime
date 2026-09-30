@@ -29,9 +29,9 @@ from pinecall.fleet.roster import Roster
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import ServedCalls, Serving
 from pinecall.gateway._sockets import Sockets
-from pinecall.gateway._threads import Threads
 from pinecall.gateway.api.providers import SAMPLES_A_MINUTE
 from pinecall.gateway.app import app, served_app
+from pinecall.gateway.calls.threads import Threads
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store
 from pinecall.postgres.migrate import apply_migrations

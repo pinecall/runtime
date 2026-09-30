@@ -21,7 +21,7 @@
 | **line** | a developer's terminal holding an agent: the ring at a production number lands there, and the phones they call from route to their copy (`gateway/api/line.py`) |
 | **relay** | the console asking a running app to do something, chat, render the view, run an eval, forwarded over the app socket and answered (`gateway/api/relay.py`) |
 | **visitor** | somebody in a browser: the room token that lets them into a call, and the four-digit code a caller keys to tie a page to a phone call (`gateway/api/visitors.py`) |
-| **thread** | one WhatsApp conversation with one contact: the gateway keeps it open (`gateway/_threads.py`) and the org reads it (`gateway/api/threads.py`) |
+| **thread** | one WhatsApp conversation with one contact: the gateway keeps it open (`gateway/calls/threads.py`) and the org reads it (`gateway/api/threads.py`) |
 | **keyring** | the vendor credentials a call may run on: the org's own, the box's, and what the box lends (`providers/credentials.py`) |
 | **golden** | a scripted conversation an agent is tested on: the state it opens in, the caller's lines, the facts injected, what is expected (`docs/protocol/evals.md`) |
 | **persona** | a synthetic caller of one agent that a model plays one line at a time |
