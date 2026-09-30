@@ -12,7 +12,7 @@ from dataclasses import dataclass, replace
 from typing import Literal
 
 import httpx
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 from pinecall.domain.errors import (
     NotAllowed,
@@ -37,15 +37,13 @@ from pinecall.tenancy.people import (
     password_of,
     reset,
 )
+from pinecall.tenancy.words import OneUse, Words
 
 type Refusal = Literal["wrong", "expired", "burned"]
 
 
 # What a login code signs a browser in as: a person, or the server's key that asked for it.
 type Holder = Member | Key
-
-
-WORD_BYTES = 24
 
 
 # A browser signs in with a code, never a key in the URL: a URL lands in histories and logs.
@@ -227,58 +225,6 @@ class ProviderRefusal(BaseModel):
 
 
 @dataclass(frozen=True)
-class OneUseValue[T]:
-    """A value kept under a one-use word, until when."""
-
-    value: T
-    expires_at: float
-
-
-# In memory: a word is minted and spent against the same process within minutes, and a
-# restart only makes a person ask again.
-class OneUse[T]:
-    """Words spent once, each dying on its own."""
-
-    def __init__(self, kind: tuple[str, float], clock: Callable[[], float] = time.time) -> None:
-        """No word minted yet; the kind is the words' prefix and how long they live."""
-        self.prefix, self.ttl_s = kind
-        self.clock = clock
-        self.minted: dict[str, OneUseValue[T]] = {}
-
-    def word(self) -> str:
-        """A new word, not yet holding anything."""
-        return f"{self.prefix}{secrets.token_urlsafe(WORD_BYTES)}"
-
-    def keep(self, word: str, value: T) -> float:
-        """Hold the value under the word until it dies, and say when."""
-        self._forget_the_dead()
-        expires_at = self.clock() + self.ttl_s
-        self.minted[word] = OneUseValue(value, expires_at)
-        return expires_at
-
-    def mint(self, value: T) -> tuple[str, float]:
-        """A new word holding the value, and when it dies."""
-        word = self.word()
-        return word, self.keep(word, value)
-
-    def read(self, word: str) -> OneUseValue[T] | None:
-        """What the word holds, without spending it."""
-        self._forget_the_dead()
-        return self.minted.get(word)
-
-    def spend(self, word: str) -> T | None:
-        """What the word holds, spent: it opens nothing after."""
-        self._forget_the_dead()
-        minted = self.minted.pop(word, None)
-        return None if minted is None else minted.value
-
-    def _forget_the_dead(self) -> None:
-        now = self.clock()
-        for word in [word for word, minted in self.minted.items() if minted.expires_at <= now]:
-            del self.minted[word]
-
-
-@dataclass(frozen=True)
 class SignedIn:
     """The key a sign-in minted, handed over once, and the person it is for."""
 
@@ -338,13 +284,11 @@ class Signup:
 
 @dataclass(frozen=True)
 class Pending:
-    """A sign-up and its code, kept as a salted hash, with its tries and its end."""
+    """A sign-up and its code, kept as a salted hash (hex), sealed with the rest."""
 
     signup: Signup
-    code_hash: bytes
-    salt: bytes
-    expires_at: float
-    attempts: int = 0
+    code_hash: str
+    salt: str
 
 
 @dataclass(frozen=True)
@@ -372,92 +316,85 @@ class Handshake:
     pairing: str | None = None
 
 
+# Kept in Postgres (tenancy/words.py), so a terminal paired on one gateway collects on another;
+# the key a browser gives it is sealed there until it is collected, once.
 class Pairings:
     """Terminals waiting for a browser to sign them in."""
 
-    def __init__(self, clock: Callable[[], float] = time.time) -> None:
+    def __init__(self, words: Words) -> None:
         """No terminal waiting."""
-        self.words: OneUse[WaitingTerminal] = OneUse(PAIRING, clock)
+        self.words: OneUse[WaitingTerminal] = OneUse(PAIRING, _WAITING, words)
 
-    def open(self, device: str | None = None) -> tuple[str, float]:
+    async def open(self, device: str | None = None) -> tuple[str, float]:
         """The word a terminal prints, and when it dies."""
-        return self.words.mint(WaitingTerminal(device))
+        return await self.words.mint(WaitingTerminal(device))
 
-    def asking(self, code: str) -> TerminalApproval | None:
+    async def asking(self, code: str) -> TerminalApproval | None:
         """What the approving card shows, without spending the word; None for a dead one."""
-        minted = self.words.read(code)
+        minted = await self.words.alive(code)
         if minted is None:
             return None
         return TerminalApproval(
             minted.value.device, minted.expires_at, answered=minted.value.key is not None
         )
 
-    def fill(self, code: str, key: str, org: str) -> bool:
+    async def fill(self, code: str, key: str, org: str) -> bool:
         """Hand the terminal the key a browser approved; False when dead or answered already."""
-        minted = self.words.read(code)
+        minted = await self.words.alive(code)
         if minted is None or minted.value.key is not None:
             return False
-        minted.value.key, minted.value.org = key, org
-        return True
+        return await self.words.fill(code, replace(minted.value, key=key, org=org))
 
-    def collect(self, code: str) -> Collected:
+    async def collect(self, code: str) -> Collected:
         """The key, once, as the terminal asks after it."""
-        minted = self.words.read(code)
+        minted = await self.words.alive(code)
         if minted is None:
             return Collected(key=None, waiting=False)
         if minted.value.key is None:
             return Collected(key=None, waiting=True)
-        self.words.spend(code)
-        return Collected(key=minted.value.key, waiting=False)
+        spent = await self.words.spend(code)
+        return Collected(key=None if spent is None else spent.key, waiting=False)
 
 
-# In memory, so a sign-up nobody verifies leaves no row; a restart costs a resend.
+# Kept in Postgres under the address, sealed: a sign-up begun on one gateway is verified on any.
 class Signups:
     """Sign-ups waiting for the six digits that were mailed."""
 
-    def __init__(self, clock: Callable[[], float] = time.time) -> None:
+    def __init__(self, words: Words) -> None:
         """No sign-up waiting."""
-        self.clock = clock
-        self.pending: dict[str, Pending] = {}
+        self.words: OneUse[Pending] = OneUse(SIGNUP, _PENDING, words)
 
     # A second sign-up of the address replaces the first: only the newest code works.
-    def begin(self, signup: Signup) -> tuple[str, float]:
+    async def begin(self, signup: Signup) -> tuple[str, float]:
         """Keep the sign-up and hand back the code to mail, and when it dies."""
-        self._forget_the_dead()
         code = f"{secrets.randbelow(10**CODE_DIGITS):0{CODE_DIGITS}d}"
         salt = secrets.token_bytes(16)
-        expires_at = self.clock() + CODE_TTL_S
-        self.pending[signup.email] = Pending(signup, _hashed(salt, code), salt, expires_at)
-        return code, expires_at
+        pending = Pending(signup, _hashed(salt, code).hex(), salt.hex())
+        return code, await self.words.keep(_signing_up(signup.email), pending)
 
-    def renewed(self, email: str) -> tuple[Signup, str] | None:
+    async def renewed(self, email: str) -> tuple[Signup, str] | None:
         """A new code for a sign-up still waiting, with its time again; None for nobody's."""
-        self._forget_the_dead()
-        found = self.pending.get(email)
-        return None if found is None else (found.signup, self.begin(found.signup)[0])
+        found = await self.words.alive(_signing_up(email))
+        if found is None:
+            return None
+        return found.value.signup, (await self.begin(found.value.signup))[0]
 
-    def verify(self, email: str, code: str) -> Signup | Refusal:
+    async def verify(self, email: str, code: str) -> Signup | Refusal:
         """The sign-up, taken out, when the code is its own; else why not."""
-        found = self.pending.get(email)
+        word = _signing_up(email)
+        found = await self.words.read(word)
         if found is None:
             return "wrong"
-        if found.expires_at <= self.clock():
-            del self.pending[email]
+        if found.expires_at <= self.words.words.clock():
+            await self.words.forget(word)
             return "expired"
         if found.attempts >= ATTEMPTS:
             return "burned"
-        if not hmac.compare_digest(found.code_hash, _hashed(found.salt, code)):
-            self.pending[email] = replace(found, attempts=found.attempts + 1)
-            return "burned" if found.attempts + 1 >= ATTEMPTS else "wrong"
-        del self.pending[email]
-        return found.signup
-
-    def _forget_the_dead(self) -> None:
-        now = self.clock()
-        for email in [
-            email for email, pending in self.pending.items() if pending.expires_at <= now
-        ]:
-            del self.pending[email]
+        wanted = _hashed(bytes.fromhex(found.value.salt), code).hex()
+        if not hmac.compare_digest(found.value.code_hash, wanted):
+            return "burned" if await self.words.tried(word) >= ATTEMPTS else "wrong"
+        await self.words.forget(word)
+        return found.value.signup
 
 
 class Throttle:
@@ -486,7 +423,8 @@ class Throttle:
         return True
 
 
-# In memory: each dies with the process, and a restart only makes a person ask again.
+# Kept in Postgres, sealed, so any gateway spends what another minted; the knocks stay counted
+# per process.
 @dataclass(frozen=True)
 class SignIns:
     """What sign-in keeps between two requests: codes, terminals, sign-ups, handshakes, knocks."""
@@ -498,15 +436,23 @@ class SignIns:
     throttle: Throttle
 
     @classmethod
-    def fresh(cls, clock: Callable[[], float] = time.time) -> "SignIns":
-        """Nothing kept yet, every word and knock timed by the clock."""
+    def kept(cls, words: Words) -> "SignIns":
+        """Every word kept in the words' table, every word and knock timed by their clock."""
         return cls(
-            codes=OneUse(LOGIN_CODE, clock),
-            pairings=Pairings(clock),
-            signups=Signups(clock),
-            handshakes=OneUse(HANDSHAKE, clock),
-            throttle=Throttle(clock),
+            codes=OneUse(LOGIN_CODE, _HOLDER, words),
+            pairings=Pairings(words),
+            signups=Signups(words),
+            handshakes=OneUse(HANDSHAKE, _HANDSHAKE, words),
+            throttle=Throttle(words.clock),
         )
+
+
+# A sign-up is kept under its address, as long as its code lives.
+SIGNUP = ("su_", CODE_TTL_S)
+_WAITING: TypeAdapter[WaitingTerminal] = TypeAdapter(WaitingTerminal)
+_PENDING: TypeAdapter[Pending] = TypeAdapter(Pending)
+_HANDSHAKE: TypeAdapter[Handshake] = TypeAdapter(Handshake)
+_HOLDER: TypeAdapter[Holder] = TypeAdapter(Holder)
 
 
 async def sign_in_with_password(pool: Pool, asking: Asking) -> SignedIn:
@@ -544,7 +490,7 @@ async def sign_in_with_code(
     pool: Pool, codes: OneUse[Holder], code: str, *, device: str | None = None
 ) -> SignedIn | None:
     """The key the code was minted for, spent; None for a code dead, spent or nobody's."""
-    holder = codes.spend(code)
+    holder = await codes.spend(code)
     if holder is None:
         return None
     label = device or A_BROWSER
@@ -633,7 +579,7 @@ async def found(pool: Pool, signup: Signup, codes: OneUse[Holder]) -> Founded:
     if invited.token is not None:
         admin = await accept(pool, invited.token, signup.hashed) or admin
     key, secret = await person_key(pool, admin, label=signup.device or SIGNED_UP)
-    code, code_expires_at = codes.mint(admin)
+    code, code_expires_at = await codes.mint(admin)
     return Founded(
         org=org,
         admin=admin,
@@ -686,3 +632,7 @@ async def _slug(pool: Pool, org: str) -> str:
 
 def _hashed(salt: bytes, code: str) -> bytes:
     return hashlib.sha256(salt + code.encode()).digest()
+
+
+def _signing_up(email: str) -> str:
+    return f"{SIGNUP[0]}{email}"

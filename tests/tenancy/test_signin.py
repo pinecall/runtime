@@ -1,5 +1,8 @@
 """Sign-in: a password, a code, a paired terminal, a sign-up that founds an org, a provider."""
 
+import secrets
+import time
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
 
@@ -30,16 +33,10 @@ from pinecall.tenancy.people import (
     update,
 )
 from pinecall.tenancy.signin import (
-    HANDSHAKE,
-    LOGIN_CODE,
     Asking,
     Handshake,
-    Holder,
-    OneUse,
-    OneUseValue,
-    Pairings,
+    SignIns,
     Signup,
-    Signups,
     Throttle,
     another_key,
     forgotten,
@@ -54,10 +51,10 @@ from pinecall.tenancy.sso import (
     Client,
     authorization_url,
     discovered,
-    handshake,
     reachable,
     vouched_for,
 )
+from pinecall.tenancy.words import Words
 from tests.conftest import postgres
 from tests.fakes.idp import IdentityProvider
 from tests.fakes.mail import MailServer, Postbox
@@ -85,8 +82,20 @@ def idp_of(idp: IdentityProvider | None = None) -> tuple[IdentityProvider, httpx
     return provider, httpx.AsyncClient(transport=provider.transport())
 
 
+# The handshake as `handshake` makes it, without keeping it: these read it, never spend it.
 def begun_signin(org: str | None = None) -> Handshake:
-    return handshake(OneUse(HANDSHAKE), "https://box.test/v1/login/sso/callback", org=org)
+    return Handshake(
+        state=f"st_{secrets.token_urlsafe(8)}",
+        org=org,
+        nonce=secrets.token_urlsafe(24),
+        verifier=secrets.token_urlsafe(32),
+        redirect_uri="https://box.test/v1/login/sso/callback",
+    )
+
+
+def kept_on(pool: Pool, clock: Callable[[], float] = time.time) -> SignIns:
+    """The sign-ins kept on the test's schema, timed by the clock."""
+    return SignIns.kept(Words(pool, VAULT, clock))
 
 
 @postgres
@@ -171,8 +180,8 @@ async def test_the_orgs_a_password_opens_are_listed_minting_nothing(pool: Pool) 
 async def test_a_code_is_spent_once_for_the_person_that_minted_it(pool: Pool) -> None:
     org = await org_of(pool)
     member = await seated(pool, org)
-    codes: OneUse[Holder] = OneUse(LOGIN_CODE)
-    code, _ = codes.mint(member)
+    codes = kept_on(pool).codes
+    code, _ = await codes.mint(member)
     assert code.startswith("lc_")
     signed = await sign_in_with_code(pool, codes, code)
     assert signed is not None
@@ -183,9 +192,9 @@ async def test_a_code_is_spent_once_for_the_person_that_minted_it(pool: Pool) ->
 @postgres
 async def test_a_servers_key_minted_a_code_gives_a_browser_a_key_like_its_own(pool: Pool) -> None:
     org = await org_of(pool)
-    codes: OneUse[Holder] = OneUse(LOGIN_CODE)
+    codes = kept_on(pool).codes
     server = Key("k_1", org.id, env="sandbox", scopes=frozenset({"app", "calls"}))
-    code, _ = codes.mint(server)
+    code, _ = await codes.mint(server)
     signed = await sign_in_with_code(pool, codes, code)
     assert signed is not None
     assert (signed.key.env, signed.key.scopes, signed.member) == ("sandbox", server.scopes, None)
@@ -199,8 +208,8 @@ async def test_a_persons_key_minted_a_code_gives_the_browser_that_person_dying_w
     member = await seated(pool, org)
     dies = datetime(2030, 1, 1, tzinfo=UTC)
     parent, _ = await person_key(pool, member, parent=Key("k_p", org.id, expires_at=dies))
-    codes: OneUse[Holder] = OneUse(LOGIN_CODE)
-    code, _ = codes.mint(parent)
+    codes = kept_on(pool).codes
+    code, _ = await codes.mint(parent)
     signed = await sign_in_with_code(pool, codes, code, device="chrome")
     assert signed is not None
     assert (signed.key.subject, signed.key.name, signed.key.label) == (
@@ -214,78 +223,95 @@ async def test_a_persons_key_minted_a_code_gives_the_browser_that_person_dying_w
     assert bearer.member == member
 
 
-def test_a_code_dies_on_its_own_and_a_stranger_is_none() -> None:
+@postgres
+async def test_a_code_dies_on_its_own_and_a_stranger_is_none(pool: Pool) -> None:
     now = [100.0]
-    codes: OneUse[str] = OneUse(LOGIN_CODE, clock=lambda: now[0])
-    code, dies = codes.mint("x")
+    codes = kept_on(pool, lambda: now[0]).codes
+    code, dies = await codes.mint(Key("k_1", "org_1"))
     assert dies == 400.0
-    assert codes.spend("lc_nobody") is None
+    assert await codes.spend("lc_nobody") is None
     now[0] = 401
-    assert codes.spend(code) is None
+    assert await codes.spend(code) is None
 
 
-def test_two_codes_are_never_the_same_word() -> None:
-    codes: OneUse[str] = OneUse(LOGIN_CODE)
-    assert codes.mint("a")[0] != codes.mint("a")[0]
+@postgres
+async def test_two_codes_are_never_the_same_word_and_the_table_keeps_neither_word(
+    pool: Pool,
+) -> None:
+    codes = kept_on(pool).codes
+    first, _ = await codes.mint(Key("k_1", "org_1"))
+    second, _ = await codes.mint(Key("k_1", "org_1"))
+    assert first != second
+    async with pool.connection() as connection:
+        rows = await (
+            await connection.execute("select word_hash, sealed from one_use_words")
+        ).fetchall()
+    kept = b"".join(bytes(row["word_hash"]) + row["sealed"].encode() for row in rows)
+    assert first.encode() not in kept
+    assert b"k_1" not in kept
 
 
-def test_a_terminal_prints_a_word_a_browser_answers_and_the_terminal_collects_once() -> None:
-    pairings = Pairings()
-    code, _ = pairings.open("Ana's laptop")
-    params = pairings.asking(code)
+@postgres
+async def test_a_terminal_prints_a_word_a_browser_answers_and_the_terminal_collects_once(
+    pool: Pool,
+) -> None:
+    pairings = kept_on(pool).pairings
+    code, _ = await pairings.open("Ana's laptop")
+    params = await pairings.asking(code)
     assert params is not None
     assert (params.device, params.answered) == ("Ana's laptop", False)
-    assert pairings.collect(code).waiting
-    assert pairings.fill(code, "pc_live_x", "org_1")
-    assert not pairings.fill(code, "pc_live_y", "org_1")
-    assert pairings.collect(code).key == "pc_live_x"
-    assert pairings.collect(code) == pairings.collect("cli_nobody")
-    assert not pairings.collect(code).waiting
+    assert (await pairings.collect(code)).waiting
+    assert await pairings.fill(code, "pc_live_x", "org_1")
+    assert not await pairings.fill(code, "pc_live_y", "org_1")
+    assert (await kept_on(pool).pairings.collect(code)).key == "pc_live_x"
+    assert await pairings.collect(code) == await pairings.collect("cli_nobody")
+    assert not (await pairings.collect(code)).waiting
 
 
-def test_the_code_is_six_digits_and_only_its_hash_is_kept() -> None:
-    signups = Signups(clock=lambda: 100.0)
-    code, expires_at = signups.begin(Signup("ana@c.test", "clinica", "Ana", "h"))
+@postgres
+async def test_the_code_is_six_digits_and_the_right_one_takes_the_sign_up_out_once(
+    pool: Pool,
+) -> None:
+    signups = kept_on(pool, lambda: 100.0).signups
+    signup = Signup("ana@c.test", "clinica", "Ana", "h")
+    code, expires_at = await signups.begin(signup)
     assert expires_at == 100.0 + 15 * 60
     assert len(code) == 6
     assert code.isdigit()
-    assert code.encode() not in signups.pending["ana@c.test"].code_hash
+    assert await kept_on(pool, lambda: 100.0).signups.verify("ana@c.test", code) == signup
+    assert await signups.verify("ana@c.test", code) == "wrong"
 
 
-def test_the_right_code_takes_the_sign_up_out_once() -> None:
-    signups = Signups()
-    signup = Signup("ana@c.test", "clinica", "Ana", "h")
-    code, _ = signups.begin(signup)
-    assert signups.verify("ana@c.test", code) == signup
-    assert signups.verify("ana@c.test", code) == "wrong"
-
-
-def test_six_wrong_codes_burn_it() -> None:
-    signups = Signups()
-    code, _ = signups.begin(Signup("ana@c.test", "clinica", "Ana", "h"))
+@postgres
+async def test_six_wrong_codes_burn_it(pool: Pool) -> None:
+    signups = kept_on(pool).signups
+    code, _ = await signups.begin(Signup("ana@c.test", "clinica", "Ana", "h"))
     wrong = "000000" if code != "000000" else "000001"
-    outcomes = [signups.verify("ana@c.test", wrong) for _ in range(6)]
+    outcomes = [await signups.verify("ana@c.test", wrong) for _ in range(6)]
     assert outcomes == ["wrong"] * 5 + ["burned"]
-    assert signups.verify("ana@c.test", code) == "burned"
+    assert await signups.verify("ana@c.test", code) == "burned"
 
 
-def test_a_code_dies_at_fifteen_minutes_and_a_renewed_one_replaces_the_first() -> None:
+@postgres
+async def test_a_code_dies_at_fifteen_minutes_and_a_renewed_one_replaces_the_first(
+    pool: Pool,
+) -> None:
     now = [0.0]
-    signups = Signups(clock=lambda: now[0])
-    first, _ = signups.begin(Signup("ana@c.test", "clinica", "Ana", "h"))
-    renewed = signups.renewed("ana@c.test")
+    signups = kept_on(pool, lambda: now[0]).signups
+    first, _ = await signups.begin(Signup("ana@c.test", "clinica", "Ana", "h"))
+    renewed = await signups.renewed("ana@c.test")
     assert renewed is not None
-    assert signups.verify("ana@c.test", first) == "wrong"
+    assert await signups.verify("ana@c.test", first) == "wrong"
     now[0] = 15 * 60 + 1
-    assert signups.verify("ana@c.test", renewed[1]) == "expired"
-    assert signups.renewed("nobody@c.test") is None
+    assert await signups.verify("ana@c.test", renewed[1]) == "expired"
+    assert await signups.renewed("nobody@c.test") is None
 
 
 @postgres
 async def test_a_verified_sign_up_founds_the_org_seats_its_admin_and_hands_a_key_and_a_code(
     pool: Pool,
 ) -> None:
-    codes: OneUse[Holder] = OneUse(LOGIN_CODE)
+    codes = kept_on(pool).codes
     signup = Signup("ana@c.test", "clinica", "Ana", await hash_password(WHAT_ANA_TYPES, 8))
     founded = await found(pool, signup, codes)
     assert (founded.org.slug, founded.admin.role, founded.admin.status) == (
@@ -295,8 +321,10 @@ async def test_a_verified_sign_up_founds_the_org_seats_its_admin_and_hands_a_key
     )
     assert (await verify(pool, founded.signed_in.secret)) is not None
     assert founded.signed_in.key.label == "signup"
-    assert codes.read(founded.code) == OneUseValue(founded.admin, founded.code_expires_at)
-    assert codes.spend(founded.code) == founded.admin
+    kept = await codes.alive(founded.code)
+    assert kept is not None
+    assert (kept.value, kept.expires_at) == (founded.admin, founded.code_expires_at)
+    assert await codes.spend(founded.code) == founded.admin
     assert (
         await sign_in_with_password(pool, Asking("ana@c.test", WHAT_ANA_TYPES))
     ).key.org == founded.org.id
@@ -308,7 +336,7 @@ async def test_a_second_org_of_the_same_person_is_born_as_the_box_says_for_later
 ) -> None:
     trial, closed = Quotas(minutes=30), Quotas(minutes=0)
     await set_admission(pool, Admission(first={"sandbox": trial}, later={"sandbox": closed}))
-    codes: OneUse[Holder] = OneUse(LOGIN_CODE)
+    codes = kept_on(pool).codes
     hashed = await hash_password(WHAT_ANA_TYPES, 8)
     first = await found(pool, Signup("ana@c.test", "clinica", "Ana", hashed), codes)
     second = await found(pool, Signup("ana@c.test", "clinica-sur", "Ana", hashed), codes)

@@ -87,6 +87,7 @@ from pinecall.tenancy.signin import SignIns, Throttle
 from pinecall.tenancy.throttle import Window
 from pinecall.tenancy.tokens import Signer
 from pinecall.tenancy.vault import box_credentials
+from pinecall.tenancy.words import Words
 
 logger = logging.getLogger(__name__)
 
@@ -271,7 +272,6 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
     stack.push_async_callback(logs.store.writer.drained)
     stack.push_async_callback(logs.close)
     codes = Codes(logs)
-    await codes.loaded()
     sockets, live = Sockets(logs), ServedCalls(connections.signal)
     await sockets.start()
     stack.push_async_callback(sockets.close)
@@ -296,7 +296,7 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
         threads=threads,
         closing=asyncio.Event(),
         embedder=embedder,
-        signins=SignIns.fresh(),
+        signins=SignIns.kept(Words(connections.pool, connections.vault)),
         samples=Throttle(tries=SAMPLES_A_MINUTE),
         paced=Window(),
         outbox=outbox,

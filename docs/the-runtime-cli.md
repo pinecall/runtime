@@ -202,8 +202,8 @@ box_settings.ciphertext: 3 re-sealed, 0 under the first key already, 0 opened by
 ```
 
 The columns are the vendors' keys (the org's and the box's), the carriers, the mailboxes, the
-identity providers, the hosted apps' tokens, the org's secrets, the private values of calls' logs
-and the recordings' keys. Each row is its own write,
+identity providers, the hosted apps' tokens, the org's secrets, the private values of calls' logs,
+the recordings' keys and the one-use words of sign-in (a terminal's key while it waits). Each row is its own write,
 guarded by the value it still holds, so a secret the gateway rewrites meanwhile is left to it; a
 run cut short is run again, and finds what it did under the first key. It exits 1 while a value
 opens under no key listed: that value was sealed under a key the list no longer holds, and the

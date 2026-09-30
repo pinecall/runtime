@@ -118,7 +118,7 @@ async def sign_up(
     if await orgs.find(pool, slug) is not None:
         raise Conflict(orgs.SLUG_TAKEN.format(slug=slug))
     signup = Signup(email, slug, body.person, hashed, name=body.name, device=body.device)
-    code, expires_at = gateway.signins.signups.begin(signup)
+    code, expires_at = await gateway.signins.signups.begin(signup)
     letter = letters.signup_code_letter(email, code, body.person, await letters.brand_of(pool))
     await gateway.outbox.post(None, letter)
     return CodeMailedResponse(email=email, code_expires_at=expires_at)
@@ -130,7 +130,7 @@ async def verify_signup(
 ) -> OrgMadeResponse:
     """The mailed code back: the org made, its admin seated, their first key and a login code."""
     check_knock(gateway, f"{client} signup/verify", TOO_MANY)
-    taken = gateway.signins.signups.verify(body.email.strip().lower(), body.code.strip())
+    taken = await gateway.signins.signups.verify(body.email.strip().lower(), body.code.strip())
     if isinstance(taken, str):
         raise DeclarationRefused(REFUSED[taken])
     founded = await signin.found(gateway.connections.pool, taken, gateway.signins.codes)
@@ -151,7 +151,7 @@ async def resend_code(
 ) -> EmptyResponse:
     """A new code for a sign-up still waiting; the first one no longer works."""
     check_knock(gateway, f"{client} signup/resend", TOO_MANY)
-    renewed = gateway.signins.signups.renewed(body.email.strip().lower())
+    renewed = await gateway.signins.signups.renewed(body.email.strip().lower())
     if renewed is None:
         return EmptyResponse()
     signup, code = renewed
