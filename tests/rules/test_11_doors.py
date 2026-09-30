@@ -1,9 +1,10 @@
-"""Rule 11: every door the page of doors names is a route of the gateway."""
+"""Rule 11: the page of doors and the gateway's routes agree, every door named and nothing more."""
 
 import re
 from pathlib import Path
 
 from fastapi.routing import APIRoute, APIWebSocketRoute
+from starlette.routing import Route
 
 from pinecall.gateway.api import (
     accounts,
@@ -88,6 +89,8 @@ def routes_of_the_gateway() -> frozenset[tuple[str, str]]:
             found |= {(method, _spelled(route.path)) for method in route.methods or ()}
         elif isinstance(route, APIWebSocketRoute):
             found.add(("WS", _spelled(route.path)))
+        elif isinstance(route, Route):
+            found |= {(method, route.path) for method in route.methods or ()}
     return frozenset(found)
 
 
@@ -96,6 +99,19 @@ def _spelled(path: str) -> str:
 
 
 ROUTES = routes_of_the_gateway()
+
+# What the gateway answers that is not a door of the contract: the console's pages, at every path
+# no door took, and FastAPI's own schema with the two pages that read it.
+NOT_DOORS = frozenset(
+    {
+        ("GET", "/{path}"),
+        *(
+            (method, path)
+            for method in ("GET", "HEAD")
+            for path in ("/openapi.json", "/v1/docs", "/docs/oauth2-redirect", "/v1/redoc")
+        ),
+    }
+)
 
 A_CELL = re.compile(r"`([^`]+)`")
 
@@ -168,6 +184,24 @@ def test_every_door_the_page_names_is_a_route_of_the_gateway() -> None:
         if (method, _spelled(path)) not in ROUTES
     ]
     assert missing == []
+
+
+def unnamed(routes: frozenset[tuple[str, str]], page: Path) -> list[tuple[str, str]]:
+    """Return every route the page names nowhere, but what is not a door, in path order."""
+    named = {(method, _spelled(path)) for method, path in doors_in(page)}
+    return sorted(
+        (route for route in routes - NOT_DOORS if route not in named),
+        key=lambda route: (route[1], route[0]),
+    )
+
+
+def test_every_route_of_the_gateway_is_a_door_the_page_names() -> None:
+    assert unnamed(ROUTES, EVERY_DOOR) == []
+
+
+def test_the_rule_catches_a_route_the_page_leaves_out_and_not_one_that_is_no_door() -> None:
+    routes = frozenset({("GET", "/v1/carrier"), ("GET", "/v1/unnamed"), ("HEAD", "/openapi.json")})
+    assert unnamed(routes, FIXTURES / "rule11/every-door.md") == [("GET", "/v1/unnamed")]
 
 
 def test_the_parser_reads_every_shape_the_table_uses() -> None:

@@ -274,7 +274,6 @@ class Logs:
     def writing(self, call: str, agent: str) -> Log:
         """Return the call's log for its writer, held until the process forgets the call."""
         log = self._log(call, agent)
-        log = self._log(call, agent)
         log.agent = agent
         if not log.kept_open:
             log.kept_open = True
