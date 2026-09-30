@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import time
 from dataclasses import replace
 
 import httpx
@@ -834,3 +835,38 @@ async def test_a_persons_read_and_a_servers_are_written_once_an_hour_and_the_wor
         [(context.call, "log", ana), (context.call, "log", servers.key.key_id)]
     )
     await app.close()
+
+
+@postgres
+async def test_a_web_call_opens_once_and_only_where_its_token_was_minted(
+    knocking: Knocking,
+) -> None:
+    context = replace(a_call(knocking, channel="web"), metadata={"scope": "talk"})
+    minted = tokens.MintedToken(
+        context.call, knocking.org.id, "sandbox", AGENT, "talk", time.time() + 60
+    )
+    await tokens.minted(knocking.gateway.connections.pool, minted)
+    another_org = replace(context, route=replace(context.route, org="org_other"))
+    another_world = replace(context, route=replace(context.route, env="production"))
+    async with (
+        knocking.http(knocking.fleet["sandbox"]) as worker,
+        knocking.http(knocking.fleet["production"]) as productions,
+    ):
+        refused = [
+            await worker.post(
+                "/v1/calls", json=OpenCallRequest(agent=AGENT, context=another_org).written()
+            ),
+            await productions.post(
+                "/v1/calls", json=OpenCallRequest(agent=AGENT, context=another_world).written()
+            ),
+        ]
+        opened = await worker.post(
+            "/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written()
+        )
+        again = await worker.post(
+            "/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written()
+        )
+    assert [answer.status_code for answer in refused] == [404, 404]
+    assert opened.status_code == 200
+    assert again.status_code == 409
+    assert "a token opens one call, once" in again.json()["detail"]

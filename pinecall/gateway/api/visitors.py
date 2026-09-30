@@ -128,7 +128,8 @@ async def mint_room_token(
         ),
     )
     await tokens.minted(
-        gateway.connections.pool, tokens.MintedToken(call, org_scope.org, agent, scope, expires_at)
+        gateway.connections.pool,
+        tokens.MintedToken(call, org_scope.org, org_scope.env, agent, scope, expires_at),
     )
     return MintTokenResponse(
         server_url=gateway.connections.settings.livekit_url_for(org_scope.env),

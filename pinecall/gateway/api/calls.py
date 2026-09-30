@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import logging
 import time
 from collections.abc import AsyncIterator
 from typing import Annotated
@@ -97,6 +98,9 @@ from pinecall.wire.rest.calls import (
 router = APIRouter()
 
 
+logger = logging.getLogger(__name__)
+
+
 A_SCREENFUL = 20
 
 
@@ -118,7 +122,7 @@ ERROR = "error"
 ALREADY_SPENT = "call {call} was opened by its token already: a token opens one call, once"
 
 
-NEVER_MINTED = "call {call} names a token this runtime never minted"
+ELSEWHERE = "call %s was opened in org %s, %s, agent %s: its token was minted for another"
 
 
 UNOPENED_KEY = "the key of call {call}'s recording is sealed under a key the vault no longer lists"
@@ -176,7 +180,7 @@ async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) 
     keys.check_agent(key.bearer, body.agent)
     scope = _call_corner(key, context)
     await _unclaimed_or_in(gateway, context.call, scope)
-    await _spent(gateway, context, body.agent)
+    await _spent(gateway, context, scope, body.agent)
     ceiling = await _deps.admit_call(gateway, scope, body.agent)
     found = serving_agent(gateway.sockets, scope, body.agent, body.app, context)
     _refuse_unserved(gateway, scope, body, found)
@@ -494,16 +498,17 @@ async def _unclaimed_or_in(gateway: Gateway, call: str, scope: Scope) -> None:
         raise NotFound(_deps.NO_SUCH_CALL.format(call=call))
 
 
-async def _spent(gateway: Gateway, context: CallContext, agent: str) -> None:
-    scope = context.metadata.get("scope")
-    if not isinstance(scope, str):
+# A web call opens by the token its room was minted with: once, and only in the org, the world
+# and for the agent it was minted for. Asked of the ledger by the call's id, whatever the worker
+# says: a call no token was minted for (a phone, a dial, a run) is not a token's to refuse.
+async def _spent(gateway: Gateway, context: CallContext, scope: Scope, agent: str) -> None:
+    spending = await tokens.spend(gateway.connections.pool, context.call, scope, agent)
+    if spending in {"spent", "never_minted"}:
         return
-    spending = await tokens.spend(gateway.connections.pool, context.call)
-    if spending == "spent":
-        return
-    sentence = (ALREADY_SPENT if spending == "already_spent" else NEVER_MINTED).format(
-        call=context.call
-    )
+    if spending == "minted_elsewhere":
+        logger.warning(ELSEWHERE, context.call, scope.org, scope.env, agent)
+        raise NotFound(_deps.NO_SUCH_CALL.format(call=context.call))
+    sentence = ALREADY_SPENT.format(call=context.call)
     refused = ErrorEvent(code=SPENT, message=sentence, recoverable=True)
     await gateway.logs.agent(agent).append("error", refused.written())
     raise Conflict(sentence)
