@@ -164,6 +164,16 @@ class Log:
         await self._published(entry)
         return entry
 
+    # Two writers deciding the same end (a webhook delivered twice) write it once.
+    async def append_first(self, kind: str, data: JsonObject) -> Entry | None:
+        """Write and publish a durable entry unless the log holds one of its type; None then."""
+        if self.call is None:
+            raise DeclarationRefused(f"agent {self.agent}: only a call's log is looked at")
+        entry = await self._store.append_first(self.call, self.agent, kind, data)
+        if entry is not None:
+            await self._published(entry)
+        return entry
+
     # A replayed batch was published when it was first taken: publishing it again would repeat it.
     async def append_many(self, entries: Sequence[BatchedEntry], *, after: int) -> list[Entry]:
         """Write a worker's batch once, then publish and tap each entry in order as append does."""

@@ -14,7 +14,7 @@ from pinecall.domain.names import Env, JsonObject, parse_env
 from pinecall.domain.scope import Scope
 from pinecall.log.facts import record
 from pinecall.log.reduce import Metered
-from pinecall.postgres.pool import Pool
+from pinecall.postgres.pool import Connection, Pool
 from pinecall.wire.frames import Entry
 
 logger = logging.getLogger(__name__)
@@ -105,6 +105,11 @@ on conflict (log) do update set sealed = true
 """
 
 HEAD = "select seq, sealed, written, written_seq from call_log_head where log = %(log)s"
+
+# Taken before the look, so a second writer waits for the first to commit and then sees its entry.
+HEAD_HELD = "select 1 from call_log_head where log = %(log)s and not sealed for update"
+
+OF_ITS_TYPE = "select 1 from call_log where log = %(log)s and type = %(type)s limit 1"
 
 
 # The first claim wins, and it may come before the first entry.
@@ -211,13 +216,25 @@ class Store:
             ephemeral=ephemeral,
             data=data,
         )
-        written = {**entry.written(), "log": log_name(call, agent), "data": Jsonb(data)}
         async with self.pool.connection() as connection, connection.transaction():
-            row = await (await connection.execute(APPEND, written)).fetchone()
-            if row is None:
-                raise Conflict(f"call {call} has ended: {kind} cannot be appended")
-            entry.seq = int(row["seq"])
-            await record(connection, [entry])
+            await _appended(connection, entry)
+        return entry
+
+    # The look is a statement of its own after the lock: read committed gives it a fresh snapshot.
+    async def append_first(
+        self, call: str, agent: str, kind: str, data: JsonObject
+    ) -> Entry | None:
+        """Write a durable entry unless the call's log holds one of its type or is sealed."""
+        entry = Entry(
+            seq=0, ts=self.clock(), call=call, agent=agent, type=kind, ephemeral=False, data=data
+        )
+        async with self.pool.connection() as connection, connection.transaction():
+            if await (await connection.execute(HEAD_HELD, {"log": call})).fetchone() is None:
+                return None
+            wanted = {"log": call, "type": kind}
+            if await (await connection.execute(OF_ITS_TYPE, wanted)).fetchone() is not None:
+                return None
+            await _appended(connection, entry)
         return entry
 
     # One writer, in order: `after` is how many entries the log took from it before this batch.
@@ -399,6 +416,19 @@ def entry_of(row: DictRow) -> Entry:
     return Entry.model_validate(
         {name: row[name] for name in ("call", "seq", "ts", "agent", "type", "ephemeral", "data")}
     )
+
+
+async def _appended(connection: Connection, entry: Entry) -> None:
+    written = {
+        **entry.written(),
+        "log": log_name(entry.call, entry.agent),
+        "data": Jsonb(entry.data),
+    }
+    row = await (await connection.execute(APPEND, written)).fetchone()
+    if row is None:
+        raise Conflict(f"call {entry.call} has ended: {entry.type} cannot be appended")
+    entry.seq = int(row["seq"])
+    await record(connection, [entry])
 
 
 def _numbered(

@@ -18,7 +18,8 @@ from tests.conftest import Knocking, postgres
 NO_SCOPE = frozenset({"/{path:path}", "/widget/{file}", "/metrics"})
 
 # The doors nobody holds a key at yet (a sign-in page, a terminal, an invitation, Meta), and the
-# ones that read any key as who it is (whoami, a code, the org switch, one's own keys).
+# ones that read any key as who it is (whoami, a code, the org switch, one's own keys). LiveKit's
+# webhook, like Meta's, is signed by the sender instead.
 NO_KEY_OR_ANY_KEY = frozenset(
     {
         "/.well-known/pinecall",
@@ -26,6 +27,7 @@ NO_KEY_OR_ANY_KEY = frozenset(
         "/v1/keys",
         "/v1/keys/{fingerprint}/revoke",
         "/v1/limits",
+        "/v1/livekit/webhook",
         "/v1/login",
         "/v1/login/codes",
         "/v1/login/google",
