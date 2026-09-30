@@ -288,6 +288,9 @@ async def run_tool(
     use = ToolUse(
         call_id=tool_call.call_id, name=tool_call.name, arguments=dict(tool_call.arguments)
     )
+    # Its socket is on another gateway, which may never have heard the call was bound to it.
+    if served.app is not None and served.app not in gateway.live.sockets:
+        gateway.live.pumped(call, after=0)
     return await served.tools.ran(use, tool_call.speech_id)
 
 

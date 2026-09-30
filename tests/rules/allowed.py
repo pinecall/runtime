@@ -142,6 +142,11 @@ TASK_OWNERS: tuple[Allowed, ...] = (
         "the sender and the listener are cancelled and awaited in RedisSignal.close()",
     ),
     Allowed(
+        "pinecall/gateway/api/apps.py",
+        "create_task",
+        "the socket's listener for calls bound to it is cancelled and awaited when it closes",
+    ),
+    Allowed(
         "pinecall/process/shared.py",
         "create_task",
         "the listener and the beat are cancelled and awaited in Shared.close()",

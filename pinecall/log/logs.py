@@ -175,6 +175,8 @@ class Log:
         # The private values of the entries appended here, by seq, for the socket that runs them.
         self.private_values: dict[int, JsonObject] = {}
         self._store = store
+        # The clock its entries are stamped with.
+        self.clock = store.clock
         # None: a log of this process alone, its readers hearing its own appends only.
         self._relay = relay
         self._taps: list[Tap] = []
@@ -211,6 +213,28 @@ class Log:
             await self._sealed_aside(self._kept_open([(entry, written)]))
             await self._published(entry)
         return entry
+
+    # Once per call id, whichever gateway writes it: the app's answer where its socket is, or the
+    # timeout where the worker asked.
+    async def answer(self, data: JsonObject) -> Entry | None:
+        """Write and publish a tool.result unless the log holds its answer already; None then."""
+        if self.call is None:
+            raise DeclarationRefused(f"agent {self.agent}: only a call's log asks tools")
+        written = self._split("tool.result", data)
+        entry = await self._store.append_answer(self.call, self.agent, written.kept)
+        if entry is not None:
+            await self._sealed_aside(self._kept_open([(entry, written)]))
+            await self._published(entry)
+        return entry
+
+    # An entry stored by a gateway that may have died before telling the others: told again. A
+    # reader that heard it already skips it by its seq.
+    def told_again(self, entry: Entry) -> None:
+        """Publish a stored entry once more to every gateway's readers."""
+        if self._relay is None:
+            self.fanout.publish(entry)
+        else:
+            self._relay.local(CHANNEL.format(name=self.name), entry)
 
     # A replayed batch was published when it was first taken: publishing it again would repeat it.
     # Its private values are sealed aside after it is published and again on a replay, which keeps
