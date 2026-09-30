@@ -552,6 +552,40 @@ async def test_the_table_refuses_an_update_and_a_delete(
     assert [entry.type for entry in await store.since(call)] == ["call.started"]
 
 
+A_ROW = """
+insert into call_log (call, seq, ts, agent, type, ephemeral, data)
+values (%(call)s, %(seq)s, 1.0, %(agent)s, %(type)s, false, '{}')
+"""
+
+
+async def test_the_table_refuses_an_entry_on_a_sealed_log_but_its_verdict(
+    store: Store, call: str, schema: str
+) -> None:
+    await store.append(call, AGENT, "call.started", {}, ephemeral=False)
+    await store.seal(call)
+    async with await connect(DSN) as connection:
+        await connection.execute(sql.SQL("set search_path to {}").format(sql.Identifier(schema)))
+        row = {"call": call, "agent": AGENT}
+        with pytest.raises(psycopg.errors.RestrictViolation, match="sealed"):
+            await connection.execute(A_ROW, {**row, "seq": 2, "type": "turn.user"})
+        await connection.execute(A_ROW, {**row, "seq": 2, "type": "call.score"})
+    assert [entry.type for entry in await store.since(call)] == ["call.started", "call.score"]
+
+
+async def test_a_sealed_head_is_never_opened_again(store: Store, call: str, schema: str) -> None:
+    await store.append(call, AGENT, "call.started", {}, ephemeral=False)
+    await store.seal(call)
+    async with await connect(DSN) as connection:
+        await connection.execute(sql.SQL("set search_path to {}").format(sql.Identifier(schema)))
+        with pytest.raises(psycopg.errors.RestrictViolation, match="sealed"):
+            await connection.execute(
+                "update call_log_head set sealed = false where log = %s", (call,)
+            )
+    await store.claim(call, AGENT, "clinica")
+    assert await store.sealed(call)
+    assert await store.claimant(call, AGENT) == Claimant("clinica", None)
+
+
 async def test_the_golden_log_replays_to_the_same_state_through_postgres(
     pool: Pool, call: str
 ) -> None:
