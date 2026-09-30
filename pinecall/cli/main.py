@@ -26,6 +26,7 @@ from pinecall.providers import catalog, prices
 from pinecall.providers.build import installed
 from pinecall.providers.catalog import Providers
 from pinecall.retrieval import memory
+from pinecall.runner import main as runner
 from pinecall.tenancy import retention, vault
 from pinecall.worker import main as worker
 
@@ -85,6 +86,11 @@ def start(settings: Settings, _args: argparse.Namespace) -> int:
 def overflow(settings: Settings, _args: argparse.Namespace) -> int:
     """The fleet's overflow, until told to stop."""
     return asyncio.run(worker.overflow(settings))
+
+
+def run_apps(settings: Settings, _args: argparse.Namespace) -> int:
+    """The world's hosted apps, kept running until told to stop."""
+    return asyncio.run(runner.run(settings))
 
 
 def migrate_up(settings: Settings, _args: argparse.Namespace) -> int:
@@ -199,6 +205,13 @@ def verbs() -> argparse.ArgumentParser:
     of_worker.add_parser("start", help="answer the fleet's calls").set_defaults(run=start)
     of_worker.add_parser("overflow", help="answer when the fleet is full").set_defaults(
         run=overflow
+    )
+    runner_verbs = under.add_parser(
+        "runner", help="the runner of the world PINECALL_RUNNER_KEY opens"
+    )
+    of_runner = runner_verbs.add_subparsers(required=True)
+    of_runner.add_parser("start", help="keep the world's hosted apps running").set_defaults(
+        run=run_apps
     )
     migrate = under.add_parser("migrate", help="the schema").add_subparsers(required=True)
     migrate.add_parser("up", help="apply what the database lacks").set_defaults(run=migrate_up)

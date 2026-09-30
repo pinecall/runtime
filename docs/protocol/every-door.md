@@ -104,6 +104,11 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `GET` | `/v1/events` | calls | The org's calls and agents changing, as they change. |
 | `POST` | `/v1/fleet/heartbeat` | fleet | A worker's report; the answer says whether it is cordoned and its fleet full. |
 | `GET` | `/v1/fleet/standing` | fleet | A fleet's workers summed; the overflow opens when it is full. |
+| `GET` | `/v1/hosted` | app | The apps the box hosts for the org in this world, by name. |
+| `DELETE` | `/v1/hosted/{name}` | app | Stop hosting the app: its releases go, and its token is revoked. |
+| `GET` | `/v1/hosted/{name}/releases` | app | The app's releases, newest first. |
+| `POST` | `/v1/hosted/{name}/releases` | app | The project's sources as the app's next release. |
+| `GET` | `/v1/hosted/{name}/releases/{release}/source` | app | The tarball one release was uploaded as. |
 | `GET` | `/v1/insights` | calls | One day of the key's world and scope at a glance, and the month's spend. |
 | `POST` | `/v1/invitations/{token}` | — | Choose a password: the member is active, and here is their first key. |
 | `GET` | `/v1/keys` | — | The org's keys this key may see, oldest first, the revoked ones too; never a key. |
@@ -212,6 +217,12 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `PUT` | `/v1/provider-keys/{vendor}` | providers | Keep the org's own credentials for a vendor; its calls run on them from the next one. |
 | `GET` | `/v1/providers` | providers | Every vendor this build runs and how this org may run it, the defaults, the models named. |
 | `GET` | `/v1/routes` | app · fleet | The routes of a scope; for the fleet's key and a number, the route that number rings. |
+| `GET` | `/v1/runner/apps/{org}/{name}/environment` | runner | What the app's process is started with: the org's secrets, its token, the gateway. |
+| `GET` | `/v1/runner/apps/{org}/{name}/releases/{release}/source` | runner | The tarball of one release of any org's app in the runner's world. |
+| `POST` | `/v1/runner/heartbeat` | runner | The runner's reports kept, and every app of its world it is to have running. |
+| `GET` | `/v1/secrets` | app | The org's secrets in this world, by name; never a value. |
+| `DELETE` | `/v1/secrets/{name}` | app | Forget one secret; the org's list after it, 404 for a name nobody set. |
+| `PUT` | `/v1/secrets/{name}` | app | Keep one secret, sealed, replacing the value it had; the org's list after it. |
 | `GET` | `/v1/sessions` | calls | The org's newest calls across its agents, one row each. |
 | `POST` | `/v1/signup` | — | Keep the sign-up and mail its six digits. |
 | `POST` | `/v1/signup/resend` | — | A new code for a sign-up still waiting; the first one no longer works. |

@@ -19,6 +19,7 @@ type QuotaName = Literal[
     "numbers",
     "seats",
     "llm_tokens",
+    "hosted_apps",
 ]
 
 
@@ -56,6 +57,8 @@ class Quotas:
     # Invited and active members; disabled members hold no seat.
     seats: int | None = None
     llm_tokens: int | None = None
+    # Apps the box runs for the org from sources it uploaded.
+    hosted_apps: int | None = None
     # Monthly budget in whole US dollars. Informational: nothing is refused over it.
     budget_usd: int | None = None
     # Box vendor keys the org may use: None all, empty none, else `vendor` or `vendor/model`.
@@ -81,6 +84,7 @@ class Quotas:
             "numbers": self.numbers,
             "seats": self.seats,
             "llm_tokens": self.llm_tokens,
+            "hosted_apps": self.hosted_apps,
         }
 
     def reached(self, quota: QuotaName, used: float) -> int | None:
@@ -108,4 +112,5 @@ QUOTAS: tuple[QuotaName, ...] = (
     "numbers",
     "seats",
     "llm_tokens",
+    "hosted_apps",
 )

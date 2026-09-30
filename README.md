@@ -66,19 +66,19 @@ a vendor bills. `infra/models/` is that stack, as data:
 
 | stage | model | server |
 |---|---|---|
-| ears | NVIDIA Nemotron ASR Streaming (0.6B, 40 locales, streaming) | NVIDIA's NIM, Riva gRPC |
+| ears | Whisper large-v3-turbo (99 languages) | Speaches, OpenAI-shaped |
 | end of turn | Smart Turn v3 (8 MB) | the worker's CPU |
 | model | Google Gemma 4 12B | Ollama, OpenAI-shaped |
 | voice | Kokoro-82M | Kokoro-FastAPI, OpenAI-shaped |
 | memory, knowledge | bge-m3 | Ollama, OpenAI-shaped |
 
-Three steps on a machine with the GPU (16 GB or more), Docker and the NVIDIA container toolkit,
-and a free key from ngc.nvidia.com for the ears:
+Three steps on a machine with the GPU (12 GB or more), Docker and the NVIDIA container toolkit;
+no account anywhere:
 
 ```console
 $ curl -fsSLO https://raw.githubusercontent.com/pinecall/runtime/main/infra/models/compose.yaml
 $ curl -fsSLO https://raw.githubusercontent.com/pinecall/runtime/main/infra/models/providers.json
-$ printf 'NGC_API_KEY=%s\n' "$NGC_API_KEY" > .env && docker compose up -d      # ~15 min the first time
+$ docker compose up -d                  # the first start pulls ~10 GB of models
 ```
 
 Then, on the box, the providers row that points at them — `MODELS_HOST` is the address the
@@ -89,8 +89,8 @@ $ sed 's/MODELS_HOST/127.0.0.1/g' providers.json > /tmp/providers.json
 $ sudo pinecall-runtime providers seed /tmp/providers.json
 ```
 
-Measured on an RTX 3090: 2.1 s from the caller's last word to the agent's first, the ears exact
-on every call. `docs/the-open-stack.md` is the walk, what each line of the row means, the numbers
+Measured on an RTX 3090, over a five-turn call: about 1.6 s from the caller's last word to the
+agent's first, the ears exact on every turn. `docs/the-open-stack.md` is the walk, what each line of the row means, the numbers
 and what it does not do yet. Pinecall's own box runs on cloud vendors; this stack is for the box
 you run.
 

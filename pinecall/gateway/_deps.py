@@ -300,6 +300,10 @@ WorkerKey = Annotated[Acting, Depends(opening("app", "fleet"))]
 FleetKey = Annotated[Acting, Depends(opening("fleet"))]
 
 
+# The box's runner of a world: it is told every org's hosted apps, and handed what starts them.
+RunnerKey = Annotated[Acting, Depends(opening("runner"))]
+
+
 NumbersKey = Annotated[Acting, Depends(opening("numbers"))]
 
 
