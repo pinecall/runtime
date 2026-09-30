@@ -1,5 +1,9 @@
 """Tests for the sockets of app sockets: who holds each agent, per scope and world."""
 
+import asyncio
+from collections.abc import AsyncIterator, Callable
+from dataclasses import dataclass
+
 import pytest
 
 from pinecall.domain.agent import AgentConfig
@@ -7,7 +11,11 @@ from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.scope import Scope
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import handed_on, served_call
+from pinecall.gateway._sockets import HELD_CHANNEL, Sockets
+from pinecall.log.logs import Logs
 from pinecall.log.store import Store
+from pinecall.process import shared
+from pinecall.process.signal import LocalSignal
 from tests.conftest import postgres
 from tests.gateway.test_served import (
     AGENT,
@@ -113,3 +121,93 @@ async def test_a_phone_is_the_person_who_verified_it_and_nobody_elses(store: Sto
     assert sockets.phone_of("production", " +13105550142 ") == "m_ana"
     assert sockets.phone_of("sandbox", "+13105550142") is None
     assert sockets.phone_of("production", "+12125550142") is None
+
+
+# ── two gateways of one box: each holds its own sockets and reads every gateway's ──
+
+
+@dataclass
+class Two:
+    """Two registries over one store and one signal, as two gateways of a box hold them."""
+
+    first: Sockets
+    second: Sockets
+    signal: LocalSignal
+
+    # Each share said is heard by every gateway in the order it was said: once the test hears
+    # one and the loop turned, the gateways that heard it before have merged it.
+    async def heard(self, until: Callable[[], bool]) -> None:
+        """Wait, share by share, until what one gateway said stands on the other."""
+        listening = await self.signal.subscribe(HELD_CHANNEL)
+        # What was said before the test listened is merged once the loop turns.
+        await asyncio.sleep(0)
+        try:
+            async with asyncio.timeout(2):
+                while not until():
+                    await anext(listening)
+                    await asyncio.sleep(0)
+        finally:
+            listening.close()
+
+
+@pytest.fixture
+async def two(store: Store) -> AsyncIterator[Two]:
+    """Two gateways' registries, started."""
+    signal = LocalSignal()
+    pair = Two(Sockets(Logs(store, signal)), Sockets(Logs(store, signal)), signal)
+    await pair.first.start()
+    await pair.second.start()
+    yield pair
+    await pair.first.close()
+    await pair.second.close()
+
+
+@postgres
+async def test_a_socket_on_one_gateway_holds_the_agent_for_the_other(
+    two: Two,
+) -> None:
+    first, second = two.first, two.second
+    await holding(first, "app_ana", ANA)
+    await two.heard(lambda: second.of(ANA, AGENT) is not None)
+    found = second.serving(ANA, AGENT, None)
+    assert found is not None
+    assert (found.owner, second.line_of("sandbox", AGENT)) == ("app_ana", "m_ana")
+    await holding(second, "app_ben", BEN)
+    await two.heard(lambda: first.of(BEN, AGENT) is not None)
+    assert [item.owner for item in first.waiting_for_the_line(ANA, AGENT)] == ["app_ben", "app_ana"]
+    await first.release("app_ana")
+    await two.heard(lambda: second.of(ANA, AGENT) is None)
+    assert second.line_of("sandbox", AGENT) == "m_ben"
+
+
+@postgres
+async def test_a_line_and_a_phone_set_on_one_gateway_stand_on_the_other(
+    two: Two,
+) -> None:
+    first, second = two.first, two.second
+    await holding(first, "app_ana", ANA)
+    await holding(second, "app_ben", BEN)
+    await two.heard(lambda: first.of(BEN, AGENT) is not None and second.of(ANA, AGENT) is not None)
+    second.take_the_line(BEN, AGENT)
+    second.calls_from("sandbox", "+34600111222", "m_ben")
+    await two.heard(lambda: first.line_of("sandbox", AGENT) == "m_ben")
+    await two.heard(lambda: first.phone_of("sandbox", "+34600111222") == "m_ben")
+    assert first.drop_the_line(BEN, AGENT)
+    await two.heard(lambda: second.line_of("sandbox", AGENT) == "m_ana")
+    assert first.line_of("sandbox", AGENT) == "m_ana"
+
+
+# A gateway that died stops saying its share: the others forget its sockets once it is silent.
+@postgres
+async def test_a_gateway_gone_silent_takes_its_sockets_with_it(
+    two: Two, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first, second = two.first, two.second
+    monkeypatch.setattr(shared, "TOLD_EVERY_S", 0.05)
+    monkeypatch.setattr(shared, "SILENT_AT_MOST_S", 0.2)
+    await second.close()
+    await second.start()
+    await holding(first, "app_ana", ANA)
+    await two.heard(lambda: second.of(ANA, AGENT) is not None)
+    await first.close()
+    await two.heard(lambda: second.of(ANA, AGENT) is None)

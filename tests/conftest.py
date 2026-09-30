@@ -356,6 +356,7 @@ async def a_gateway(pool: Pool, logs: Logs, shared: Shared) -> AsyncGenerator[Ga
     settings = settings_of()
     http = httpx.AsyncClient(transport=shared.outside)
     sockets, live = Sockets(logs), ServedCalls()
+    await sockets.start()
     connections = Connections(
         settings=settings, pool=pool, writing=pool, vault=shared.vault, http=http, server=server
     )
@@ -381,6 +382,7 @@ async def a_gateway(pool: Pool, logs: Logs, shared: Shared) -> AsyncGenerator[Ga
     )
     await outbox.drained()
     await threads.closed()
+    await sockets.close()
     await store.writer.drained()
     await logs.close()
     await http.aclose()
