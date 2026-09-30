@@ -46,7 +46,8 @@ written twice; `TREE.md` is the set of files; tests mirror the source one to one
 `docs/protocol/every-door.md` and the gateway's routes agree both ways; no secret-shaped string;
 every task has an owner; no module over 700 lines; no literary names (`said`, `held`, `one`…); a
 module reads top to bottom; the gateway's private modules within budget; `docs/architecture.md`
-carries today's measures; `docs/wire/` describes every field.
+carries today's measures; `docs/wire/` describes every field; a migration that contracts (drops,
+renames, a `NOT NULL` with no default) names the release that stopped reading what it contracts.
 
 ## How a file is written (`docs/conventions.md` is the long version)
 
