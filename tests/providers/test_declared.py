@@ -134,3 +134,11 @@ def test_a_voice_call_runs_ten_minutes_unless_the_world_says_otherwise(
     assert limit(Tuning()) == 600
     assert limit(Tuning(max_duration_s=900)) == 900
     assert limit(Tuning(max_duration_s=0)) == 0
+
+
+def test_the_models_deadline_is_the_worlds_and_unset_it_is_none(configured: Providers) -> None:
+    def deadline(tuning: Tuning) -> float | None:
+        return apply_tuning(DECLARED, tuning, NOTHING, defaults=configured.defaults).llm_timeout_s
+
+    assert deadline(Tuning()) is None
+    assert deadline(Tuning(llm_timeout_s=6.0)) == 6.0

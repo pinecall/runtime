@@ -72,6 +72,24 @@ async def test_a_words_key_sets_the_opening_words_and_is_refused_the_pipeline_by
 
 
 @postgres
+async def test_the_models_deadline_is_kept_as_set_and_is_the_pipelines_to_set(
+    knocking: Knocking,
+) -> None:
+    pool = knocking.gateway.connections.pool
+    words = await issued(pool, knocking.org.id, "sandbox", frozenset({"words"}))
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        kept = await org.put(SETTINGS, json={"config": {"llm_timeout_s": 6.5}})
+        zero = await org.put(SETTINGS, json={"config": {"llm_timeout_s": 0}})
+    async with knocking.http(words) as supervisor:
+        refused = await supervisor.put(SETTINGS, json={"config": {"llm_timeout_s": 3}})
+    assert kept.json()["team"]["config"] == {"llm_timeout_s": 6.5}
+    assert zero.status_code == 400
+    assert "positive number of seconds" in zero.json()["detail"]
+    assert refused.status_code == 403
+    assert "llm_timeout_s: the pipeline's" in refused.json()["detail"]
+
+
+@postgres
 async def test_the_diff_names_the_fields_this_scope_differs_in_from_production(
     knocking: Knocking,
 ) -> None:

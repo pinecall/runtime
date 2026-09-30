@@ -53,6 +53,7 @@ PIPELINE_ONLY = (
     "bases",
     "record",
     "max_duration_s",
+    "llm_timeout_s",
 )
 
 

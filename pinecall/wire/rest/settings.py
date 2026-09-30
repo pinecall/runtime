@@ -29,6 +29,7 @@ class SettingsBody(WireModel):
     memory: MemoryConfig | None = None
     record: bool | None = None
     max_duration_s: int | None = None
+    llm_timeout_s: float | None = None
     knowledge: str | None = None
     bases: list[DocsConfig] | None = None
 

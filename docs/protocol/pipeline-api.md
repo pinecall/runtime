@@ -34,8 +34,10 @@ next call; this door reads.
 
 ## The hold melody — `GET` · `PUT /v1/agents/{slug}/pipeline/hold-audio`
 
-What a caller hears while a tool runs: the box's melody, silence, or a clip the org uploaded. One
-choice per agent per world, whoever holds it.
+What a caller hears while a tool runs or the model has not said its first word: the box's melody,
+silence, or a clip the org uploaded. It starts after 2.5 s of the agent being quiet, so a tool or a
+model that answers inside that plays nothing, and stops at the answer. One choice per agent per
+world, whoever holds it.
 
 ```json
 { "played": "custom", "name": "espera.mp3", "seconds": 41.2, "sha256": "9f2c…" }

@@ -11,7 +11,7 @@ runtime's default.
 **Two kinds of key open them.** A key that opens `pipeline` (a developer's, an admin's) may set
 everything. A key that opens `words` alone (a supervisor's, a manager's) may set the opening's
 words, what is remembered and the agent's lexicon, and is refused the vendors, the models, the cut of
-a turn, the bases, the recording and the duration **by name**: `403 llm, turn: the pipeline's, and
+a turn, the model's deadline, the bases, the recording and the duration **by name**: `403 llm, turn: the pipeline's, and
 this key opens words alone`. Its set carries those fields over untouched from what stands.
 
 **Three scopes.** In the sandbox a person's key has a scope of its own: what they set is theirs
@@ -54,7 +54,9 @@ Each scope's **own** newest, or null when that scope set nothing; never the fall
 its own default model, or a model alone on whichever vendor is in use), `greeting` (`{say}` or
 `{reply}`), `hangup {when}`, `turn {min_interruption_words, endpointing_ms, eot_threshold,
 eager_eot_threshold}`, `memory {remember, forget}`, `record`, `max_duration_s` (voice calls; `0` is
-no limit), `knowledge` (Markdown read whole into the static block of every call) and `bases
+no limit), `llm_timeout_s` (how long a turn waits for the model's first word, livekit's retries
+included; past it the turn ends unanswered and the call's log says `error {code: llm_timeout}`;
+unset, there is no deadline of ours), `knowledge` (Markdown read whole into the static block of every call) and `bases
 [{base, mode, k, min_score}]`.
 
 ## `PUT /v1/agents/{slug}/settings` — `pipeline` or `words`
