@@ -25,6 +25,7 @@ unit's)* is written per worker unit, never in the box's `box.env`.
 | `LIVEKIT_PUBLIC_URL` | the URL a browser is told to join, when it differs |
 | `DATABASE_URL` | Postgres 17 with pgvector and pg_textsearch: the one stateful service. One database for both worlds |
 | `PINECALL_WORKER_KEY` | the key the worker knocks with. On a box the fleet's; on a laptop an org's own key, and the worker serves that org |
+| `PINECALL_RUNNER_KEY` · `PINECALL_RUNNER_ROOT` · `PINECALL_RUNNER_IMAGE` · `PINECALL_RUNNER_RUNTIME` | the runner's: the key of its world (`keys runner`), where it unpacks each release (`/var/lib/pinecall/runner`), the image every hosted app runs in (`docker.io/library/node:24-slim`), and the OCI runtime (`runsc`, gVisor; `crun` only for code you wrote yourself). It reads `PINECALL_GATEWAY_URL` for the box it serves: that world's public address, since it never runs on the box ([../infra/apps/README.md](../infra/apps/README.md)) |
 | `PINECALL_OPS_KEY` | the box's own key to `/v1/ops/*`. Unset, only a person the box made an operator opens those doors |
 | `PINECALL_VAULT_KEY` | **required by the gateway**: the Fernet key every sealed secret is under (an org's vendor keys, the box's, SMTP, SSO, the carrier). A gateway without it does not start. To rotate: a comma-separated list, the new key first; a secret seals under the first and opens under whichever sealed it |
 | `PINECALL_ROLE` | what this box runs: `all` · `hub` · `worker`; the doctor asks after what it has |

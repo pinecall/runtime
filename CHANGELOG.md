@@ -8,10 +8,11 @@
   the end of the caller's turn off the audio, `v1-mini` (livekit's, the default) or `smart-turn-v3`
   (Daily's Smart Turn v3, a new dependency, 8 MB of ONNX on the worker's CPU).
 - The open stack: `infra/models/` holds three model servers for one NVIDIA GPU (`compose.yaml`:
-  Nemotron ASR Streaming, Gemma 4 12B and bge-m3 on Ollama, Kokoro-82M) and the providers row that
-  points a box at them (`providers.json`); the wheel carries it as `pinecall/infra/models/`.
-  `docs/the-open-stack.md` walks it and has the numbers: 2.1 s from the caller's last word to the
-  agent's first on an RTX 3090.
+  Whisper large-v3-turbo on Speaches, Gemma 4 12B and bge-m3 on Ollama, Kokoro-82M) and the
+  providers row that points a box at them (`providers.json`); the wheel carries it as
+  `pinecall/infra/models/`. `docs/the-open-stack.md` walks it from a bare GPU and has the numbers:
+  about 1.6 s from the caller's last word to the agent's first on an RTX 3090, and why NVIDIA's
+  streaming ASR is not the ears (its NIM drops sentences after the silences of a real call).
 
 ## 0.1.2 — A box from the package itself
 
@@ -191,3 +192,23 @@ console and the widget inside; `docs/from-zero.md` walks a box to its first call
   panel's, nor the org's and an agent's at once, and a judge without a question is refused.
 - The judge's ceiling is the providers row's `judge.ceiling_usd`, applied: a model judge asked
   once the call's judging reached it is `skipped`, saying so. `PINECALL_JUDGE_CEILING_USD` is gone.
+- Hosted apps, the record: `POST /v1/hosted/{name}/releases` keeps a project's sources (a gzipped
+  tarball, read before it is kept: no link, no path out of the project, 10 MB) as the app's next
+  release; the first makes the app, counted against the new `hosted_apps` quota, and mints a
+  server's token for it, sealed. `GET /v1/hosted`, the releases and a release's source back,
+  `DELETE /v1/hosted/{name}`. The org's secrets per world, sealed and never read back:
+  `GET /v1/secrets`, `PUT`·`DELETE /v1/secrets/{name}`. Nothing builds or starts a release yet.
+  Migration 0018.
+- The runner's doors, for the process that will run hosted apps: a key scope `runner`
+  (`pinecall-runtime keys runner <world>`), `POST /v1/runner/heartbeat` (every app of the world
+  with the host its release runs under, whether it registered, and the runner's `live` and
+  `failed` reports kept), a release's source and an app's environment (the org's secrets, its
+  token, the world's address). `GET /v1/hosted` says `live_release` and `failed_why`.
+  Migration 0019.
+- The runner: `pinecall-runtime runner start`, the process that keeps a world's hosted apps
+  running on a machine of their own (`infra/apps/`: podman, gVisor, an nftables fence, one runner
+  unit per world). It installs a release inside gVisor, starts it read-only, capped and on a
+  network of its own under the release's host name, reports it live once its agents register, and
+  stops the release it replaced only then; one that does not install, exits or never registers is
+  reported failed with its last lines, and the one before keeps serving. `PINECALL_RUNNER_KEY`,
+  `PINECALL_RUNNER_ROOT`, `PINECALL_RUNNER_IMAGE`, `PINECALL_RUNNER_RUNTIME`.
