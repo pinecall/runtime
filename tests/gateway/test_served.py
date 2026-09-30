@@ -2,17 +2,27 @@
 
 import asyncio
 
+import pytest
+
 from pinecall.domain.agent import AgentConfig
 from pinecall.domain.scope import Scope
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import attach, handed_on, served_call
 from pinecall.gateway._sockets import Sockets
+from pinecall.gateway.api import calls
+from pinecall.gateway.ending.reaper import let_go
+from pinecall.log import openings
 from pinecall.log.logs import Logs
+from pinecall.log.queries import CallScope
 from pinecall.log.store import Store
+from pinecall.postgres.pool import Pool
 from pinecall.session.call import ToolUse
 from pinecall.wire.frames import Command, Entry
 from pinecall.wire.parts import ToolResult
-from tests.conftest import postgres
+from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
+from tests.conftest import AGENT as THE_KNOCKED_AGENT
+from tests.conftest import Knocking, postgres
+from tests.fleet.test_client import a_call as a_widget_call
 from tests.gateway.conftest import AGENT, OURS, a_call, a_start
 from tests.session.test_tools import went_out
 
@@ -173,3 +183,102 @@ async def test_a_tool_that_finished_before_a_restart_is_answered_from_the_log(
     assert await again.tools.ran(use, None) == await first
     kinds = [entry.type for entry in await wired.logs.store.whole(context.call)]
     assert kinds == ["tool.call", "tool.result"]
+
+
+# ── two gateways of one box: a call opened on one, served by the other's doors ──
+
+ENDED = {"reason": "caller_hung_up", "ended_by": "caller", "ended_at": 10.0, "duration_s": 42.0}
+
+
+def note(n: int) -> dict[str, object]:
+    return {"type": "custom", "data": {"name": "note", "data": {"n": n}}}
+
+
+@postgres
+async def test_a_call_opened_on_one_gateway_is_written_and_sealed_through_the_other(
+    knocking: Knocking, knocking_two: Knocking
+) -> None:
+    context = a_widget_call(knocking)
+    opening = OpenCallRequest(agent=THE_KNOCKED_AGENT, context=context).written()
+    async with (
+        knocking.http(knocking.fleet["sandbox"]) as first,
+        knocking_two.http(knocking.fleet["sandbox"]) as second,
+    ):
+        assert (await first.post("/v1/calls", json=opening)).is_success
+        written = [
+            await second.post(f"/v1/calls/{context.call}/events", json=note(1)),
+            await first.post(f"/v1/calls/{context.call}/events", json=note(2)),
+            await second.post(f"/v1/calls/{context.call}/events", json=note(3)),
+        ]
+        await second.post(
+            f"/v1/calls/{context.call}/events", json={"type": "call.ended", "data": ENDED}
+        )
+        sealed = await second.post(
+            f"/v1/calls/{context.call}/sealed",
+            json=SealCallRequest(usage=[], outcome="booked").written(),
+        )
+        after = await first.post(f"/v1/calls/{context.call}/events", json=note(4))
+    assert [answer.json()["seq"] for answer in written] == [2, 3, 4]
+    assert sealed.status_code == 204
+    kinds = [entry.type for entry in await knocking.gateway.logs.store.whole(context.call)]
+    assert kinds[-2:] == ["call.summary", "call.score"]
+    assert kinds.count("call.summary") == 1
+    assert context.call not in knocking_two.gateway.live.calls
+    # The opener still serves it until it hears it was sealed; then it neither counts nor answers.
+    assert knocking.gateway.live.running(knocking.org.id, "sandbox") == 1
+    assert await let_go(knocking.gateway.serving) == [context.call]
+    assert knocking.gateway.live.running(knocking.org.id, "sandbox") == 0
+    assert after.status_code in {404, 409}
+
+
+# The first knock reads the call once; after that the door asks nothing of the store to know it.
+@postgres
+async def test_a_call_seen_once_is_known_without_asking_the_store_again(
+    knocking: Knocking, knocking_two: Knocking, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context = a_widget_call(knocking)
+    reads: list[str] = []
+    real = calls.queries.scope_of_call
+
+    async def counted(pool: Pool, call: str) -> CallScope | None:
+        reads.append(call)
+        return await real(pool, call)
+
+    async with (
+        knocking.http(knocking.fleet["sandbox"]) as first,
+        knocking_two.http(knocking.fleet["sandbox"]) as second,
+    ):
+        opening = OpenCallRequest(agent=THE_KNOCKED_AGENT, context=context).written()
+        assert (await first.post("/v1/calls", json=opening)).is_success
+        monkeypatch.setattr(calls.queries, "scope_of_call", counted)
+        for n in range(5):
+            answer = await second.post(f"/v1/calls/{context.call}/events", json=note(n))
+            assert answer.is_success
+    assert reads == [context.call]
+    served = knocking_two.gateway.live.calls[context.call]
+    assert (served.opened_here, served.app, served.config.slug) == (False, None, THE_KNOCKED_AGENT)
+    assert knocking_two.gateway.live.running(knocking.org.id, "sandbox") == 0
+
+
+# A call an older release opened kept no opening: the other gateway says so, and the worker's
+# reopen fills it in, as it did when a gateway restarted.
+@postgres
+async def test_a_call_that_kept_no_opening_is_filled_in_by_the_workers_reopen(
+    knocking: Knocking, knocking_two: Knocking
+) -> None:
+    context = a_widget_call(knocking)
+    opening = OpenCallRequest(agent=THE_KNOCKED_AGENT, context=context).written()
+    async with (
+        knocking.http(knocking.fleet["sandbox"]) as first,
+        knocking_two.http(knocking.fleet["sandbox"]) as second,
+    ):
+        assert (await first.post("/v1/calls", json=opening)).is_success
+        async with knocking.gateway.connections.pool.connection() as connection:
+            await connection.execute("delete from call_openings where call = %s", (context.call,))
+        forgotten = await second.post(f"/v1/calls/{context.call}/events", json=note(1))
+        reopened = await second.post(f"/v1/calls/{context.call}/reopened", json=opening)
+        again = await second.post(f"/v1/calls/{context.call}/events", json=note(1))
+    assert (forgotten.status_code, reopened.status_code, again.status_code) == (404, 204, 200)
+    kept = await openings.opening_of(knocking.gateway.connections.pool, context.call)
+    assert kept is not None
+    assert kept.context == context

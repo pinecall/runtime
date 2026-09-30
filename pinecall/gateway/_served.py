@@ -45,6 +45,9 @@ logger = logging.getLogger(__name__)
 # Entries a taking-over socket is rebuilt from; the prompt is not, the log keeps its hash alone.
 STARTED = "call.started"
 
+# How long a call another gateway opened stays served here with no door asking for it.
+FIRST_SEEN_IDLE_S = 600.0
+
 
 CLAIMED = "call.claimed"
 
@@ -68,6 +71,9 @@ class Served:
     session: Session | None = None
     # Held while the call is sealed, so its seal runs once however many times it is asked for.
     sealing: asyncio.Lock = field(default_factory=asyncio.Lock)
+    # False for a call another gateway opened, served here from what was kept when it opened:
+    # it counts on its opener's gateway, and no socket here takes it as parked.
+    opened_here: bool = True
 
     @property
     def call(self) -> str:
@@ -84,6 +90,8 @@ class ServedCalls:
         self.sockets: dict[SocketId, Send] = {}
         self.processes: dict[SocketId, Process] = {}
         self.calls: dict[str, Served] = {}
+        # The calls first seen here, by when a door last asked for one: let go once idle.
+        self.seen: dict[str, float] = {}
         self.pending_answers: dict[str, asyncio.Future[DevAnswer]] = {}
         # asyncio keeps weak references to tasks: the pumps are held here.
         self.pumps: set[asyncio.Task[None]] = set()
@@ -164,7 +172,10 @@ class ServedCalls:
         return [
             call
             for call, served in self.calls.items()
-            if served.app is None and served.agent == agent and served.scope == scope
+            if served.app is None
+            and served.opened_here
+            and served.agent == agent
+            and served.scope == scope
         ]
 
     # The concurrent calls quota counts these, never head rows: a dead worker's row would count
@@ -174,8 +185,19 @@ class ServedCalls:
         return sum(
             1
             for served in self.calls.values()
-            if served.scope.org == org and served.scope.env == env
+            if served.opened_here and served.scope.org == org and served.scope.env == env
         )
+
+    def in_use(self, call: str, now: float) -> None:
+        """A door asked for a call first seen here: it stays while it is asked for."""
+        if call in self.seen:
+            self.seen[call] = now
+
+    # A call first seen here is a cache of what was kept: let go when idle, and read again later.
+    def idle(self, now: float) -> None:
+        """Let go of the calls first seen here that no door asked for in FIRST_SEEN_IDLE_S."""
+        for call in [call for call, at in self.seen.items() if now - at > FIRST_SEEN_IDLE_S]:
+            self.close(call)
 
     def commanded(self, call: str | None, agent: str, command: Command) -> bool:
         """Queue an app's command for the worker running the call; False when it is not here."""
@@ -187,6 +209,7 @@ class ServedCalls:
 
     def close(self, call: str) -> None:
         """Forget a finished call: its entries end, and its worker's command stream."""
+        self.seen.pop(call, None)
         served = self.calls.pop(call, None)
         if served is None:
             return
@@ -255,6 +278,19 @@ def served_call(
     )
     serving.live.serve(served)
     return serving.live.calls[context.call]
+
+
+# Parked and not counted: the socket holding its agent and the quota are its opener's.
+def first_seen(
+    serving: Serving, context: CallContext, config: AgentConfig, scope: Scope, now: float
+) -> Served:
+    """Serve a call another gateway opened, from what was kept when it opened."""
+    serving.live.idle(now)
+    served = served_call(serving, None, context, config, scope)
+    served = replace(served, opened_here=False)
+    serving.live.calls[served.call] = served
+    serving.live.seen[served.call] = now
+    return served
 
 
 async def opened(log: Log, context: CallContext, agent: str) -> None:

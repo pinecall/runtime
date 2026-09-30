@@ -41,6 +41,11 @@ order by seq
 limit 1
 """
 
+# Which of the calls a gateway serves another gateway sealed: one read of their heads.
+SEALED_AMONG = """
+select log from call_log_head where log = any(%(calls)s) and sealed
+"""
+
 # A read cursor never moves back.
 READ = """
 insert into thread_reads as seen (org, env, holder, agent, reader, contact, read_at)
@@ -183,6 +188,15 @@ async def metered_page(store: Store, *, after: int, limit: int, org: str | None)
     read = [usage_row(item) for item in await store.across(METERED_TYPES, after=after, limit=limit)]
     kept = [row for row in read if org is None or row.org == org]
     return MeteredPage(rows=kept, next=read[-1].cursor if read else None)
+
+
+async def sealed_among(pool: Pool, calls: list[str]) -> set[str]:
+    """The ones of these calls whose log is sealed, wherever it was sealed."""
+    if not calls:
+        return set()
+    async with pool.connection() as connection:
+        rows = await (await connection.execute(SEALED_AMONG, {"calls": calls})).fetchall()
+    return {str(row["log"]) for row in rows}
 
 
 async def scope_of_call(pool: Pool, call: str) -> CallScope | None:

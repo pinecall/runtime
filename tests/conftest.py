@@ -6,14 +6,16 @@ import logging
 import os
 import socket
 import sys
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
-from dataclasses import dataclass
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Iterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, replace
 from uuid import uuid4
 
 import httpx
 import pytest
 import uvicorn
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, MultiFernet
+from fastapi import FastAPI
 from psycopg import sql
 from websockets.asyncio.client import ClientConnection
 from websockets.asyncio.client import connect as opened_socket
@@ -29,14 +31,14 @@ from pinecall.gateway._served import ServedCalls, Serving
 from pinecall.gateway._sockets import Sockets
 from pinecall.gateway._threads import Threads
 from pinecall.gateway.api.providers import SAMPLES_A_MINUTE
-from pinecall.gateway.app import app
+from pinecall.gateway.app import app, served_app
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store
 from pinecall.postgres.migrate import apply_migrations
 from pinecall.postgres.pool import Pool, Timeouts, connect, open_pool
 from pinecall.process.connections import Connections, vault_of
 from pinecall.process.settings import Settings
-from pinecall.process.signal import RedisSignal
+from pinecall.process.signal import LocalSignal, RedisSignal
 from pinecall.providers import catalog
 from pinecall.providers.build import MODALITIES, Vendor, installed
 from pinecall.providers.catalog import Providers
@@ -315,22 +317,47 @@ async def connections(pool: Pool) -> AsyncIterator[Connections]:
     await server.aclose()
 
 
+@dataclass(frozen=True)
+class Shared:
+    """What every gateway of the test's box shares: its vault, its signal, the world outside."""
+
+    vault: MultiFernet
+    signal: LocalSignal
+    outside: httpx.AsyncBaseTransport
+
+
 @pytest.fixture
-async def wired(
-    pool: Pool, store: Store, acme: str, twilio: Twilio, graph: Graph
-) -> AsyncIterator[Gateway]:
+def shared(twilio: Twilio, graph: Graph) -> Shared:
+    """The box's vault, an in-process signal, and Twilio and Meta answering from fakes."""
+    return Shared(
+        vault=vault_of(Fernet.generate_key().decode()),
+        signal=LocalSignal(),
+        outside=outside(twilio, graph),
+    )
+
+
+@pytest.fixture
+async def wired(pool: Pool, store: Store, acme: str, shared: Shared) -> AsyncIterator[Gateway]:
     """The gateway wired on the test's schema: acme on every stage, lent by the box."""
-    sealed = vault_of(Fernet.generate_key().decode())
     await catalog.seed(pool, configured())
-    await vault.put_box_credentials(pool, sealed, acme, "a key of the box")
+    await vault.put_box_credentials(pool, shared.vault, acme, "a key of the box")
     await worlds.set_fleets(pool, worlds.Fleets.model_validate(FLEETS))
-    logs = Logs(store)
+    async with a_gateway(pool, Logs(store, shared.signal), shared) as gateway:
+        yield gateway
+
+
+# Another process of the same box: its own logs, writer, sockets and calls, on the same store and
+# signal, the one vault.
+@asynccontextmanager
+async def a_gateway(pool: Pool, logs: Logs, shared: Shared) -> AsyncGenerator[Gateway]:
+    """A gateway wired on these logs, its outside world answered by the transport."""
+    store = logs.store
     server = Server()
     settings = settings_of()
-    http = httpx.AsyncClient(transport=outside(twilio, graph))
+    http = httpx.AsyncClient(transport=shared.outside)
     sockets, live = Sockets(logs), ServedCalls()
     connections = Connections(
-        settings=settings, pool=pool, writing=pool, vault=sealed, http=http, server=server
+        settings=settings, pool=pool, writing=pool, vault=shared.vault, http=http, server=server
     )
     serving = Serving(connections=connections, logs=logs, live=live, embedder=None)
     threads = Threads(serving, sockets)
@@ -355,6 +382,7 @@ async def wired(
     await outbox.drained()
     await threads.closed()
     await store.writer.drained()
+    await logs.close()
     await http.aclose()
     await server.aclose()
 
@@ -370,20 +398,39 @@ async def knocking(wired: Gateway) -> AsyncIterator[Knocking]:
         env: await issued(wired.connections.pool, "default", env, frozenset({THE_FLEET}))
         for env in WORLDS
     }
-    app.state.gateway = wired
+    async with served_on(app, wired) as url:
+        yield Knocking(url=url, gateway=wired, org=org, app=app_keys, fleet=fleet_keys)
+
+
+# A second gateway of the same box, served on a port of its own, knocked on with the same keys.
+@pytest.fixture
+async def knocking_two(
+    knocking: Knocking, pool: Pool, store: Store, shared: Shared
+) -> AsyncIterator[Knocking]:
+    """The box's second gateway: the first's store and signal, its own process's memory."""
+    logs = Logs(Store(pool, clock=store.clock), shared.signal)
+    async with (
+        a_gateway(pool, logs, shared) as second,
+        served_on(served_app(), second) as url,
+    ):
+        yield replace(knocking, url=url, gateway=second)
+
+
+@asynccontextmanager
+async def served_on(served: FastAPI, gateway: Gateway) -> AsyncGenerator[str]:
+    """The gateway served by the app on a free port in the test's loop; its address."""
+    served.state.gateway = gateway
     # Listening before uvicorn serves: a request that arrives first waits in the backlog.
     listening = socket.create_server(("127.0.0.1", 0))
     port = listening.getsockname()[1]
-    config = uvicorn.Config(app, lifespan="off", log_level="warning")
+    config = uvicorn.Config(served, lifespan="off", log_level="warning")
     server = uvicorn.Server(config)
     serving = asyncio.create_task(server.serve(sockets=[listening]))
-    yield Knocking(
-        url=f"http://127.0.0.1:{port}", gateway=wired, org=org, app=app_keys, fleet=fleet_keys
-    )
-    wired.closing.set()
+    yield f"http://127.0.0.1:{port}"
+    gateway.closing.set()
     server.should_exit = True
     await serving
-    del app.state.gateway
+    del served.state.gateway
 
 
 async def a_developer(knocking: Knocking, email: str) -> tuple[str, str]:

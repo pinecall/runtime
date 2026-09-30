@@ -260,19 +260,6 @@ async def lifespan(fastapi_app: FastAPI) -> AsyncGenerator[None]:
         yield
 
 
-# Swagger under /v1: the console has a /docs screen of its own.
-app = FastAPI(
-    title="Pinecall gateway", lifespan=lifespan, docs_url="/v1/docs", redoc_url="/v1/redoc"
-)
-
-
-app.add_middleware(AppOrigins)
-
-
-for doors in ROUTERS:
-    app.include_router(doors.router)
-
-
 async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
     """Open the connections, then what the gateway keeps in memory; the reverse at the end."""
     connections = await stack.enter_async_context(opened(settings))
@@ -330,21 +317,12 @@ async def refused(_request: Request, error: Exception) -> Response:
     return JSONResponse({"detail": str(error)}, status_code=status, headers=headers)
 
 
-app.add_exception_handler(PinecallError, refused)
-
-
 async def busy(request: Request, error: Exception) -> Response:
     """A full pool or a statement past its timeout, answered 503 with its one sentence."""
     if isinstance(error, PoolTimeout):
         return await refused(request, StoreUnreachable(NO_CONNECTION.format(wait=TIMEOUTS.wait_s)))
     took = TIMEOUTS.statement_ms / 1000
     return await refused(request, StoreUnreachable(TOO_SLOW.format(took=took)))
-
-
-app.add_exception_handler(PoolTimeout, busy)
-
-
-app.add_exception_handler(QueryCanceled, busy)
 
 
 def origins_allowed(settings: Settings) -> tuple[str, ...]:
@@ -360,9 +338,6 @@ def widget_file(file: str) -> FileResponse:
     if root not in params.parents or not params.is_file():
         raise HTTPException(404, "Not Found")
     return FileResponse(params, headers=WIDGET_HEADERS)
-
-
-app.add_api_route("/widget/{file}", widget_file, methods=["GET"], include_in_schema=False)
 
 
 # The last route: a built file is itself, any other path is the page, so a reload lands where it
@@ -396,7 +371,23 @@ def page_marked(page: str, settings: Settings, host: str | None) -> str:
     return page.replace("<head>", f"<head>{marks}", 1)
 
 
-app.add_api_route("/{path:path}", console, methods=["GET"], include_in_schema=False)
+# One gateway's app: a test serves two, each with a gateway of its own in its state. Swagger under
+# /v1: the console has a /docs screen of its own. The console is the last route: a built file is
+# itself, any other path is the page.
+def served_app() -> FastAPI:
+    """The gateway's doors, its refusals, the widget and the console, on a new app."""
+    served = FastAPI(
+        title="Pinecall gateway", lifespan=lifespan, docs_url="/v1/docs", redoc_url="/v1/redoc"
+    )
+    served.add_middleware(AppOrigins)
+    for doors in ROUTERS:
+        served.include_router(doors.router)
+    served.add_exception_handler(PinecallError, refused)
+    served.add_exception_handler(PoolTimeout, busy)
+    served.add_exception_handler(QueryCanceled, busy)
+    served.add_api_route("/widget/{file}", widget_file, methods=["GET"], include_in_schema=False)
+    served.add_api_route("/{path:path}", console, methods=["GET"], include_in_schema=False)
+    return served
 
 
 # A box with no embedder still starts: every door that embeds says what the operator must set.
@@ -430,3 +421,6 @@ def _box_mailbox(settings: Settings) -> Mailbox | None:
 async def _cancelled[T](task: asyncio.Task[T]) -> None:
     task.cancel()
     await asyncio.gather(task, return_exceptions=True)
+
+
+app = served_app()

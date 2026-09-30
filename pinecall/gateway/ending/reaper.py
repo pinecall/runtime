@@ -76,11 +76,24 @@ async def reap_forever(serving: Serving, server: api.LiveKitAPI) -> None:
     while True:
         try:
             await reaped(serving, server, time.time())
+            await let_go(serving)
         except (Conflict, NotAvailable, api.TwirpError, OSError):
             logger.warning(
                 "the reaper's pass failed; the next is in %.0f s", REAPED_EVERY_S, exc_info=True
             )
         await asyncio.sleep(REAPED_EVERY_S)
+
+
+# A call sealed on another gateway ends its readers there; here it is only let go of, so it no
+# longer counts against its org's calls at once, and idle calls first seen here go with it.
+async def let_go(serving: Serving) -> list[str]:
+    """Stop serving the calls sealed elsewhere, and the ones first seen here that went idle."""
+    serving.live.idle(time.monotonic())
+    gone = await queries.sealed_among(serving.connections.pool, list(serving.live.calls))
+    for call in gone:
+        serving.logs.forget(call)
+        serving.live.close(call)
+    return sorted(gone)
 
 
 # Duration ends at the last entry, not now: reaping late bills no extra minutes.
