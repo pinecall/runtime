@@ -20,6 +20,7 @@ from pinecall.channels import whatsapp
 from pinecall.cli import _archive, _box, _facts, _load, _operator, _sessions, _traceback, _usage
 from pinecall.domain.errors import NotAvailable, PinecallError
 from pinecall.gateway.app import announce_closing, app, embedder_of
+from pinecall.log import days
 from pinecall.postgres.migrate import apply_migrations, migration_files, migrations_behind
 from pinecall.postgres.pool import open_pool
 from pinecall.process.connections import keyring_of, opened, server_of, vault_of
@@ -182,10 +183,15 @@ def retention_due(settings: Settings, _args: argparse.Namespace) -> int:
 
 def retention_run(settings: Settings, _args: argparse.Namespace) -> int:
     """Erase every sealed call past its org's days, forget what is kept for a time; how many."""
-    erased, records, dials, seen = asyncio.run(_purged(settings))
+    erased, records, dials, seen, kept = asyncio.run(_purged(settings))
     sys.stdout.write(f"{len(erased)} calls erased past their org's days\n")
     sys.stdout.write(f"{records} call records and {dials} dials forgotten past 24 months\n")
     sys.stdout.write(f"{seen} WhatsApp message ids forgotten past Meta's 7 days of retries\n")
+    sys.stdout.write(
+        f"days of the log: {len(kept.made)} made ahead, {len(kept.dropped)} dropped once empty\n"
+    )
+    for day in kept.refused:
+        sys.stdout.write(f"{day} not made: {days.DEFAULT} holds rows of it\n")
     return 0
 
 
@@ -348,7 +354,7 @@ async def _due(settings: Settings) -> list[retention.Due]:
         await pool.close()
 
 
-async def _purged(settings: Settings) -> tuple[list[str], int, int, int]:
+async def _purged(settings: Settings) -> tuple[list[str], int, int, int, days.Kept]:
     pool = await open_pool(settings.database_url)
     now = time.time()
     try:
@@ -356,7 +362,8 @@ async def _purged(settings: Settings) -> tuple[list[str], int, int, int]:
             erased = await retention.purge(pool, recordings_of(settings, http), now)
         records = await retention.forget_records(pool, now)
         dials = await retention.forget_dials(pool, now)
-        return erased, records, dials, await whatsapp.forget_seen(pool, now)
+        seen = await whatsapp.forget_seen(pool, now)
+        return erased, records, dials, seen, await days.kept(pool, now)
     finally:
         await pool.close()
 
@@ -366,10 +373,22 @@ async def _examined(settings: Settings) -> list[tuple[str, str | None, str]]:
         ("vault", _vault(settings), ""),
         ("database", await _database(settings), ""),
         ("facts", await _facts.examined(settings), ""),
+        ("days", await _days(settings), ""),
         ("archive", *await _archived(settings)),
         ("livekit", await _livekit(settings), ""),
         ("gateway", await _gateway(settings), ""),
     ]
+
+
+async def _days(settings: Settings) -> str | None:
+    try:
+        pool = await open_pool(settings.database_url)
+    except PinecallError as refused:
+        return str(refused)
+    try:
+        return await days.examined(pool, time.time())
+    finally:
+        await pool.close()
 
 
 def _vault(settings: Settings) -> str | None:

@@ -25,6 +25,8 @@ SCHEMA = r'(?:"?[a-z_][a-z0-9_]*"?\.)?'
 ALTER_TABLE = re.compile(
     rf"^alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?{SCHEMA}{A_NAME}\s+(.*)$", re.DOTALL
 )
+CREATE_TABLE = re.compile(rf"^create\s+table\s+(?:if\s+not\s+exists\s+)?{SCHEMA}{A_NAME}\s*\(")
+RENAMED = re.compile(r"\brename\s+to\s+")
 DROP_TABLE = re.compile(r"^drop\s+table\s+(?:if\s+exists\s+)?(.*?)(?:\s+(?:cascade|restrict))?$")
 DROP_COLUMN = re.compile(rf"^drop\s+(?:column\s+)?(?:if\s+exists\s+)?{A_NAME}")
 RENAME_COLUMN = re.compile(rf"^rename\s+(?:column\s+)?{A_NAME}\s+to\s+")
@@ -44,7 +46,11 @@ HOW = "say `-- pinecall:contracts {what} unread since <the release that stopped 
 def contracted(sql: str) -> list[str]:
     """Return every table or column the migration drops, renames or makes NOT NULL, in order."""
     found: list[str] = []
-    for statement in _statements(sql):
+    statements = _statements(sql)
+    # A table renamed away and made again under its name in the same migration (a swap: the old
+    # one becomes a partition of the new) keeps the name the release before it reads.
+    made = {created.group(1) for created in map(CREATE_TABLE.match, statements) if created}
+    for statement in statements:
         dropped = DROP_TABLE.match(statement)
         if dropped is not None:
             found += [
@@ -53,7 +59,11 @@ def contracted(sql: str) -> list[str]:
             continue
         altered = ALTER_TABLE.match(statement)
         if altered is not None:
-            found += _altered(altered.group(1), altered.group(2))
+            found += [
+                what
+                for what in _altered(altered.group(1), altered.group(2))
+                if not (what == altered.group(1) and what in made and RENAMED.search(statement))
+            ]
     return found
 
 

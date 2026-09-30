@@ -156,7 +156,7 @@ calls past their org's `retention_days` (`PUT /v1/org/policy`), oldest first; `r
 erases them, each through the erasure path with `retention` as who asked, 5 000 a run at most,
 then forgets the detail records of erased phone calls, and the dials, older than 24 months, and
 the WhatsApp message ids claimed more than 7 days ago ([whatsapp.md](protocol/whatsapp.md));
-`pinecall-retention.timer` runs it at 04:00 every night. `traceback <number> [--since
+then makes the log's days a week ahead (`call_log` is partitioned by UTC day; a row no day holds lands in `call_log_default`, and a day the default already holds rows of is named and not made) and drops each past day nothing is left in; `pinecall-retention.timer` runs it at 04:00 every night. `doctor`'s `days` line names rows in the default and fewer than two days made ahead. `traceback <number> [--since
 YYYY-MM-DD]` answers a carrier's traceback: every phone call with the number, still kept or erased
 with its record, and every dial to it placed or refused, with the org, the world, the number shown
 and who asked — 24 months back unless `--since` says a day. `migrate up` applies what the

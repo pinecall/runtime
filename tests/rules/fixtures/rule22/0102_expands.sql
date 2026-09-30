@@ -12,3 +12,7 @@ ALTER TABLE call_log_head
 
 DROP INDEX call_log_head_seen;
 ALTER TABLE call_facts RENAME CONSTRAINT old TO new;
+
+-- A swap: the table renamed away becomes a partition of a new one under its name.
+ALTER TABLE entries RENAME TO entries_before;
+CREATE TABLE entries (id bigint NOT NULL, at double precision NOT NULL) PARTITION BY RANGE (at);
