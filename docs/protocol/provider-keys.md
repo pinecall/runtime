@@ -18,6 +18,28 @@ A vendor is a livekit plugin installed on the box; nothing in code lists them. `
 says why). `ready` is the first two. `voices_listed` says whether `GET /v1/voices` lists that
 vendor's voices. `defaults` and `models` are the box's providers row.
 
+## Where the abstraction is, and where it stops
+
+**livekit's `LLM`, `STT` and `TTS` classes are the abstraction; what differs between vendors is
+data.** A vendor is its plugin's class built with the org's key; what it takes is its constructor's
+parameters, read when it is built (the key, the voice and the language each land under whichever
+name the plugin gave them); what it can do is the class's capabilities (streaming, interim
+results, keyterms, an aligned transcript); whether its ears end the turn themselves
+(`ends_the_turn`), which of its classes runs (`builds`) and its options are the providers row's.
+Nothing in code names a vendor, so a fifth vendor is `pip install "livekit-agents[<vendor>]"` and a
+row, and the suite proves it before a call does: every installed vendor is built offline with a key
+alone, and either reports the model and the provider the usage reads and the capabilities the
+session reads, or is refused in our words, never in its own exception.
+
+A knob the org sets that the vendor takes under no name — a turn's `endpointing_ms`,
+`eot_threshold` or `eager_eot_threshold` on ears that have no such parameter, a `voice` on a voice
+that picks none — is **refused where it is set**, `400 soniox's stt takes no eager_eot_threshold`
+on `PUT /v1/agents/{slug}/settings` with a `pipeline` key, instead of being dropped on every call.
+A set a `words` key writes carries those knobs over untouched and is not refused for them, and a
+setting stored before this refusal still runs as it did. The abstraction stops where a vendor's
+behaviour is not a parameter: a stream's timing, how it cuts a sentence, what its confidence
+means. Those are measured per vendor and per day (`GET /v1/insights`, `stages`), not abstracted.
+
 ## The org's own keys
 
 | | |

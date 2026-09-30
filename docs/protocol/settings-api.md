@@ -68,8 +68,9 @@ unset, there is no deadline of ours), `knowledge` (Markdown read whole into the 
 
 The **whole** set for this scope. It is checked as a call would be built from it: the declaration
 when an app holds the agent, a bare one otherwise, its lexicon in the scope, and the vendors on the
-org's keys, so a vendor this build has no plugin for, a blank knob or an opening with both verbs is
-`400` in its own sentence, and a vendor the box does not lend this org is refused here and not on
+org's keys, so a vendor this build has no plugin for, a blank knob, an opening with both verbs or a turn or
+voice knob the vendor takes under no name ([provider-keys.md](provider-keys.md)) is `400` in its
+own sentence, and a vendor the box does not lend this org is refused here and not on
 the next call. `409` when the scope is not at `if_version`. Answers the `GET` shape.
 
 ## `GET …/settings/history?team=&limit=` · `GET …/settings/diff?against=team|production` · `POST …/settings/rollback {version, team}`
