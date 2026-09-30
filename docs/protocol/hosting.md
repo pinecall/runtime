@@ -31,7 +31,7 @@ sets, lists and drops the org's secrets. Their page is the agents repo's `docs/t
 | `GET /v1/hosted/usage[?month=YYYY-MM]` | `{since, until, rows: [{org, env, name, day, seconds}]}`: the time each app served per UTC day of one month, this one by default |
 | `DELETE /v1/hosted/{name}` | `204`: the app and its releases go, and its token is revoked |
 
-`{name}` is a slug. **The first upload makes the app**: it is counted against the org's
+`{name}` is a slug of 40 characters at most, since it is part of a host name. **The first upload makes the app**: it is counted against the org's
 `hosted_apps` quota in that world ([../limits.md](../limits.md); `429` at the limit, and a quota
 of zero hosts nothing), and a server's token is minted for it — the org's, in that world, labelled
 `hosted app <name>`, listed in `GET /v1/keys` like any other and kept sealed under the vault key
@@ -75,13 +75,13 @@ opens `runner`, a scope no org's key and no person's role holds: it is minted on
 
 | door | what |
 |---|---|
-| `POST /v1/runner/heartbeat {runner, reports: [{org, name, host, state, why}], logs: [{org, name, host, lines}]}` | keeps the reports and the logs, counts the time each serving app served, and answers the key's world and every app of it that has a release and is not stopped: `{world, apps: [{org, name, release, sha256, host, registered, failed, logs_wanted}]}` |
+| `POST /v1/runner/heartbeat {runner, reports: [{org, name, host, state, why}], logs: [{org, name, host, lines}]}` | keeps the reports and the logs, counts the time each serving app served, and answers the key's world and every app of it that has a release and is not stopped: `{world, apps: [{org, name, release, sha256, host, registered, failed, logs_wanted, live_host}]}`. `live_host` is the host that last went live, `null` before one did. A runner reads the answer leniently, so a gateway may add fields before its runners know them: **the runner is upgraded first** |
 | `GET /v1/runner/apps/{org}/{name}/releases/{release}/source` | the tarball, of any org in the key's world |
 | `GET /v1/runner/apps/{org}/{name}/environment` | `{environment: {…}}`: the org's secrets in that world opened, `PINECALL_KEY` (the app's token) and `PINECALL_URL` (the box's address for that world; `503` on a box with no name) |
 
 **A host is one release under one set of secrets.** `host` is the name the release's process is
-to run under, `<name>-r<release>-<eight hex>`; the hex is of the release and of the org's secrets
-as they are, so an upload and a changed secret are both a new host. The SDK says the machine it
+to run under, `<name>-r<release>-<eight hex>`; the hex is of the org, the world, the name, the release and the org's
+secrets as they are, so two orgs never share a host name on a machine, and so an upload and a changed secret are both a new host. The SDK says the machine it
 runs on when it registers, so `registered` is true once an app socket of the org says it runs on
 that host: the release is serving.
 
@@ -90,3 +90,13 @@ only while that host is still the one wanted. A host reported failed comes back 
 the runner leaves it alone until a release or a secret makes the next host. `logs_wanted` is true
 for a minute after somebody asked for the app's logs: the runner reads its container's last 300
 lines and sends them with its next beat.
+
+**A host that went live and whose process exits is run again**, as the same host, with its last
+lines kept as the app's logs. Five exits in ten minutes and the runner gives up: the host is
+reported `failed` with its last lines (`the process exited 5 times in 10 minutes`), and the app
+answers nothing until the next release or secret makes a new host. A host that never went live and
+exits is failed at once: a release that does not start is not tried again.
+
+The environment never rides podman's: the runner writes it to a file on a tmpfs, root's, that is
+mounted read-only into that one container, and the container's own shell reads it before it becomes
+`pinecall start`. A secret named like `LD_PRELOAD` or `PATH` is the app's own, never podman's.

@@ -15,6 +15,7 @@ from pinecall.tenancy.hosting import (
     LARGEST_SOURCE,
     HostedApp,
     apps_of,
+    checked_name,
     checked_source,
     drop_app,
     failed,
@@ -25,6 +26,7 @@ from pinecall.tenancy.hosting import (
     keep_release,
     key_of,
     open_app,
+    release_of,
     releases_of,
     source_of,
     went_live,
@@ -156,7 +158,7 @@ async def test_releases_are_numbered_from_one_and_come_back_newest_first(pool: P
     ]
     [listed] = await apps_of(pool, org.id, "production")
     assert listed.release == 2
-    assert await source_of(pool, app, 1) == PROJECT
+    assert (await source_of(pool, app, 1)).data == PROJECT
 
 
 @postgres
@@ -213,13 +215,33 @@ async def test_removing_the_org_takes_its_hosted_apps_with_it(pool: Pool) -> Non
     assert left["n"] == 0
 
 
+APP = HostedApp(org="org_1", env="production", name="support")
+
+
+# Two orgs, or two worlds, deploying the same sources under one name are two hosts: a name
+# collides with no other on a machine two runners share.
 def test_a_host_names_the_app_the_release_and_a_stamp_and_fits_a_host_name() -> None:
-    host = host_of("support", 7, "a" * 64, "")
+    host = host_of(APP, 7, "a" * 64, "")
     assert host.startswith("support-r7-")
     assert len(host) == len("support-r7-") + 8
-    assert host_of("support", 7, "a" * 64, "CRM_TOKEN@1.5") != host
-    assert host_of("support", 8, "a" * 64, "") != host
-    assert len(host_of("x" * 200, 1234, "a" * 64, "")) <= 63
+    assert host_of(APP, 7, "a" * 64, "CRM_TOKEN@1.5") != host
+    assert host_of(APP, 8, "a" * 64, "") != host
+    assert (
+        host_of(HostedApp(org="org_2", env="production", name="support"), 7, "a" * 64, "") != host
+    )
+    assert host_of(HostedApp(org="org_1", env="sandbox", name="support"), 7, "a" * 64, "") != host
+    longest = HostedApp(org="org_1", env="production", name="x" * 40)
+    assert len(host_of(longest, 123456, "a" * 64, "")) <= 63
+    assert release_of(host) == 7
+    assert release_of("support-r7") is None
+
+
+def test_a_name_longer_than_a_host_can_carry_is_refused() -> None:
+    assert checked_name("x" * 40) == "x" * 40
+    with pytest.raises(DeclarationRefused, match="40 characters at most"):
+        checked_name("x" * 41)
+    with pytest.raises(DeclarationRefused, match="slug"):
+        checked_name("Not A Slug")
 
 
 @postgres
@@ -227,13 +249,14 @@ async def test_an_app_has_no_release_then_its_newest_under_a_host(pool: Pool) ->
     org = await an_org(pool)
     app = HostedApp(org=org.id, env="production", name="support")
     await open_app(pool, VAULT, app, created_by="m_ana")
-    [before] = await hosted_in(pool, "production")
+    assert await hosted_in(pool, "production") == []
+    [before] = await apps_of(pool, org.id, "production")
     assert (before.release, before.host, before.failed_why) == (None, None, None)
     await keep_release(pool, app, checked_source(PROJECT), author="m_ana", note="")
     [status] = await hosted_in(pool, "production")
     assert (status.org, status.name, status.release) == (org.id, "support", 1)
-    assert status.host is not None
     assert status.host.startswith("support-r1-")
+    assert (status.failed, status.live_host) == (False, None)
     assert await hosted_in(pool, "sandbox") == []
 
 
@@ -259,12 +282,16 @@ async def test_a_failure_is_the_wanted_hosts_until_a_newer_release_replaces_it(p
     await open_app(pool, VAULT, app, created_by="m_ana")
     await keep_release(pool, app, checked_source(PROJECT), author="m_ana", note="")
     [status] = await hosted_in(pool, "production")
-    await failed(pool, app, status, why="npm install exited 1", runner="apps-1")
+    await failed(pool, app, status.host, why="npm install exited 1", runner="apps-1")
     [after] = await hosted_in(pool, "production")
-    assert after.failed_why == "npm install exited 1"
+    [listed] = await apps_of(pool, org.id, "production")
+    assert after.failed
+    assert listed.failed_why == "npm install exited 1"
     await keep_release(pool, app, checked_source(PROJECT), author="m_ana", note="")
     [newer] = await hosted_in(pool, "production")
-    assert newer.failed_why is None
+    [relisted] = await apps_of(pool, org.id, "production")
+    assert not newer.failed
+    assert relisted.failed_why is None
 
 
 @postgres
@@ -274,10 +301,11 @@ async def test_a_release_gone_live_is_what_serves_the_app_until_the_next_does(po
     await open_app(pool, VAULT, app, created_by="m_ana")
     await keep_release(pool, app, checked_source(PROJECT), author="m_ana", note="")
     [status] = await hosted_in(pool, "production")
-    await went_live(pool, app, status, runner="apps-1")
+    await went_live(pool, app, status.host, runner="apps-1")
     await keep_release(pool, app, checked_source(PROJECT), author="m_ana", note="")
     [newer] = await hosted_in(pool, "production")
-    assert (newer.release, newer.live_release) == (2, 1)
+    [listed] = await apps_of(pool, org.id, "production")
+    assert (newer.release, newer.live_host, listed.live_release) == (2, status.host, 1)
 
 
 @postgres
@@ -295,8 +323,8 @@ async def test_the_apps_token_opens_for_whoever_starts_it_and_not_for_an_app_not
 
 
 def test_a_host_is_the_apps_whatever_its_release_and_never_a_longer_names() -> None:
-    host = host_of("support", 3, "a" * 64, "")
+    host = host_of(APP, 3, "a" * 64, "")
     assert is_a_host_of("support", host)
-    assert not is_a_host_of("support", host_of("support-rest", 3, "a" * 64, ""))
+    rest = HostedApp(org="org_1", env="production", name="support-rest")
+    assert not is_a_host_of("support", host_of(rest, 3, "a" * 64, ""))
     assert not is_a_host_of("support", "support-r3")
-    assert is_a_host_of("x" * 200, host_of("x" * 200, 1, "a" * 64, ""))

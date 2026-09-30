@@ -10,12 +10,11 @@ from pinecall.tenancy.hosted_running import (
     LONGEST_BEAT_S,
     LONGEST_LOGS,
     ask_for_logs,
+    count_serving,
     keep_logs,
-    metered,
     served,
     start_app,
     stop_app,
-    unmetered,
 )
 from pinecall.tenancy.hosting import (
     HostedApp,
@@ -51,7 +50,7 @@ async def test_a_stopped_app_is_listed_stopped_and_the_runner_is_not_told_to_run
     assert await hosted_in(pool, "production") == []
     await start_app(pool, app)
     [running] = await hosted_in(pool, "production")
-    assert not running.stopped
+    assert running.name == "support"
 
 
 @postgres
@@ -90,14 +89,22 @@ async def test_logs_longer_than_the_ceiling_keep_their_last_part(pool: Pool) -> 
     assert kept.lines.endswith("the end")
 
 
+async def seconds_of(pool: Pool, app: HostedApp) -> float:
+    rows = await served(pool, date(2026, 9, 1), date(2026, 11, 1), org=app.org)
+    return sum(row.seconds for row in rows)
+
+
 @postgres
 async def test_time_serving_is_counted_from_the_first_beat_and_capped_across_a_gap(
     pool: Pool,
 ) -> None:
     app = await a_running_app(pool)
-    assert await metered(pool, app, NOON) == 0.0
-    assert await metered(pool, app, NOON + timedelta(seconds=5)) == 5.0
-    assert await metered(pool, app, NOON + timedelta(minutes=10)) == LONGEST_BEAT_S
+    both = [(app.org, "support")]
+    await count_serving(pool, "production", both, NOON)
+    assert await seconds_of(pool, app) == 0.0
+    await count_serving(pool, "production", both, NOON + timedelta(seconds=5))
+    assert await seconds_of(pool, app) == 5.0
+    await count_serving(pool, "production", both, NOON + timedelta(minutes=10))
     [day] = await served(pool, date(2026, 9, 1), date(2026, 10, 1), org=app.org)
     assert (day.name, day.day, day.seconds) == ("support", date(2026, 9, 30), 5.0 + LONGEST_BEAT_S)
 
@@ -105,17 +112,23 @@ async def test_time_serving_is_counted_from_the_first_beat_and_capped_across_a_g
 @postgres
 async def test_an_app_that_stopped_serving_counts_again_from_its_next_beat(pool: Pool) -> None:
     app = await a_running_app(pool)
-    await metered(pool, app, NOON)
-    await unmetered(pool, app)
-    assert await metered(pool, app, NOON + timedelta(hours=1)) == 0.0
+    await count_serving(pool, "production", [(app.org, "support")], NOON)
+    await count_serving(pool, "production", [(app.org, "support")], NOON + timedelta(seconds=5))
+    await count_serving(pool, "production", [], NOON + timedelta(seconds=10))
+    await count_serving(pool, "production", [(app.org, "support")], NOON + timedelta(hours=1))
+    assert await seconds_of(pool, app) == 5.0
+    await count_serving(pool, "sandbox", [(app.org, "support")], NOON + timedelta(hours=2))
+    assert await seconds_of(pool, app) == 5.0
 
 
 @postgres
 async def test_each_utc_day_is_its_own_row_and_the_month_asked_bounds_them(pool: Pool) -> None:
     app = await a_running_app(pool)
     midnight = datetime(2026, 9, 30, 23, 59, 50, tzinfo=UTC)
-    await metered(pool, app, midnight)
-    await metered(pool, app, midnight + timedelta(seconds=20))
+    await count_serving(pool, "production", [(app.org, "support")], midnight)
+    await count_serving(
+        pool, "production", [(app.org, "support")], midnight + timedelta(seconds=20)
+    )
     september = await served(pool, date(2026, 9, 1), date(2026, 10, 1), org=app.org)
     october = await served(pool, date(2026, 10, 1), date(2026, 11, 1), org=app.org)
     assert [row.seconds for row in september] == []

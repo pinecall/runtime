@@ -116,6 +116,11 @@ NOT_YET_REACHED: tuple[Allowed, ...] = (
 # Rule 14: the files that create a task, and who cancels or awaits it.
 TASK_OWNERS: tuple[Allowed, ...] = (
     Allowed(
+        "pinecall/runner/main.py",
+        "create_task",
+        "working holds one per app; close() cancels and awaits them",
+    ),
+    Allowed(
         "pinecall/gateway/app.py",
         "create_task",
         "the lifespan's exit stack cancels the reaper and the rebuild",

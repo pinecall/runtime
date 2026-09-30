@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query, Request, Response
 
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.names import parse_env, parse_slug
+from pinecall.domain.names import parse_env
 from pinecall.gateway._deps import Acting, AppKey, GatewayDep, asked_by
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy import admission, hosted_running, hosting, org_secrets
@@ -72,8 +72,8 @@ async def upload_release(
 ) -> ReleaseRow:
     """The project's sources as the app's next release."""
     pool = gateway.connections.pool
-    app = HostedApp(org=key.org, env=key.env, name=parse_slug(name))
-    source = await asyncio.to_thread(hosting.checked_source, await request.body())
+    app = HostedApp(org=key.org, env=key.env, name=hosting.checked_name(name))
+    source = await asyncio.to_thread(hosting.checked_source, await _body(request))
     author = asked_by(key)
     if not await hosting.is_hosted(pool, app):
         hosted = len(await hosting.apps_of(pool, key.org, key.env))
@@ -95,9 +95,8 @@ async def list_releases(name: str, key: AppKey, gateway: GatewayDep) -> ReleaseL
 async def release_source(name: str, release: int, key: AppKey, gateway: GatewayDep) -> Response:
     """The tarball one release was uploaded as."""
     app = HostedApp(org=key.org, env=key.env, name=name)
-    return Response(
-        await hosting.source_of(gateway.connections.pool, app, release), media_type=GZIP
-    )
+    source = await hosting.source_of(gateway.connections.pool, app, release)
+    return Response(source.data, media_type=GZIP)
 
 
 @router.post("/v1/hosted/{name}/stop", status_code=204)
@@ -121,7 +120,7 @@ async def roll_back_release(
     """An earlier release's sources kept again as the app's next release."""
     pool = gateway.connections.pool
     app = HostedApp(org=key.org, env=key.env, name=name)
-    source = hosting.checked_source(await hosting.source_of(pool, app, body.release))
+    source = await hosting.source_of(pool, app, body.release)
     note = ROLLED_BACK.format(release=body.release)
     kept = await hosting.keep_release(pool, app, source, author=asked_by(key), note=note)
     return _release_row(app, kept)
@@ -216,6 +215,17 @@ def served_page(since: date, until: date, rows: list[Served]) -> ServedPage:
             for row in rows
         ],
     )
+
+
+# Read a chunk at a time and no further than one byte past the ceiling: an upload of any size
+# costs the gateway the ceiling's memory, and `checked_source` refuses what passed it.
+async def _body(request: Request) -> bytes:
+    read = bytearray()
+    async for chunk in request.stream():
+        read += chunk
+        if len(read) > hosting.LARGEST_SOURCE:
+            break
+    return bytes(read)
 
 
 async def _secrets(pool: Pool, key: Acting) -> SecretList:

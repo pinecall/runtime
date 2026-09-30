@@ -205,6 +205,13 @@ class Settings(BaseModel):
         alias="PINECALL_RUNNER_ROOT",
         description="Where the runner unpacks each release and installs its dependencies.",
     )
+    # A tmpfs the unit mounts: an org's secrets are written here for its containers, never on a
+    # disk.
+    runner_environments: str = Field(
+        "/run/pinecall-runner",
+        alias="PINECALL_RUNNER_ENVIRONMENTS",
+        description="Where the runner writes each container's environment, a folder per host.",
+    )
     runner_image: str = Field(
         "docker.io/library/node:24-slim",
         alias="PINECALL_RUNNER_IMAGE",
