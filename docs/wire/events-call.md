@@ -63,7 +63,7 @@ The call is over. Nothing about the conversation follows; call.summary still doe
 
 | field | type | required | meaning |
 |---|---|---|---|
-| `reason` | `EndReason` | yes | Why the call is over. |
+| `reason` | `EndReason` | yes | Why the call is over. When the agent's side ends a call in a room for any reason but `transferred`, the worker deletes the room, which is what hangs up a phone caller; a transfer leaves them with the far end. |
 | `ended_by` | `EndedBy` | yes | Whose action ended the call. |
 | `ended_at` | `number` | yes | When it ended, unix seconds. |
 | `duration_s` | `number` | yes | Seconds from call.started to now. 0 for a call that never started. |

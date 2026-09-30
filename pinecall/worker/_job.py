@@ -5,7 +5,7 @@ import logging
 import os
 import tempfile
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass
 from datetime import timedelta
 from functools import partial
@@ -16,7 +16,7 @@ from livekit.agents import JobContext
 from livekit.protocol.sip import CreateSIPParticipantRequest
 from pydantic import TypeAdapter
 
-from pinecall.channels.rooms import Dialling, Dispatch, dispatched, read_dispatch
+from pinecall.channels.rooms import Dialling, Dispatch, dispatched, read_dispatch, room_closed
 from pinecall.channels.telephony.dialing import sip_config
 from pinecall.domain.agent import AgentConfig
 from pinecall.domain.call import CallContext, Contact, Route, today_in
@@ -47,7 +47,7 @@ from pinecall.wire.commands import command_of
 from pinecall.wire.events import CallEnded, ErrorEvent, ToolCall
 from pinecall.wire.frames import Command, Entry
 from pinecall.wire.metrics import ModelUsage
-from pinecall.wire.parts import EndReason, PlatformTool, ToolResult
+from pinecall.wire.parts import EndedBy, EndReason, PlatformTool, ToolResult
 from pinecall.wire.rest.calls import (
     BatchedEntry,
     OpenCallRequest,
@@ -186,14 +186,19 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
     kept = min(item for item in (limit, ceiling) if item) if limit or ceiling else 0
     timer = asyncio.create_task(session.keep_time(kept, exhausted=None))
 
-    async def let_go(_reason: str) -> None:
-        commands.cancel()
-        timer.cancel()
-        where.stop()
-        if widget is not None:
-            widget.stop()
+    ctx.add_shutdown_callback(_letting_go(ctx, session, where, widget, commands, timer))
 
-    ctx.add_shutdown_callback(let_go)
+
+# The agent leaving ends no SIP leg: with the room still up, a phone caller hears a silent line
+# until they hang up themselves. A transfer leaves them with the far end and a handover with the
+# next worker, so only a call its session hung up takes the room with it (the model's end_call
+# already did, and a room gone is fine).
+async def room_over(
+    server: api.LiveKitAPI, name: str, ended: tuple[EndReason, EndedBy] | None
+) -> None:
+    """Delete the room once the session hung up the call for any reason but a transfer."""
+    if ended is not None and ended[0] != "transferred":
+        await room_closed(server, name)
 
 
 async def arrival_of(dispatch: Dispatch, where: rtc.Room) -> Arrival:
@@ -555,3 +560,22 @@ async def _commands(gateway: GatewayClient, session: Session, call: str) -> None
             await applied(session, command)
 
     await again(listened, None, f"the commands of {call}")
+
+
+# A closure, not a partial: livekit reads a shutdown callback's `__code__`.
+def _letting_go(
+    ctx: JobContext,
+    session: Session,
+    where: room.CallRoom,
+    widget: Widget | None,
+    *tasks: asyncio.Task[None],
+) -> Callable[[str], Coroutine[None, None, None]]:
+    async def let_go(_reason: str) -> None:
+        for task in tasks:
+            task.cancel()
+        where.stop()
+        if widget is not None:
+            widget.stop()
+        await room_over(ctx.api, ctx.room.name, session.ended)
+
+    return let_go

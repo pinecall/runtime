@@ -52,7 +52,7 @@ unit's)* is written per worker unit, never in the box's `box.env`.
 
 The box's own Twilio account (the one it buys numbers on) and its Meta app (the secret every WhatsApp webhook is signed with, the handshake's word, the token replies go out on when an org brought none) are not variables: they are the sealed rows `credentials/twilio` and `credentials/whatsapp` of `box_settings`, beside the box's vendor keys. See [numbers.md](protocol/numbers.md).
 
-The source is `pinecall/domain/settings.py`: one field per variable, with its alias and its
+The source is `pinecall/process/settings.py`: one field per variable, with its alias and its
 one-line description. A variable this table names and that file does not, or the reverse, is a bug
 in whichever is younger.
 

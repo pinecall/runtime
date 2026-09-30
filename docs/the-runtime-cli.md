@@ -145,7 +145,7 @@ a line each:
 | `append ms` · `seal ms` | from an entry queued to the log holding it, what the call waits, p50/p95/p99; and the time one seal took, p50/p99 |
 | `entries per batch` | how many entries each batch carried, p50/p99: 1 while calls are idle, more as the gateway slows |
 | `refusals` | the calls a refusal ended, by the status the gateway answered (`unreachable` for none) |
-| `logs verified` · `logs found wrong` · `logs unread` | each sealed call's log read back: every durable entry sent, once each, in order, and seqs that rose; `unread` counts the reads refused, by status: today every one (403), since a fleet key does not open `calls`, so only the seqs are checked |
+| `logs verified` · `logs found wrong` · `logs unread` | each sealed call's log read back: every durable entry sent, once each, in order, and seqs that rose; `unread` counts the reads refused, by status |
 | `loop lag ms` | the p99 lag of the generator's own event loop; over 50 ms a `warning:` line follows, since a saturated generator measures itself |
 
 ## `sessions` · `memory` · `retention` · `traceback` · `facts` · `migrate` · `providers` · `doctor`

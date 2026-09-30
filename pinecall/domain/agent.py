@@ -328,7 +328,8 @@ DEFAULT_LAYOUT: tuple[PromptBlock, ...] = (
 )
 
 
-# Field names match the wire's AgentConfig (tests/test_types.py holds them to it).
+# Field names match the wire's AgentConfig (tests/domain/test_names.py holds them to it, from
+# TWINS in tests/domain/conftest.py).
 @dataclass(frozen=True)
 class AgentConfig:
     """An agent's resolved declaration."""
