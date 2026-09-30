@@ -1,7 +1,8 @@
 """An agent's tuning and lexicon, versioned per scope, and what is current."""
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, replace
+from datetime import datetime
 from typing import Literal, LiteralString
 
 from psycopg import sql
@@ -102,6 +103,28 @@ FROM agent_config
 WHERE org = %(org)s AND env = %(env)s AND holder IN (%(holder)s, '')
 ORDER BY agent, holder DESC, version DESC
 """
+
+
+# The versions a drift names: the ones its calls ran and the ones set in its window. The same
+# number at both levels is the holder's, as the version a call ran on is read (AT).
+NOTED = """
+SELECT DISTINCT ON (version) holder, version, author, note, set_at FROM agent_config
+WHERE org = %(org)s AND env = %(env)s AND holder IN (%(holder)s, '') AND agent = %(agent)s
+  AND (version = ANY(%(versions)s)
+       OR (set_at >= to_timestamp(%(since)s) AND set_at < to_timestamp(%(until)s)))
+ORDER BY version, holder DESC
+"""
+
+
+@dataclass(frozen=True)
+class Noted:
+    """A version of the agent's tuning without its value: whose, which, who wrote it, why, when."""
+
+    holder: str
+    version: int
+    author: str
+    note: str | None
+    set_at: datetime
 
 
 @dataclass(frozen=True)
@@ -206,6 +229,20 @@ async def current(pool: Pool, scope: Scope, agent: str) -> Current:
             lexicon=None if words is None else words.version,
         ),
     )
+
+
+async def versions_noted(
+    pool: Pool, scope: Scope, agent: str, versions: Collection[int], between: tuple[float, float]
+) -> list[Noted]:
+    """The agent's versions named, and those set in [since, until), oldest first, without values."""
+    since, until = between
+    params = {**_where(scope, agent), "versions": list(versions), "since": since, "until": until}
+    async with pool.connection() as connection:
+        rows = await (await connection.execute(NOTED, params)).fetchall()
+    return [
+        Noted(row["holder"], row["version"], row["author"], row["note"], row["set_at"])
+        for row in rows
+    ]
 
 
 async def every_tuning(pool: Pool, scope: Scope) -> dict[str, Tuning]:

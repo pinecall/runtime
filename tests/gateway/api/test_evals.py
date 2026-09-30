@@ -24,6 +24,9 @@ from tests.gateway.api.conftest import an_app
 RUN = "/v1/evals/run"
 
 
+COUNTED = "select coalesce(sum(held + broken), 0) as verdicts from judge_days where org = %(org)s"
+
+
 RUNS = "/v1/evals/runs"
 
 
@@ -461,6 +464,11 @@ async def test_a_call_already_judged_is_judged_again_only_when_asked_to(
     assert refused.status_code == 409
     assert "?again=true" in refused.json()["detail"]
     assert again.status_code == 200
+    settled = [row for row in again.json()["judges"] if row["verdict"] in {"held", "broken"}]
+    async with knocking.gateway.connections.pool.connection() as connection:
+        counted = await (await connection.execute(COUNTED, {"org": knocking.org.id})).fetchone()
+    assert counted is not None
+    assert counted["verdicts"] == len(settled), "judged again, the day counts its new verdicts"
 
 
 @postgres

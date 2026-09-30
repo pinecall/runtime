@@ -1,4 +1,4 @@
-"""An org's world as JSON Lines: calls and logs, memories, settings, words, documents, consent."""
+"""An org's world as JSON Lines: calls, memories, settings, words, documents, consent, drift."""
 
 import json
 import time
@@ -75,11 +75,33 @@ FROM contact_consents WHERE org = %(org)s AND env = %(env)s
 ORDER BY number, given_at, id
 """
 
+# What the seal counted of each day, by agent and version: numbers and the judges' names.
+STAGE_DAYS = """
+SELECT jsonb_build_object(
+    'kind', 'stage_day', 'holder', holder, 'agent', agent, 'day', day,
+    'config_version', config_version, 'stage', stage, 'vendor', vendor, 'model', model,
+    'turns', turns, 'buckets', buckets, 'confidence_sum', confidence_sum,
+    'confidence_turns', confidence_turns
+)::text AS line
+FROM stage_days WHERE org = %(org)s AND env = %(env)s
+ORDER BY day, agent, config_version, stage, vendor, model
+"""
+
+JUDGE_DAYS = """
+SELECT jsonb_build_object(
+    'kind', 'judge_day', 'holder', holder, 'agent', agent, 'day', day,
+    'config_version', config_version, 'judge', judge, 'criteria', criteria, 'held', held,
+    'broken', broken
+)::text AS line
+FROM judge_days WHERE org = %(org)s AND env = %(env)s
+ORDER BY day, agent, config_version, judge, criteria
+"""
+
 A_PAGE_OF_CALLS = 100
 
 
 async def lines(pool: Pool, org: str, env: Env) -> AsyncIterator[str]:
-    """Every line: the header, calls, memories, settings, words, documents, consent."""
+    """Every line: the header, calls, memories, settings, words, documents, consent, drift."""
     yield json.dumps({"kind": "export", "org": org, "env": env, "exported_at": time.time()})
     at, call = -1.0, ""
     while True:
@@ -91,7 +113,7 @@ async def lines(pool: Pool, org: str, env: Env) -> AsyncIterator[str]:
         if len(rows) < A_PAGE_OF_CALLS:
             break
         at, call = float(rows[-1]["at"]), str(rows[-1]["call"])
-    for query in (MEMORIES, SETTINGS, WORDS, DOCUMENTS, CONSENTS):
+    for query in (MEMORIES, SETTINGS, WORDS, DOCUMENTS, CONSENTS, STAGE_DAYS, JUDGE_DAYS):
         async with pool.connection() as connection:
             rows = await (await connection.execute(query, {"org": org, "env": env})).fetchall()
         for row in rows:

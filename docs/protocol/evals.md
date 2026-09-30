@@ -131,6 +131,9 @@ what one call may spend on it: a model judge asked once the calls before it reac
 `skipped`, saying why; a judge whose model failed is skipped too, and the call seals all the same.
 `judge_calls` counts the model's requests and `judge_cost_usd` prices them at the row's rates. An
 org that judges nothing gets `not_judged` saying so; a call an eval run opened is judged by the run.
+Each settled verdict is counted into the day's drift, by the version of the agent's settings the
+call ran and the hash of the judge's question, which `GET /v1/insights/drift` reads to say which
+judge's pass rate moved ([console-api.md](console-api.md)).
 
 ## An agent's own judges — `GET /v1/agents/{slug}/judges`, `PUT` · `DELETE /v1/agents/{slug}/judges/{name}`
 

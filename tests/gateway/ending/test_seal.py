@@ -2,21 +2,23 @@
 
 import asyncio
 import dataclasses
+import logging
 from collections.abc import AsyncIterator
 from dataclasses import replace
 
 import httpx
 import pytest
 
-from pinecall.domain.agent import AgentConfig, AgentJudge, MemoryPolicy
+from pinecall.domain.agent import AgentConfig, AgentJudge, MemoryPolicy, Versions
 from pinecall.domain.call import CallContext
 from pinecall.domain.names import JsonObject
 from pinecall.domain.org import Quotas
 from pinecall.domain.scope import Scope
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import opened, served_call
-from pinecall.gateway.ending.seal import A_RUN_JUDGES_IT, NO_JUDGE, sealed, summed_up
+from pinecall.gateway.ending.seal import A_RUN_JUDGES_IT, NO_JUDGE, drifted, sealed, summed_up
 from pinecall.log.logs import log_name
+from pinecall.log.store import Claim
 from pinecall.providers import catalog
 from pinecall.providers.catalog import Embedding, Judge, Rate
 from pinecall.retrieval import memory
@@ -30,6 +32,8 @@ from pinecall.wire.scores import CallScore
 from tests.conftest import configured, postgres
 from tests.fakes.embeddings import Embeddings
 from tests.gateway.conftest import AGENT, OURS, a_call, a_start
+
+COUNTED = "select held, broken, config_version from judge_days where org = %(org)s"
 
 # ── the summary and its cost ──
 
@@ -79,6 +83,41 @@ async def test_a_call_sealed_twice_at_once_is_summed_up_and_scored_once(wired: G
     kinds = [item.type for item in await wired.logs.store.whole(context.call)]
     assert (kinds.count("call.summary"), kinds.count("call.score")) == (1, 1)
     assert await wired.logs.store.sealed(context.call)
+
+
+@postgres
+async def test_the_seal_counts_the_calls_verdicts_into_its_days_drift_once(wired: Gateway) -> None:
+    pool = wired.connections.pool
+    org = await orgs.create(pool, "clinica-norte", "Clinica Norte")
+    scope = Scope(org.id, "sandbox")
+    context = a_call(scope)
+    await wired.logs.store.claim(context.call, AGENT, org.id, Claim(scope, Versions(config=2)))
+    served = served_call(wired.serving, None, context, AgentConfig(slug=AGENT), scope)
+    await opened(served.log, context, AGENT)
+    await sealed(wired.serving, served, SealCallRequest(usage=[], outcome="booked"))
+    whole = await wired.logs.store.whole(context.call)
+    score = CallScore.model_validate(whole[-1].data)
+    await drifted(pool, context.call, whole, score)
+    async with pool.connection() as connection:
+        rows = await (await connection.execute(COUNTED, {"org": org.id})).fetchall()
+    settled = [judge for judge in score.judges if judge.verdict in {"held", "broken"}]
+    assert settled, "the code judges settle every call"
+    assert sum(row["held"] + row["broken"] for row in rows) == len(settled)
+    assert {row["config_version"] for row in rows} == {2}
+
+
+@postgres
+async def test_a_call_whose_drift_cannot_be_counted_is_sealed_all_the_same(
+    wired: Gateway, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.WARNING, logger="pinecall.gateway.ending.seal")
+    context = a_call()
+    await wired.logs.store.claim(context.call, AGENT, OURS.org, Claim(OURS, Versions()))
+    served = served_call(wired.serving, None, context, AgentConfig(slug=AGENT), OURS)
+    await opened(served.log, context, AGENT)
+    await sealed(wired.serving, served, SealCallRequest(usage=[], outcome="booked"))
+    assert await wired.logs.store.sealed(context.call)
+    assert "was not counted into its day's drift" in caplog.text, "OURS names no org row"
 
 
 @postgres
