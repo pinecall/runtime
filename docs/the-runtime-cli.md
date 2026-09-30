@@ -171,7 +171,11 @@ YYYY-MM-DD]` folds each call's facts row (what the lists, the inbox and the insi
 from its log, every call's when no flag is given, and writes the row where it differs: one call at
 a time, each in a transaction of its own under the lock its appends take, so a live call waits
 milliseconds and nothing holds a long transaction; it prints how many calls it read and how many
-rows it rewrote. `doctor` asks each thing the box needs one question, a line each, and exits 1
+rows it rewrote. `usage rebuild` folds every org's
+usage totals (what admission counts, a row per org, world and month) again from the summaries in
+the log, as the usage feed folds each one, and rewrites the table in one transaction that holds
+it: a summary written meanwhile waits and is counted after; it prints how many summaries and rows.
+`doctor` asks each thing the box needs one question, a line each, and exits 1
 when one is missing; it is the last line of every deploy. Its `facts` line names every log whose
 head gave out fewer seqs than its rows hold, and refolds 20 sealed calls from a random point of
 the call ids, naming each whose stored facts differ and the columns that do: `facts rebuild
