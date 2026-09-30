@@ -114,4 +114,6 @@ if [ -f /etc/pinecall/backup.age.pub ]; then
 else
     systemctl disable --now pinecall-backup.timer 2>/dev/null || true
 fi
+# WAL archiving follows /etc/pinecall/backup.env: on with a bucket and a key, off without.
+bash "$HERE/wal.sh" apply
 echo "the box stands at $DOMAINS (production $FIRST, sandbox ${SECOND:-$FIRST})"

@@ -18,6 +18,7 @@ pinecall-gateway.service · pinecall-worker@.service · pinecall-overflow@.servi
 pinecall-migrate.service · pinecall-doctor.service · pinecall-fleet-key@.service
 pinecall-retention.service · pinecall-retention.timer   the nightly erasure of calls past their org's days
 pinecall-backup.service · pinecall-backup.timer · backup.sh · backup.age.pub   the nightly encrypted backup
+wal.sh · pinecall-wal.service · pinecall-wal.timer   the WAL archive to the backup bucket, for a restore to any minute
 pinecall-postgres-image.service · hardening.conf · polkit/ · sysusers.d/ · tmpfiles.d/ · journald.conf.d/
 ```
 
