@@ -117,6 +117,76 @@ async def test_a_word_the_protocol_does_not_have_is_refused(knocking: Knocking) 
 
 
 @postgres
+async def test_a_batch_comes_back_numbered_in_order_and_its_retry_with_the_same_seqs(
+    knocking: Knocking,
+) -> None:
+    app = await an_app(knocking)
+    context = a_call(knocking)
+    batch: JsonObject = {
+        "after": 0,
+        "entries": [
+            {"type": "custom", "data": {"name": "first", "data": {}}, "ts": 0.1},
+            {"type": "user.transcript", "data": {"text": "ho"}, "ts": 0.2},
+            {"type": "custom", "data": {"name": "second", "data": {}}, "ts": 0.3},
+        ],
+    }
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+        written = await worker.post(f"/v1/calls/{context.call}/entries", json=batch)
+        again = await worker.post(f"/v1/calls/{context.call}/entries", json=batch)
+        ahead = await worker.post(f"/v1/calls/{context.call}/entries", json={**batch, "after": 9})
+    assert (written.status_code, again.status_code, ahead.status_code) == (200, 200, 409)
+    seqs = [entry["seq"] for entry in written.json()["entries"]]
+    assert seqs == [entry["seq"] for entry in again.json()["entries"]] == [2, 3, 4]
+    assert [entry["ephemeral"] for entry in written.json()["entries"]] == [False, True, False]
+    assert [entry["ts"] for entry in written.json()["entries"]] == [0.1, 0.2, 0.3]
+    assert (await received_until(app, "custom")).seq == 2
+    await app.close()
+
+
+@postgres
+async def test_a_batch_is_refused_to_every_key_the_single_door_refuses(
+    knocking: Knocking,
+) -> None:
+    context = a_call(knocking)
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+    stranger = await orgs.create(knocking.gateway.connections.pool, "otra", "Otra")
+    theirs = await issued(knocking.gateway.connections.pool, stranger.id, "sandbox", KEY_SCOPES)
+    entry: JsonObject = {"type": "custom", "data": {"name": "n", "data": {}}}
+    timed: JsonObject = {**entry, "ts": 1.0}
+    for key in (knocking.fleet["production"], theirs):
+        async with knocking.http(key) as other:
+            single = await other.post(f"/v1/calls/{context.call}/events", json=entry)
+            batch = await other.post(
+                f"/v1/calls/{context.call}/entries", json={"after": 0, "entries": [timed]}
+            )
+        assert single.status_code in (403, 404)
+        assert (batch.status_code, batch.json()) == (single.status_code, single.json())
+
+
+@postgres
+async def test_one_word_the_protocol_does_not_have_refuses_the_whole_batch(
+    knocking: Knocking,
+) -> None:
+    context = a_call(knocking)
+    entries: list[JsonObject] = [
+        {"type": "custom", "data": {"name": "n", "data": {}}, "ts": 1.0},
+        {"type": "made.up", "data": {}, "ts": 1.0},
+    ]
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+        refused = await worker.post(
+            f"/v1/calls/{context.call}/entries", json={"after": 0, "entries": entries}
+        )
+    async with knocking.http(knocking.app["sandbox"]) as reader:
+        page = await reader.get(f"/v1/calls/{context.call}/events")
+    assert refused.status_code == 400
+    assert "made.up" in refused.json()["detail"]
+    assert [entry["type"] for entry in page.json()["entries"]] == ["call.ringing"]
+
+
+@postgres
 async def test_a_call_nobody_opened_here_is_the_same_404_as_another_orgs(
     knocking: Knocking,
 ) -> None:

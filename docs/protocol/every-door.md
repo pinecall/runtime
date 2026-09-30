@@ -66,6 +66,7 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `DELETE` | `/v1/calls/{call}` | team | Erase an ended call: its log, facts, tokens, the memories it taught, its recording; one row in the trail. |
 | `POST` | `/v1/calls/{call}/claim` | app · fleet | The caller keyed a page's code: tie the call to it. |
 | `GET` | `/v1/calls/{call}/commands` | app · fleet | The app's commands for the call, in order, until it is sealed. |
+| `POST` | `/v1/calls/{call}/entries` | app · fleet | Write a worker's batch of a call this gateway serves, once and in order, each entry at the worker's `ts` clamped to the gateway's clock; a retry of the last batch answers the same seqs. |
 | `GET` | `/v1/calls/{call}/events` | calls | A call's entries above the cursor: a page, or a stream that ends with the call. |
 | `POST` | `/v1/calls/{call}/events` | app · fleet | Write one entry of a call this gateway serves. |
 | `GET` | `/v1/calls/{call}/judging` | app · fleet | Whether the call's org judges its calls at hang-up. |

@@ -11,7 +11,7 @@ import pytest
 from psycopg import sql
 
 from pinecall.domain.agent import Versions
-from pinecall.domain.errors import Conflict
+from pinecall.domain.errors import Conflict, DeclarationRefused
 from pinecall.domain.scope import Scope
 from pinecall.log.reduce import reduce
 from pinecall.log.store import (
@@ -20,6 +20,7 @@ from pinecall.log.store import (
     Claim,
     Claimant,
     Store,
+    Unnumbered,
     entry_of,
     log_name,
 )
@@ -114,6 +115,155 @@ async def test_the_store_hands_back_the_wires_envelope_stamped_by_its_clock(
         "data": {"channel": "phone"},
     }
     assert await store.since(call) == [entry]
+
+
+# ── a worker's batches ──
+
+
+def batch_of(*types: str) -> list[Unnumbered]:
+    return [
+        Unnumbered(type=kind, data={"n": n}, ephemeral=kind == "user.transcript", ts=0.5)
+        for n, kind in enumerate(types)
+    ]
+
+
+HEAD_COUNTS = "select seq, written, written_seq from call_log_head where log = %(log)s"
+
+STARTED_AT = "select started_at from call_log_head where log = %(log)s"
+
+
+async def head_counts(store: Store, call: str) -> tuple[int, int, int | None]:
+    async with store.pool.connection() as connection:
+        row = await (await connection.execute(HEAD_COUNTS, {"log": call})).fetchone()
+    assert row is not None
+    return int(row["seq"]), int(row["written"]), row["written_seq"]
+
+
+async def test_a_batch_takes_contiguous_seqs_and_its_rows_are_there(
+    store: Store, call: str
+) -> None:
+    batch = await store.append_many(call, AGENT, batch_of("custom", "custom", "custom"), after=0)
+    assert (batch.replayed, [entry.seq for entry in batch.entries]) == (False, [1, 2, 3])
+    assert [(entry.seq, entry.data) for entry in await store.since(call)] == [
+        (1, {"n": 0}),
+        (2, {"n": 1}),
+        (3, {"n": 2}),
+    ]
+    assert await head_counts(store, call) == (3, 3, 3)
+
+
+async def test_the_same_batch_again_answers_the_same_seqs_and_writes_nothing(
+    store: Store, call: str
+) -> None:
+    first = await store.append_many(call, AGENT, batch_of("custom", "turn.user"), after=0)
+    again = await store.append_many(call, AGENT, batch_of("custom", "turn.user"), after=0)
+    assert again.replayed
+    assert [entry.written() for entry in again.entries] == [
+        entry.written() for entry in first.entries
+    ]
+    assert [entry.seq for entry in await store.since(call)] == [1, 2]
+    assert await head_counts(store, call) == (2, 2, 2)
+
+
+async def test_a_batch_after_the_gateways_own_entry_counts_only_the_workers(
+    store: Store, call: str
+) -> None:
+    await store.append(call, AGENT, "call.ringing", {}, ephemeral=False)
+    first = await store.append_many(call, AGENT, batch_of("custom", "custom"), after=0)
+    await store.append(call, AGENT, "tool.call", {}, ephemeral=False)
+    second = await store.append_many(call, AGENT, batch_of("custom"), after=2)
+    assert [entry.seq for entry in [*first.entries, *second.entries]] == [2, 3, 5]
+    assert await head_counts(store, call) == (5, 3, 5)
+    replayed = await store.append_many(call, AGENT, batch_of("custom"), after=2)
+    assert [entry.seq for entry in replayed.entries] == [5]
+    assert [entry.seq for entry in await store.since(call)] == [1, 2, 3, 4, 5]
+
+
+async def test_each_entry_keeps_its_own_time_bounded_by_the_clock_and_never_stepping_back(
+    pool: Pool, call: str
+) -> None:
+    store = Store(pool, clock=lambda: 10.0)
+    times = [3.0, 2.0, 4.0, 12.0, 5.0]
+    batch = [
+        Unnumbered(type="custom", data={"n": n}, ephemeral=False, ts=ts)
+        for n, ts in enumerate(times)
+    ]
+    written = await store.append_many(call, AGENT, batch, after=0)
+    assert [entry.ts for entry in written.entries] == [3.0, 3.0, 4.0, 10.0, 10.0]
+    assert [entry.ts for entry in await store.since(call)] == [3.0, 3.0, 4.0, 10.0, 10.0]
+    again = await store.append_many(call, AGENT, batch, after=0)
+    assert [entry.written() for entry in again.entries] == [
+        entry.written() for entry in written.entries
+    ]
+    async with pool.connection() as connection:
+        row = await (await connection.execute(STARTED_AT, {"log": call})).fetchone()
+    assert row is not None
+    assert row["started_at"] == 3.0
+
+
+async def test_a_batch_sent_twice_at_once_is_written_once_and_both_hear_the_same_seqs(
+    store: Store, call: str
+) -> None:
+    await store.append(call, AGENT, "call.ringing", {}, ephemeral=False)
+    batch = batch_of("custom", "user.transcript", "custom")
+    first, second = await asyncio.gather(
+        store.append_many(call, AGENT, batch, after=0),
+        store.append_many(call, AGENT, batch, after=0),
+    )
+    assert sorted([first.replayed, second.replayed]) == [False, True]
+    assert [entry.seq for entry in first.entries] == [entry.seq for entry in second.entries]
+    assert [entry.seq for entry in first.entries] == [2, 3, 4]
+    assert [entry.seq for entry in await store.since(call)] == [1, 2, 4]
+    assert await head_counts(store, call) == (4, 3, 4)
+
+
+async def test_a_first_batch_that_says_something_came_before_it_is_refused(
+    store: Store, call: str
+) -> None:
+    with pytest.raises(Conflict, match="took 0 entries from its worker"):
+        await store.append_many(call, AGENT, batch_of("custom"), after=2)
+    assert await store.latest_seq(call) == 0
+
+
+@pytest.mark.parametrize(("after", "size"), [(3, 1), (0, 1), (1, 2), (0, 3)])
+async def test_a_batch_that_is_neither_next_nor_the_last_again_is_refused_and_writes_nothing(
+    store: Store, call: str, after: int, size: int
+) -> None:
+    await store.append_many(call, AGENT, batch_of("custom", "custom"), after=0)
+    with pytest.raises(Conflict, match="took 2 entries from its worker"):
+        await store.append_many(call, AGENT, batch_of(*["custom"] * size), after=after)
+    assert await head_counts(store, call) == (2, 2, 2)
+    assert [entry.seq for entry in await store.since(call)] == [1, 2]
+
+
+async def test_a_sealed_log_refuses_a_new_batch(store: Store, call: str) -> None:
+    await store.append_many(call, AGENT, batch_of("custom"), after=0)
+    await store.seal(call)
+    with pytest.raises(Conflict, match="has ended"):
+        await store.append_many(call, AGENT, batch_of("custom"), after=1)
+    assert await head_counts(store, call) == (1, 1, 1)
+
+
+async def test_an_ephemeral_in_a_batch_takes_its_seq_and_no_row(store: Store, call: str) -> None:
+    batch = await store.append_many(
+        call, AGENT, batch_of("user.transcript", "turn.user", "user.transcript"), after=0
+    )
+    assert [(entry.seq, entry.ephemeral) for entry in batch.entries] == [
+        (1, True),
+        (2, False),
+        (3, True),
+    ]
+    assert [entry.seq for entry in await store.since(call)] == [2]
+    assert await store.latest_seq(call) == 3
+
+
+@pytest.mark.parametrize("size", [0, 257])
+async def test_an_empty_batch_and_one_past_the_most_are_refused(
+    store: Store, call: str, size: int
+) -> None:
+    with pytest.raises(DeclarationRefused, match="1 to 256"):
+        await store.append_many(call, AGENT, batch_of(*["custom"] * size), after=0)
+    assert await store.latest_seq(call) == 0
 
 
 # ── sealing ──

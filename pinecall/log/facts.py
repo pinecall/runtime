@@ -407,14 +407,19 @@ def fold(facts: CallFacts, entry: Entry) -> CallFacts:
     return folded
 
 
-# On the append's connection, so folds land in seq order under the head row's lock.
-async def record(connection: Connection, entry: Entry) -> None:
-    """Fold the entry into its call's facts row, in the transaction the entry is written in."""
-    if entry.call is None or entry.ephemeral:
+# On the append's connection, so folds land in seq order under the head row's lock. The entries
+# are one log's, in seq order: a batch is folded in memory and written once.
+async def record(connection: Connection, entries: Sequence[Entry]) -> None:
+    """Fold the entries into their call's facts row, in the transaction they are written in."""
+    call = entries[0].call if entries else None
+    kept = [entry for entry in entries if not entry.ephemeral]
+    if call is None or not kept:
         return
-    row = await (await connection.execute(FACTS_LOCKED, {"call": entry.call})).fetchone()
-    facts = CallFacts(call=entry.call) if row is None else facts_of(row)
-    folded = fold(facts, entry)
+    row = await (await connection.execute(FACTS_LOCKED, {"call": call})).fetchone()
+    facts = CallFacts(call=call) if row is None else facts_of(row)
+    folded = facts
+    for entry in kept:
+        folded = fold(folded, entry)
     if folded == facts:
         return
     written = {**asdict(folded), "e2e": list(folded.e2e), "heard_at": list(folded.heard_at)}

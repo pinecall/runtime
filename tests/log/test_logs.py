@@ -14,6 +14,7 @@ from pinecall.log.logs import QUEUE_DEPTH, Fanout, Log, Logs, arrival_entry, sta
 from pinecall.log.readers import Filter, parse_filter
 from pinecall.log.store import Claim, Claimant, Store
 from pinecall.wire.frames import Entry
+from pinecall.wire.rest.calls import BatchedEntry
 from tests.conftest import postgres
 
 AGENT = "dental-sur"
@@ -144,6 +145,33 @@ async def test_a_tap_runs_on_every_append_before_append_returns(store: Store, ca
     log.tapped(tap)
     await log.append("custom", note(1))
     assert heard == ["custom"]
+
+
+@postgres
+async def test_a_reader_hears_a_batch_once_in_order_and_its_retry_not_at_all(
+    store: Store, call: str
+) -> None:
+    heard: list[int] = []
+
+    async def tap(item: Entry) -> None:
+        heard.append(item.seq)
+
+    log = Log(store, call, AGENT)
+    log.tapped(tap)
+    reader = log.fanout.subscribe()
+    batch = [
+        BatchedEntry(type="custom", data=note(1), ts=0.5),
+        BatchedEntry(type="user.transcript", data={"text": "ho"}, ts=0.5),
+        BatchedEntry(type="custom", data=note(2), ts=0.5),
+    ]
+    written = await log.append_many(batch, after=0)
+    again = await log.append_many(batch, after=0)
+    await log.append("custom", note(3))
+    log.fanout.close()
+    assert [entry.seq for entry in written] == [entry.seq for entry in again] == [1, 2, 3]
+    assert [entry.ephemeral for entry in written] == [False, True, False]
+    assert [item.seq async for item in reader] == [1, 2, 3, 4]
+    assert heard == [1, 2, 3, 4]
 
 
 @postgres

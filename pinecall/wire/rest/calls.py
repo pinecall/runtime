@@ -6,7 +6,7 @@ from pydantic import Field
 
 from pinecall.domain.call import CallContext
 from pinecall.domain.names import Channel, Direction, Env, Json, JsonObject
-from pinecall.wire.frames import WireModel
+from pinecall.wire.frames import Entry, WireModel
 from pinecall.wire.metrics import ModelUsage
 from pinecall.wire.parts import (
     CallStatus,
@@ -175,6 +175,30 @@ class AppendEntryRequest(WireModel):
     type: str
     data: JsonObject
     ephemeral: bool | None = None
+
+
+# `ts` is the worker's clock when the event happened; the gateway never stamps it past its own.
+class BatchedEntry(WireModel):
+    """One entry of a worker's batch: what it is, whether a store keeps it, and when it happened."""
+
+    type: str
+    data: JsonObject
+    ephemeral: bool | None = None
+    ts: float
+
+
+# `after` makes a retry safe: the log answers a batch it already took with the seqs it gave it.
+class AppendEntriesRequest(WireModel):
+    """A worker's entries of its call, in order, after how many the log already took from it."""
+
+    after: int = Field(ge=0)
+    entries: list[BatchedEntry]
+
+
+class AppendEntriesResponse(WireModel):
+    """A worker's batch as the log numbered it, in the order it was sent."""
+
+    entries: list[Entry]
 
 
 # `input` is whole and unread by the wire: what recall and search take is the runtime's shape.

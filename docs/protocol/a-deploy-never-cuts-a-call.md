@@ -33,6 +33,14 @@ gateway is away the worker retries an entry, the seal, a tool and the command st
 from half a second to five, for as long as nothing answers or a `5xx` does; a `4xx` is an answer. A
 tool retries within its own deadline, the seal within thirty seconds.
 
+A retried entry is written once when it travels in a batch, `POST /v1/calls/{call}/entries
+{after, entries}`: a call's log has one writer, which sends its entries in order and says how many
+the log already took from it, and the log's head counts them. A batch that starts where the count
+stands is written, whole, under the next seqs; the same batch sent again because its answer was
+lost is answered with the seqs it was given and writes nothing; anything else is a `409` that says
+both counts. Each entry keeps the worker's `ts`, when it happened, clamped to the gateway's clock.
+The gateway's own entries take seqs and are not counted.
+
 ## A written call
 
 A chat over `WS /v1/chat` or a WhatsApp thread runs in the gateway's own process, and a restart ends
