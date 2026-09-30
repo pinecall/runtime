@@ -26,6 +26,7 @@ class Podman:
     asked: list[list[str]] = field(default_factory=list[list[str]])
     environments: list[Mapping[str, str]] = field(default_factory=list[Mapping[str, str]])
     install_fails: bool = False
+    logs_read: list[str] = field(default_factory=list[str])
 
     async def __call__(
         self, argv: Sequence[str], *, within_s: float = 0, env: Mapping[str, str] | None = None
@@ -62,6 +63,7 @@ class Podman:
         if verb == "rm":
             self.containers.pop(argv[-1], None)
         if verb == "logs":
+            self.logs_read.append(argv[-1])
             return Done(0, "pinecall: DeclarationRefused: voice is the world's now")
         return Done(0, "")
 
@@ -240,3 +242,23 @@ async def test_a_runner_of_another_world_on_the_same_podman_leaves_this_worlds_a
         await sandbox.reconcile(await sandbox.beat("apps-1"), 1000.0)
     assert list(world.podman.containers) == [host]
     assert world.podman.stopped() == []
+
+
+@postgres
+async def test_logs_asked_for_are_read_off_the_container_and_sent_on_the_next_beat(
+    world: World,
+) -> None:
+    await upload(world)
+    await tick(world)
+    [host] = world.podman.containers
+    async with world.knocking.http(world.knocking.app["production"]) as http:
+        await http.get("/v1/hosted/support/logs")
+    await tick(world)
+    await tick(world)
+    async with world.knocking.http(world.knocking.app["production"]) as http:
+        logs = (await http.get("/v1/hosted/support/logs")).json()
+    assert world.podman.logs_read[-1] == host
+    assert (logs["host"], logs["lines"]) == (
+        host,
+        "pinecall: DeclarationRefused: voice is the world's now",
+    )

@@ -131,3 +131,7 @@ worker is told on its next heartbeat, takes no new call, finishes what it holds 
 position of the last row read, so a billing consumer resumes and counts nothing twice. With
 `Accept: text/event-stream` the same rows stream, `id:` the cursor, then new ones as they land.
 An org reads its own at `GET /v1/usage`.
+
+`GET /v1/ops/hosted-usage[?month=YYYY-MM]`: the time every org's hosted apps served, both worlds,
+one row per app and UTC day, `{since, until, rows: [{org, env, name, day, seconds}]}` — what a
+billing layer charges hosting on ([hosting.md](hosting.md)).

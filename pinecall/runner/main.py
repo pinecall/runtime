@@ -22,6 +22,7 @@ from pinecall.runner import _podman as podman
 from pinecall.runner._podman import Container, Done, Engine, Launch
 from pinecall.wire.rest.hosting import (
     AppEnvironment,
+    AppLogs,
     RunnerHeartbeatRequest,
     RunnerHeartbeatResponse,
     RunnerReport,
@@ -44,6 +45,10 @@ REGISTERS_WITHIN_S = 120.0
 
 # What a failure says of the process's own output: its last lines.
 LAST_LINES = 20
+
+
+# What a person asking for an app's logs is sent: its process's last lines.
+SENT_LINES = 300
 
 
 LONGEST_WHY = 2000
@@ -83,16 +88,18 @@ class Runner:
     gateway: httpx.AsyncClient
     ran: Ran = podman.ran
     reports: list[RunnerReport] = field(default_factory=list[RunnerReport])
+    logs: list[AppLogs] = field(default_factory=list[AppLogs])
     started_at: dict[str, float] = field(default_factory=dict[str, float])
     reported_live: set[str] = field(default_factory=set[str])
 
     async def beat(self, name: str) -> RunnerHeartbeatResponse:
         """Send what happened since the last beat; the gateway answers what should be running."""
-        body = RunnerHeartbeatRequest(runner=name, reports=self.reports)
+        body = RunnerHeartbeatRequest(runner=name, reports=self.reports, logs=self.logs)
         answer = await self.gateway.post("/v1/runner/heartbeat", json=body.written())
         if not answer.is_success:
             raise GatewayRefused(answer.text, answered=answer.status_code)
         self.reports = []
+        self.logs = []
         return RunnerHeartbeatResponse.model_validate(answer.json())
 
     async def reconcile(self, wanted: RunnerHeartbeatResponse, now: float) -> None:
@@ -121,6 +128,7 @@ class Runner:
         for container in containers:
             if container.name not in keep:
                 await self._stopped(container.name)
+        await self._read_the_logs_asked_for(wanted.apps, containers)
 
     async def _containers(self, world: Env) -> list[Container]:
         done = await self.ran(podman.listing_argv(world))
@@ -191,6 +199,18 @@ class Runner:
         logs = await self.ran(podman.logs_argv(container.name, LAST_LINES))
         seconds = REGISTERS_WITHIN_S
         self._report(app, "failed", why.format(output=_tail(logs.output), seconds=seconds))
+
+    # The release asked for, else the one still serving while it installs.
+    async def _read_the_logs_asked_for(
+        self, apps: list[WantedApp], containers: list[Container]
+    ) -> None:
+        for app in apps:
+            ours = [each.name for each in containers if each.app == _label(app)]
+            host = app.host if app.host in ours else next(iter(ours), None)
+            if not app.logs_wanted or host is None:
+                continue
+            done = await self.ran(podman.logs_argv(host, SENT_LINES))
+            self.logs.append(AppLogs(org=app.org, name=app.name, host=host, lines=done.output))
 
     async def _stopped(self, name: str) -> None:
         await self.ran(podman.stop_argv(name), within_s=podman.DRAIN_S + 15)
