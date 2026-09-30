@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from functools import partial
 from typing import Literal
 
+from pydantic import TypeAdapter
+
 from pinecall.domain.agent import AgentConfig
 from pinecall.domain.call import CallContext
 from pinecall.domain.errors import NotAvailable
@@ -32,6 +34,7 @@ from pinecall.log.logs import Log, Logs, arrival_entry
 from pinecall.log.private import Privacy
 from pinecall.process.connections import Connections
 from pinecall.process.metrics import Counters
+from pinecall.process.shared import Shared
 from pinecall.process.signal import LocalSignal, Signal
 from pinecall.retrieval import lookups
 from pinecall.retrieval.embed import Embedder
@@ -54,6 +57,11 @@ logger = logging.getLogger(__name__)
 
 # Entries a taking-over socket is rebuilt from; the prompt is not, the log keeps its hash alone.
 STARTED = "call.started"
+
+# Where each gateway says how many calls each org runs on it, and how often.
+RUNNING_CHANNEL = "running"
+RUNNING_EVERY_S = 1.0
+_RUNNING: TypeAdapter[dict[str, int]] = TypeAdapter(dict[str, int])
 
 # How long a call another gateway opened stays served here with no door asking for it.
 FIRST_SEEN_IDLE_S = 600.0
@@ -100,6 +108,10 @@ class ServedCalls:
         # Which written calls and threads run here, and on the other gateways; their sockets.
         self.owners = Owners(self.signal)
         self.elsewhere = Elsewhere(self.signal)
+        # Each org's calls at once in each world, as every gateway counts its own each second.
+        self.counted = Shared(self.signal, RUNNING_CHANNEL, _RUNNING, {}, lambda: None)
+        self.counted.every_s = RUNNING_EVERY_S
+        self.counted.gathered = self._running_here
         # Each dev.request asked here, listening for its answer from the socket's gateway.
         self.answers: dict[str, asyncio.Task[None]] = {}
         self.sockets: dict[SocketId, Send] = {}
@@ -117,11 +129,13 @@ class ServedCalls:
         """Hear the other gateways' owners and sockets, and say this one's."""
         await self.owners.start()
         await self.elsewhere.start()
+        await self.counted.start()
 
     async def quiet(self) -> None:
         """Stop hearing and saying."""
         await self.owners.close()
         await self.elsewhere.close()
+        await self.counted.close()
 
     def connect(self, process: Process, send: Send) -> None:
         """An app socket opened."""
@@ -255,13 +269,13 @@ class ServedCalls:
 
     # The concurrent calls quota counts these, never head rows: a dead worker's row would count
     # for ever. Per world, as every quota is: the sandbox's calls never close production.
+    # The concurrent-calls quota reads it: every gateway's count, the others' a second old at most,
+    # so two gateways admitting at once may go past the limit by what they opened that second.
     def running(self, org: str, env: Env) -> int:
-        """How many of the org's calls are open here in the world."""
-        return sum(
-            1
-            for served in self.calls.values()
-            if served.opened_here and served.scope.org == org and served.scope.env == env
-        )
+        """How many of the org's calls are open in the world, on every gateway of the box."""
+        named = f"{org}|{env}"
+        theirs = sum(heard.share.get(named, 0) for heard in self.counted.theirs.values())
+        return self._running_here().get(named, 0) + theirs
 
     def in_use(self, call: str, now: float) -> None:
         """A door asked for a call first seen here: it stays while it is asked for."""
@@ -317,6 +331,14 @@ class ServedCalls:
             model = command_of(command)
             declared_for_the_call(served, model)
             await served.session.apply(model)
+
+    def _running_here(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for served in self.calls.values():
+            if served.opened_here:
+                named = f"{served.scope.org}|{served.scope.env}"
+                counts[named] = counts.get(named, 0) + 1
+        return counts
 
     def _say_sockets(self) -> None:
         self.elsewhere.put(

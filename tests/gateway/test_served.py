@@ -5,9 +5,10 @@ import asyncio
 import pytest
 
 from pinecall.domain.agent import AgentConfig
+from pinecall.domain.org import Quotas
 from pinecall.domain.scope import Scope
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import opened, served_call
+from pinecall.gateway._served import RUNNING_CHANNEL, opened, served_call
 from pinecall.gateway._sockets import Sockets
 from pinecall.gateway.api import calls
 from pinecall.gateway.ending.reaper import let_go
@@ -17,6 +18,7 @@ from pinecall.log.queries import CallScope
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.session.call import ToolUse
+from pinecall.tenancy import admission
 from pinecall.wire.parts import ToolResult
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
 from tests.conftest import AGENT as THE_KNOCKED_AGENT
@@ -271,3 +273,33 @@ async def test_a_seal_that_broke_gives_its_lease_back_for_the_next_knock(wired: 
     await store.seal(context.call)
     await store.release_seal(context.call)
     assert not await store.lease_seal(context.call, 60)
+
+
+# The concurrent-calls quota is the box's: a call opened on one gateway counts on the other.
+@postgres
+async def test_an_orgs_calls_on_one_gateway_count_against_its_limit_on_the_other(
+    knocking: Knocking, knocking_two: Knocking
+) -> None:
+    await admission.set_quotas(
+        knocking.gateway.connections.pool, knocking.org.id, "sandbox", Quotas(concurrent_calls=1)
+    )
+    first_call, second_call = a_widget_call(knocking), a_widget_call(knocking)
+    counted = knocking_two.gateway.live.counted
+    counted.every_s = knocking.gateway.live.counted.every_s = 0.01
+    shares = await knocking_two.gateway.connections.signal.subscribe(RUNNING_CHANNEL)
+    async with (
+        knocking.http(knocking.fleet["sandbox"]) as first,
+        knocking_two.http(knocking.fleet["sandbox"]) as second,
+    ):
+        opening = OpenCallRequest(agent=THE_KNOCKED_AGENT, context=first_call).written()
+        assert (await first.post("/v1/calls", json=opening)).is_success
+        async with asyncio.timeout(2):
+            while knocking_two.gateway.live.running(knocking.org.id, "sandbox") < 1:
+                await anext(shares)
+                await asyncio.sleep(0)
+        refused = await second.post(
+            "/v1/calls",
+            json=OpenCallRequest(agent=THE_KNOCKED_AGENT, context=second_call).written(),
+        )
+    shares.close()
+    assert refused.status_code == 429
