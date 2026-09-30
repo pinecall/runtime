@@ -80,10 +80,38 @@ against the team's or production's newest, with the fields that differ by name. 
 forward as the next one, `note: "rollback to v{n}"`; `404` for a version the scope never had.
 Rollback takes `pipeline`.
 
+## A version on a share of the calls — `GET` · `PUT` · `DELETE /v1/agents/{slug}/settings/canary`
+
+A new version need not take every call at once. `PUT {version, share, note, team}` puts one of
+the scope's own versions (yours, or the team's with `team: true`) on `share` calls in a hundred
+(0 to 100): each call is picked once, by its id, where its settings are resolved (the worker asks
+for them naming the call it is about to open, `?for_call=`, and the open records the same pick),
+so a call asked for again, or reopened by a gateway that restarted, keeps its version. Every other
+call runs what the scope would run without that version: the newest of its others. Setting it
+takes `pipeline`, as the vendors do: a canary decides what a share of the calls runs. A share of 0
+keeps the version off every call and the canary standing; `DELETE ?team=` clears it, and every call
+runs the scope's newest version again (the canary's, when it was the newest: that is promoting it).
+A version the scope never had is `404`. `GET ?team=` (`pipeline` or `words`) and every door answer
+`{world, holder, canary: {holder, version, share, author, note, set_at} | null}`; an older worker,
+which names no call, runs every call off the canary. The two versions are compared by
+`GET /v1/insights/drift?agent=&before=v3&after=v4` ([console-api.md](console-api.md)): the same
+days, two versions, which judge and which stage moved.
+
+```
+PUT /v1/agents/recepcion/settings/canary
+{"version": 4, "share": 10, "note": "shorter greeting", "team": true}
+
+{"world": "sandbox", "holder": "",
+ "canary": {"holder": "", "version": 4, "share": 10, "author": "m_ana",
+            "note": "shorter greeting", "set_at": 1790000000.1}}
+```
+
 ## `GET /v1/calls/{call}/settings` — `calls`
 
 The exact tuning and lexicon the call was built on, by the two version numbers its head row kept:
-`{config_version, lexicon_version, config, lexicon}`, each row null where the scope had set nothing.
+`{config_version, lexicon_version, config, lexicon, canary}`, each row null where the scope had set
+nothing; `canary` is true for a call a canary's share picked (its version was the canary's that
+stood when it opened), false otherwise.
 
 ## The lexicon — `/v1/agents/{slug}/lexicon`
 

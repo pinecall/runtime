@@ -99,17 +99,18 @@ class GatewayClient:
             params |= {"number": number, "channel": channel}
         return _ROUTES.validate_python(await self._read("GET", "/v1/routes", params=params))
 
-    async def agent(self, slug: str, scope: Scope) -> AgentConfig:
-        """The agent as the scope runs it: its declaration under the scope's settings."""
-        text = await self._read("GET", f"/v1/agents/{slug}/config", params=_scope_headers(scope))
+    # The call, not opened yet, is named so a canary's share is picked by its id.
+    async def agent(self, slug: str, scope: Scope, *, call: str | None = None) -> AgentConfig:
+        """The agent as the scope runs it for the call: its declaration under the settings."""
+        params = _scope_headers(scope) | ({} if call is None else {"for_call": call})
+        text = await self._read("GET", f"/v1/agents/{slug}/config", params=params)
         return _CONFIG.validate_python(text)
 
     # The one answer that carries keys, and it carries them to the fleet's key alone.
-    async def stages(self, slug: str, scope: Scope) -> Json:
+    async def stages(self, slug: str, scope: Scope, *, call: str | None = None) -> Json:
         """The three stages the call runs, each with the key it runs on."""
-        return await self._read(
-            "GET", f"/v1/agents/{slug}/provider-keys", params=_scope_headers(scope)
-        )
+        params = _scope_headers(scope) | ({} if call is None else {"for_call": call})
+        return await self._read("GET", f"/v1/agents/{slug}/provider-keys", params=params)
 
     async def hold_audio(self, slug: str, scope: Scope) -> HoldAudio:
         """What the agent plays while a tool runs."""

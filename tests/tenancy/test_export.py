@@ -9,7 +9,8 @@ from pinecall.domain.scope import Scope
 from pinecall.log import drift
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
-from pinecall.tenancy import consents, export
+from pinecall.tenancy import canary, consents, export
+from pinecall.tenancy.canary import Canary, CanarySet
 from pinecall.tenancy.consents import Given
 from pinecall.wire.scores import CallScore
 from tests.conftest import postgres
@@ -111,13 +112,17 @@ async def test_the_settings_the_words_and_the_consents_come_out_too(pool: Pool) 
         await connection.execute(A_SETTING, {"org": org.id})
         await connection.execute(A_WORD, {"org": org.id})
     await consents.give(pool, Scope(org.id), "+14155550142", Given("express", "the form", "m_ana"))
+    tried = CanarySet(Canary(version=1, share=10), "m_ana", 1.0, "try it")
+    await canary.put(pool, Scope(org.id), "agenda", tried)
     lines = await exported(pool, org.id)
-    assert [line["kind"] for line in lines] == ["export", "agent_config", "lexicon", "consent"]
-    assert (lines[1]["version"], lines[2]["said"], lines[3]["number"]) == (
+    kinds = [line["kind"] for line in lines]
+    assert kinds == ["export", "agent_config", "canary", "lexicon", "consent"]
+    assert (lines[1]["version"], lines[3]["said"], lines[4]["number"]) == (
         1,
         {"ok": "vale"},
         "+14155550142",
     )
+    assert (lines[2]["version"], lines[2]["share"], lines[2]["note"]) == (1, 10, "try it")
 
 
 async def test_another_org_and_the_other_world_are_not_in_it(pool: Pool, store: Store) -> None:

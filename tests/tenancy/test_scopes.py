@@ -1,6 +1,7 @@
 """Tuning and lexicon: versions per agent and scope, knob by knob from the nearest that sets it."""
 
 import asyncio
+import time
 
 import pytest
 
@@ -9,6 +10,8 @@ from pinecall.domain.errors import Conflict
 from pinecall.domain.org import Org
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
+from pinecall.tenancy import canary
+from pinecall.tenancy.canary import Canary, CanarySet, bucket_of
 from pinecall.tenancy.orgs import create
 from pinecall.tenancy.scopes import (
     Written,
@@ -145,6 +148,38 @@ async def test_the_versions_noted_are_those_named_and_those_set_in_the_window(po
     assert [row.author for row in await versions_noted(pool, team, AGENT, [1], (0.0, 0.0))] == [
         "m_bo"
     ]
+
+
+def a_call_placed(*, inside: bool, share: int) -> str:
+    """A call id whose place among a hundred is under the share, or at or over it."""
+    return next(
+        call
+        for call in (f"CA_{number}" for number in range(1000))
+        if (bucket_of(call) < share) == inside
+    )
+
+
+@postgres
+async def test_a_canary_takes_its_share_of_the_calls_and_the_rest_run_the_others(
+    pool: Pool,
+) -> None:
+    mine, team, _ = await _corners(pool)
+    await put_tuning(pool, team, AGENT, Tuning(voice="old"), BY_ANA)
+    await put_tuning(pool, team, AGENT, Tuning(voice="new"), BY_ANA)
+    await canary.put(
+        pool, team, AGENT, CanarySet(Canary(version=2, share=30), "m_ana", time.time())
+    )
+    picked, rest = a_call_placed(inside=True, share=30), a_call_placed(inside=False, share=30)
+    on_canary = await current(pool, team, AGENT, call=picked)
+    on_rest = await current(pool, team, AGENT, call=rest)
+    assert (on_canary.tuning.voice, on_canary.versions.config) == ("new", 2)
+    assert (on_rest.tuning.voice, on_rest.versions.config) == ("old", 1)
+    assert (await current(pool, team, AGENT)).versions.config == 1, "no call is the rest"
+    assert (await current(pool, mine, AGENT, call=picked)).versions.config == 2, "falls through"
+    await canary.put(pool, team, AGENT, CanarySet(Canary(version=2, share=0), "m_ana", time.time()))
+    assert (await current(pool, team, AGENT, call=picked)).versions.config == 1
+    await canary.put(pool, team, AGENT, CanarySet(None, "m_ana", time.time()))
+    assert (await current(pool, team, AGENT, call=rest)).versions.config == 2, "cleared: newest"
 
 
 @postgres

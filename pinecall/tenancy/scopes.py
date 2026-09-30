@@ -15,6 +15,7 @@ from pinecall.domain.errors import Conflict
 from pinecall.domain.names import PRODUCTION, Json, JsonObject
 from pinecall.domain.scope import THE_ORGS_OWN, Scope
 from pinecall.postgres.pool import Connection, Pool
+from pinecall.tenancy.canary import bucket_of
 
 type VersionedTable = Literal["agent_config", "lexicon"]
 
@@ -76,14 +77,27 @@ RETURNING version
 
 
 # Both chains in one statement, so the tuning and the lexicon a call is built on are read from
-# the same moment: the holder's newest row, then the org's own, of each.
+# the same moment: the holder's newest row, then the org's own, of each. Where a level stands on a
+# canary (tenancy/canary.py), a call whose bucket is under its share runs the canary's version and
+# every other call, or a read for no call, the newest version but that one.
 STANDING = """
 SELECT * FROM (
-    SELECT DISTINCT ON (holder) 'tuning' AS kind, holder, version, config AS value, author, note,
-           set_at
-    FROM agent_config
-    WHERE org = %(org)s AND env = %(env)s AND holder IN (%(holder)s, '') AND agent = %(agent)s
-    ORDER BY holder DESC, version DESC
+    SELECT DISTINCT ON (config.holder) 'tuning' AS kind, config.holder, config.version,
+           config.config AS value, config.author, config.note, config.set_at
+    FROM agent_config config
+    LEFT JOIN LATERAL (
+        SELECT canary.version, canary.share FROM agent_canaries canary
+        WHERE canary.org = config.org AND canary.env = config.env
+          AND canary.holder = config.holder AND canary.agent = config.agent
+        ORDER BY canary.set_at DESC, canary.id DESC
+        LIMIT 1
+    ) standing ON true
+    WHERE config.org = %(org)s AND config.env = %(env)s AND config.holder IN (%(holder)s, '')
+      AND config.agent = %(agent)s
+      AND (standing.version IS NULL
+           OR (config.version = standing.version)
+              = coalesce(%(bucket)s::integer < standing.share, false))
+    ORDER BY config.holder DESC, config.version DESC
 ) tuning
 UNION ALL
 SELECT * FROM (
@@ -215,10 +229,12 @@ async def put_lexicon(
     return await _put(pool, "lexicon", PUT_LEXICON, values)
 
 
-async def current(pool: Pool, scope: Scope, agent: str) -> Current:
+# The call picks between a canary's version and the rest by its id; no call is the rest.
+async def current(pool: Pool, scope: Scope, agent: str, *, call: str | None = None) -> Current:
     """What a call in the scope is built on: each knob from the nearest scope that sets it."""
+    params = {**_where(scope, agent), "bucket": None if call is None else bucket_of(call)}
     async with pool.connection() as connection:
-        rows = await (await connection.execute(STANDING, _where(scope, agent))).fetchall()
+        rows = await (await connection.execute(STANDING, params)).fetchall()
     tuned = resolve([_tuning(row) for row in rows if row["kind"] == "tuning"])
     words = next((_lexicon(row) for row in rows if row["kind"] == "lexicon"), None)
     return Current(

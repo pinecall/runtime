@@ -149,3 +149,29 @@ async def test_a_worker_naming_a_call_acts_in_the_calls_scope_and_no_other(
     assert unopened.status_code == 404
     assert "no call call_nobody was opened" in unopened.json()["detail"]
     await socket.close()
+
+
+# Before its call is opened a worker names it as for_call, which picks its version and no scope.
+@postgres
+async def test_a_worker_asking_for_a_call_not_opened_yet_is_answered_its_canarys_version(
+    knocking: Knocking,
+) -> None:
+    socket = await an_app(knocking)
+    settings = f"/v1/agents/{AGENT}/settings"
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        await org.put(settings, json={"config": {"greeting": {"say": "Hola"}}})
+        await org.put(settings, json={"config": {"greeting": {"say": "Buenas"}}, "if_version": 1})
+        await org.put(f"{settings}/canary", json={"version": 2, "share": 100})
+    ours = {"org": knocking.org.id, "env": "sandbox", "holder": ""}
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        picked = await worker.get(
+            f"/v1/agents/{AGENT}/config", params={**ours, "for_call": "CA_unopened"}
+        )
+        unnamed = await worker.get(f"/v1/agents/{AGENT}/config", params=ours)
+        stages = await worker.get(
+            f"/v1/agents/{AGENT}/provider-keys", params={**ours, "for_call": "CA_unopened"}
+        )
+    assert picked.json()["greeting"]["say"] == "Buenas"
+    assert unnamed.json()["greeting"]["say"] == "Hola", "an older worker names no call: the rest"
+    assert stages.status_code == 200
+    await socket.close()

@@ -16,7 +16,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/metrics` | loopback | What the gateway counted and holds, as Prometheus text; refused to anything that came through Caddy. |
 | `GET` | `/v1/agents` | calls | The org's held agents in the world: one row per slug, one per scope for a team reader. |
 | `GET` | `/v1/agents/{slug}/calls` | calls | An agent's own log: its registrations, its declarations, its errors. It never ends. |
-| `GET` | `/v1/agents/{slug}/config` | app · calls · fleet | The agent as the scope runs it: its declaration under the scope's settings. |
+| `GET` | `/v1/agents/{slug}/config` | app · calls · fleet | The agent as the scope runs it, for the call named: its declaration under the settings. |
 | `POST` | `/v1/agents/{slug}/dev/chat/{verb}` | talk | A chat verb, answered by the app holding the agent. |
 | `POST` | `/v1/agents/{slug}/dev/evals/{verb}` | evals | An evals verb, answered by the app holding the agent. |
 | `POST` | `/v1/agents/{slug}/dev/knowledge/{verb}` | knowledge | A knowledge verb, answered by the app holding the agent. |
@@ -55,6 +55,9 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/agents/{slug}/settings` | pipeline · words | The agent's settings as this key sees them: yours, the team's and production's. |
 | `PUT` | `/v1/agents/{slug}/settings` | pipeline · words | The agent's next version in this scope or the team's, checked as a call would build it. |
 | `GET` | `/v1/agents/{slug}/settings/diff` | pipeline · words | This key's scope's newest against the team's or production's, and which fields differ. |
+| `GET` | `/v1/agents/{slug}/settings/canary` | pipeline · words | The version this scope, or the team's, runs on a share of the agent's calls, or none. |
+| `PUT` | `/v1/agents/{slug}/settings/canary` | pipeline | One of the scope's versions on a share of the agent's calls; the rest run the others. |
+| `DELETE` | `/v1/agents/{slug}/settings/canary` | pipeline | The scope's canary cleared: one version for every call. |
 | `GET` | `/v1/agents/{slug}/settings/history` | pipeline · words | One scope's versions of the agent's settings, newest first. |
 | `POST` | `/v1/agents/{slug}/settings/rollback` | pipeline | An old version brought back as the scope's next one. |
 | `GET` | `/v1/agents/{slug}/threads` | calls | The agent's contacts, the one that moved last first, with what this reader has not read. |
