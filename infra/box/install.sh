@@ -76,7 +76,9 @@ if [ ! -f "$STORE/LIVEKIT_API_KEY" ]; then
     printf '%s' "$secret" | sealed LIVEKIT_API_SECRET
     printf 'LIVEKIT_KEYS=%s: %s\nLIVEKIT_API_KEY=%s\nLIVEKIT_API_SECRET=%s\nPOSTGRES_PASSWORD=%s\n' \
         "$key" "$secret" "$key" "$secret" "$password" | sealed media.env
-    printf 'postgresql://pinecall:%s@127.0.0.1:5432/pinecall' "$password" | sealed DATABASE_URL
+    # Kept when it is there already: a replica promoted here brought the database it opens.
+    [ -f "$STORE/DATABASE_URL" ] ||
+        printf 'postgresql://pinecall:%s@127.0.0.1:5432/pinecall' "$password" | sealed DATABASE_URL
     unset key secret password
 fi
 # A Fernet key is 32 bytes, url-safe base64.
@@ -114,4 +116,6 @@ if [ -f /etc/pinecall/backup.age.pub ]; then
 else
     systemctl disable --now pinecall-backup.timer 2>/dev/null || true
 fi
+# WAL archiving follows /etc/pinecall/backup.env: on with a bucket and a key, off without.
+bash "$HERE/wal.sh" apply
 echo "the box stands at $DOMAINS (production $FIRST, sandbox ${SECOND:-$FIRST})"

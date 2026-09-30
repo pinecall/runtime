@@ -6,6 +6,7 @@ import importlib.util
 import inspect
 import logging
 import pkgutil
+import re
 import types
 import typing
 from collections.abc import Callable, Mapping
@@ -126,6 +127,12 @@ _KNOB_NAMES: dict[str, tuple[str, ...]] = {
 }
 
 
+# A component that failed is named in its error's label: `label='livekit.plugins.deepgram.stt.STT'`.
+_LABELLED = re.compile(
+    rf"label='(?:{re.escape(_PLUGINS)}\.(?P<plugin>\w+)|(?P<inference>{re.escape(_INFERENCE_MODULE)}))\."
+)
+
+
 @cache
 def installed() -> dict[str, Vendor]:
     """Every vendor of this process: each livekit plugin exporting an LLM, an STT or a TTS."""
@@ -239,6 +246,14 @@ def refuse_untaken(ears: Running, voice: Running, tuning: Tuning) -> None:
     }
     _refuse_untaken("stt", ears, [knob for knob, value in heard.items() if value is not None])
     _refuse_untaken("tts", voice, ["voice"] if tuning.voice is not None else [])
+
+
+def vendor_named_in(text: str) -> str:
+    """The vendor whose plugin a component's error names, "" when it names none."""
+    found = _LABELLED.search(text)
+    if found is None:
+        return ""
+    return INFERENCE if found["inference"] else found["plugin"]
 
 
 def _vendor(name: str, module: str) -> Vendor:

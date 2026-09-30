@@ -6,6 +6,7 @@ import logging
 import os
 import tempfile
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import timedelta
 from functools import partial
@@ -53,7 +54,7 @@ from pinecall.wire.rest.calls import (
     SealCallRequest,
 )
 from pinecall.wire.state import State
-from pinecall.worker._recorder import file_written, record_room, recording_path
+from pinecall.worker._recorder import file_written, record_room, recording_path, stored
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +143,9 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
 
     # The recorder stops before the summary, which points at its file.
     async def ended(usage: list[ModelUsage], outcome: str) -> None:
-        kept = await _kept(ctx.api, recording, audio)
+        kept = await _kept(
+            ctx.api, recording, audio, partial(stored, settings, route.org, context.call)
+        )
         data = SealCallRequest(usage=usage, outcome=outcome, recording=kept, lent=pipeline.lent)
         await gateway.sealed(context.call, data)
 
@@ -362,10 +365,18 @@ def _platform(gateway: GatewayClient, call: str, config: AgentConfig, seal: Seal
     return Platform(append_many=append_many, tool=tool, lookup=lookup, seal=seal)
 
 
-async def _kept(server: api.LiveKitAPI, recording: str | None, audio: Path | None) -> str | None:
+async def _kept(
+    server: api.LiveKitAPI,
+    recording: str | None,
+    audio: Path | None,
+    store: Callable[[Path], Awaitable[None]],
+) -> str | None:
     if recording is None or audio is None:
         return None
-    return str(audio) if await file_written(server, recording, audio) else None
+    if not await file_written(server, recording, audio):
+        return None
+    await store(audio)
+    return str(audio)
 
 
 # The platform wants a claim that answers nothing; the client's says whether a page was waiting.

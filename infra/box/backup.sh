@@ -5,7 +5,9 @@
 # keeps each file's sha256 before encryption, so a restore can prove it decrypted the same bytes.
 # Kept 7 days on the box; with PINECALL_BACKUP_BUCKET in /etc/pinecall/backup.env (the operator's,
 # which install.sh never writes), copied to that bucket too with the VM's own identity; the bucket's
-# lifecycle rule forgets them after 35 days.
+# lifecycle rule forgets them after 35 days. With the WAL archive on (wal.sh), a base backup too,
+# encrypted the same way: the point a restore to any later minute replays from. It goes to the
+# bucket alone, since the archive it is replayed with is only there.
 set -euo pipefail
 
 HERE=/var/lib/pinecall/backups
@@ -27,8 +29,19 @@ podman cp "pinecall-postgres:$INSIDE" "$STAMP.db.dump"
 podman exec pinecall-postgres rm -f "$INSIDE"
 tar -C /var/lib/pinecall -cf "$STAMP.recordings.tar" recordings
 
-sha256sum "$STAMP.db.dump" "$STAMP.recordings.tar" > "$STAMP.sha256"
-for plain in "$STAMP.db.dump" "$STAMP.recordings.tar"; do
+BASE=()
+ARCHIVING="$(podman exec pinecall-postgres psql -U pinecall -d pinecall -Atqc 'SHOW archive_mode')"
+if [ -n "${PINECALL_BACKUP_BUCKET:-}" ] && [ "$ARCHIVING" = on ]; then
+    INSIDE="/tmp/$STAMP.base"
+    podman exec pinecall-postgres pg_basebackup -U pinecall -D "$INSIDE" -Ft -z -X stream --checkpoint=fast
+    podman cp "pinecall-postgres:$INSIDE/base.tar.gz" "$STAMP.base.tar.gz"
+    podman cp "pinecall-postgres:$INSIDE/pg_wal.tar.gz" "$STAMP.pg_wal.tar.gz"
+    podman exec pinecall-postgres rm -rf "$INSIDE"
+    BASE=("$STAMP.base.tar.gz" "$STAMP.pg_wal.tar.gz")
+fi
+
+sha256sum "$STAMP.db.dump" "$STAMP.recordings.tar" "${BASE[@]}" > "$STAMP.sha256"
+for plain in "$STAMP.db.dump" "$STAMP.recordings.tar" "${BASE[@]}"; do
     age -R "$KEY" -o "$plain.age" "$plain"
     rm -f "$plain"
 done
@@ -37,5 +50,6 @@ find "$HERE" -maxdepth 1 -type f -mtime +"$KEEP_DAYS" -delete
 
 if [ -n "${PINECALL_BACKUP_BUCKET:-}" ]; then
     gcloud storage cp --quiet "$STAMP".* "gs://$PINECALL_BACKUP_BUCKET/$STAMP/"
+    for plain in "${BASE[@]}"; do rm -f "$plain.age"; done
 fi
 ls -l "$HERE/$STAMP".* | awk '{print $5, $NF}'

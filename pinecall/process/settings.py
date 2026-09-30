@@ -86,6 +86,13 @@ class Settings(BaseModel):
         alias="PINECALL_RECORDINGS",
         description="Where a kept recording lands, absolute or relative to the working directory.",
     )
+    # Written with the machine's own identity, as the backup bucket is; never the backup's bucket,
+    # whose 35-day lifecycle rule would forget a recording its org keeps longer.
+    recordings_bucket: str | None = Field(
+        None,
+        alias="PINECALL_RECORDINGS_BUCKET",
+        description="The bucket a finished recording moves to, under its org. Unset: the disk.",
+    )
 
     # ── the worker ──
     # Read from the environment because livekit runs each job in a child process that inherits

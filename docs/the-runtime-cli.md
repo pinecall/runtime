@@ -25,7 +25,7 @@ opens running, one gVisor container each, on a machine that is not the box
 ([../infra/apps/README.md](../infra/apps/README.md)). Every variable they read is
 [the-environment.md](the-environment.md).
 
-## `box up` · `box upgrade`
+## `box up` · `box upgrade` · `box failover`
 
 `sudo uvx --from pinecall pinecall-runtime box up --domains <production>[,<sandbox>]` makes the
 machine it runs on a box, from the files the package carries (`pinecall/infra/`): the system's
@@ -36,7 +36,8 @@ root; the names already point at the machine. `--backup-key age1…` writes
 `/etc/pinecall/backup.age.pub` and turns the nightly backup on; without it there is none.
 `--package` installs a wheel's path or another `pinecall==` instead. `box upgrade` is `box up`
 with the names the box has (`/etc/pinecall/box.env`): run from `uvx --from pinecall@latest`, it
-brings the box to that version. On a box, `/usr/local/bin/pinecall-runtime` runs any verb with the
+brings the box to that version. `box failover`, on the machine `infra/cell/replica.sh` made a replica, promotes its
+Postgres and prints what to repoint; it repoints nothing itself ([a-box-in-production.md](a-box-in-production.md)). On a box, `/usr/local/bin/pinecall-runtime` runs any verb with the
 box's settings and sealed credentials: `sudo pinecall-runtime doctor`, `sudo pinecall-runtime init …`.
 
 ## `init`

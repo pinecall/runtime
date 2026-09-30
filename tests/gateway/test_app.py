@@ -14,8 +14,8 @@ from pinecall.process.settings import Settings
 from tests.conftest import Knocking, postgres
 
 # The doors a key opens without a scope: what the fleet's key and a page's token read are
-# checked inside.
-NO_SCOPE = frozenset({"/{path:path}", "/widget/{file}"})
+# checked inside; /metrics is fenced by the address it is asked from.
+NO_SCOPE = frozenset({"/{path:path}", "/widget/{file}", "/metrics"})
 
 # The doors nobody holds a key at yet (a sign-in page, a terminal, an invitation, Meta), and the
 # ones that read any key as who it is (whoami, a code, the org switch, one's own keys).

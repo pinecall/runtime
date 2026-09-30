@@ -49,7 +49,9 @@ from pinecall.gateway.ending.seal import remembered, sealed
 from pinecall.log import queries
 from pinecall.log.readers import Filter, parse_filter, project_entry, project_state
 from pinecall.log.store import DEFAULT_LIMIT, Claim
+from pinecall.process.recordings import recordings_of
 from pinecall.providers import catalog
+from pinecall.providers.build import vendor_named_in
 from pinecall.providers.catalog import judge_ceiling
 from pinecall.session.call import ToolUse
 from pinecall.tenancy import disclosure, erasure, keys, orgs, policy, reads, tokens
@@ -98,6 +100,9 @@ SEALED = "call {call!r} is over: nothing more can be written to it"
 
 
 SPENT = "token_spent"
+
+
+ERROR = "error"
 
 
 ALREADY_SPENT = "call {call} was opened by its token already: a token opens one call, once"
@@ -216,7 +221,10 @@ async def append_entry(
         raise DeclarationRefused(UNKNOWN_EVENT.format(kind=body.type))
     _orgs_call(gateway, key, call)
     served = _orgs_call(gateway, key, call)
-    return await served.log.append(body.type, body.data, ephemeral=body.ephemeral)
+    began = time.perf_counter()
+    entry = await served.log.append(body.type, body.data, ephemeral=body.ephemeral)
+    _counted(gateway, time.perf_counter() - began, [entry])
+    return entry
 
 
 # Taken whole or refused whole; the answer to a retry of the last batch is the seqs it was given.
@@ -229,7 +237,9 @@ async def append_entries(
         if item.type not in EVENTS:
             raise DeclarationRefused(UNKNOWN_EVENT.format(kind=item.type))
     served = _orgs_call(gateway, key, call)
+    began = time.perf_counter()
     entries = await served.log.append_many(body.entries, after=body.after)
+    _counted(gateway, time.perf_counter() - began, entries)
     return AppendEntriesResponse(entries=entries)
 
 
@@ -377,8 +387,14 @@ async def call_state(call: str, reading: ReaderDep, gateway: GatewayDep) -> Json
     }
 
 
-@router.get("/v1/calls/{call}/recording")
-async def recording(call: str, reading: ReaderDep, gateway: GatewayDep) -> FileResponse:
+# From the bucket once the worker moved it there, else the file the recorder wrote on this disk.
+@router.get("/v1/calls/{call}/recording", response_model=None)
+async def recording(
+    call: str,
+    reading: ReaderDep,
+    gateway: GatewayDep,
+    byte_range: Annotated[str | None, Header(alias="range")] = None,
+) -> FileResponse | StreamingResponse:
     """The call's audio, with byte ranges so a player can seek."""
     await _deps.check_readable(gateway, reading, call)
     await _read_by(gateway, reading, call, "recording")
@@ -394,6 +410,19 @@ async def recording(call: str, reading: ReaderDep, gateway: GatewayDep) -> FileR
     pointer = None if summary is None else summary.data.get("recording")
     if state.seq == 0 or not isinstance(pointer, str) or not pointer:
         raise NotFound(NOT_RECORDED.format(call=call))
+    kept = await queries.scope_of_call(gateway.connections.pool, call)
+    if kept is not None and kept.scope is not None:
+        connections = gateway.connections
+        stored = recordings_of(connections.settings, connections.http)
+        fetched = await stored.fetch(kept.scope.org, call, byte_range)
+        if fetched is not None:
+            headers = {
+                **fetched.headers,
+                "content-disposition": f'attachment; filename="{call}.ogg"',
+            }
+            return StreamingResponse(
+                fetched.body, status_code=fetched.status, headers=headers, media_type="audio/ogg"
+            )
     path = Path(pointer)
     if not await asyncio.to_thread(path.is_file):
         raise NotFound(NOT_HERE.format(call=call, path=pointer))
@@ -409,7 +438,7 @@ async def erase_call(call: str, key: TeamKey, where: ScopeDep, gateway: GatewayD
         raise NotFound(_deps.NO_SUCH_CALL.format(call=call))
     if not kept.sealed:
         raise Conflict(STILL_LIVE.format(call=call))
-    recordings = Path(gateway.connections.settings.recordings_root)
+    recordings = recordings_of(gateway.connections.settings, gateway.connections.http)
     erased = await erasure.call(
         gateway.connections.pool, recordings, kept.scope, call, by=asked_by(key)
     )
@@ -619,3 +648,14 @@ def _seq_of(header: str | None) -> int:
 def _sees_to_erase(where: Scope, owner: Scope) -> bool:
     same = where.org == owner.org and where.env == owner.env
     return same and owner.holder in ("", where.holder)
+
+
+# What /metrics reads: the append's time at the door, and each vendor's failures as they come in.
+def _counted(gateway: Gateway, seconds: float, entries: list[Entry]) -> None:
+    counters = gateway.counters
+    counters.appended_in(seconds, len(entries))
+    for entry in entries:
+        if entry.type == ERROR:
+            code, message = entry.data.get("code"), entry.data.get("message")
+            text = message if isinstance(message, str) else ""
+            counters.failed(code if isinstance(code, str) else "", vendor_named_in(text))
