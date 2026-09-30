@@ -250,6 +250,58 @@ gs://<bucket>/wal/`) and run step 3 again. If the replay is wrong,
 `podman volume import pinecall-postgres /var/lib/pinecall/before-restore.tar` (Postgres stopped)
 puts back what stood before step 3.
 
+### A replica, and failing over to it
+
+A second machine in the box's own network (Ubuntu 24.04, the box's size) holds a streaming
+replica of its Postgres: every committed write reaches it within a second, so a box that is lost
+loses at most that. The files are `infra/cell/` ([its page](../infra/cell/README.md)), shipped in
+the package beside `infra/box/`. Setting one up, from a laptop that reaches both (`box` and
+`replica` are ssh aliases; `10.128.0.5` is the box's private address, `10.128.0.7` the replica's):
+
+```sh
+# The box lets the replica stream: the role and its password (drawn and sealed on the box), the
+# slot, its pg_hba line, and Postgres published on 10.128.0.5 and fenced to 10.128.0.7 alone.
+# The first time, Postgres restarts once: a few seconds.
+ssh box sudo /opt/pinecall/infra/cell/primary.sh allow 10.128.0.7
+# The box's files on the replica, then the replica joins; each secret goes from one machine's store
+# to the other's through the pipe, never onto a screen.
+ssh box 'sudo tar -C /opt/pinecall -c infra' | ssh replica 'sudo mkdir -p /opt/pinecall && sudo tar -C /opt/pinecall -x'
+ssh box sudo -n systemd-creds decrypt --name=PINECALL_REPLICATION_PASSWORD \
+    /etc/credstore.encrypted/PINECALL_REPLICATION_PASSWORD - \
+  | ssh replica sudo /opt/pinecall/infra/cell/replica.sh join 10.128.0.5
+# What the promoted database is served with: its password, the vault key its sealed rows open
+# with, and the ops key. `box up` there keeps all three.
+for name in DATABASE_URL PINECALL_VAULT_KEY PINECALL_OPS_KEY; do
+  ssh box sudo -n systemd-creds decrypt --name=$name /etc/credstore.encrypted/$name - \
+    | ssh replica sudo /opt/pinecall/infra/box/install.sh secret $name
+done
+# uv on the replica, for `box failover` and `box up`.
+ssh replica 'curl -LsSf https://astral.sh/uv/install.sh | sudo env UV_INSTALL_DIR=/usr/local/bin sh'
+```
+
+`replica.sh join` ends by printing `streaming from 10.128.0.5, received up to …`; on the box,
+`sudo podman exec pinecall-postgres psql -U pinecall -d pinecall -c 'SELECT client_addr, state,
+replay_lag FROM pg_stat_replication'` shows it `streaming`. The slot keeps at most 10 GB of WAL
+for a replica that stops reading; past that Postgres drops it and the replica joins again.
+`primary.sh forget` undoes the box's side (a retired replica must not hold a slot).
+
+**Failing over**, when the box is lost. The target is **RTO 15 minutes**, from the decision to
+calls answered at the same names. On the replica:
+
+```sh
+sudo uvx --from pinecall==<the box's version> pinecall-runtime box failover
+```
+
+It refuses a Postgres that is not a standby, promotes it (`pg_promote`), checks it left
+recovery, prints when the last replayed write was (what the failover lost), and prints the rest:
+keep the old box from coming back as a second primary, point the names (and any trunk that names
+the old box's address) at this machine, copy `backup.env` and `backup.age.pub`, `box up --domains
+…` here, and the doctor. It repoints, stops and deletes nothing itself. `box up` finds the
+database running and keeps the three secrets sealed above; its numbers go back on the SIP service
+when the gateway starts. Afterwards this machine is the box, and a new replica joins it the same way.
+
+**Drilled: not yet.**
+
 ## 5. What the box runs
 
 From the console's box screens, or the operator's doors with the ops key
