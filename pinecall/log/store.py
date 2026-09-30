@@ -42,6 +42,18 @@ on conflict (log) do update set sealed = true
 
 HEAD = "select seq, sealed, written, written_seq from call_log_head where log = %(log)s"
 
+# Taken by one gateway at a time, and only while the call is open; it runs out by itself. A call
+# that wrote nothing yet has no head: the lease makes it, as the seal does.
+LEASED = """
+insert into call_log_head as head (log, call, sealing_until)
+values (%(call)s, %(call)s, now() + make_interval(secs => %(seconds)s))
+on conflict (log) do update set sealing_until = excluded.sealing_until
+where not head.sealed and (head.sealing_until is null or head.sealing_until < now())
+returning log
+"""
+
+UNLEASED = "update call_log_head set sealing_until = null where log = %(call)s and not sealed"
+
 
 # The first claim wins, and it may come before the first entry.
 CLAIM = """
@@ -198,6 +210,19 @@ class Store:
         """Seal the call's log; sealing twice changes nothing."""
         async with self.pool.connection() as connection:
             await connection.execute(SEAL, {"call": call})
+
+    async def lease_seal(self, call: str, seconds: float) -> bool:
+        """Take the right to seal the call for so long; False when another holds it, or it ended."""
+        async with self.pool.connection() as connection:
+            taken = await (
+                await connection.execute(LEASED, {"call": call, "seconds": seconds})
+            ).fetchone()
+        return taken is not None
+
+    async def release_seal(self, call: str) -> None:
+        """Give the right to seal back, after a seal that broke: the next knock takes it."""
+        async with self.pool.connection() as connection:
+            await connection.execute(UNLEASED, {"call": call})
 
     async def claim(
         self, call: str | None, agent: str, org: str, claim: Claim | None = None
