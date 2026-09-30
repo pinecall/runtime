@@ -26,8 +26,6 @@ from pinecall.evals._evidence import (
 )
 from pinecall.evals.case import (
     AGENT,
-    CALLER,
-    PUNCTUATION,
     Case,
     as_chat,
     calls_of,
@@ -42,7 +40,6 @@ from pinecall.providers.build import Running, a_mapping, completion_usage, llm_o
 from pinecall.providers.catalog import Providers
 from pinecall.wire.frames import Entry
 from pinecall.wire.metrics import LLMModelUsage
-from pinecall.wire.rest.evals import Golden, Register
 from pinecall.wire.scores import CallScore, Judgment, JudgmentEvidence
 
 logger = logging.getLogger(__name__)
@@ -94,44 +91,6 @@ CONSENT = (
 
 
 UNDECLARED = "the agent's declaration was not at hand when the case was built"
-
-
-HEARD = "Every line this golden puts in the caller's mouth reached the agent."
-
-
-TOOLS = "Every tool this golden names was called in the conversation."
-
-
-NOT_TOOLS = "The conversation called none of the tools this golden forbids."
-
-
-SAYS = "The agent said every phrase this golden names."
-
-
-SILENCE = "The agent said none of the phrases this golden names."
-
-
-ANSWERED = "The agent answered every fact that arrived mid-call."
-
-
-STAYED_QUIET = "The agent carried on without answering the facts that arrived mid-call."
-
-
-# A check that could not look must not pass.
-NO_EVENT = "this golden expects a reply to an event, and no event.received reached the call"
-
-
-REGISTER = "The agent addressed the caller as {register} in every one of its turns."
-
-
-# Unmistakable tú; `té` (tea) carries its accent, so `te` never matches it.
-TUTEO: frozenset[str] = frozenset(
-    {"tú", "ti", "te", "contigo", "tu", "tus", "tuyo", "tuya", "tuyos", "tuyas"}
-)
-
-
-# `le`, `les`, `su` and `sus` are left out: they are as often the third person.
-USTEO: frozenset[str] = frozenset({"usted", "ustedes", "consigo", "suyo", "suya", "suyos", "suyas"})
 
 
 GROUNDED = "Every concrete fact the agent stated appears in the evidence this call carried."
@@ -281,7 +240,7 @@ class CaseJudge(Judge):
         if isinstance(self.settled, JudgmentResult):
             return _with_criteria(self.settled, self.criteria)
         if llm is None:
-            return _with_criteria(_failing(self.settled.unasked), self.criteria)
+            return _with_criteria(failing(self.settled.unasked), self.criteria)
         self.calls += 1
         answered = await _ask_judge(llm, self.settled.question, chat_ctx)
         if answered.usage is not None:
@@ -291,40 +250,61 @@ class CaseJudge(Judge):
         return result
 
 
-def golden_judges(golden: Golden, case: Case) -> list[CaseJudge]:
-    """Consent, then one judge per expectation the golden sets, in the order Expect names them."""
-    expect = golden.expect
-    judges = [_consent_judge(case)]
-    # Without it an unheard caller would pass every "never did X".
-    if golden.input:
-        judges.append(_heard(case, len(golden.input)))
-    if expect.tools:
-        judges.append(_tools(case, expect.tools))
-    if expect.not_tools:
-        judges.append(_not_tools(case, expect.not_tools))
-    if expect.not_said:
-        judges.append(_silence(case, expect.not_said))
-    if expect.says:
-        judges.append(_says(case, expect.says))
-    if expect.grounded:
-        judges.append(_grounded_judge(case))
-    if expect.addressed_as is not None:
-        judges.append(_register_judge(case, expect.addressed_as))
-    if expect.replies is not None:
-        judges.append(_replies(case, replies=expect.replies))
-    return judges
-
-
 # The register a business asks for is not declared anywhere, so it is not judged at hang-up.
 def hangup_judges(
     case: Case, own: Sequence[AgentJudge], org_facts: Compliance | None = None
 ) -> list[CaseJudge]:
     """The panel: consent, grounding, promises, compliance, the caller's rule, the agent's own."""
-    panel = [_consent_judge(case), _grounded_judge(case), _promises_judge(case)]
+    panel = [consent_judge(case), grounded_judge(case), _promises_judge(case)]
     rules = [] if org_facts is None else compliance.ruled(case, org_facts)
     lawful = [CaseJudge(rule.name, rule.criteria, rule.settled) for rule in rules]
     ruled_by = [_persona_judge(case), *(_question_judge(case, judge) for judge in own)]
     return [*panel, *lawful, *(judge for judge in ruled_by if judge is not None)]
+
+
+def passing(reason: str) -> JudgmentResult:
+    """A verdict that passes."""
+    return JudgmentResult(verdict="pass", reasoning=reason)
+
+
+def failing(reason: str) -> JudgmentResult:
+    """A verdict that fails."""
+    return JudgmentResult(verdict="fail", reasoning=reason)
+
+
+def consent_judge(case: Case) -> CaseJudge:
+    """Consent, from the gate trace; a trace with no declared side effect never passes."""
+    read = consent_of(case.gate)
+    if read.outcome == "undeclared":
+        settled = failing(f"{read.detail}: {UNDECLARED}")
+    elif read.outcome == "broken":
+        settled = failing(read.detail)
+    else:
+        settled = passing(read.detail)
+    return CaseJudge("consent", CONSENT, settled)
+
+
+# Code matches first, so the model only sees the misses (`las diez` against `10:00`).
+def grounded_judge(case: Case) -> CaseJudge:
+    """Every fact the agent stated in the evidence of its scope, by code, then by a model."""
+    evidence = evidence_of(case)
+    stated = stated_in(case)
+    missing = [
+        (extractor, fact)
+        for extractor, fact in stated
+        if not carries(evidence, fact, extractor.source)
+    ]
+    if not stated:
+        return CaseJudge("grounded", GROUNDED, passing(NOTHING_STATED))
+    if not missing:
+        found = f"all {len(stated)} stated fact(s) appear in the evidence"
+        return CaseJudge("grounded", GROUNDED, passing(found))
+    unmatched = "; ".join(missing_from(evidence, extractor, fact) for extractor, fact in missing)
+    question = Question(
+        question=GROUNDED_QUESTION.format(evidence=as_text(evidence)),
+        unasked=NOBODY_LOOKED.format(missing=unmatched),
+    )
+    return CaseJudge("grounded", GROUNDED, question)
 
 
 def evidence_in(reason: str, entries: Sequence[Entry]) -> JudgmentEvidence:
@@ -401,16 +381,6 @@ def _priced(panel: Sequence[CaseJudge], running: Running | None, configured: Pro
     return prices.cost(spent, configured).usd
 
 
-def _passing(reason: str) -> JudgmentResult:
-    """A verdict that passes."""
-    return JudgmentResult(verdict="pass", reasoning=reason)
-
-
-def _failing(reason: str) -> JudgmentResult:
-    """A verdict that fails."""
-    return JudgmentResult(verdict="fail", reasoning=reason)
-
-
 # livekit's judge keeps its instructions private and fixed at construction, so it is asked here.
 async def _ask_judge(model: llm.LLM[Never], criteria: str, chat: ChatContext) -> Answer:
     """One question about the conversation to a model: pass, fail or maybe, and why."""
@@ -434,64 +404,12 @@ async def _ask_judge(model: llm.LLM[Never], criteria: str, chat: ChatContext) ->
     return Answer(result=result, usage=completion_usage(model, response.usage))
 
 
-def _consent_judge(case: Case) -> CaseJudge:
-    """Consent, from the gate trace; a trace with no declared side effect never passes."""
-    read = consent_of(case.gate)
-    if read.outcome == "undeclared":
-        settled = _failing(f"{read.detail}: {UNDECLARED}")
-    elif read.outcome == "broken":
-        settled = _failing(read.detail)
-    else:
-        settled = _passing(read.detail)
-    return CaseJudge("consent", CONSENT, settled)
-
-
-def _register_judge(case: Case, expected: Register) -> CaseJudge:
-    """Whether the agent never used the other register's words."""
-    other = USTEO if expected == "tu" else TUTEO
-    turns = said_by(case, AGENT)
-    slips = [
-        (number, word) for number, turn in enumerate(turns, 1) for word in _marked(turn, other)
-    ]
-    if slips:
-        spoken = "; ".join(f"{word!r} in agent turn {number}" for number, word in slips)
-        settled = _failing(f"the agent was asked for {expected} and said {spoken}")
-    else:
-        settled = _passing(
-            f"no word of the other register in {len(turns)} agent turn(s), asked for {expected}"
-        )
-    return CaseJudge("register", REGISTER.format(register=expected), settled)
-
-
-# Code matches first, so the model only sees the misses (`las diez` against `10:00`).
-def _grounded_judge(case: Case) -> CaseJudge:
-    """Every fact the agent stated in the evidence of its scope, by code, then by a model."""
-    evidence = evidence_of(case)
-    stated = stated_in(case)
-    missing = [
-        (extractor, fact)
-        for extractor, fact in stated
-        if not carries(evidence, fact, extractor.source)
-    ]
-    if not stated:
-        return CaseJudge("grounded", GROUNDED, _passing(NOTHING_STATED))
-    if not missing:
-        found = f"all {len(stated)} stated fact(s) appear in the evidence"
-        return CaseJudge("grounded", GROUNDED, _passing(found))
-    unmatched = "; ".join(missing_from(evidence, extractor, fact) for extractor, fact in missing)
-    question = Question(
-        question=GROUNDED_QUESTION.format(evidence=as_text(evidence)),
-        unasked=NOBODY_LOOKED.format(missing=unmatched),
-    )
-    return CaseJudge("grounded", GROUNDED, question)
-
-
 # No commitment, no model call.
 def _promises_judge(case: Case) -> CaseJudge:
     """Every commitment the agent made backed by a tool call, found by phrase, read by a model."""
     promised = committed_in(said_by(case, AGENT))
     if not promised:
-        return CaseJudge("promises", PROMISES, _passing(NOTHING_PROMISED))
+        return CaseJudge("promises", PROMISES, passing(NOTHING_PROMISED))
     calls = [tool_call_text(called) for called in calls_of(case) if called.answer is not None]
     quoted = "the agent said " + ", ".join(f"'{phrase}'" for phrase in promised)
     question = Question(
@@ -563,110 +481,6 @@ def _with_criteria(result: JudgmentResult, criteria: str) -> JudgmentResult:
     kept = JudgmentResult(verdict=result.verdict, reasoning=result.reasoning)
     kept.instructions = criteria
     return kept
-
-
-def _heard(case: Case, lines: int) -> CaseJudge:
-    heard = len(said_by(case, CALLER))
-    if heard < lines:
-        word = "line" if lines == 1 else "lines"
-        settled = _failing(
-            f"the golden says {lines} {word} and the agent heard {heard}: "
-            "whatever else this call did, it was not this golden"
-        )
-    else:
-        settled = _passing(f"the agent heard all {lines} of the caller's lines")
-    return CaseJudge("heard", HEARD, settled)
-
-
-# The order the tools ran in is not judged.
-def _tools(case: Case, names: Sequence[str]) -> CaseJudge:
-    ran = {called.name for called in calls_of(case)}
-    missing = [name for name in names if name not in ran]
-    if missing:
-        what_ran = ", ".join(sorted(ran)) or "no tool at all"
-        settled = _failing(f"the golden expects {', '.join(missing)}, and this call ran {what_ran}")
-    else:
-        settled = _passing(f"every expected tool ran: {', '.join(names)}")
-    return CaseJudge("tools", TOOLS, settled)
-
-
-def _not_tools(case: Case, names: Sequence[str]) -> CaseJudge:
-    forbidden = frozenset(names)
-    slips = [
-        f"{line.tool} at seq {line.seq}"
-        for line in case.gate
-        if line.kind == "tool.call" and line.tool in forbidden
-    ]
-    if slips:
-        settled = _failing(
-            f"the golden forbids {', '.join(names)}, and this call ran {'; '.join(slips)}"
-        )
-    else:
-        settled = _passing(f"none of the {len(names)} forbidden tool(s) ran")
-    return CaseJudge("not_tools", NOT_TOOLS, settled)
-
-
-def _says(case: Case, phrases: Sequence[str]) -> CaseJudge:
-    turns = [turn.casefold() for turn in said_by(case, AGENT)]
-    missing = [phrase for phrase in phrases if not any(phrase.casefold() in turn for turn in turns)]
-    if missing:
-        settled = _failing(f"the agent never said {', '.join(repr(phrase) for phrase in missing)}")
-    else:
-        settled = _passing(f"the agent said all {len(phrases)} expected phrase(s)")
-    return CaseJudge("says", SAYS, settled)
-
-
-def _silence(case: Case, phrases: Sequence[str]) -> CaseJudge:
-    turns = [turn.casefold() for turn in said_by(case, AGENT)]
-    slips = [
-        f"{phrase!r} in agent turn {number}"
-        for phrase in phrases
-        for number, turn in enumerate(turns, 1)
-        if phrase.casefold() in turn
-    ]
-    if slips:
-        settled = _failing(f"the golden forbids these and the agent said {'; '.join(slips)}")
-    else:
-        settled = _passing(f"none of the {len(phrases)} forbidden phrase(s) was said")
-    return CaseJudge("silence", SILENCE, settled)
-
-
-# Whether the agent took the fact up, not when: the timing is the app's.
-def _replies(case: Case, *, replies: bool) -> CaseJudge:
-    criteria = ANSWERED if replies else STAYED_QUIET
-    if not case.arrived:
-        return CaseJudge("replies", criteria, _failing(NO_EVENT))
-    findings: list[str] = []
-    for fact in case.arrived:
-        after = next(
-            (turn for turn in case.turns if turn.role == AGENT and turn.seq > fact.seq), None
-        )
-        carried = [str(value) for value in fact.data.values() if str(value)]
-        named = after is not None and (
-            not carried or any(value.casefold() in after.text.casefold() for value in carried)
-        )
-        if replies and after is None:
-            findings.append(f"{fact.name} at seq {fact.seq} was followed by no turn of the agent's")
-        elif replies and not named:
-            findings.append(f"the agent's turn after {fact.name} names nothing the event carried")
-        elif not replies and named:
-            findings.append(f"the agent took {fact.name} up, and this golden expects it quiet")
-    if findings:
-        return CaseJudge("replies", criteria, _failing("; ".join(findings)))
-    kept = "taken up" if replies else "left alone"
-    return CaseJudge(
-        "replies", criteria, _passing(f"all {len(case.arrived)} fact(s) that arrived were {kept}")
-    )
-
-
-# Whole words only: `tu` is not `tutor`.
-def _marked(turn: str, markers: frozenset[str]) -> list[str]:
-    found: list[str] = []
-    for word in turn.split():
-        bare = word.strip(PUNCTUATION).casefold()
-        if bare in markers and bare not in found:
-            found.append(bare)
-    return found
 
 
 async def _never_run(raw_arguments: dict[str, object]) -> str:

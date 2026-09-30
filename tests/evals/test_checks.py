@@ -9,6 +9,7 @@ from pinecall.evals.checks import (
     consent,
     consent_of,
     errors,
+    interruptions,
     latency,
     rebuild,
     register,
@@ -203,7 +204,7 @@ def test_a_barge_in_that_took_too_long_to_obey_fails_the_latency_budget() -> Non
     assert verdict.detail.startswith("interruption_delay 0.331s > 0.200s")
 
 
-def test_a_replay_answers_the_five_checks_in_order_on_the_default_budget() -> None:
+def test_a_replay_answers_the_six_checks_in_order_on_the_default_budget() -> None:
     verdicts = replay(confirmed(), banned=(), budget={}, irreversible=IRREVERSIBLE)
     assert [(verdict.check, verdict.status) for verdict in verdicts] == [
         ("consent", "held"),
@@ -211,7 +212,68 @@ def test_a_replay_answers_the_five_checks_in_order_on_the_default_budget() -> No
         ("errors", "held"),
         ("latency", "held"),
         ("talk", "skipped"),
+        ("interruptions", "skipped"),
     ]
+
+
+def cut_off(text: str) -> tuple[str, JsonObject]:
+    """The agent's reply, cut off by the caller."""
+    kind, data = agent(text)
+    return kind, {**data, "interrupted": True}
+
+
+def test_a_reply_cut_off_and_then_answered_holds() -> None:
+    call = rebuild(
+        a_log(
+            caller("Quería una cita."),
+            cut_off("Perfecto, tengo libre el jueves a las"),
+            caller("Mejor por la tarde."),
+            agent("Por la tarde tengo el jueves a las cinco."),
+        )
+    )
+    verdict = interruptions(call)
+    assert (verdict.check, verdict.status) == ("interruptions", "held")
+    assert "each of the 1 time(s)" in verdict.detail
+
+
+def test_a_reply_started_over_instead_of_answering_is_broken_naming_both_seqs() -> None:
+    call = rebuild(
+        a_log(
+            caller("Quería una cita."),
+            cut_off("Perfecto, tengo libre el jueves a las"),
+            caller("Mejor por la tarde."),
+            agent("Perfecto, tengo libre el jueves a las diez."),
+        )
+    )
+    verdict = interruptions(call)
+    assert verdict.status == "broken"
+    assert "seq 4 started over the one cut off at seq 2" in verdict.detail
+
+
+def test_words_the_agent_never_answered_are_broken_unless_the_caller_hung_up() -> None:
+    lines = [caller("Hola."), cut_off("Le cuento lo que tenemos"), caller("Espere, espere.")]
+    unanswered = interruptions(rebuild(a_log(*lines)))
+    assert unanswered.status == "broken"
+    assert "cut in at seq 3 and the agent never answered" in unanswered.detail
+    ended: JsonObject = {
+        "reason": "caller_hung_up",
+        "ended_by": "caller",
+        "ended_at": 9.0,
+        "duration_s": 8.0,
+    }
+    hung_up = interruptions(rebuild(a_log(*lines, ("call.ended", ended))))
+    assert hung_up.status == "skipped"
+
+
+def test_the_golden_calls_barge_in_is_stopped_for_and_answered() -> None:
+    assert interruptions(rebuild(golden_entries())).status == "held"
+
+
+def test_a_cut_the_caller_said_nothing_over_is_livekits_to_resume_and_not_judged() -> None:
+    resumed = rebuild(a_log(caller("Hola."), cut_off("Le cuento"), agent("Le cuento lo que hay.")))
+    verdict = interruptions(resumed)
+    assert verdict.status == "skipped"
+    assert "said nothing it could answer" in verdict.detail
 
 
 def test_the_rebuilt_call_says_what_the_agent_said_and_whose_it_is() -> None:

@@ -28,7 +28,6 @@ from pinecall.domain.scope import Scope
 from pinecall.evals import checks, goldens, runs, spoken
 from pinecall.evals.callers import heard_in, improvise_line
 from pinecall.evals.case import case_of
-from pinecall.evals.judges import golden_judges
 from pinecall.fleet import worlds
 from pinecall.gateway import _deps
 from pinecall.gateway._call_setup import exhausted, keys_of, tuned
@@ -207,7 +206,7 @@ async def replay_call(
     gateway: GatewayDep,
     body: ReplayCallRequest | None = None,
 ) -> ReplayCallResponse:
-    """The four code checks over a finished call: consent, register, errors, latency."""
+    """The six code checks over a finished call, the barge-ins it answered among them."""
     declared = await _deps.check_readable(gateway, _deps.Reader(acting=key, scope=scope), call)
     entries = await gateway.logs.store.whole(call)
     if not entries:
@@ -360,7 +359,7 @@ async def _every_golden(gateway: Gateway, suite: Suite, judge: llm.LLM[Never] | 
                 return THE_APP_LEFT.format(done=len(suite.cells), total=total, slug=body.agent)
             entries = await gateway.logs.store.whole(opened.call)
             case = case_of(entries, setup.config)
-            scores = await runs.score(golden_judges(golden, case), case, judge)
+            scores = await runs.score(goldens.golden_judges(golden, case), case, judge)
             requests = None if body.voice else played.requests
             suite.cells.append(runs.cell_of(opened, case, scores, requests))
             await runs.put(gateway.connections.pool, registration.scope, suite.now)

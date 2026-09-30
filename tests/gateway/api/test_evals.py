@@ -356,6 +356,7 @@ async def test_a_call_this_runtime_wrote_today_reads_deferred_and_still_passes(
         "errors": "held",
         "latency": "held",
         "talk": "skipped",
+        "interruptions": "skipped",
     }
     await app.close()
 

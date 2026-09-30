@@ -39,6 +39,8 @@ class Expect(WireModel):
     not_tools: list[str] = Field(default_factory=list[str])
     not_said: list[str] = Field(default_factory=list[str], alias="not")
     says: list[str] = Field(default_factory=list[str])
+    # Any one of these is enough: an expectation with several right answers.
+    says_any: list[str] = Field(default_factory=list[str])
     # Every price, hour, date and name the agent stated is in the call's evidence.
     grounded: bool = False
     # A field named `register` would shadow a pydantic attribute.
@@ -170,7 +172,7 @@ class CheckVerdict(WireModel):
 
 
 class ReplayCallResponse(WireModel):
-    """POST /v1/evals/replay/{call}, the answer: the five checks and whether none broke."""
+    """POST /v1/evals/replay/{call}, the answer: the six checks and whether none broke."""
 
     call: str
     agent: str
