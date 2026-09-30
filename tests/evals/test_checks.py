@@ -27,6 +27,7 @@ from tests.evals.conftest import (
     tool,
     with_no_gate,
 )
+from tests.wire.golden import golden_entries
 
 IRREVERSIBLE = frozenset({BOOK.name})
 
@@ -192,6 +193,14 @@ def test_a_call_whose_turns_measured_nothing_is_skipped() -> None:
     verdict = latency(dataclasses.replace(rebuild(confirmed()), latencies={}), DEFAULT_BUDGET)
     assert verdict.status == "skipped"
     assert "e2e_latency" in verdict.detail
+
+
+def test_a_barge_in_that_took_too_long_to_obey_fails_the_latency_budget() -> None:
+    call = rebuild(golden_entries())
+    assert [round(seconds, 2) for seconds in call.latencies["interruption_delay"]] == [0.33]
+    verdict = latency(call, {"interruption_delay": 0.2})
+    assert verdict.status == "broken"
+    assert verdict.detail.startswith("interruption_delay 0.331s > 0.200s")
 
 
 def test_a_replay_answers_the_five_checks_in_order_on_the_default_budget() -> None:

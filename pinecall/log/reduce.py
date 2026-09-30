@@ -338,6 +338,38 @@ def medians(calls: Iterable[Iterable[Turn]]) -> list[Median]:
     ]
 
 
+# How long a barge-in takes to be obeyed: from the caller starting to speak over the agent to the
+# agent leaving `speaking`, on each reply written as interrupted. livekit writes the reply and the
+# state change in either order, so each waits for the other.
+def interruption_delays(entries: Iterable[Entry]) -> list[float]:
+    """Seconds from the caller cutting in to the agent falling quiet, per interrupted reply."""
+    delays: list[float] = []
+    speaking = False
+    cut_in: float | None = None
+    quiet_after: float | None = None
+    interrupted = False
+    for entry in entries:
+        match entry.type:
+            case "user.state" if entry.data.get("state") == "speaking":
+                if speaking and cut_in is None:
+                    cut_in = entry.ts
+            case "turn.agent":
+                interrupted = entry.data.get("interrupted") is True
+            case "agent.state":
+                now_speaking = entry.data.get("state") == "speaking"
+                if speaking and not now_speaking and cut_in is not None:
+                    quiet_after = entry.ts - cut_in
+                if now_speaking and not speaking:
+                    cut_in, quiet_after, interrupted = None, None, False
+                speaking = now_speaking
+            case _:
+                continue
+        if interrupted and quiet_after is not None:
+            delays.append(quiet_after)
+            cut_in, quiet_after, interrupted = None, None, False
+    return delays
+
+
 # A leg still up when the log ends is up until the call's last entry.
 def phone_legs(entries: Iterable[Entry]) -> list[PhoneLeg]:
     """Each leg of the call on the phone network, from when it joined the room until it left."""
