@@ -183,10 +183,12 @@ access id in `PINECALL_S3_ACCESS_KEY_ID`, the endpoint and `auto` as above, and 
 
 ### Recordings, off the disk
 
-A recording is the file egress writes under `/var/lib/pinecall/recordings/<call>/`. With
+A recording is the file egress writes under `/var/lib/pinecall/recordings/<call>/`, sealed by
+the worker under the call's own key as soon as it is written (`audio.sealed`, the plain file
+removed; [security/private-values.md](security/private-values.md)). With
 `PINECALL_RECORDINGS_BUCKET` and the object store in `backup.env` (read by the gateway, the workers
 and the retention run; restart them after adding it), the worker uploads that file to
-`<bucket>/<org>/<call>/audio.ogg` before it seals the call, and removes it from the disk.
+`<bucket>/<org>/<call>/audio.sealed` before it seals the call, and removes it from the disk.
 `GET /v1/calls/{call}/recording` then reads it from the bucket with the player's byte range, so any
 gateway serves it and it outlives the machine that took the call. A recording whose upload failed
 stays on the disk, the worker's journal says `the recording of <call> stays on this disk`, and the

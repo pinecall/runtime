@@ -50,6 +50,31 @@ everything the call says; it keeps nothing after it.
   what the model read.
 - **Metrics, and the call's own numbers** (`from`, `to`), which a call is found by.
 
+## Recordings
+
+A call's recording is sealed where it is kept, on the disk and in the recordings bucket alike.
+When the recorder's file is written, the worker asks the gateway for the call's own key
+(`POST /v1/calls/{call}/recording/key`, made once per call, 256 random bits, kept in
+`recording_keys` sealed under `PINECALL_VAULT_KEY`), seals the file into `audio.sealed` beside
+it, removes the plain `audio.ogg`, and only then stores it. The worker holds that one key for a
+moment; it never holds the vault's.
+
+The file is AES-256-GCM a chunk at a time (`process/sealed_audio.py`): a header of 16 bytes (the
+format's name and 8 random bytes), then each 64 KiB of the recording sealed on its own, its nonce
+the random bytes and the chunk's number, the last chunk marked as the last. A player seeks: the
+gateway answers a range by opening only the chunks it covers, one at a time, read from the disk
+or with a range from the bucket, so no recording is ever held whole, and each chunk proves it is
+the one written there (a file cut short, or a byte changed, does not open). A stream cipher alone
+(AES-CTR) seeks as well but proves nothing; one AEAD over the whole file proves it but must be
+read whole before a byte of it is trusted.
+
+The key is erased with the call, by an erasure or the nightly retention; a backup taken before
+holds the file and its sealed key both, for its days, as it holds the log. `vault rotate`
+re-seals the key.
+A worker whose gateway gives no key (a gateway of before, or one away) keeps the recording as it
+was written and says so in its journal; the name says which a stored recording is, and a plain
+one, like every recording made before, is served as it always was.
+
 ## Logs written before the mask
 
 Entries written before this was built keep their values in the log as they were written: the log

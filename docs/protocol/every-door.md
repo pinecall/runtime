@@ -79,6 +79,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `POST` | `/v1/calls/{call}/listen` | supervise | A hidden seat that hears one live call. |
 | `POST` | `/v1/calls/{call}/lookup` | app · fleet | Recall or search for a call served here, answered as the model reads it. |
 | `GET` | `/v1/calls/{call}/recording` | calls · fleet | The call's audio, with byte ranges so a player can seek. |
+| `POST` | `/v1/calls/{call}/recording/key` | app · fleet | The key the call's recording is sealed under, made once for the call. |
 | `POST` | `/v1/calls/{call}/remember` | app · fleet | Write what the call taught into its contact's memory now, as the seal would. |
 | `POST` | `/v1/calls/{call}/reopened` | app · fleet | Serve again a call the gateway forgot. |
 | `POST` | `/v1/calls/{call}/sealed` | app · fleet | Price the call, write its summary and score, and seal its log. |

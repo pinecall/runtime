@@ -7,7 +7,15 @@ import httpx
 import pytest
 
 from pinecall.domain.errors import UpstreamFailed
-from pinecall.process.recordings import AUDIO_FILE, Bucket, Disk, recordings_of
+from pinecall.process.recordings import (
+    AUDIO_FILE,
+    SEALED_FILE,
+    Bucket,
+    Disk,
+    recordings_of,
+    served_sealed,
+)
+from pinecall.process.sealed_audio import new_key, seal_file
 from pinecall.process.settings import Settings
 from tests.fakes import bucket as fake
 
@@ -119,3 +127,35 @@ async def test_erasing_deletes_each_calls_object_and_a_file_that_never_moved(
     assert await kept.erase("org_1", calls) == 19
     assert remote.objects == {"org_2/CA_0/audio.ogg": AUDIO}
     assert not (tmp_path / "CA_18").exists()
+
+
+async def test_a_sealed_object_is_read_by_ranges_and_served_as_it_was_recorded(
+    tmp_path: Path, remote: fake.Bucket, http: httpx.AsyncClient
+) -> None:
+    key, recorded = new_key(), AUDIO * 2000
+    plain = tmp_path / "audio.ogg"
+    plain.write_bytes(recorded)
+    seal_file(plain, tmp_path / SEALED_FILE, key)
+    remote.objects["org_1/CA_1/audio.sealed"] = (tmp_path / SEALED_FILE).read_bytes()
+    kept = Bucket(tmp_path, remote.name, remote.store_on(http))
+    sealed = await kept.sealed("org_1", "CA_1")
+    assert sealed is not None
+    part = served_sealed(sealed, key, "bytes=70000-70009")
+    assert (part.status, part.headers["content-range"]) == (
+        206,
+        f"bytes 70000-70009/{len(recorded)}",
+    )
+    assert await read_whole(part.body) == recorded[70000:70010]
+    whole = served_sealed(sealed, key, None)
+    assert (whole.status, await read_whole(whole.body)) == (200, recorded)
+    assert served_sealed(sealed, key, f"bytes={len(recorded)}-").status == 416
+    assert await kept.sealed("org_1", "CA_2") is None
+
+
+async def test_erasing_counts_a_call_kept_only_sealed(
+    tmp_path: Path, remote: fake.Bucket, http: httpx.AsyncClient
+) -> None:
+    remote.objects = {"org_1/CA_1/audio.sealed": b"sealed", "org_1/CA_2/audio.ogg": AUDIO}
+    kept = Bucket(tmp_path, remote.name, remote.store_on(http))
+    assert await kept.erase("org_1", ["CA_1", "CA_2", "CA_3"]) == 2
+    assert remote.objects == {}

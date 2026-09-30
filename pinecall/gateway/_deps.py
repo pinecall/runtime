@@ -28,12 +28,14 @@ from pinecall.gateway._call_setup import exhausted
 from pinecall.gateway._gateway import Gateway
 from pinecall.log import queries
 from pinecall.retrieval.embed import Embedder
-from pinecall.tenancy import admission, keys, people, throttle, tokens
+from pinecall.tenancy import admission, keys, people, reads, throttle, tokens
 from pinecall.tenancy.keys import Bearer
+from pinecall.tenancy.reads import Read
 from pinecall.tenancy.tokens import PROJECTION_OF, Visit
 from pinecall.wire.frames import Entry, WireModel
 from pinecall.wire.parts import Projection
 from pinecall.wire.rest.agents import ScopeHolder
+from pinecall.wire.rest.calls import ReadKind
 
 # The world a person's key acts in; a server's key is its own world whatever this says.
 WORLD = "pinecall-env"
@@ -280,6 +282,16 @@ def asked_by(key: Acting) -> str:
     """The person behind the key, or the key itself for a server's."""
     member = key.bearer.member
     return member.id if member is not None else key.bearer.key.key_id
+
+
+# A person's read and a server's are written down, by the person or the key; a visitor reads
+# its own call and the fleet the call it serves, neither of which is an access to record.
+async def record_read(gateway: Gateway, reading: Reader, call: str, what: ReadKind) -> None:
+    """Write down who read the call, and what of it."""
+    acting = reading.acting
+    if acting is None or reading.scope is None:
+        return
+    await reads.record(gateway.connections.pool, reading.scope, Read(call, what, asked_by(acting)))
 
 
 def ephemeral_entry(slug: str, event: WireModel, *, kind: str = "error") -> Entry:

@@ -224,6 +224,12 @@ class RememberResponse(WireModel):
     took_ms: float
 
 
+class RecordingKeyResponse(WireModel):
+    """The key a call's recording is sealed under before it is stored: 32 bytes, base64url."""
+
+    key: str
+
+
 class SealCallRequest(WireModel):
     """The end of a call as its worker hands it to the gateway, which prices, judges and seals."""
 
