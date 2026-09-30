@@ -1,6 +1,7 @@
 """What a request is: the gateway it reaches, the key, its world and scope, a reader."""
 
 import asyncio
+import math
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -17,16 +18,17 @@ from pinecall.domain.errors import (
     NotFound,
     NotSignedIn,
     QuotaExhausted,
+    Throttled,
     TooManyRequests,
 )
 from pinecall.domain.names import PRODUCTION, Env, parse_env
-from pinecall.domain.person import HOLDING, THE_FLEET, THE_TEAM, KeyScope
+from pinecall.domain.person import HOLDING, THE_FLEET, THE_RUNNER, THE_TEAM, KeyScope
 from pinecall.domain.scope import Scope
 from pinecall.gateway._call_setup import exhausted
 from pinecall.gateway._gateway import Gateway
 from pinecall.log import queries
 from pinecall.retrieval.embed import Embedder
-from pinecall.tenancy import admission, keys, people, tokens
+from pinecall.tenancy import admission, keys, people, throttle, tokens
 from pinecall.tenancy.keys import Bearer
 from pinecall.tenancy.tokens import PROJECTION_OF, Visit
 from pinecall.wire.frames import Entry, WireModel
@@ -79,6 +81,20 @@ NOT_YOURS = "this token reads another call"
 
 
 NEVER_OPENED = "no call {call} was opened: the fleet's key reads and acts for a call once it is"
+
+
+# How a family of doors is named: the scopes it opens, as the page of doors writes them.
+FAMILY = " · "
+
+
+# The platform's own keys are never paced: its workers and its runner.
+UNPACED: frozenset[KeyScope] = frozenset({THE_FLEET, THE_RUNNER})
+
+
+PACED = (
+    "this org sent its {family} doors {limit} requests this minute, in {env}: "
+    "try again in {seconds} s"
+)
 
 
 NOBODY_ISSUED = (
@@ -280,12 +296,15 @@ def ephemeral_entry(slug: str, event: WireModel, *, kind: str = "error") -> Entr
 
 
 # FastAPI calls these: one per scope, each recorded so a test walks every door for exactly one.
-def opening(*scopes: KeyScope) -> Callable[[HTTPConnection, Acting], Awaitable[Acting]]:
+def opening(*scopes: KeyScope) -> Callable[[HTTPConnection, Acting, Gateway], Awaitable[Acting]]:
     """A dependency that lets through a key that opens one of the scopes."""
+    family = FAMILY.join(sorted(scopes))
 
-    async def opened(connection: HTTPConnection, key: ActingDep) -> Acting:
+    async def opened(connection: HTTPConnection, key: ActingDep, gateway: GatewayDep) -> Acting:
         keys.check_opens(key.bearer, *scopes)
         _check_agent_named(connection, key.bearer)
+        if THE_FLEET not in scopes:
+            await _paced(gateway, key, family)
         return key
 
     SCOPES_OF[opened] = frozenset(scopes)
@@ -441,6 +460,7 @@ async def _reader_of(
     key = Acting(bearer=verified, env=world_of_request(connection, verified, gateway))
     keys.check_opens(verified, *opens)
     _check_agent_named(connection, verified)
+    await _paced(gateway, key, "calls")
     if THE_FLEET in verified.key.scopes:
         return Reader(acting=key)
     return Reader(acting=key, scope=await scope(connection, key, gateway, named))
@@ -477,3 +497,20 @@ def _check_agent_named(connection: HTTPConnection, bearer: Bearer) -> None:
     for slug in (connection.path_params.get("slug"), connection.query_params.get("agent")):
         if slug:
             keys.check_agent(bearer, slug)
+
+
+# One count per org, world and family: a noisy tenant waits, and nobody else does. A live call's
+# own doors are never paced: admission already bounds them, and a worker reads a 4xx as final.
+async def _paced(gateway: Gateway, key: Acting, family: str) -> None:
+    bearer = key.bearer
+    if bearer.key.scopes & UNPACED or (bearer.member is not None and bearer.member.operator):
+        return
+    name = f"{key.org}/{key.env}/{family}"
+    wait = await gateway.paced.counted(name, throttle.REQUESTS_A_MINUTE)
+    if wait is None:
+        return
+    seconds = max(1, math.ceil(wait))
+    raise Throttled(
+        PACED.format(family=family, limit=throttle.REQUESTS_A_MINUTE, env=key.env, seconds=seconds),
+        retry_after_s=seconds,
+    )

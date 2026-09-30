@@ -49,10 +49,21 @@ log.
 **Refusals** are `{"detail": "…"}` under the status, and the sentence names the fix: `401` no key;
 `403` a key that does not open the door, or another world's; `404` a thing that is not there, and
 another org's call, whose existence is nobody else's business; `409` a request that disagrees with
-what is stored; `400` or `422` a body that is not the shape; `429` a quota; `502` a vendor or a
+what is stored; `400` or `422` a body that is not the shape; `429` a quota, or a minute's requests
+spent (below); `502` a vendor or a
 carrier that did not answer, in its own words; `503` the request was right and this box cannot
 honour it. A socket closes with **1008** and the sentence. A key past its expiry is `401` saying
 when it expired, never the silence of a key nobody made.
+
+**A minute's requests.** Every door a key opens by its scopes counts the org's requests in the
+world, per family of doors (the scopes the door asks for, `calls` for a log's readers): 6 000 a
+minute each, and the next one that minute is `429 this org sent its calls doors 6000 requests this
+minute, in production: try again in 12 s` with `Retry-After: 12`. One org's count never slows
+another's, nor its other world, nor its other families. A call's own doors (the ones a worker
+writes and reads a call through, which admission already bounds), the fleet's and the runner's
+keys and a person who runs the box are never counted; the doors that take no key or any key
+(`/v1/login…`, `/v1/whoami`, `/v1/keys`, `/v1/limits`) and the sockets are not either. The count
+is the gateway process's own today.
 
 ## 1. Your own app: `WS /v1/apps`
 
