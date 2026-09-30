@@ -9,7 +9,7 @@ from cryptography.fernet import MultiFernet
 from pinecall.domain.errors import DeclarationRefused, NotFound
 from pinecall.domain.names import Env
 from pinecall.postgres.pool import Pool
-from pinecall.tenancy.vault import sealed
+from pinecall.tenancy.vault import opened, sealed
 
 # An environment variable's name, as a shell takes it.
 A_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
@@ -38,6 +38,9 @@ SECRETS = """
 SELECT name, set_by, set_at FROM org_secrets
 WHERE org = %(org)s AND env = %(env)s ORDER BY name
 """
+
+
+SEALED = "SELECT name, sealed FROM org_secrets WHERE org = %(org)s AND env = %(env)s ORDER BY name"
 
 
 WRITE_ONE = """
@@ -101,6 +104,15 @@ async def secrets_of(pool: Pool, org: str, env: Env) -> list[ListedSecret]:
     return [
         ListedSecret(name=row["name"], set_by=row["set_by"], set_at=row["set_at"]) for row in rows
     ]
+
+
+# A value no listed vault key opens is left out: the process starts without it and says so itself.
+async def environment_of(pool: Pool, vault: MultiFernet, org: str, env: Env) -> dict[str, str]:
+    """The org's secrets in the world, opened, by name: what a hosted app is started with."""
+    async with pool.connection() as connection:
+        rows = await (await connection.execute(SEALED, {"org": org, "env": env})).fetchall()
+    values = {row["name"]: opened(vault, row["sealed"]) for row in rows}
+    return {name: value for name, value in values.items() if isinstance(value, str)}
 
 
 async def drop_secret(pool: Pool, org: str, env: Env, name: str) -> None:

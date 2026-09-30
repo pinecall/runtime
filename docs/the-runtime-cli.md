@@ -68,10 +68,12 @@ what `ps` shows.
 ```
 keys issue [--org <org>] --env production|sandbox [--label "…"] [--scope <scope>]… [--subject <member>] [--name "…"]
 keys list [--org <org>] · keys revoke <fingerprint> · keys fleet production|sandbox
+keys runner production|sandbox
 ```
 
 `issue` prints the key once; the table keeps the fingerprint. `fleet` mints a world's fleet key on
-the database, printed once where the unit that seals it reads it.
+the database, printed once where the unit that seals it reads it; `runner` mints the key of the
+world's runner the same way ([protocol/hosting.md](protocol/hosting.md)).
 
 ## `routes`
 

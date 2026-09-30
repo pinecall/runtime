@@ -47,19 +47,19 @@ core under `_` names.
 | folder | files | lines | imports of ours |
 |---|---|---|---|
 | `channels/` | 7 | 2148 | `domain`, `fleet`, `log`, `postgres`, `process`, `tenancy`, `wire` |
-| `cli/` | 5 | 1398 | `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `tenancy`, `wire`, `worker` |
-| `domain/` | 8 | 1150 | — |
+| `cli/` | 5 | 1418 | `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `tenancy`, `wire`, `worker` |
+| `domain/` | 8 | 1156 | — |
 | `evals/` | 9 | 2471 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
 | `fleet/` | 5 | 897 | `domain`, `postgres`, `process`, `wire` |
-| `gateway/` | 42 | 9299 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `gateway/` | 43 | 9407 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
 | `log/` | 6 | 2397 | `domain`, `postgres`, `wire` |
 | `postgres/` | 2 | 229 | `domain` |
 | `process/` | 3 | 462 | `domain`, `postgres` |
-| `providers/` | 6 | 1062 | `domain`, `postgres`, `process`, `wire` |
+| `providers/` | 6 | 1073 | `domain`, `postgres`, `process`, `wire` |
 | `retrieval/` | 6 | 2351 | `domain`, `log`, `postgres`, `providers`, `wire` |
-| `session/` | 12 | 3075 | `domain`, `log`, `providers`, `wire` |
-| `tenancy/` | 27 | 6222 | `domain`, `log`, `postgres`, `process`, `wire` |
-| `wire/` | 18 | 4477 | `domain` |
+| `session/` | 12 | 3091 | `domain`, `log`, `providers`, `wire` |
+| `tenancy/` | 27 | 6329 | `domain`, `log`, `postgres`, `process`, `wire` |
+| `wire/` | 18 | 4532 | `domain` |
 | `worker/` | 4 | 917 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
 
 ## The path of a call

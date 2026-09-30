@@ -216,6 +216,9 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `PUT` | `/v1/provider-keys/{vendor}` | providers | Keep the org's own credentials for a vendor; its calls run on them from the next one. |
 | `GET` | `/v1/providers` | providers | Every vendor this build runs and how this org may run it, the defaults, the models named. |
 | `GET` | `/v1/routes` | app · fleet | The routes of a scope; for the fleet's key and a number, the route that number rings. |
+| `GET` | `/v1/runner/apps/{org}/{name}/environment` | runner | What the app's process is started with: the org's secrets, its token, the gateway. |
+| `GET` | `/v1/runner/apps/{org}/{name}/releases/{release}/source` | runner | The tarball of one release of any org's app in the runner's world. |
+| `POST` | `/v1/runner/heartbeat` | runner | The runner's reports kept, and every app of its world it is to have running. |
 | `GET` | `/v1/secrets` | app | The org's secrets in this world, by name; never a value. |
 | `DELETE` | `/v1/secrets/{name}` | app | Forget one secret; the org's list after it, 404 for a name nobody set. |
 | `PUT` | `/v1/secrets/{name}` | app | Keep one secret, sealed, replacing the value it had; the org's list after it. |

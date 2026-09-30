@@ -185,3 +185,9 @@ console and the widget inside; `docs/from-zero.md` walks a box to its first call
   `DELETE /v1/hosted/{name}`. The org's secrets per world, sealed and never read back:
   `GET /v1/secrets`, `PUT`·`DELETE /v1/secrets/{name}`. Nothing builds or starts a release yet.
   Migration 0018.
+- The runner's doors, for the process that will run hosted apps: a key scope `runner`
+  (`pinecall-runtime keys runner <world>`), `POST /v1/runner/heartbeat` (every app of the world
+  with the host its release runs under, whether it registered, and the runner's `live` and
+  `failed` reports kept), a release's source and an app's environment (the org's secrets, its
+  token, the world's address). `GET /v1/hosted` says `live_release` and `failed_why`.
+  Migration 0019.

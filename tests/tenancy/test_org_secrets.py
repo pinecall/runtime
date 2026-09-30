@@ -10,6 +10,7 @@ from pinecall.tenancy.org_secrets import (
     LONGEST_VALUE,
     Secret,
     drop_secret,
+    environment_of,
     put_secret,
     secrets_of,
 )
@@ -82,3 +83,31 @@ async def test_a_secret_dropped_is_gone_and_a_name_nobody_set_is_not_found(pool:
     assert await secrets_of(pool, org.id, "sandbox") == []
     with pytest.raises(NotFound, match="no secret called CRM_TOKEN"):
         await drop_secret(pool, org.id, "sandbox", "CRM_TOKEN")
+
+
+@postgres
+async def test_the_environment_is_the_worlds_secrets_opened_by_name(pool: Pool) -> None:
+    org = await an_org(pool)
+    for name, value in (("CRM_TOKEN", "a"), ("CRM_URL", "https://crm.test")):
+        await put_secret(
+            pool, VAULT, org.id, Secret(env="production", name=name, value=value), set_by="m_ana"
+        )
+    await put_secret(
+        pool, VAULT, org.id, Secret(env="sandbox", name="CRM_TOKEN", value="test"), set_by="m_ana"
+    )
+    assert await environment_of(pool, VAULT, org.id, "production") == {
+        "CRM_TOKEN": "a",
+        "CRM_URL": "https://crm.test",
+    }
+
+
+@postgres
+async def test_a_secret_sealed_under_a_key_the_vault_no_longer_lists_is_left_out(
+    pool: Pool,
+) -> None:
+    org = await an_org(pool)
+    await put_secret(
+        pool, VAULT, org.id, Secret(env="production", name="CRM_TOKEN", value="a"), set_by="m_ana"
+    )
+    another = vault_of(Fernet.generate_key().decode())
+    assert await environment_of(pool, another, org.id, "production") == {}

@@ -36,6 +36,8 @@ async def list_hosted_apps(key: AppKey, gateway: GatewayDep) -> HostedAppList:
             HostedAppRow(
                 name=app.name,
                 release=app.release,
+                live_release=app.live_release,
+                failed_why=app.failed_why,
                 created_by=app.created_by,
                 created_at=app.created_at.timestamp(),
             )
