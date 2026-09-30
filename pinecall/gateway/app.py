@@ -23,6 +23,7 @@ from pinecall.domain.errors import (
     PinecallError,
     SettingsRefused,
     StoreUnreachable,
+    Throttled,
 )
 from pinecall.domain.names import other_world
 from pinecall.evals.runs import Runner
@@ -79,6 +80,7 @@ from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy.codes import Codes
 from pinecall.tenancy.mail import Mailbox, Outbox, parse_mailbox_url
 from pinecall.tenancy.signin import SignIns, Throttle
+from pinecall.tenancy.throttle import Window
 from pinecall.tenancy.tokens import Signer
 from pinecall.tenancy.vault import box_credentials
 
@@ -295,6 +297,7 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
         embedder=embedder,
         signins=SignIns.fresh(),
         samples=Throttle(tries=SAMPLES_A_MINUTE),
+        paced=Window(),
         outbox=outbox,
         evals=Runner(),
     )
@@ -313,6 +316,8 @@ async def refused(_request: Request, error: Exception) -> Response:
     """A refusal answered with its status and its sentence."""
     status = error.status if isinstance(error, PinecallError) else 500
     headers = {"WWW-Authenticate": "Bearer"} if isinstance(error, NotSignedIn) else None
+    if isinstance(error, Throttled):
+        headers = {"Retry-After": str(error.retry_after_s)}
     return JSONResponse({"detail": str(error)}, status_code=status, headers=headers)
 
 

@@ -19,7 +19,7 @@ from tests.conftest import (
     Knocking,
     postgres,
 )
-from tests.gateway.api.conftest import A_NUMBER, a_call, an_app
+from tests.gateway.api.conftest import A_NUMBER, a_call, an_app, bound_to
 
 
 async def a_route(knocking: Knocking, env: Env = "sandbox") -> None:
@@ -194,3 +194,17 @@ def test_a_room_token_reads_as_its_call() -> None:
     visit = tokens.read(signer, token)
     assert visit is not None
     assert visit.call == "call_1"
+
+
+@postgres
+async def test_a_member_bound_to_other_agents_mints_no_token_and_no_code_for_this_one(
+    knocking: Knocking,
+) -> None:
+    socket = await an_app(knocking)
+    elsewhere = await bound_to(knocking, "bo@clinica.test", frozenset({"ventas"}))
+    async with knocking.http(elsewhere) as person:
+        token = await person.post("/v1/tokens", json={"agent": AGENT})
+        code = await person.post("/v1/codes", json={"agent": AGENT})
+    assert (token.status_code, code.status_code) == (403, 403)
+    assert f"agent {AGENT} is not one of them" in token.json()["detail"]
+    await socket.close()

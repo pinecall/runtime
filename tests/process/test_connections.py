@@ -4,7 +4,7 @@ import pytest
 from cryptography.fernet import Fernet
 
 from pinecall.domain.errors import NotAvailable, SettingsRefused
-from pinecall.process.connections import opened, server_of, vault_of
+from pinecall.process.connections import keyring_of, opened, server_of, vault_of
 from pinecall.process.settings import Settings
 from tests.conftest import DSN, postgres, settings_of
 
@@ -25,6 +25,15 @@ def test_the_first_key_seals_and_every_key_listed_opens() -> None:
     old, new = Fernet.generate_key().decode(), Fernet.generate_key().decode()
     sealed_under_old = vault_of(old).encrypt(b"secret")
     assert vault_of(f"{new},{old}").decrypt(sealed_under_old) == b"secret"
+
+
+def test_the_keyring_is_the_list_in_its_order_and_an_empty_one_is_refused() -> None:
+    old, new = Fernet.generate_key().decode(), Fernet.generate_key().decode()
+    first, second = keyring_of(f" {new} , {old} ")
+    assert first.decrypt(Fernet(new).encrypt(b"x")) == b"x"
+    assert second.decrypt(Fernet(old).encrypt(b"x")) == b"x"
+    with pytest.raises(SettingsRefused, match="not a Fernet key"):
+        keyring_of(" , ")
 
 
 def test_a_process_with_no_livekit_pair_reaches_no_sfu() -> None:

@@ -65,6 +65,13 @@ What a call's `cost` counts, a row per unit billed:
   one when it went out (`twilio-outbound/+1907` is Alaska). The row names the prefix it matched,
   never the number. A transfer is a second leg, priced on its own.
 
+**The apps the box hosts** are a second meter, apart from calls: the time each app served, per
+UTC day, counted while a process of the org runs under one of its hosts
+([protocol/hosting.md](protocol/hosting.md)). `GET /v1/ops/hosted-usage[?month=YYYY-MM]` answers
+every org's month, `{since, until, rows: [{org, env, name, day, seconds}]}`, and an org reads its
+own at `GET /v1/hosted/usage`. A price per app-month, prorated by those seconds, is the layer's:
+Pinecall's cloud charges $5 an app a month.
+
 The judges' tokens are on `call.score` (`judge_cost_usd`), apart from the call's. Not in any row:
 a WhatsApp message (Meta charges for templates only, and the runtime answers inside the 24 hours a
 person opens), a number's monthly rental, the embeddings of a lookup or a push.

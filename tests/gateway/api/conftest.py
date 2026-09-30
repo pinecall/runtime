@@ -10,8 +10,8 @@ from websockets.asyncio.client import ClientConnection
 
 from pinecall.domain.call import CallContext, Route, new_call_id
 from pinecall.domain.names import Env
-from pinecall.tenancy import mail
-from tests.conftest import AGENT, Knocking, received_until, sent
+from pinecall.tenancy import mail, people
+from tests.conftest import AGENT, Knocking, a_developer, received_until, sent
 from tests.fakes.mail import MailServer, Postbox
 
 A_NUMBER = "+59829001199"
@@ -46,6 +46,15 @@ async def an_app(
     await sent(socket, "agent.register", {"routes": [], "takes_unclaimed": not console})
     await received_until(socket, "agent.registered")
     return socket
+
+
+async def bound_to(knocking: Knocking, email: str, agents: frozenset[str]) -> str:
+    """A developer's key whose member row names these agents."""
+    member, key = await a_developer(knocking, email)
+    await people.update(
+        knocking.gateway.connections.pool, knocking.org.id, member, people.Change(agents=agents)
+    )
+    return key
 
 
 async def first_data(lines: AsyncIterator[str]) -> str:

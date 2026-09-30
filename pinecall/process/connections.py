@@ -69,10 +69,17 @@ def server_of(settings: Settings) -> api.LiveKitAPI:
 
 def vault_of(keys: str | None) -> MultiFernet:
     """The vault built from the setting: the first key seals, any key listed opens."""
+    return MultiFernet(keyring_of(keys))
+
+
+def keyring_of(keys: str | None) -> list[Fernet]:
+    """Every key the setting lists, in its order: the first is the one that seals."""
     if keys is None:
         raise SettingsRefused(UNSET)
     listed = [item.strip() for item in keys.split(",") if item.strip()]
+    if not listed:
+        raise SettingsRefused(NOT_A_KEY)
     try:
-        return MultiFernet([Fernet(listed_one) for listed_one in listed])
+        return [Fernet(listed_one) for listed_one in listed]
     except ValueError:
         raise SettingsRefused(NOT_A_KEY) from None

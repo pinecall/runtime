@@ -2,6 +2,7 @@
 
 import hashlib
 import io
+import re
 import tarfile
 from dataclasses import dataclass
 from datetime import datetime
@@ -32,6 +33,10 @@ LONGEST_NAME_IN_A_HOST = 40
 
 
 STAMP = 8
+
+
+# How long after a person asks for an app's logs the runner is told to send them.
+LOGS_FOR_S = 60
 
 
 TOO_BIG = "a release's sources are {limit} MB at most packed, and this upload is {size:.1f} MB"
@@ -65,7 +70,8 @@ LABEL = "hosted app {name}"
 # which is what its host name is made of. An org's list leaves its other orgs out.
 STATUS = """
 SELECT app.org, app.name, app.created_by, app.created_at, app.live_release,
-       app.failed_host, app.failed_why, newest.release, newest.sha256,
+       app.failed_host, app.failed_why, newest.release, newest.sha256, app.stopped_at,
+       app.logs_asked_at > now() - make_interval(secs => %(logs_for_s)s) AS logs_wanted,
        (SELECT coalesce(string_agg(name || '@' || extract(epoch FROM set_at), ','
                                    ORDER BY name), '')
         FROM org_secrets WHERE org = app.org AND env = app.env) AS secrets
@@ -75,6 +81,7 @@ LEFT JOIN LATERAL (
     WHERE org = app.org AND env = app.env AND name = app.name ORDER BY release DESC LIMIT 1
 ) newest ON true
 WHERE app.env = %(env)s AND (%(org)s::text IS NULL OR app.org = %(org)s)
+  AND (NOT %(running)s OR app.stopped_at IS NULL)
 ORDER BY app.org, app.name
 """
 
@@ -172,6 +179,10 @@ class AppStatus:
     live_release: int | None
     # Why the wanted host failed to build or start; None when it did not, or was never tried.
     failed_why: str | None
+    # A person stopped it: the runner is not told to run it, and its releases stay.
+    stopped: bool = False
+    # Somebody asked for its logs lately: the runner sends them on its next beat.
+    logs_wanted: bool = False
 
 
 @dataclass(frozen=True)
@@ -202,6 +213,12 @@ def host_of(name: str, release: int, sha256: str, secrets: str) -> str:
     return f"{name[:LONGEST_NAME_IN_A_HOST]}-r{release}-{stamp}"
 
 
+def is_a_host_of(name: str, host: str) -> bool:
+    """Whether the host is one a release of the app runs under, whichever release."""
+    stem = re.escape(name[:LONGEST_NAME_IN_A_HOST])
+    return re.fullmatch(rf"{stem}-r[0-9]+-[0-9a-f]{{{STAMP}}}", host) is not None
+
+
 # Read here, before it is kept, so whoever unpacks a release later unpacks nothing but files
 # and folders under the project's own folder.
 def checked_source(data: bytes) -> Source:
@@ -218,17 +235,20 @@ def checked_source(data: bytes) -> Source:
 
 
 async def apps_of(pool: Pool, org: str, env: Env) -> list[AppStatus]:
-    """The apps the box hosts for the org in the world, by name."""
+    """The apps the box hosts for the org in the world, by name, stopped ones too."""
+    values = {"org": org, "env": env, "running": False, "logs_for_s": LOGS_FOR_S}
     async with pool.connection() as connection:
-        rows = await (await connection.execute(STATUS, {"org": org, "env": env})).fetchall()
+        rows = await (await connection.execute(STATUS, values)).fetchall()
     return [_status(row) for row in rows]
 
 
-# Every org's: what the world's runner is told to have running.
+# Every org's: what the world's runner is told to have running. A stopped app is left out, and a
+# runner stops what it is not told to run.
 async def hosted_in(pool: Pool, env: Env) -> list[AppStatus]:
-    """Every app the box hosts in the world, by org and name."""
+    """Every app the box runs in the world, by org and name; never a stopped one."""
+    values = {"org": None, "env": env, "running": True, "logs_for_s": LOGS_FOR_S}
     async with pool.connection() as connection:
-        rows = await (await connection.execute(STATUS, {"org": None, "env": env})).fetchall()
+        rows = await (await connection.execute(STATUS, values)).fetchall()
     return [_status(row) for row in rows]
 
 
@@ -363,6 +383,8 @@ def _status(row: DictRow) -> AppStatus:
         host=host,
         live_release=row["live_release"],
         failed_why=row["failed_why"] if is_failed else None,
+        stopped=row["stopped_at"] is not None,
+        logs_wanted=bool(row["logs_wanted"]),
     )
 
 

@@ -10,7 +10,7 @@ writes an agent, nothing there issues a key.
 | group | speaks to |
 |---|---|
 | `gateway` · `worker` · `runner` · `doctor` · `providers` | this machine: its settings, its database, its LiveKit |
-| `migrate` · `sessions` · `memory` · `retention` · `traceback` · `facts` | Postgres, straight, over `DATABASE_URL` |
+| `migrate` · `sessions` · `memory` · `retention` · `traceback` · `facts` · `vault` | Postgres, straight, over `DATABASE_URL` (`vault` with `PINECALL_VAULT_KEY` too) |
 | `box up` · `box upgrade` | this machine as root: it made a box from the package itself |
 | `init` · `orgs` · `keys` · `routes` · `fleet` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` and `keys runner` alone are minted on the database, before any gateway answers |
 | `load` | a running gateway's sandbox, over the worker's own call doors with the sandbox fleet's key (`PINECALL_WORKER_KEY`) |
@@ -176,3 +176,22 @@ when one is missing; it is the last line of every deploy. Its `facts` line names
 head gave out fewer seqs than its rows hold, and refolds 20 sealed calls from a random point of
 the call ids, naming each whose stored facts differ and the columns that do: `facts rebuild
 --call` mends one.
+
+## `vault rotate`
+
+Every secret the box keeps is sealed under the first key of `PINECALL_VAULT_KEY`, and any key the
+list holds opens it. To turn the vault: put a new key in front of the list (on a box,
+`install.sh secret PINECALL_VAULT_KEY` with `<new>,<old>` on stdin) and restart the gateway, so
+every secret written from then on is sealed under the new one; then `vault rotate` re-seals every
+sealed value of the schema under the first key, one line per column:
+
+```
+box_settings.ciphertext: 3 re-sealed, 0 under the first key already, 0 opened by no key listed
+```
+
+The columns are the vendors' keys (the org's and the box's), the carriers, the mailboxes, the
+identity providers, the hosted apps' tokens and the org's secrets. Each row is its own write,
+guarded by the value it still holds, so a secret the gateway rewrites meanwhile is left to it; a
+run cut short is run again, and finds what it did under the first key. It exits 1 while a value
+opens under no key listed: that value was sealed under a key the list no longer holds, and the
+old key comes out of the list only once every line says 0 there.

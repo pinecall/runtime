@@ -265,6 +265,10 @@ async def test_the_export_is_a_download_of_json_lines_of_the_keys_world(knocking
     assert "attachment" in answer.headers["content-disposition"]
     header = json.loads(answer.text.splitlines()[0])
     assert (header["kind"], header["org"], header["env"]) == ("export", knocking.org.id, "sandbox")
+    rows = await reads.of_org(knocking.gateway.connections.pool, knocking.org.id)
+    assert [(row.subject, row.what, row.env) for row in rows] == [
+        (knocking.org.id, "export", "sandbox")
+    ]
 
 
 @postgres

@@ -29,11 +29,18 @@ pinecall-env: production | sandbox      the world a person's key acts in (the sa
 `403 this key does not open knowledge: it opens calls · evals`. A server's key holds `app` ·
 `calls` · `talk` · `knowledge` · `evals` and lives in the one world it was made for; a person's key
 holds their role's scopes and names the world per request, production only with production access,
-read from their row on every request ([people.md](people.md)). `fleet` is the box's own workers':
-at the worker's doors a key holding it resolves by the scope the request names,
-`?org=&env=&holder=`, the scope the call's dispatch named; at a call's reading doors (its events,
-its state, its recording) it names none and reads any call of the one world its fleet serves. `pinecall-corner: <member id>` answers an
+read from their row on every request ([people.md](people.md)). `pinecall-corner: <member id>` answers an
 HTTP door in a colleague's sandbox scope, for a key that opens `team` and `app`.
+
+`fleet` is the box's own workers', one key per world, and it acts for one call at a time. A request
+that names a call, in its path or as `?call=`, acts in the scope that call's head row keeps, and in
+no other: a `?org=&env=&holder=` that disagrees is `404`, and so is a call nobody opened yet. A call
+a dial placed is opened by the worker only in the scope the dial wrote. Before its call is opened, a
+worker asks in the scope its dispatch named, `?org=&env=&holder=` (the agent's routes, declaration,
+stages and hold audio, whether a ring is a developer's). It reads a call's events, state and
+recording without naming a scope, a call of its own world once opened; it reads no agent's log, no
+org's floor and no list of calls. The overflow's `POST /v1/callbacks` names the call it answered, and
+the agent must be that call's org's.
 
 **The one exception to the header** is `?token=`, because an `EventSource` cannot set one: only a
 token of ours for one call (a page's `log_token`), never an API key, since a URL ends up in an access
@@ -42,10 +49,22 @@ log.
 **Refusals** are `{"detail": "…"}` under the status, and the sentence names the fix: `401` no key;
 `403` a key that does not open the door, or another world's; `404` a thing that is not there, and
 another org's call, whose existence is nobody else's business; `409` a request that disagrees with
-what is stored; `400` or `422` a body that is not the shape; `429` a quota; `502` a vendor or a
+what is stored; `400` or `422` a body that is not the shape; `429` a quota, or a minute's requests
+spent (below); `502` a vendor or a
 carrier that did not answer, in its own words; `503` the request was right and this box cannot
 honour it, or not now: a database too busy to answer within its timeouts is a `503` to retry. A
-socket closes with **1008** and the sentence.
+socket closes with **1008** and the sentence. A key past its expiry is `401` saying
+when it expired, never the silence of a key nobody made.
+
+**A minute's requests.** Every door a key opens by its scopes counts the org's requests in the
+world, per family of doors (the scopes the door asks for, `calls` for a log's readers): 6 000 a
+minute each, and the next one that minute is `429 this org sent its calls doors 6000 requests this
+minute, in production: try again in 12 s` with `Retry-After: 12`. One org's count never slows
+another's, nor its other world, nor its other families. A call's own doors (the ones a worker
+writes and reads a call through, which admission already bounds), the fleet's and the runner's
+keys and a person who runs the box are never counted; the doors that take no key or any key
+(`/v1/login…`, `/v1/whoami`, `/v1/keys`, `/v1/limits`) and the sockets are not either. The count
+is the gateway process's own today.
 
 ## 1. Your own app: `WS /v1/apps`
 
@@ -147,14 +166,25 @@ refuses opening a sealed log again. An erasure deletes, so neither stands in its
 
 ### Who read what
 
-A person's key reading a call's log (`GET /v1/calls/{call}/events`, `/state`) or its recording
-writes one row of the org's access log, once an hour at most for the same reader, call and kind;
-a server's key, a visitor's token and the fleet write none. The operator's reads off the box
-(`pinecall-runtime sessions show|tail|recording`) and its tracebacks (`pinecall-runtime traceback`,
-`GET /v1/ops/traceback`, one row in each org the lookup showed) write rows with `reader:
-"operator"`. A row names the call or the number, never what it said. `GET /v1/org/reads?call=`
-(`team`) answers `{reads: [{subject, what: log|recording|traceback, env, reader, at}]}`, newest
-first, of one call or number when `subject` names it.
+Every read of what a call or a contact left writes one row of the org's access log, once an hour
+at most for the same reader, subject and kind; `reader` is the person's member id, or a server's
+key id (`k_…`):
+
+| what | subject | the doors |
+|---|---|---|
+| `log` · `recording` | the call | `GET /v1/calls/{call}/events`, `/state`, `/recording` |
+| `listen` · `supervise` | the call | a seat handed out, `POST /v1/calls/{call}/listen`, `/supervise` |
+| `export` | the org | `GET /v1/org/export` |
+| `memory` | the contact, the agent, or the org | `GET /v1/contacts/{contact}/memory`, `/v1/agents/{slug}/memory`, `/v1/memory` |
+
+A visitor's token reading its own call and the fleet reading the call it serves write none. The
+operator's reads off the box (`pinecall-runtime sessions show|tail|recording`) and its tracebacks
+(`pinecall-runtime traceback`, `GET /v1/ops/traceback`, one row in each org the lookup showed,
+`what: traceback`, the number as subject) write rows with `reader: "operator"`. A row names what
+was read, never what it said. The row is one statement the read waits on; one that cannot be
+written is said in the gateway's journal and the read is answered all the same.
+`GET /v1/org/reads?subject=` (`team`) answers `{reads: [{subject, what, env, reader, at}]}`,
+newest first, of one subject when named.
 
 An org is erased whole by the operator: `DELETE /v1/ops/orgs/{named}`
 ([operator-api.md](operator-api.md)). The trail row outlives the org.

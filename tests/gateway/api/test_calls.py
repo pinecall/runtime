@@ -11,8 +11,10 @@ import pytest
 from pinecall.domain.call import CallContext
 from pinecall.domain.names import JsonObject
 from pinecall.domain.person import KEY_SCOPES
+from pinecall.domain.scope import Scope
 from pinecall.gateway.app import app
-from pinecall.tenancy import orgs, policy, reads, tokens
+from pinecall.log.store import Claim
+from pinecall.tenancy import keys, orgs, policy, reads, tokens
 from pinecall.wire.rest.accounts import OrgPolicy
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
 from tests.conftest import (
@@ -226,6 +228,69 @@ async def test_a_worker_reads_the_call_it_serves_with_the_fleets_key_alone(
     assert state.status_code == 200
     assert state.json()["last_seq"] == 1
     assert [entry["type"] for entry in page.json()["entries"]] == ["call.ringing"]
+
+
+@postgres
+async def test_the_fleets_key_reads_no_call_nobody_opened_where_a_tenant_reads_it_empty(
+    knocking: Knocking,
+) -> None:
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        state = await worker.get("/v1/calls/call_nobody/state")
+        page = await worker.get("/v1/calls/call_nobody/events")
+        recorded = await worker.get("/v1/calls/call_nobody/recording")
+    async with knocking.http(knocking.app["sandbox"]) as tenant:
+        tailed = await tenant.get("/v1/calls/call_nobody/events")
+    assert [state.status_code, page.status_code, recorded.status_code] == [404, 404, 404]
+    assert "no call call_nobody was opened" in page.json()["detail"]
+    assert (tailed.status_code, tailed.json()["entries"]) == (200, [])
+
+
+# An agent's log, the org's floor and its lists name no call: a worker has none of them to read.
+@postgres
+async def test_the_fleets_key_reads_no_agent_log_no_floor_and_no_list(knocking: Knocking) -> None:
+    await a_logged_call(knocking)
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        refused = [
+            await worker.get(path)
+            for path in (f"/v1/agents/{AGENT}/calls", "/v1/events", "/v1/sessions")
+        ]
+    assert [answer.status_code for answer in refused] == [403, 403, 403]
+    assert "does not open calls" in refused[0].json()["detail"]
+
+
+@postgres
+async def test_a_call_a_dial_claimed_is_opened_only_in_the_scope_its_head_keeps(
+    knocking: Knocking,
+) -> None:
+    other = await orgs.create(knocking.gateway.connections.pool, "otra", "Otra")
+    context = a_call(knocking)
+    theirs = Claim(Scope(other.id, "sandbox"))
+    await knocking.gateway.logs.store.claim(context.call, AGENT, other.id, theirs)
+    opening = OpenCallRequest(agent=AGENT, context=context).written()
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        by_the_fleet = await worker.post("/v1/calls", json=opening)
+    async with knocking.http(knocking.app["sandbox"]) as tenant:
+        by_the_org = await tenant.post("/v1/calls", json=opening)
+    assert (by_the_fleet.status_code, by_the_org.status_code) == (404, 404)
+    assert context.call not in knocking.gateway.live.calls
+
+
+@postgres
+async def test_a_forgotten_call_is_served_again_only_in_the_scope_it_was_opened_in(
+    knocking: Knocking,
+) -> None:
+    context = a_call(knocking)
+    elsewhere = replace(context, holder="m_somebody")
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+        knocking.gateway.live.close(context.call)
+        knocking.gateway.logs.forget(context.call)
+        moved = await worker.post(
+            f"/v1/calls/{context.call}/reopened",
+            json=OpenCallRequest(agent=AGENT, context=elsewhere).written(),
+        )
+    assert moved.status_code == 404
+    assert context.call not in knocking.gateway.live.calls
 
 
 @postgres
@@ -751,7 +816,7 @@ async def test_another_orgs_key_and_the_other_world_erase_nothing(knocking: Knoc
 
 
 @postgres
-async def test_a_persons_read_of_a_call_is_written_once_an_hour_and_a_servers_is_not(
+async def test_a_persons_read_and_a_servers_are_written_once_an_hour_and_the_workers_is_not(
     knocking: Knocking,
 ) -> None:
     app = await an_app(knocking)
@@ -763,9 +828,16 @@ async def test_a_persons_read_of_a_call_is_written_once_an_hour_and_a_servers_is
             read = await person.get(f"/v1/calls/{context.call}/state", headers=sandbox)
             assert read.status_code == 200
     async with knocking.http(knocking.app["sandbox"]) as server:
-        assert (await server.get(f"/v1/calls/{context.call}/state")).status_code == 200
-    rows = await reads.of_org(knocking.gateway.connections.pool, knocking.org.id)
-    assert [(row.subject, row.what, row.reader) for row in rows] == [(context.call, "log", ana)]
+        assert (await server.get(f"/v1/calls/{context.call}/events")).status_code == 200
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        assert (await worker.get(f"/v1/calls/{context.call}/state")).status_code == 200
+    pool = knocking.gateway.connections.pool
+    servers = await keys.verify(pool, knocking.app["sandbox"])
+    assert servers is not None
+    rows = await reads.of_org(pool, knocking.org.id)
+    assert sorted((row.subject, row.what, row.reader) for row in rows) == sorted(
+        [(context.call, "log", ana), (context.call, "log", servers.key.key_id)]
+    )
     await app.close()
 
 

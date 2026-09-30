@@ -171,6 +171,7 @@ class AppSocket:
                 await self._on_the_call(command, model)
 
     async def _register(self, slug: str, wanted: AgentRegister) -> None:
+        keys.check_agent(self.key.bearer, slug)
         self.gateway.live.named(self.id, wanted.host)
         scope = self.scope
         others = self.gateway.sockets.slugs(scope.org) - {slug}

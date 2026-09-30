@@ -96,6 +96,7 @@ async def mint_room_token(
     agent = body.agent or rooms.client_named_agent(body.room_config)
     if agent is None:
         raise DeclarationRefused(NO_AGENT_NAMED)
+    keys.check_agent(key.bearer, agent)
     if gateway.sockets.serving(org_scope, agent, None) is None:
         raise NotFound(NO_AGENT.format(slug=agent))
     fleet = worlds.fleet_of(await worlds.fleets(gateway.connections.pool), org_scope.env)
@@ -143,6 +144,7 @@ async def issue_code(
     body: IssueCodeRequest, key: TalkKey, gateway: GatewayDep
 ) -> IssueCodeResponse:
     """Four digits for a caller to key, the number to call, and a token that asks after them."""
+    keys.check_agent(key.bearer, body.agent)
     doors = await routes.of_org(gateway.connections.pool, key.org, key.env)
     number = next(
         (door.number for door in doors if door.agent == body.agent and door.channel == "phone"),
