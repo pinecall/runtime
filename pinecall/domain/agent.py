@@ -98,9 +98,13 @@ class Turn:
     eot_threshold: float | None = None
     # The lower bar that starts LiveKit's speculative generation, offsetting a higher eot.
     eager_eot_threshold: float | None = None
+    # How long the caller must speak over the agent before it stops; None is livekit's 0.5 s.
+    min_interruption_ms: int | None = None
 
     # Deepgram rejects the connection when eager > eot, leaving the call without STT.
     def __post_init__(self) -> None:
+        if self.min_interruption_ms is not None and self.min_interruption_ms < 0:
+            raise DeclarationRefused("min_interruption_ms is a number of milliseconds, 0 or more")
         if self.eager_eot_threshold is None or self.eot_threshold is None:
             return
         if self.eager_eot_threshold > self.eot_threshold:

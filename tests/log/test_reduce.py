@@ -13,6 +13,7 @@ from pinecall.log.reduce import (
     Metered,
     apply,
     initial_state,
+    interruption_delays,
     medians,
     phone_legs,
     reduce,
@@ -600,3 +601,25 @@ def test_a_dialled_leg_still_up_at_the_end_is_priced_by_the_far_number_until_the
 
 def test_a_participant_that_is_no_phone_leg_is_no_leg() -> None:
     assert phone_legs([a_leg(1, "visitor", {}), entry(9, "call.ended", {})]) == []
+
+
+def test_a_barge_in_is_timed_from_the_caller_cutting_in_to_the_agent_falling_quiet() -> None:
+    assert [round(seconds, 2) for seconds in interruption_delays(GOLDEN)] == [0.33]
+
+
+def test_a_reply_that_ended_on_its_own_while_the_caller_spoke_is_no_barge_in() -> None:
+    lines: list[tuple[str, JsonObject, float]] = [
+        ("agent.state", {"state": "speaking"}, 1.0),
+        ("user.state", {"state": "speaking"}, 2.0),
+        ("turn.agent", {"interrupted": False}, 2.5),
+        ("agent.state", {"state": "listening"}, 2.5),
+        ("agent.state", {"state": "speaking"}, 4.0),
+        ("user.state", {"state": "speaking"}, 5.0),
+        ("agent.state", {"state": "listening"}, 5.2),
+        ("turn.agent", {"interrupted": True}, 5.2),
+    ]
+    written = [
+        entry(seq, kind, data).model_copy(update={"ts": ts})
+        for seq, (kind, data, ts) in enumerate(lines, 1)
+    ]
+    assert [round(seconds, 2) for seconds in interruption_delays(written)] == [0.2]

@@ -90,15 +90,16 @@ def _text_transforms_of(config: AgentConfig) -> NotGivenOr[Sequence[transforms.T
 # audio to its cloud. A false interruption is not resumed: livekit replays the whole sentence.
 # No endpointing here: the agent's own already reaches the ears, and both would wait twice.
 def _spoken_turns(config: AgentConfig, ears: Running) -> TurnHandlingOptions:
-    r"""How the caller takes the floor, from the agent\'s language and its own words."""
-    declared = config.turn.min_interruption_words if config.turn else None
-    policy = policy_for(config.language, min_words=declared)
+    r"""How the caller takes the floor, from the agent\'s language and its own turn knobs."""
+    policy = policy_for(config.language, config.turn)
     interruption: InterruptionOptions = {
         "min_words": policy.min_words,
         "mode": "vad",
         "false_interruption_timeout": policy.false_interruption_s,
         "resume_false_interruption": False,
     }
+    if policy.min_speech_s is not None:
+        interruption["min_duration"] = policy.min_speech_s
     return {
         # Ears that end the turn themselves decide it; the local detector stacked on them waits
         # its whole delay after a pause in the middle of a sentence.

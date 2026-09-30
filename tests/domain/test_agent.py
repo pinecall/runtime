@@ -142,6 +142,13 @@ def test_a_turn_that_would_guess_later_than_it_decides_is_refused() -> None:
         Turn(eot_threshold=0.7, eager_eot_threshold=0.9)
 
 
+def test_how_long_a_barge_in_must_last_is_zero_or_more_milliseconds() -> None:
+    assert Turn(min_interruption_ms=0).min_interruption_ms == 0
+    assert Turn().min_interruption_ms is None
+    with pytest.raises(DeclarationRefused, match="0 or more"):
+        Turn(min_interruption_ms=-1)
+
+
 def test_the_eager_bar_may_sit_on_the_other_one() -> None:
     assert Turn(eot_threshold=0.85, eager_eot_threshold=0.85).eager_eot_threshold == 0.85
     assert Turn(eager_eot_threshold=0.4).eot_threshold is None

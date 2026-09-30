@@ -103,8 +103,10 @@ Two of the budget's keys are the runtime's own measures. `dead_air` is the silen
 caller stopping and the agent starting, one value per reply that followed the caller; a reply that
 started before the caller stopped talked over them and is not counted. `talk_share` is the agent's
 part of the time anybody spoke on the call, 0 to 1, and is judged by the `talk` check, which is
-`skipped` when the budget names none. Neither has a default: a budget that leaves them out does
-not judge them.
+`skipped` when the budget names none. `interruption_delay` is how long a barge-in took to be
+obeyed: from the caller starting to speak over the agent to the agent leaving `speaking`, one
+value per reply written as interrupted, read off `user.state` and `agent.state`. None of the three
+has a default: a budget that leaves them out does not judge them.
 
 ```json
 {"call": "call_…", "agent": "recepcion", "passed": true,

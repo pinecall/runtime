@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from pinecall.evals.case import GateKind, GateLine, gate_line, words_of
-from pinecall.log.reduce import reduce, samples
+from pinecall.log.reduce import interruption_delays, reduce, samples
 from pinecall.wire.events import (
     AgentTurnEnded,
     ConfirmDeclined,
@@ -57,6 +57,10 @@ NO_WORDS = (
 NOTHING_MEASURED = "no turn of this call carried any of {names}"
 
 
+# A budget may name it like any latency: the worst barge-in of the call, in seconds.
+INTERRUPTION_DELAY = "interruption_delay"
+
+
 # A share of the talking time, 0 to 1, judged by its own check and never as seconds.
 TALK_SHARE = "talk_share"
 
@@ -105,7 +109,8 @@ class Replayed:
     # Tool calls and confirmations in seq order: consent is about their order.
     gate: tuple[GateLine, ...] = ()
     failures: tuple[Failure, ...] = ()
-    # Each measure's values (reduce.MEASURES), per turn; talk_share is one value for the call.
+    # Each measure's values (reduce.MEASURES), per turn; talk_share is one value for the call, and
+    # interruption_delay one per reply the caller cut off.
     latencies: Mapping[str, tuple[float, ...]] = field(default_factory=dict[str, tuple[float, ...]])
 
 
@@ -138,6 +143,9 @@ def rebuild(entries: Sequence[Entry]) -> Replayed:
             case _:
                 continue
     measured = samples(reduce(entries).turns)
+    barged = interruption_delays(entries)
+    if barged:
+        measured[INTERRUPTION_DELAY] = barged
     return Replayed(
         call=next((entry.call for entry in entries if entry.call is not None), ""),
         agent=entries[0].agent if entries else "",

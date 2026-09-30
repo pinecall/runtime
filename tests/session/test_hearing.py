@@ -1,5 +1,6 @@
 """Tests for how a turn is taken: backchannels and false interruptions."""
 
+from pinecall.domain.agent import Turn
 from pinecall.session import text
 from pinecall.session._hearing import policy_for
 from pinecall.wire.commands import (
@@ -44,7 +45,9 @@ def test_what_only_agrees_depends_on_the_agents_language() -> None:
     assert policy_for(None).is_a_backchannel("vale")
     assert policy_for(None).is_a_backchannel("yep")
     assert policy_for("es").min_words == 2
-    assert policy_for("es", min_words=1).min_words == 1
+    assert policy_for("es", Turn(min_interruption_words=1)).min_words == 1
+    assert policy_for("es").min_speech_s is None
+    assert policy_for("es", Turn(min_interruption_ms=800)).min_speech_s == 0.8
 
 
 @postgres
