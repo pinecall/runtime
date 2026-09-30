@@ -56,8 +56,43 @@ The call's log; voice and text on one session; tenants, people, keys and sign-in
 one-use codes, SSO); numbers from any carrier account and outbound calls with their guards;
 WhatsApp; knowledge bases and contact memory looked up in the call; goldens, simulated callers and
 judges; every operator door and verb; a fleet per world that grows through a cloud script; the
-console served at the box's names. Coming: local models end to end (the model, the ears and the
-voice on your own hardware).
+console served at the box's names. And open models end to end, below.
+
+## Open models, on your own GPU
+
+Nothing in the runtime names a vendor, so a box can run the whole call on open models: the ears,
+the model, the voice and the embedder on one NVIDIA card, no cloud vendor in the call and nothing
+a vendor bills. `infra/models/` is that stack, as data:
+
+| stage | model | server |
+|---|---|---|
+| ears | NVIDIA Nemotron ASR Streaming (0.6B, 40 locales, streaming) | NVIDIA's NIM, Riva gRPC |
+| end of turn | Smart Turn v3 (8 MB) | the worker's CPU |
+| model | Google Gemma 4 12B | Ollama, OpenAI-shaped |
+| voice | Kokoro-82M | Kokoro-FastAPI, OpenAI-shaped |
+| memory, knowledge | bge-m3 | Ollama, OpenAI-shaped |
+
+Three steps on a machine with the GPU (16 GB or more), Docker and the NVIDIA container toolkit,
+and a free key from ngc.nvidia.com for the ears:
+
+```console
+$ curl -fsSLO https://raw.githubusercontent.com/pinecall/runtime/main/infra/models/compose.yaml
+$ curl -fsSLO https://raw.githubusercontent.com/pinecall/runtime/main/infra/models/providers.json
+$ printf 'NGC_API_KEY=%s\n' "$NGC_API_KEY" > .env && docker compose up -d      # ~15 min the first time
+```
+
+Then, on the box, the providers row that points at them — `MODELS_HOST` is the address the
+servers listen on:
+
+```console
+$ sed 's/MODELS_HOST/127.0.0.1/g' providers.json > /tmp/providers.json
+$ sudo pinecall-runtime providers seed /tmp/providers.json
+```
+
+Measured on an RTX 3090: 2.1 s from the caller's last word to the agent's first, the ears exact
+on every call. `docs/the-open-stack.md` is the walk, what each line of the row means, the numbers
+and what it does not do yet. Pinecall's own box runs on cloud vendors; this stack is for the box
+you run.
 
 ## Where to start reading
 
