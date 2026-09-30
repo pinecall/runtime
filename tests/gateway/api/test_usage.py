@@ -87,6 +87,7 @@ async def test_a_days_insights_count_the_scopes_calls_and_the_orgs_month(
     assert body["budget"] == {"limit_usd": 50, "spent_usd_month": 0.0}
     assert [agent["slug"] for agent in body["agents"]] == [AGENT]
     assert empty.json()["conversations"] == {"today": 0, "yesterday": 0}
+    assert empty.json()["stages"] == []
     await app.close()
 
 

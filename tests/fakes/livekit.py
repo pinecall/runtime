@@ -1,5 +1,6 @@
 """LiveKit as the suites see it: seats, a room, the SIP and rooms doors of a server, a player."""
 
+import time
 import types
 from collections.abc import Mapping
 from typing import override
@@ -11,6 +12,7 @@ from livekit.agents.voice.background_audio import (
     BackgroundAudioPlayer,
     PlayHandle,
 )
+from livekit.agents.voice.io import AudioOutput, AudioOutputCapabilities
 from livekit.api.agent_dispatch_service import AgentDispatchService
 from livekit.api.room_service import RoomService
 from livekit.api.sip_service import SipService
@@ -386,6 +388,49 @@ class Player(BackgroundAudioPlayer):
         handle = PlayHandle()
         self.handles.append(handle)
         return handle
+
+
+class Speaker(AudioOutput):
+    """The caller's ear: it takes the agent's audio and plays it until the test says, or a cut."""
+
+    def __init__(self) -> None:
+        """An ear that heard nothing."""
+        super().__init__(label="speaker", capabilities=AudioOutputCapabilities(pause=False))
+        self.frames = 0
+        self.heard = 0.0
+        self.playing = False
+        self.cut = 0
+
+    @override
+    async def capture_frame(self, frame: rtc.AudioFrame) -> None:
+        """Keep the frame; the first of a segment starts it playing."""
+        await super().capture_frame(frame)
+        if not self.playing:
+            self.playing = True
+            self.on_playback_started(created_at=time.time())
+        self.frames += 1
+        self.heard += frame.duration
+
+    @override
+    def flush(self) -> None:
+        """The segment is whole; it still plays until `played` or a cut."""
+        super().flush()
+
+    @override
+    def clear_buffer(self) -> None:
+        """The caller cut in: what was playing stops where it was."""
+        if not self.playing:
+            return
+        self.playing = False
+        self.cut += 1
+        self.on_playback_finished(playback_position=self.heard / 2, interrupted=True)
+
+    def played(self) -> None:
+        """The segment played to its end."""
+        if not self.playing:
+            return
+        self.playing = False
+        self.on_playback_finished(playback_position=self.heard, interrupted=False)
 
 
 class Speaking(rtc.RemoteParticipant):

@@ -220,6 +220,7 @@ class TurnConfig(WireModel):
     endpointing_ms: int | None = None
     eot_threshold: float | None = None
     eager_eot_threshold: float | None = None
+    min_interruption_ms: int | None = None
 
 
 class Pronunciation(WireModel):

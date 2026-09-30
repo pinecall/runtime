@@ -122,7 +122,7 @@ Something went wrong. Inside a call it says what failed; outside a call it says 
 
 | field | type | required | meaning |
 |---|---|---|---|
-| `code` | `string` | yes | A stable code a program can match: unknown_command, bad_shape, no_route, tool_timeout, provider_error; and stopped — a member of the org stopped this app (POST /v1/apps/{app}/stop), the socket closes next, and the app exits rather than reconnect. |
+| `code` | `string` | yes | A stable code a program can match: unknown_command, bad_shape, no_route, tool_timeout, provider_error; llm_timeout — the model said nothing within the agent's llm_timeout_s, so the turn ended unanswered and the call goes on; and stopped — a member of the org stopped this app (POST /v1/apps/{app}/stop), the socket closes next, and the app exits rather than reconnect. |
 | `message` | `string` | yes | What happened, for a person. |
 | `command` | `string` | no | The type of the command that failed, when one did. |
 | `id` | `string` | no | The app's id for that command, when it sent one. |

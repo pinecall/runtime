@@ -3,7 +3,7 @@
 import re
 from dataclasses import dataclass
 
-from pinecall.domain.agent import AgentConfig
+from pinecall.domain.agent import AgentConfig, Turn
 from pinecall.domain.names import JsonObject
 
 # livekit counts no words by default; one word is as often a cough or an echo.
@@ -56,6 +56,8 @@ class TurnPolicy:
     backchannels: frozenset[str]
     min_words: int = MIN_WORDS
     false_interruption_s: float = FALSE_INTERRUPTION_TIMEOUT_S
+    # How long the caller speaks over the agent before it stops; None leaves livekit's own.
+    min_speech_s: float | None = None
 
     def is_a_backchannel(self, text: str) -> bool:
         """Whether every word said is somebody agreeing."""
@@ -63,11 +65,20 @@ class TurnPolicy:
         return bool(words) and all(word in self.backchannels for word in words)
 
 
-def policy_for(language: str | None, *, min_words: int | None = None) -> TurnPolicy:
-    """The policy of the agent's language (`es-ES` is `es`); with none declared, every list."""
+def policy_for(language: str | None, turn: Turn | None = None) -> TurnPolicy:
+    """The policy of the agent's language (`es-ES` is `es`) and its turn knobs; else every list."""
     tag = (language or "").split("-", 1)[0].lower()
     words = BACKCHANNELS.get(tag) or frozenset[str]().union(*BACKCHANNELS.values())
-    return TurnPolicy(backchannels=words, min_words=MIN_WORDS if min_words is None else min_words)
+    declared = turn or Turn()
+    return TurnPolicy(
+        backchannels=words,
+        min_words=MIN_WORDS
+        if declared.min_interruption_words is None
+        else declared.min_interruption_words,
+        min_speech_s=None
+        if declared.min_interruption_ms is None
+        else declared.min_interruption_ms / 1000,
+    )
 
 
 # The declared words first, so the cap drops the names found in the state before them. One

@@ -15,7 +15,8 @@ from pinecall.gateway._call_setup import keys_of
 from pinecall.gateway._deps import Acting, CallsKey, GatewayDep, PipelineKey, ScopeDep, WordsKey
 from pinecall.gateway._gateway import Gateway
 from pinecall.log import queries
-from pinecall.providers import catalog, credentials
+from pinecall.providers import build, catalog, credentials
+from pinecall.providers.credentials import Pipeline
 from pinecall.providers.declared import apply_tuning
 from pinecall.tenancy import scopes
 from pinecall.tenancy.scopes import TUNING, Written
@@ -53,6 +54,7 @@ PIPELINE_ONLY = (
     "bases",
     "record",
     "max_duration_s",
+    "llm_timeout_s",
 )
 
 
@@ -88,7 +90,10 @@ async def put_settings(
         kept = await scopes.tuning_side_by_side(pool, written_to, slug)
         newest = kept.team if written_to.holder == THE_ORGS_OWN else kept.yours
         wanted = _words_only(wanted, Tuning() if newest is None else newest.value)
-    await _checked(gateway, written_to, slug, wanted)
+    stages = await _checked(gateway, written_to, slug, wanted)
+    # A words key carries the pipeline over untouched: only a knob this set sets is refused.
+    if "pipeline" in key.bearer.key.scopes:
+        build.refuse_untaken(stages.stt, stages.tts, wanted)
     written = Written(author=_author(key), note=body.note, if_version=body.if_version)
     await scopes.put_tuning(pool, written_to, slug, wanted, written)
     return await _side_by_side(gateway, scope, slug, world=key.env)
@@ -260,7 +265,7 @@ def _lexicon_row(kept: Version[Lexicon]) -> LexiconRow:
 # The settings are checked as a call would be built from them: the declaration when an app
 # holds the agent, a bare one otherwise, its lexicon in the scope, and the vendors on the org's
 # keys, so a vendor the box does not lend is refused here and not on the next call.
-async def _checked(gateway: Gateway, scope: Scope, slug: str, wanted: Tuning) -> None:
+async def _checked(gateway: Gateway, scope: Scope, slug: str, wanted: Tuning) -> Pipeline:
     pool = gateway.connections.pool
     registration = gateway.sockets.of(scope, slug)
     declared = AgentConfig(slug=slug) if registration is None else registration.config
@@ -268,7 +273,7 @@ async def _checked(gateway: Gateway, scope: Scope, slug: str, wanted: Tuning) ->
     words = await scopes.current(pool, scope, slug)
     config = apply_tuning(declared, wanted, words.lexicon, defaults=configured.defaults)
     keyring = await keys_of(pool, gateway.connections.vault, scope)
-    credentials.pipeline(config, configured, keyring)
+    return credentials.pipeline(config, configured, keyring)
 
 
 def _words_only(wanted: Tuning, newest: Tuning) -> Tuning:

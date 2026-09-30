@@ -3,11 +3,10 @@
 import dataclasses
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from statistics import median
 from typing import Literal
 
 from pinecall.evals.case import GateKind, GateLine, gate_line, words_of
-from pinecall.log.reduce import reduce, samples
+from pinecall.log.reduce import interruption_delays, reduce, samples
 from pinecall.wire.events import (
     AgentTurnEnded,
     ConfirmDeclined,
@@ -58,6 +57,22 @@ NO_WORDS = (
 NOTHING_MEASURED = "no turn of this call carried any of {names}"
 
 
+# A budget may name it like any latency: the worst barge-in of the call, in seconds.
+INTERRUPTION_DELAY = "interruption_delay"
+
+
+# A share of the talking time, 0 to 1, judged by its own check and never as seconds.
+TALK_SHARE = "talk_share"
+
+
+NO_TALK_BUDGET = (
+    "no talk_share in the budget: send one, the most of the talking the agent may do (0 to 1)"
+)
+
+
+NOTHING_TIMED = "no turn of this call said when anybody started and stopped speaking"
+
+
 # Seconds, under livekit's own metric names; a request may bring its own.
 DEFAULT_BUDGET: Mapping[str, float] = {
     "e2e_latency": 2.0,
@@ -94,7 +109,8 @@ class Replayed:
     # Tool calls and confirmations in seq order: consent is about their order.
     gate: tuple[GateLine, ...] = ()
     failures: tuple[Failure, ...] = ()
-    # Each measure's value per turn, under livekit's metric names.
+    # Each measure's values (reduce.MEASURES), per turn; talk_share is one value for the call, and
+    # interruption_delay one per reply the caller cut off.
     latencies: Mapping[str, tuple[float, ...]] = field(default_factory=dict[str, tuple[float, ...]])
 
 
@@ -127,6 +143,9 @@ def rebuild(entries: Sequence[Entry]) -> Replayed:
             case _:
                 continue
     measured = samples(reduce(entries).turns)
+    barged = interruption_delays(entries)
+    if barged:
+        measured[INTERRUPTION_DELAY] = barged
     return Replayed(
         call=next((entry.call for entry in entries if entry.call is not None), ""),
         agent=entries[0].agent if entries else "",
@@ -221,10 +240,13 @@ def errors(call: Replayed) -> CheckVerdict:
     return CheckVerdict(check="errors", status="held", detail="the call logged no error")
 
 
+# The worst turn, not the median: the caller who waited four seconds once heard four seconds.
 def latency(call: Replayed, budget: Mapping[str, float] = DEFAULT_BUDGET) -> CheckVerdict:
-    """Each budgeted measure's median over the turns, against its limit."""
+    """Each budgeted measure's worst turn, against its limit."""
     measured = {
-        name: median(values) for name, values in call.latencies.items() if name in budget and values
+        name: max(values)
+        for name, values in call.latencies.items()
+        if name in budget and name != TALK_SHARE and values
     }
     if not measured:
         return CheckVerdict(
@@ -235,10 +257,24 @@ def latency(call: Replayed, budget: Mapping[str, float] = DEFAULT_BUDGET) -> Che
     over = any(seconds > budget[name] for name, seconds in measured.items())
     detail = "; ".join(
         f"{name} {seconds:.3f}s {'>' if seconds > budget[name] else '<='} {budget[name]:.3f}s "
-        f"over {len(call.latencies[name])} turns"
+        f"at its worst of {len(call.latencies[name])} turns"
         for name, seconds in measured.items()
     )
     return CheckVerdict(check="latency", status="broken" if over else "held", detail=detail)
+
+
+def talk(call: Replayed, budget: Mapping[str, float]) -> CheckVerdict:
+    """Broken when the agent took more of the talking than the budget's talk_share allows."""
+    limit = budget.get(TALK_SHARE)
+    if limit is None:
+        return CheckVerdict(check="talk", status="skipped", detail=NO_TALK_BUDGET)
+    shares = call.latencies.get(TALK_SHARE)
+    if not shares:
+        return CheckVerdict(check="talk", status="skipped", detail=NOTHING_TIMED)
+    share = shares[0]
+    over = share > limit
+    detail = f"the agent spoke {share:.0%} of the talking time, {'>' if over else '<='} {limit:.0%}"
+    return CheckVerdict(check="talk", status="broken" if over else "held", detail=detail)
 
 
 def replay(
@@ -248,13 +284,14 @@ def replay(
     budget: Mapping[str, float],
     irreversible: Collection[str] | None,
 ) -> list[CheckVerdict]:
-    """The four checks over a finished call: consent, register, errors, latency."""
+    """The five checks over a finished call: consent, register, errors, latency, talk."""
     call = rebuild(entries)
     return [
         consent(call, irreversible),
         register(call, banned),
         errors(call),
         latency(call, budget or DEFAULT_BUDGET),
+        talk(call, budget),
     ]
 
 

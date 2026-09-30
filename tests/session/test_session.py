@@ -3,6 +3,7 @@
 import asyncio
 import time
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import pytest
 from livekit import rtc
@@ -27,6 +28,7 @@ from livekit.agents.types import TimedString
 from livekit.agents.voice import ModelSettings
 from livekit.protocol.sip import SIPOutboundConfig
 
+import pinecall
 from pinecall.domain.agent import (
     AgentConfig,
     Greeting,
@@ -39,10 +41,12 @@ from pinecall.domain.names import JsonObject
 from pinecall.log.store import Store
 from pinecall.providers.build import Running, TurnModel
 from pinecall.providers.credentials import Pipeline
+from pinecall.session import hold as hold_module
 from pinecall.session import text
 from pinecall.session._hearing import keyterms
 from pinecall.session._prompt import A_RELEASE
 from pinecall.session.call import CLOSING, Call, Platform, ToolUse
+from pinecall.session.hold import HoldMusic
 from pinecall.session.room import CALLER_NUMBER, CallRoom, Trunk
 from pinecall.session.session import SAY_GOODBYE_FIRST, Session
 from pinecall.session.voice import voice_session
@@ -75,8 +79,8 @@ from pinecall.wire.parts import Supervisor, ToolResult
 from pinecall.wire.parts import ToolSpec as WiredTool
 from tests.conftest import postgres
 from tests.fakes.acme import ACME, seat
+from tests.fakes.livekit import Player, Server, Speaker
 from tests.fakes.livekit import Room as AnOfflineRoom
-from tests.fakes.livekit import Server
 from tests.session.conftest import (
     THE_CALLER,
     Box,
@@ -913,6 +917,39 @@ async def test_an_agent_reply_is_no_query_and_asks_nobody(box: Box) -> None:
     assert box.lookups == []
 
 
+# ── a barge-in ──
+
+
+# The tool is livekit's to await after a cut (it may have booked already), so the turn is over
+# when the app answered; what is ours must be gone by then, but the call's writer.
+@postgres
+async def test_a_caller_cutting_in_mid_sentence_leaves_no_task_of_ours_behind_the_turn(
+    box: Box, store: Store, call: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(hold_module, "GRACE_S", 0.01)
+    answered = asyncio.Event()
+    session = _a_slow_cancellation(box, answered)
+    speaker, melody = Speaker(), HoldMusic(Path("hold.ogg"))
+    melody.player = Player()
+    await session.start(hold=melody)
+    session.live.output.audio = speaker
+    session.live.generate_reply(user_input="cancelá mi reserva")
+    await settled()
+    assert speaker.playing
+    heard = UserInputTranscribedEvent(transcript="no espere quiero cambiarla", is_final=False)
+    session.live.emit("user_input_transcribed", heard)
+    await session.live.interrupt()
+    answered.set()
+    await settled()
+    left = [task for task in asyncio.all_tasks() if _ours(task)]
+    assert left == [session.call.writing.draining]
+    assert (speaker.cut, melody.running, melody.pending) == (1, 0, None)
+    assert all(handle.done() for handle in melody.player.handles)
+    await session.close()
+    turn = next(entry for entry in await store.whole(call) if entry.type == "turn.agent")
+    assert turn.data["interrupted"] is True
+
+
 # ── the ears' words ──
 
 
@@ -1219,6 +1256,39 @@ async def test_a_turn_that_generated_no_token_leaves_its_ttft_out(
 
 
 # ── helpers of these tests ──
+
+
+def _a_slow_cancellation(box: Box, answered: asyncio.Event) -> Session:
+    """A spoken call whose model announces a cancellation it runs on an app that waits."""
+    assert box.log.call is not None
+
+    async def waiting(use: ToolUse, speech: str | None) -> ToolResult:
+        await answered.wait()
+        return await box.tool(use, speech)
+
+    platform = Platform(
+        append_many=box.log.append_many, tool=waiting, lookup=box.lookup, seal=box.seal
+    )
+    config = AgentConfig(slug="clinica-norte", tools=(CANCEL,), memory=MemoryPolicy())
+    announced = "Le cancelo la reserva del lunes, deme un momento que la busco en el sistema"
+    script: JsonObject = {"replies": [[announced, {"name": "cancel", "call_id": "t1"}], ["Listo"]]}
+    stages = Pipeline(
+        llm=Running(ACME, "k", options=script), stt=Running(ACME, "k"), tts=Running(ACME, "k")
+    )
+    return voice_session(Call(context_of(box.log.call, "phone"), config, platform), stages)
+
+
+# A task is ours when any coroutine it is awaiting was written in the package: livekit's task
+# running one of our tools counts.
+def _ours(task: asyncio.Task[object]) -> bool:
+    package = str(Path(pinecall.__file__).parent)
+    step: object = task.get_coro()
+    while step is not None:
+        code = getattr(step, "cr_code", None) or getattr(step, "ag_code", None)
+        if code is not None and str(code.co_filename).startswith(package):
+            return True
+        step = getattr(step, "cr_await", None) or getattr(step, "ag_await", None)
+    return False
 
 
 async def _pieces(*pieces: str) -> AsyncIterator[str]:

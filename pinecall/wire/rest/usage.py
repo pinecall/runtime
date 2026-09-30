@@ -1,5 +1,7 @@
 """The bodies of the org's meters: the usage feed, one day's insights, and the limits."""
 
+from typing import Literal
+
 from pinecall.domain.names import Env
 from pinecall.wire.frames import WireModel
 
@@ -75,6 +77,18 @@ class InsightsAgent(WireModel):
     score: float | None
 
 
+class InsightsStage(WireModel):
+    """One stage of the day's turns on one vendor and model: how slow, how sure the ears were."""
+
+    stage: Literal["stt", "llm", "tts"]
+    vendor: str | None
+    model: str | None
+    turns: int
+    median_s: float | None
+    p95_s: float | None
+    confidence: float | None
+
+
 class InsightsBudget(WireModel):
     """What the org may spend in a month and what it has spent so far, both worlds together."""
 
@@ -95,6 +109,7 @@ class Insights(WireModel):
     sessions_total: int
     live: int
     agents: list[InsightsAgent]
+    stages: list[InsightsStage]
     budget: InsightsBudget
 
 
