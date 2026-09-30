@@ -1,5 +1,6 @@
 """The app socket a tenant's process holds, and the org's list of connected apps."""
 
+import dataclasses
 import logging
 import time
 
@@ -35,6 +36,7 @@ from pinecall.wire.commands import (
     CallOptOut,
     DevAnswer,
     Ping,
+    SessionConfigure,
     command_of,
 )
 from pinecall.wire.events import ErrorEvent, Pong
@@ -188,7 +190,7 @@ class AppSocket:
         await self.send(entry)
         # A console takes no call it did not open; an app takes the calls a previous one left.
         if wanted.takes_unclaimed:
-            await parked_calls_of(self.gateway.live, self.gateway.logs.store, scope, slug, self.id)
+            await parked_calls_of(self.gateway.live, scope, slug, self.id)
 
     # A class that searches with no base attached is refused when declared, not mid-call.
     async def _configure(self, slug: str, wanted: AgentConfigure) -> None:
@@ -211,7 +213,7 @@ class AppSocket:
         sockets, live = self.gateway.sockets, self.gateway.live
         sockets.drain(self.id, self.scope.env, slug)
         mine = [call for call in live.bound_to(self.id) if live.calls[call].agent == slug]
-        handed, parked = await handed_on(live, self.gateway.logs.store, sockets, mine)
+        handed, parked = await handed_on(live, sockets, mine)
         entry = await sockets.drained(self.id, self.scope.env, slug, handed=handed, parked=parked)
         await self.send(entry)
 
@@ -243,6 +245,8 @@ class AppSocket:
     async def _on_the_call(self, command: Command, model: WireModel) -> None:
         self._holds(command.agent)
         served = None if command.call is None else self.gateway.live.calls.get(command.call)
+        if served is not None and served.agent == command.agent:
+            _declared_for_the_call(served, model)
         if served is not None and served.agent == command.agent and served.session is not None:
             await served.session.apply(model)
             return
@@ -310,7 +314,7 @@ async def apps_socket(websocket: WebSocket) -> None:
         for call in calls:
             gateway.live.attach(call, None)
         await gateway.sockets.release(socket.id)
-        await handed_on(gateway.live, gateway.logs.store, gateway.sockets, calls)
+        await handed_on(gateway.live, gateway.sockets, calls)
 
 
 @router.get("/v1/apps")
@@ -366,6 +370,15 @@ def _named(raw: Json, field: str) -> str:
         return ""
     named = raw.get(field)
     return named if isinstance(named, str) else ""
+
+
+# What the call's log masks follows a declaration sent for this call alone, before the call
+# writes the state it declares, whichever process runs it.
+def _declared_for_the_call(served: Served, model: WireModel) -> None:
+    privacy = served.log.privacy
+    if isinstance(model, SessionConfigure) and model.config is not None and privacy is not None:
+        declared = with_app_fields(privacy.config, model.config)
+        served.log.privacy = dataclasses.replace(privacy, config=declared)
 
 
 # The list is the org's, not the call's, and nothing lands in the log: an SDK that predates the

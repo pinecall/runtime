@@ -10,13 +10,17 @@ in `log/readers.py`.
 | an org's key (the tenant's process, the console, the CLI) | **tenant** |
 | a token bound to one call (a browser, a page's `log_token`) | **public**, or what the mint asked (`log: tenant`) |
 
-## Tenant: everything, the declared PII masked when read
+## Tenant: everything, the declared PII masked
 
-Every entry and every field. The one thing done to it is **masking at read**: a state field the
-agent declared `pii` reads as `***` in `state.changed`, in `call.attached` and in the reduced
-state. The key stays, so a reader knows a value exists; the value goes whole, so nothing leaks
-through its type. Nothing is masked when it is written: the log keeps what was said, and a tool's
-arguments reach the tenant whole. Transcripts and metrics are never touched.
+Every entry and every field, with what the agent declared private masked: a state field declared
+`pii` reads as `***` in `state.changed`, in `call.attached` and in the reduced state, and an
+argument a tool lists under `pii` reads as `***` in `tool.call`. The key stays, so a reader knows a
+value exists; the value goes whole, so nothing leaks through its type. The mask is applied when the
+entry is written, so the log holds it masked and every reader reads it so; this projection masks
+again, by the reader's declaration, what a log written before that holds in clear
+([../security/private-values.md](../security/private-values.md)). The app's own socket is not a
+reader of this table: it runs the tools and holds the state, and is sent them as they were written.
+Transcripts and metrics are never touched.
 
 ## Public: a whitelist, row by row
 

@@ -13,8 +13,8 @@ from pinecall.domain.names import CHANNELS_WITH_A_NUMBER, Env, JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.gateway._sockets import Process, Registration, SocketId, Sockets, orgs_own
 from pinecall.log.logs import Log, Logs, Subscription, arrival_entry
+from pinecall.log.private import Privacy
 from pinecall.log.reduce import reduce
-from pinecall.log.store import Store
 from pinecall.process.connections import Connections
 from pinecall.retrieval import lookups
 from pinecall.retrieval.embed import Embedder
@@ -194,7 +194,7 @@ class ServedCalls:
         if send is None:
             served.entries.close()
             return
-        pump = asyncio.ensure_future(_pumped(served.entries, send))
+        pump = asyncio.ensure_future(_pumped(served.log, served.entries, send))
         self.pumps.add(pump)
         pump.add_done_callback(self.pumps.discard)
 
@@ -229,6 +229,7 @@ def served_call(
 ) -> Served:
     """Serve the call to its socket, or park it for the next one; before its first entry."""
     log = serving.logs.writing(context.call, config.slug)
+    log.privacy = Privacy(serving.connections.vault, config)
     served = Served(
         agent=config.slug,
         scope=scope,
@@ -267,12 +268,12 @@ async def looked_up(serving: Serving, served: Served, request: LookupRequest) ->
     return await lookups.lookup(pool, serving.embedder, on_the_call, request, quotas=quotas)
 
 
-async def attach(live: ServedCalls, store: Store, call: str, app: SocketId) -> Entry | None:
+async def attach(live: ServedCalls, call: str, app: SocketId) -> Entry | None:
     """Give the call to this socket: call.attached first, then the tools still waiting."""
     served = live.attach(call, app)
     if served is None:
         return None
-    entries = await store.whole(call)
+    entries = await served.log.whole()
     started = next((entry for entry in entries if entry.type == STARTED), None)
     if started is None:
         return None
@@ -293,18 +294,14 @@ async def attach(live: ServedCalls, store: Store, call: str, app: SocketId) -> E
     return entry
 
 
-async def parked_calls_of(
-    live: ServedCalls, store: Store, scope: Scope, slug: str, app: SocketId
-) -> None:
+async def parked_calls_of(live: ServedCalls, scope: Scope, slug: str, app: SocketId) -> None:
     """Give every parked call of the agent in the scope to this socket."""
     for call in live.parked(scope, slug):
-        await attach(live, store, call, app)
+        await attach(live, call, app)
 
 
 # Each call of a leaving socket goes where a new call would, or waits parked.
-async def handed_on(
-    live: ServedCalls, store: Store, sockets: Sockets, calls: Iterable[str]
-) -> tuple[int, int]:
+async def handed_on(live: ServedCalls, sockets: Sockets, calls: Iterable[str]) -> tuple[int, int]:
     """Hand the calls on; how many were handed and how many parked."""
     handed = parked = 0
     for call in calls:
@@ -312,7 +309,7 @@ async def handed_on(
         if served is None:
             continue
         taking = sockets.serving(served.scope, served.agent, None)
-        if taking is not None and await attach(live, store, call, taking.owner) is not None:
+        if taking is not None and await attach(live, call, taking.owner) is not None:
             handed += 1
         else:
             live.attach(call, None)
@@ -336,10 +333,11 @@ def now_of(serving: Serving) -> datetime:
     return datetime.fromtimestamp(serving.logs.store.clock(), UTC)
 
 
-async def _pumped(entries: Subscription, send: Send) -> None:
+# The app runs the call's tools and holds its state: it is sent them as they were written.
+async def _pumped(log: Log, entries: Subscription, send: Send) -> None:
     try:
         async for entry in entries:
-            await send(entry)
+            await send(log.opened(entry))
     except (OSError, RuntimeError):
         logger.warning("an app socket stopped taking its call's entries", exc_info=True)
         entries.close()

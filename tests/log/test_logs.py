@@ -5,14 +5,18 @@ import time
 from datetime import date
 
 import pytest
+from cryptography.fernet import Fernet
 
+from pinecall.domain.agent import AgentConfig
 from pinecall.domain.call import CallContext, Route
 from pinecall.domain.errors import Conflict, DeclarationRefused
 from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.log.logs import QUEUE_DEPTH, Fanout, Log, Logs, arrival_entry, started_entry
+from pinecall.log.private import MASK, Privacy
 from pinecall.log.readers import Filter, parse_filter
 from pinecall.log.store import Claim, Claimant, Store
+from pinecall.process.connections import vault_of
 from pinecall.wire.frames import Entry
 from pinecall.wire.rest.calls import BatchedEntry
 from tests.conftest import postgres
@@ -187,6 +191,26 @@ async def test_a_reader_hears_a_batch_once_in_order_and_its_retry_not_at_all(
     assert [entry.ephemeral for entry in written] == [False, True, False]
     assert [item.seq async for item in reader] == [1, 2, 3, 4]
     assert heard == [1, 2, 3, 4]
+
+
+@postgres
+async def test_a_private_value_is_masked_in_the_store_and_opened_for_the_app_alone(
+    store: Store, call: str
+) -> None:
+    config = AgentConfig(AGENT, state_fields={"patient": "pii"})
+    log = Log(store, call, AGENT)
+    log.privacy = Privacy(vault_of(Fernet.generate_key().decode()), config)
+    reader = log.fanout.subscribe()
+    state: JsonObject = {"state": {"patient": "Ana", "slots": []}, "changed": ["patient"]}
+    batch = [BatchedEntry(type="state.changed", data=state, ts=0.5)]
+    written = await log.append_many(batch, after=0)
+    await log.append_many(batch, after=0)
+    masked: JsonObject = {"state": {"patient": MASK, "slots": []}, "changed": ["patient"]}
+    published = await anext(reader)
+    assert [item.data for item in await store.whole(call)] == [masked]
+    assert written[0].data == published.data == masked
+    assert log.opened(published).data == state
+    assert [item.data for item in await log.whole()] == [state]
 
 
 @postgres

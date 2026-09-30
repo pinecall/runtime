@@ -1,16 +1,17 @@
 """Tests for the filters a reader asks for and the projections its credential allows."""
 
+import dataclasses
 import json
 
 import pytest
 
-from pinecall.domain.agent import AgentConfig
+from pinecall.domain.agent import AgentConfig, ToolSpec
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import JsonObject
+from pinecall.log.private import MASK
 from pinecall.log.readers import (
     ALWAYS_PASS,
     EVERYTHING,
-    MASK,
     MAX_TYPES,
     PUBLIC_ENTRY_FIELDS,
     Filter,
@@ -231,6 +232,21 @@ def test_the_tenant_reads_the_state_an_entry_carries_with_pii_masked() -> None:
     assert seen is not None
     assert seen["data"] == {**moved, "state": {"slots": ["12:00"], "patient": MASK}}
     assert seen["agent"] == "taller-oeste"
+
+
+def test_the_tenant_reads_a_tools_pii_arguments_masked_on_a_row_written_before_the_mask() -> None:
+    lookup = ToolSpec(
+        name="find_patient",
+        description="Find the patient by their phone.",
+        parameters={"type": "object", "properties": {"phone": {"type": "string"}}},
+        pii=frozenset({"phone"}),
+    )
+    called: JsonObject = {"call_id": "c1", "name": "find_patient", "arguments": {"phone": "+1"}}
+    declared = dataclasses.replace(DECLARED, tools=(lookup,))
+    seen = project_entry(entry("tool.call", called), "tenant", declared)
+    assert seen is not None
+    assert seen["data"] == {**called, "arguments": {"phone": MASK}}
+    assert public(entry("tool.call", called)) is None
 
 
 def test_a_gap_carries_its_snapshot_projected_for_the_same_reader() -> None:

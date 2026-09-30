@@ -109,9 +109,7 @@ async def test_a_call_served_to_a_socket_reaches_it_and_moves_when_the_socket_le
     await asyncio.sleep(0.05)
     assert [item.type for item in got] == ["call.started", "custom"]
     await wired.sockets.release("app_2")
-    handed, parked = await handed_on(
-        wired.live, wired.logs.store, wired.sockets, ["call_nobody", context.call]
-    )
+    handed, parked = await handed_on(wired.live, wired.sockets, ["call_nobody", context.call])
     assert (handed, parked) == (1, 0)
     await asyncio.sleep(0.05)
     assert got[-1].type == "call.attached"
@@ -124,11 +122,11 @@ async def test_attaching_names_the_start_the_state_and_the_seq(wired: Gateway) -
     served = served_call(wired.serving, None, context, AgentConfig(slug=AGENT), OURS)
     await served.log.append("call.started", a_start(context))
     await served.log.append("state.changed", {"state": {"step": 2}, "changed": ["step"]})
-    entry = await attach(wired.live, wired.logs.store, context.call, "app_9")
+    entry = await attach(wired.live, context.call, "app_9")
     assert entry is not None
     assert entry.data["state"] == {"step": 2}
     assert entry.data["seq"] == 2
-    assert await attach(wired.live, wired.logs.store, context.call, "app_9") is None
+    assert await attach(wired.live, context.call, "app_9") is None
 
 
 @postgres

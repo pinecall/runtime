@@ -143,7 +143,8 @@ What each reader receives is its projection: [projections.md](projections.md).
 
 The log is append-only: a trigger on `call_log` refuses every `UPDATE`, and every `DELETE` but
 the one path below, which sets `pinecall.erasing` in its own transaction. An erasure deletes, in
-one transaction, the log's entries and head, the call's facts and tokens, the memories the call
+one transaction, the log's entries and head, the private values sealed beside its entries, the
+call's facts and tokens, the memories the call
 taught, and the call's recording (its directory on the disk, and its object in the recordings
 bucket when the box has one); then it writes one row of the org's trail, `{id, at,
 what, subject, env, asked_by, calls, entries, memories, recordings}`. The dial ledger stays, and a

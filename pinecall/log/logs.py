@@ -2,12 +2,14 @@
 
 import asyncio
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Sequence
 from typing import Self
 
 from pinecall.domain.call import CallContext
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import ENVS, Env, JsonObject
+from pinecall.log import private
+from pinecall.log.private import Privacy
 from pinecall.log.readers import EVERYTHING, Filter
 from pinecall.log.reduce import reduce
 from pinecall.log.store import Claimant, Store, Unnumbered, log_name
@@ -144,6 +146,10 @@ class Log:
         self.sealed = False
         # Set by Logs.writing: a held log outlives its readers until the process forgets it.
         self.kept_open = False
+        # Set by the call's writer: what it masks by. None on a log nobody declared anything for.
+        self.privacy: Privacy | None = None
+        # The private values of the entries appended here, by seq, for the socket that runs them.
+        self.private_values: dict[int, JsonObject] = {}
         self._store = store
         self._taps: list[Tap] = []
         self._snapshot: tuple[int, State] | None = None
@@ -153,14 +159,18 @@ class Log:
         self._taps.append(tap)
 
     # Stored before published, so no reader sees an entry the store lacks and every cursor resumes.
+    # A private value is sealed aside before the entry is published: a tool call whose seal broke
+    # never reached the app, so the worker's retry runs the tool once.
     async def append(
         self, kind: str, data: JsonObject | None = None, *, ephemeral: bool | None = None
     ) -> Entry:
-        """Write the entry, publish it, run the taps, and seal the log on the terminal event."""
+        """Write the entry, its private values masked, publish it, run the taps, seal at the end."""
         forgettable = kind in EPHEMERAL_EVENTS if ephemeral is None else ephemeral
+        written = self._split(kind, data or {})
         entry = await self._store.append(
-            self.call, self.agent, kind, data or {}, ephemeral=forgettable
+            self.call, self.agent, kind, written.kept, ephemeral=forgettable
         )
+        await self._sealed_aside(self._kept_open([(entry, written)]))
         await self._published(entry)
         return entry
 
@@ -169,31 +179,47 @@ class Log:
         """Write and publish a durable entry unless the log holds one of its type; None then."""
         if self.call is None:
             raise DeclarationRefused(f"agent {self.agent}: only a call's log is looked at")
-        entry = await self._store.append_first(self.call, self.agent, kind, data)
+        written = self._split(kind, data)
+        entry = await self._store.append_first(self.call, self.agent, kind, written.kept)
         if entry is not None:
+            await self._sealed_aside(self._kept_open([(entry, written)]))
             await self._published(entry)
         return entry
 
     # A replayed batch was published when it was first taken: publishing it again would repeat it.
+    # Its private values are sealed aside after it is published and again on a replay, which keeps
+    # the ones kept already: a batch whose seal broke is kept whole by the worker's retry.
     async def append_many(self, entries: Sequence[BatchedEntry], *, after: int) -> list[Entry]:
         """Write a worker's batch once, then publish and tap each entry in order as append does."""
+        written = [self._split(item.type, item.data) for item in entries]
         unnumbered = [
             Unnumbered(
                 type=item.type,
-                data=item.data,
+                data=kept.kept,
                 ephemeral=item.type in EPHEMERAL_EVENTS
                 if item.ephemeral is None
                 else item.ephemeral,
                 ts=item.ts,
             )
-            for item in entries
+            for item, kept in zip(entries, written, strict=True)
         ]
         batch = await self._store.append_many(self.call, self.agent, unnumbered, after=after)
-        if batch.replayed:
-            return batch.entries
-        for entry in batch.entries:
-            await self._published(entry)
+        aside = self._kept_open(zip(batch.entries, written, strict=True))
+        if not batch.replayed:
+            for entry in batch.entries:
+                await self._published(entry)
+        await self._sealed_aside(aside)
         return batch.entries
+
+    def opened(self, entry: Entry) -> Entry:
+        """The entry as its writer wrote it, for the app's socket: the private values back in."""
+        return private.restored(entry, self.private_values.get(entry.seq))
+
+    async def whole(self) -> list[Entry]:
+        """Every entry of the log as its writer wrote it, the private values sealed aside opened."""
+        if self.privacy is None:
+            return await self._store.whole(self.name)
+        return await private.opened_whole(self._store, self.privacy.vault, self.name)
 
     async def seal(self) -> None:
         """Seal the call's log in the store and end every live reader."""
@@ -249,6 +275,22 @@ class Log:
                 to_seq, "log.gap", {"from_seq": cursor + 1, "to_seq": to_seq, "snapshot": snapshot}
             )
             cursor = to_seq
+
+    def _split(self, kind: str, data: JsonObject) -> private.Split:
+        if self.privacy is None:
+            return private.Split(data, {})
+        return private.split(kind, data, self.privacy.config)
+
+    def _kept_open(
+        self, written: Iterable[tuple[Entry, private.Split]]
+    ) -> list[tuple[int, JsonObject]]:
+        aside = [(entry.seq, split.private) for entry, split in written if split.private]
+        self.private_values.update(aside)
+        return aside
+
+    async def _sealed_aside(self, aside: list[tuple[int, JsonObject]]) -> None:
+        if self.privacy is not None:
+            await private.kept_aside(self._store, self.privacy.vault, self.name, aside)
 
     async def _published(self, entry: Entry) -> None:
         self.fanout.publish(entry)

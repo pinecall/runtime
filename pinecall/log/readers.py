@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pinecall.domain.agent import AgentConfig
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import Json, JsonObject
+from pinecall.log.private import masked_state, split
 from pinecall.wire.events import TERMINAL_EVENT, AgentTurnEnded, LogGap, StateChanged, event_of
 from pinecall.wire.frames import Entry, WireModel
 from pinecall.wire.parts import Projection
@@ -20,14 +21,6 @@ _A_TYPE_NAME = re.compile(r"^[a-z0-9_.]+$")
 
 # A reader that filtered these out could wait forever on a log that already ended.
 ALWAYS_PASS = frozenset({"log.gap", "log.caught_up", "call.ended", TERMINAL_EVENT})
-
-
-# The key stays, so a reader knows a value exists; the value goes whole, so its type does not leak.
-MASK = "***"
-
-
-# The entries whose data carries the app's state, masked for the tenant against the declaration.
-CARRY_STATE = frozenset({"state.changed", "call.attached"})
 
 
 NEEDS_READING = frozenset({"turn.agent", "state.changed", "log.gap"})
@@ -111,7 +104,8 @@ def project_state(
 ) -> JsonObject:
     """Return the reduced state as this audience may read it."""
     if projection == "tenant":
-        return {**state.written(), "app_state": _masked(state.app_state, config)}
+        app_state = state.app_state if config is None else masked_state(state.app_state, config)
+        return {**state.written(), "app_state": app_state}
     written = state.written()
     room: Json = None
     if state.room is not None:
@@ -168,14 +162,13 @@ def project_entry(
     return {**{name: envelope[name] for name in PUBLIC_ENVELOPE}, "data": data}
 
 
+# A log written since private values are masked when written holds them masked already; the
+# rows written before are masked here, by the declaration the reader reads with.
 def _tenant_data(entry: Entry, config: AgentConfig | None) -> JsonObject:
-    state = entry.data.get("state")
-    if entry.type in CARRY_STATE and isinstance(state, dict):
-        return {**entry.data, "state": _masked(state, config)}
     gap = _readable(entry)
     if isinstance(gap, LogGap) and gap.snapshot is not None:
         return {**entry.data, "snapshot": project_state(gap.snapshot, "tenant", config)}
-    return entry.data
+    return entry.data if config is None else split(entry.type, entry.data, config).kept
 
 
 # Only the entries a projection reaches into are read; an old shape of one is withheld from the
@@ -207,15 +200,6 @@ def _only_public(app_state: JsonObject, config: AgentConfig | None) -> JsonObjec
         return {}
     return {
         name: value for name, value in app_state.items() if config.visibility_of(name) == "public"
-    }
-
-
-def _masked(app_state: JsonObject, config: AgentConfig | None) -> JsonObject:
-    if config is None:
-        return dict(app_state)
-    return {
-        name: MASK if config.visibility_of(name) == "pii" else value
-        for name, value in app_state.items()
     }
 
 
