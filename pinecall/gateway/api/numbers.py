@@ -264,7 +264,10 @@ async def dial_out(
         consent=body.consent,
     )
     placed = await dialing.place_call(
-        gateway.connections, gateway.logs, placement, running=gateway.live.running(where.org)
+        gateway.connections,
+        gateway.logs,
+        placement,
+        running=gateway.live.running(where.org, where.env),
     )
     return DialResponse.model_validate(
         {

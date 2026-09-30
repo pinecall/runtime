@@ -41,6 +41,9 @@ SEALING_S = 60.0
 INITIALIZE_S = 90.0
 
 
+STILL_UP = "%d calls outlived the drain of %.0f s: shut down and sealed as drained"
+
+
 NO_LIVEKIT = "LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET: a worker registers with them"
 
 
@@ -124,7 +127,11 @@ async def run(settings: Settings) -> int:
     beating = asyncio.create_task(beats.run())
     waits = {running, asyncio.create_task(stopping.wait()), asyncio.create_task(beats.leave.wait())}
     await asyncio.wait(waits, return_when=asyncio.FIRST_COMPLETED)
-    await server.drain(DRAIN_S)
+    try:
+        await server.drain(DRAIN_S)
+    except TimeoutError:
+        # livekit raises when the drain runs out; the close is what shuts and seals the calls left.
+        logger.warning(STILL_UP, len(server.active_jobs), DRAIN_S)
     await server.aclose()
     for task in (*waits, beating):
         task.cancel()

@@ -99,7 +99,7 @@ async def limits(key: ActingDep, gateway: GatewayDep) -> Limits:
         minutes=Limit(limit=quotas.minutes, used=used.minutes),
         messages=Limit(limit=quotas.messages, used=used.messages),
         llm_tokens=Limit(limit=quotas.llm_tokens, used=used.input_tokens + used.output_tokens),
-        concurrent_calls=Limit(limit=quotas.concurrent_calls, used=gateway.live.running(org)),
+        concurrent_calls=Limit(limit=quotas.concurrent_calls, used=gateway.live.running(org, env)),
         agents=Limit(limit=quotas.agents, used=len(gateway.sockets.slugs(org))),
         seats=Limit(limit=quotas.seats, used=await people.seated(pool, org)),
         numbers=Limit(limit=quotas.numbers, used=await routes.managed_in(pool, org, env)),

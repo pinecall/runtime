@@ -49,31 +49,23 @@ REMEMBER_FAILED = "the call was not written into memory: {why}"
 REMEMBER_BUDGET_S = 8.0
 
 
-# One end for every call: a worker's, a written one's, and one the reaper finishes.
+# One end for every call: a worker's, a written one's, and one the reaper finishes. A call is
+# sealed once: a second knock waits for the first and finds the call gone, and a seal that broke
+# after its summary goes on from the score, so no call is remembered or billed twice.
 async def sealed(
     serving: Serving, served: Served, sealing: SealCallRequest, *, lent: Sequence[str] = ()
 ) -> None:
     """Remember, price the call, write its summary and its score, seal the log, let it go."""
-    written = await remembered(serving, served)
-    # The memory model's tokens are the call's: they are billed with it.
-    if written is not None and written.usage is not None:
-        sealing = sealing.model_copy(update={"usage": [*sealing.usage, written.usage]})
-    await summed_up(serving.connections.pool, serving.logs.store, served.log, sealing)
-    if lent:
-        await facts.lent(serving.connections.pool, served.call, lent)
-    if served.context.run is not None:
-        score = CallScore(judges=[], judge_calls=0, not_judged=A_RUN_JUDGES_IT)
-    elif not await orgs.judged(serving.connections.pool, served.scope.org):
-        score = CallScore(judges=[], judge_calls=0, not_judged=JUDGING_OFF.format(call=served.call))
-    else:
+    async with served.sealing:
+        if served.call not in serving.live.calls:
+            return
         entries = await serving.logs.store.whole(served.call)
-        own = await for_call(serving.connections.pool, served.scope.org, served.agent)
-        pool = serving.connections.pool
-        org_facts = await compliance_of(pool, served.scope.org, served.call, served.config)
-        score = await judged_call(serving.connections, entries, served.config, own, org_facts)
-    await served.log.append("call.score", score.written())
-    serving.logs.forget(served.call)
-    serving.live.close(served.call)
+        if all(entry.type != "call.summary" for entry in entries):
+            await _priced(serving, served, sealing, lent)
+        score = await _scored(serving, served)
+        await served.log.append("call.score", score.written())
+        serving.logs.forget(served.call)
+        serving.live.close(served.call)
 
 
 # Between call.ended and call.summary, on the org's keys as they are now. A refusal at the cap goes
@@ -180,3 +172,27 @@ async def summed_up(pool: Pool, store: Store, log: Log, sealing: SealCallRequest
         recording=sealing.recording,
     )
     await log.append("call.summary", summary.written())
+
+
+async def _priced(
+    serving: Serving, served: Served, sealing: SealCallRequest, lent: Sequence[str]
+) -> None:
+    written = await remembered(serving, served)
+    # The memory model's tokens are the call's: they are billed with it.
+    if written is not None and written.usage is not None:
+        sealing = sealing.model_copy(update={"usage": [*sealing.usage, written.usage]})
+    await summed_up(serving.connections.pool, serving.logs.store, served.log, sealing)
+    if lent:
+        await facts.lent(serving.connections.pool, served.call, lent)
+
+
+async def _scored(serving: Serving, served: Served) -> CallScore:
+    pool = serving.connections.pool
+    if served.context.run is not None:
+        return CallScore(judges=[], judge_calls=0, not_judged=A_RUN_JUDGES_IT)
+    if not await orgs.judged(pool, served.scope.org):
+        return CallScore(judges=[], judge_calls=0, not_judged=JUDGING_OFF.format(call=served.call))
+    entries = await serving.logs.store.whole(served.call)
+    own = await for_call(pool, served.scope.org, served.agent)
+    org_facts = await compliance_of(pool, served.scope.org, served.call, served.config)
+    return await judged_call(serving.connections, entries, served.config, own, org_facts)

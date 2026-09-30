@@ -1,5 +1,6 @@
 """Tests for the seal: the summary and its cost, the judges at hang-up, and what memory kept."""
 
+import asyncio
 import dataclasses
 from collections.abc import AsyncIterator
 from dataclasses import replace
@@ -13,8 +14,8 @@ from pinecall.domain.names import JsonObject
 from pinecall.domain.org import Quotas
 from pinecall.domain.scope import Scope
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._seal import A_RUN_JUDGES_IT, NO_JUDGE, sealed
 from pinecall.gateway._served import opened, served_call
+from pinecall.gateway.ending.seal import A_RUN_JUDGES_IT, NO_JUDGE, sealed, summed_up
 from pinecall.log.logs import log_name
 from pinecall.providers import catalog
 from pinecall.providers.catalog import Embedding, Judge, Rate
@@ -59,6 +60,40 @@ async def test_the_seal_writes_the_summary_the_score_and_lets_the_call_go(wired:
     assert cost["usd"] > 0
     assert whole[-1].type == "call.score"
     assert await wired.logs.store.sealed(context.call)
+    assert context.call not in wired.live.calls
+
+
+@postgres
+async def test_a_call_sealed_twice_at_once_is_summed_up_and_scored_once(wired: Gateway) -> None:
+    context = a_call()
+    served = served_call(wired.serving, None, context, AgentConfig(slug=AGENT), OURS)
+    await opened(served.log, context, AGENT)
+    await served.log.append(
+        "call.ended",
+        {"reason": "caller_hung_up", "ended_by": "caller", "ended_at": 5.0, "duration_s": 30.0},
+    )
+    sealing = SealCallRequest(usage=[], outcome="booked")
+    await asyncio.gather(
+        sealed(wired.serving, served, sealing), sealed(wired.serving, served, sealing)
+    )
+    kinds = [item.type for item in await wired.logs.store.whole(context.call)]
+    assert (kinds.count("call.summary"), kinds.count("call.score")) == (1, 1)
+    assert await wired.logs.store.sealed(context.call)
+
+
+@postgres
+async def test_a_seal_that_broke_after_its_summary_goes_on_from_the_score(wired: Gateway) -> None:
+    context = a_call()
+    served = served_call(wired.serving, None, context, AgentConfig(slug=AGENT), OURS)
+    await opened(served.log, context, AGENT)
+    store = wired.logs.store
+    first = SealCallRequest(usage=[], outcome="booked")
+    await summed_up(wired.connections.pool, store, served.log, first)
+    await sealed(wired.serving, served, SealCallRequest(usage=[], outcome="asked again"))
+    whole = await store.whole(context.call)
+    outcomes = [item.data["outcome"] for item in whole if item.type == "call.summary"]
+    assert outcomes == ["booked"]
+    assert whole[-1].type == "call.score"
     assert context.call not in wired.live.calls
 
 

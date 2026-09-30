@@ -48,7 +48,7 @@ made. A phone caller arriving at a full production fleet is answered by the **ov
 that is never full (`pinecall-overflow@production`): one sentence, `PINECALL_OVERFLOW_SAYS`, the
 caller's number onto the agent's log as `callback.requested`, and it hangs up. No ears, no model.
 An org's own concurrency is its `concurrent_calls` quota, counted on the calls this gateway serves
-and held at the door, never mid-call.
+in that world and held at the door, never mid-call: sandbox calls never use up production's.
 
 ## Deploys drain, cordons shrink
 

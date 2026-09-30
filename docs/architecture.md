@@ -24,7 +24,7 @@ surface is the URL.
 | `evals/` | the case a judge reads (`case.py`), the judges and the hang-up panel (`judges.py`), the compliance judges settled by code (`compliance.py`), the checks by code alone (`checks.py`), a golden played on a written call (`goldens.py`), a run and its matrix (`runs.py`), the simulated caller (`callers.py`) and its spoken line (`spoken.py`); private: what an agent could know and stated (`_evidence.py`) | `session` `retrieval` `log` `providers` and the leaves |
 | `channels/` | by where a conversation comes in: `routes.py` (number or channel to agent, for every channel), `rooms.py` (a call to the fleet of its world), `whatsapp.py` (Meta's API), `telephony/` (Twilio's API, the SIP trunks and rules on LiveKit, numbers imported and bought, dialling out) | `domain` `wire` `postgres` `process` `tenancy` `fleet` `log` |
 | `fleet/` | the fleet each world dispatches to (`worlds.py`), the roster of workers, a worker's heartbeat, the worker's client to the gateway | `domain` `wire` `postgres` `log` `process` |
-| `gateway/` | the FastAPI app; private, each named for what it holds and none the logic of a door of the same name: the process's state (`_gateway.py`, the `Gateway`), each request's dependencies (`_deps.py`), what a call of an agent is set up with (`_call_setup.py`), written calls opened and taken up (`_text_calls.py`), SSE streams, the app sockets registered (`_sockets.py`), the calls served (`_served.py`), how one ends (`_seal.py`: memory, the bill, the judges, the seal), the calls nobody ends (`_reaper.py`), the WhatsApp threads kept open (`_threads.py`: they need the sockets and the session, so they are the gateway's; `api/threads.py` holds their doors); `api/`: one module per topic of doors, the account doors among them (`accounts.py`: sign-in, whoami, codes, pairing, invitations; `members.py`, `keys.py`, `signup.py`, `sso_login.py`, `org.py`'s provider and mailbox, `ops.py`) | everything above |
+| `gateway/` | the FastAPI app; private, each named for what it holds and none the logic of a door of the same name: the process's state (`_gateway.py`, the `Gateway`), each request's dependencies (`_deps.py`), what a call of an agent is set up with (`_call_setup.py`), written calls opened and taken up (`_text_calls.py`), SSE streams, the app sockets registered (`_sockets.py`), the calls served (`_served.py`), the WhatsApp threads kept open (`_threads.py`: they need the sockets and the session, so they are the gateway's; `api/threads.py` holds their doors); `ending/`: how a call ends (`seal.py`: memory, the bill, the judges, the seal) and the calls nobody ends (`reaper.py`); `api/`: one module per topic of doors, the account doors among them (`accounts.py`: sign-in, whoami, codes, pairing, invitations; `members.py`, `keys.py`, `signup.py`, `sso_login.py`, `org.py`'s provider and mailbox, `ops.py`) | everything above |
 | `worker/` | the LiveKit worker: the entrypoint and, private, one job per call, the recorder, the traces | `session` `providers` `fleet` `channels` `log` `process` and the leaves |
 | `cli/` | `pinecall-runtime`: migrate, doctor, fleet, vault | anything |
 
@@ -73,7 +73,8 @@ core under `_` names.
 4. A tool call crosses the app socket (`gateway/api/apps.py`) to the tenant's process and back;
    the gateway writes `tool.call` and `tool.result`.
 5. At hang-up the job seals the log (`POST /v1/calls/{call}/sealed`): the summary, the price,
-   memory and the judges' verdicts are folded from the entries.
+   memory and the judges' verdicts are folded from the entries. A call is sealed once: a second
+   knock waits for the first, and a seal that broke after its summary goes on from the score.
 
 ## Three hops
 
