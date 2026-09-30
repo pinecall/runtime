@@ -37,7 +37,6 @@ from pinecall.tenancy.signin import (
     Handshake,
     SignIns,
     Signup,
-    Throttle,
     another_key,
     forgotten,
     found,
@@ -444,29 +443,3 @@ async def claims_of(idp: IdentityProvider, email: str) -> Claims:
     idp.id_token = idp.signed(nonce=begun.nonce, email=email, sub=f"sub-{email}", name=name)
     async with httpx.AsyncClient(transport=idp.transport()) as http:
         return await vouched_for(http, CLIENT, begun, "c")
-
-
-def test_the_sixth_knock_in_a_minute_is_refused_and_another_name_is_not() -> None:
-    throttle = Throttle(clock=lambda: 100.0)
-    assert all(throttle.allowed("ana@clinica.test") for _ in range(5))
-    assert not throttle.allowed("ana@clinica.test")
-    assert throttle.allowed("bruno@clinica.test")
-
-
-def test_the_window_slides_so_a_minute_later_the_name_knocks_again() -> None:
-    now = [100.0]
-    throttle = Throttle(clock=lambda: now[0])
-    for _ in range(5):
-        throttle.allowed("ana")
-    now[0] += 61
-    assert throttle.allowed("ana")
-
-
-def test_names_that_stopped_knocking_are_forgotten_so_a_script_cannot_fill_the_table() -> None:
-    now = [100.0]
-    throttle = Throttle(clock=lambda: now[0])
-    for name in range(1024):
-        throttle.allowed(f"n{name}")
-    now[0] += 61
-    throttle.allowed("fresh")
-    assert set(throttle.knocks) == {"fresh"}

@@ -76,14 +76,14 @@ def test_the_client_is_the_address_uvicorn_read_and_unknown_without_one() -> Non
 
 
 @postgres
-def test_the_sixth_knock_of_a_name_in_a_minute_is_refused_in_the_sentence_given(
+async def test_the_sixth_knock_of_a_name_in_a_minute_is_refused_in_the_sentence_given(
     wired: Gateway,
 ) -> None:
     for _ in range(TRIES):
-        check_knock(wired, "203.0.113.7 */ana", "slow down")
-    check_knock(wired, "198.51.100.9 */ana", "slow down")
+        await check_knock(wired, "203.0.113.7 */ana", "slow down")
+    await check_knock(wired, "198.51.100.9 */ana", "slow down")
     with pytest.raises(TooManyRequests, match="slow down"):
-        check_knock(wired, "203.0.113.7 */ana", "slow down")
+        await check_knock(wired, "203.0.113.7 */ana", "slow down")
 
 
 @postgres

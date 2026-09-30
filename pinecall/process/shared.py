@@ -66,6 +66,8 @@ class Shared[T]:
     ) -> None:
         """Nothing heard yet; `changed` is called whenever the merged view must be rebuilt."""
         self.signal = signal
+        # How often the share is said whole: TOLD_EVERY_S unless its owner says sooner.
+        self.every_s = TOLD_EVERY_S
         self.channel = channel
         self.id = uuid4().hex
         self.mine = empty
@@ -96,7 +98,7 @@ class Shared[T]:
     async def _beating(self) -> None:
         while True:
             self._say()
-            await asyncio.sleep(TOLD_EVERY_S)
+            await asyncio.sleep(self.every_s)
             now = time.monotonic()
             silent = [gw for gw, heard in self.theirs.items() if now - heard.at > SILENT_AT_MOST_S]
             for gateway in silent:

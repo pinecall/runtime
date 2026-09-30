@@ -82,8 +82,9 @@ from pinecall.process.settings import Settings, load
 from pinecall.providers import catalog
 from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy.codes import Codes
+from pinecall.tenancy.knocks import Throttle
 from pinecall.tenancy.mail import Mailbox, Outbox, parse_mailbox_url
-from pinecall.tenancy.signin import SignIns, Throttle
+from pinecall.tenancy.signin import SignIns
 from pinecall.tenancy.throttle import Window
 from pinecall.tenancy.tokens import Signer
 from pinecall.tenancy.vault import box_credentials
@@ -283,6 +284,9 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
     await threads.loaded()
     await threads.start()
     stack.push_async_callback(threads.closed)
+    paced = Window(signal=connections.signal)
+    await paced.start()
+    stack.push_async_callback(paced.close)
     outbox = Outbox(connections, _box_mailbox(settings))
     stack.push_async_callback(outbox.drained)
     return Gateway(
@@ -297,10 +301,10 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
         closing=asyncio.Event(),
         embedder=embedder,
         signins=SignIns.kept(Words(connections.pool, connections.vault)),
-        samples=Throttle(tries=SAMPLES_A_MINUTE),
-        paced=Window(),
+        samples=Throttle(connections.pool, SAMPLES_A_MINUTE),
+        paced=paced,
         outbox=outbox,
-        evals=Runner(),
+        evals=Runner(connections.pool),
     )
 
 

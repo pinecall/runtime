@@ -204,9 +204,9 @@ async def test_a_gateway_gone_silent_takes_its_sockets_with_it(
     two: Two, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     first, second = two.first, two.second
-    monkeypatch.setattr(shared, "TOLD_EVERY_S", 0.05)
     monkeypatch.setattr(shared, "SILENT_AT_MOST_S", 0.2)
     await second.close()
+    second.shared.every_s = 0.05
     await second.start()
     await holding(first, "app_ana", ANA)
     await two.heard(lambda: second.of(ANA, AGENT) is not None)

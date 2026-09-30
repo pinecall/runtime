@@ -38,8 +38,11 @@ def cell(model: str, golden: str, *scores: JudgeScore) -> ScoreRow:
     return ScoreRow(model=model, golden=golden, scores=list(scores), summary=None)
 
 
-async def test_a_second_run_on_one_agent_is_refused_and_that_agent_is_freed_after() -> None:
-    runner = Runner()
+@postgres
+async def test_a_second_run_on_one_agent_is_refused_and_that_agent_is_freed_after(
+    pool: Pool,
+) -> None:
+    runner = Runner(pool)
     async with runner.alone("run_first", "clinica-norte"):
         assert runner.running["clinica-norte"] == "run_first"
         with pytest.raises(Conflict) as refused:
@@ -50,8 +53,9 @@ async def test_a_second_run_on_one_agent_is_refused_and_that_agent_is_freed_afte
     assert runner.running == {}
 
 
-async def test_a_run_on_one_agent_leaves_every_other_agent_free_to_be_run() -> None:
-    runner = Runner()
+@postgres
+async def test_a_run_on_one_agent_leaves_every_other_agent_free_to_be_run(pool: Pool) -> None:
+    runner = Runner(pool)
     async with runner.alone("run_the_clinics", "clinica-norte"):
         async with runner.alone("run_the_shops", "tienda-sur"):
             assert runner.running == {
@@ -214,3 +218,15 @@ async def test_a_run_written_again_replaces_the_row_whole(pool: Pool) -> None:
     kept = await runs.of(pool, CLINIC, run.id)
     assert kept is not None
     assert kept.status == "done"
+
+
+# Two gateways, one lease: a run on one holds the agent on the other.
+@postgres
+async def test_a_run_on_one_gateway_holds_the_agent_on_another(pool: Pool) -> None:
+    here, there = Runner(pool), Runner(pool)
+    async with here.alone("run_here", "clinica-norte"):
+        with pytest.raises(Conflict, match="run_here"):
+            async with there.alone("run_there", "clinica-norte"):
+                pass
+    async with there.alone("run_there", "clinica-norte"):
+        assert there.running == {"clinica-norte": "run_there"}

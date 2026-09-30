@@ -134,7 +134,7 @@ async def sign_in(body: SignInRequest, request: Request, gateway: GatewayDep) ->
     if body.email is None or body.password is None:
         raise DeclarationRefused(ONE_OR_THE_OTHER)
     knock = f"{client_of(request)} {body.org or '*'}/{body.email}"
-    check_knock(gateway, knock, signin.TOO_MANY.format(email=body.email))
+    await check_knock(gateway, knock, signin.TOO_MANY.format(email=body.email))
     typed = Asking(body.email, body.password, body.org, body.device)
     signed = await signin.sign_in_with_password(pool, typed)
     return KeyIssuedResponse.of(signed.key, signed.secret)
@@ -148,7 +148,7 @@ async def sign_in_orgs(
     """The orgs an address and a password open, minting nothing."""
     pool = gateway.connections.pool
     knock = f"{client_of(request)} */{body.email}"
-    check_knock(gateway, knock, signin.TOO_MANY.format(email=body.email))
+    await check_knock(gateway, knock, signin.TOO_MANY.format(email=body.email))
     opened = await signin.orgs_signed_into(pool, body.email, body.password)
     if not opened:
         raise NotSignedIn(signin.NOBODY)
@@ -231,7 +231,7 @@ async def forget_password(
 ) -> EmptyResponse:
     """Mail a one-use link that sets the password, where one can go."""
     knock = f"{client_of(request)} */{body.email}"
-    check_knock(gateway, knock, signin.TOO_MANY.format(email=body.email))
+    await check_knock(gateway, knock, signin.TOO_MANY.format(email=body.email))
     await signin.forgotten(
         gateway.connections.pool, gateway.outbox, body.email, public_url(request, gateway)
     )

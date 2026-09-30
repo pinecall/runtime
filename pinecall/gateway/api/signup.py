@@ -101,7 +101,7 @@ async def sign_up(
     pool = connections.pool
     if await gateway.outbox.mailbox_for(None) is None:
         raise NotAvailable(NO_MAIL)
-    check_knock(gateway, f"{client} signup", TOO_MANY)
+    await check_knock(gateway, f"{client} signup", TOO_MANY)
     email = body.email.strip().lower()
     slug = parse_slug(body.org)
     if not AN_ADDRESS.match(email):
@@ -129,7 +129,7 @@ async def verify_signup(
     body: VerifySignupRequest, client: SignupClient, gateway: GatewayDep
 ) -> OrgMadeResponse:
     """The mailed code back: the org made, its admin seated, their first key and a login code."""
-    check_knock(gateway, f"{client} signup/verify", TOO_MANY)
+    await check_knock(gateway, f"{client} signup/verify", TOO_MANY)
     taken = await gateway.signins.signups.verify(body.email.strip().lower(), body.code.strip())
     if isinstance(taken, str):
         raise DeclarationRefused(REFUSED[taken])
@@ -150,7 +150,7 @@ async def resend_code(
     body: ResendCodeRequest, client: SignupClient, gateway: GatewayDep
 ) -> EmptyResponse:
     """A new code for a sign-up still waiting; the first one no longer works."""
-    check_knock(gateway, f"{client} signup/resend", TOO_MANY)
+    await check_knock(gateway, f"{client} signup/resend", TOO_MANY)
     renewed = await gateway.signins.signups.renewed(body.email.strip().lower())
     if renewed is None:
         return EmptyResponse()

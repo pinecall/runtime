@@ -44,8 +44,9 @@ from pinecall.providers.build import MODALITIES, Vendor, installed
 from pinecall.providers.catalog import Providers
 from pinecall.tenancy import keys, orgs, people, vault
 from pinecall.tenancy.codes import Codes
+from pinecall.tenancy.knocks import Throttle
 from pinecall.tenancy.mail import Outbox
-from pinecall.tenancy.signin import SignIns, Throttle
+from pinecall.tenancy.signin import SignIns
 from pinecall.tenancy.throttle import Window
 from pinecall.tenancy.tokens import Signer
 from pinecall.tenancy.words import Words
@@ -383,11 +384,11 @@ async def a_gateway(pool: Pool, logs: Logs, shared: Shared) -> AsyncGenerator[Ga
         threads=threads,
         closing=asyncio.Event(),
         embedder=None,
-        evals=Runner(),
+        evals=Runner(pool),
         signins=SignIns.kept(Words(pool, shared.vault, store.clock)),
         outbox=outbox,
-        samples=Throttle(store.clock, tries=SAMPLES_A_MINUTE),
-        paced=Window(store.clock),
+        samples=Throttle(pool, SAMPLES_A_MINUTE, store.clock),
+        paced=Window(store.clock, shared.signal),
     )
     await outbox.drained()
     await threads.closed()

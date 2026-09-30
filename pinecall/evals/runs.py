@@ -1,5 +1,6 @@
 """An eval run: one agent, every golden under every model, judged into a matrix as it goes."""
 
+import asyncio
 import time
 from collections.abc import AsyncGenerator, Iterable, Sequence
 from contextlib import asynccontextmanager
@@ -58,6 +59,23 @@ ON CONFLICT (id) DO UPDATE SET
 
 OF = "SELECT document FROM eval_runs WHERE id = %(id)s AND org = %(org)s AND env = %(env)s"
 
+# A run holds its agent for so long and renews it at a third of that: a gateway that died
+# mid-run leaves a lease another run takes once it ran out.
+LEASED_S = 60.0
+
+# Taken when nobody holds the agent or the holder's lease ran out; else the holder is named.
+LEASED = """
+insert into run_leases as lease (agent, run, until)
+values (%(agent)s, %(run)s, now() + make_interval(secs => %(seconds)s))
+on conflict (agent) do update set run = excluded.run, until = excluded.until
+where lease.until < now() or lease.run = excluded.run
+returning run
+"""
+
+HOLDER = "select run from run_leases where agent = %(agent)s"
+
+RELEASED = "delete from run_leases where agent = %(agent)s and run = %(run)s"
+
 
 # The agent is filtered in SQL, so one agent's runs are never paged out by another's.
 LISTED = """
@@ -70,25 +88,44 @@ LIMIT %(limit)s
 
 
 # Not durable on purpose: a run is coroutines of this process, gone with it.
+# The lease is in Postgres, so a run on one gateway holds the agent on every one.
 class Runner:
-    """The run each agent is under in this process, if any."""
+    """The run each agent is under, on any gateway of the box, and this process's own."""
 
-    def __init__(self) -> None:
-        """No agent under a run."""
+    def __init__(self, pool: Pool) -> None:
+        """No agent under a run of this process."""
+        self.pool = pool
         self.running: dict[str, str] = {}
 
     # Refused, not queued: the refusal names the run to follow instead.
     @asynccontextmanager
     async def alone(self, run: str, agent: str) -> AsyncGenerator[None]:
         """Hold the agent for this run; Conflict while another run holds it."""
-        holding = self.running.get(agent)
-        if holding is not None:
+        if not await self._leased(run, agent):
+            async with self.pool.connection() as connection:
+                row = await (await connection.execute(HOLDER, {"agent": agent})).fetchone()
+            holding = "another run" if row is None else str(row["run"])
             raise Conflict(ALREADY_RUNNING.format(id=holding, agent=agent))
         self.running[agent] = run
+        renewing = asyncio.create_task(self._renewed(run, agent))
         try:
             yield
         finally:
+            renewing.cancel()
+            await asyncio.gather(renewing, return_exceptions=True)
             del self.running[agent]
+            async with self.pool.connection() as connection:
+                await connection.execute(RELEASED, {"agent": agent, "run": run})
+
+    async def _leased(self, run: str, agent: str) -> bool:
+        wanted = {"agent": agent, "run": run, "seconds": LEASED_S}
+        async with self.pool.connection() as connection:
+            return await (await connection.execute(LEASED, wanted)).fetchone() is not None
+
+    async def _renewed(self, run: str, agent: str) -> None:
+        while True:
+            await asyncio.sleep(LEASED_S / 3)
+            await self._leased(run, agent)
 
 
 def new_run(agent: str) -> EvalRunResponse:

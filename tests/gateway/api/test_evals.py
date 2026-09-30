@@ -171,11 +171,10 @@ async def test_a_run_against_an_agent_nobody_is_holding_is_a_404(knocking: Knock
 @postgres
 async def test_a_second_run_on_one_agent_is_refused_naming_the_first(knocking: Knocking) -> None:
     app = await an_app(knocking)
-    knocking.gateway.evals.running[AGENT] = "run_first"
-    refused = await a_suite(knocking, {"agent": AGENT, "goldens": []})
+    async with knocking.gateway.evals.alone("run_first", AGENT):
+        refused = await a_suite(knocking, {"agent": AGENT, "goldens": []})
     assert refused.status_code == 409
     assert "run_first" in refused.json()["detail"]
-    del knocking.gateway.evals.running[AGENT]
     assert (await a_suite(knocking, {"agent": AGENT, "goldens": []})).status_code == 200
     await app.close()
 

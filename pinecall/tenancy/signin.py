@@ -5,9 +5,6 @@ import hmac
 import ipaddress
 import re
 import secrets
-import time
-from collections import deque
-from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Literal
 
@@ -23,6 +20,7 @@ from pinecall.domain.org import Org
 from pinecall.domain.person import KEY_SCOPES, Key, Member
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy.keys import Issued, issue, person_key
+from pinecall.tenancy.knocks import Throttle
 from pinecall.tenancy.letters import Link, brand_of, card_link, forgotten_password_letter
 from pinecall.tenancy.mail import Outbox
 from pinecall.tenancy.orgs import create, find
@@ -208,13 +206,6 @@ TRIES = 5
 TOO_MANY = "too many attempts for {email}: try again in a minute"
 
 
-WINDOW_S = 60.0
-
-
-# Names are the attacker's to choose, so quiet ones are swept past this many.
-SWEEP_AT = 1024
-
-
 class ProviderRefusal(BaseModel):
     """What an identity provider says when it refuses: its error and the words it gives."""
 
@@ -397,34 +388,8 @@ class Signups:
         return found.value.signup
 
 
-class Throttle:
-    """How many times a name knocked in the last minute: five, and the sixth waits."""
-
-    def __init__(self, clock: Callable[[], float] = time.time, *, tries: int = TRIES) -> None:
-        """A throttle nobody knocked at."""
-        self.clock = clock
-        self.tries = tries
-        self.knocks: dict[str, deque[float]] = {}
-
-    def allowed(self, name: str) -> bool:
-        """Count a knock, and say whether it is within the window's tries."""
-        now = self.clock()
-        if len(self.knocks) >= SWEEP_AT:
-            for quiet in [
-                address for address, at in self.knocks.items() if at[-1] <= now - WINDOW_S
-            ]:
-                del self.knocks[quiet]
-        knocks = self.knocks.setdefault(name, deque())
-        while knocks and knocks[0] <= now - WINDOW_S:
-            knocks.popleft()
-        if len(knocks) >= self.tries:
-            return False
-        knocks.append(now)
-        return True
-
-
-# Kept in Postgres, sealed, so any gateway spends what another minted; the knocks stay counted
-# per process.
+# Kept in Postgres, sealed, so any gateway spends what another minted; the knocks counted there
+# too, so five a minute means five whichever gateway each lands on.
 @dataclass(frozen=True)
 class SignIns:
     """What sign-in keeps between two requests: codes, terminals, sign-ups, handshakes, knocks."""
@@ -443,7 +408,7 @@ class SignIns:
             pairings=Pairings(words),
             signups=Signups(words),
             handshakes=OneUse(HANDSHAKE, _HANDSHAKE, words),
-            throttle=Throttle(words.clock),
+            throttle=Throttle(words.pool, TRIES, words.clock),
         )
 
 

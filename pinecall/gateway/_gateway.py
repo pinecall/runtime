@@ -13,9 +13,10 @@ from pinecall.process.connections import Connections
 from pinecall.process.metrics import Counters
 from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy.codes import Codes
+from pinecall.tenancy.knocks import Throttle
 from pinecall.tenancy.mail import Outbox
 from pinecall.tenancy.prompts import Prompts
-from pinecall.tenancy.signin import SignIns, Throttle
+from pinecall.tenancy.signin import SignIns
 from pinecall.tenancy.throttle import Window
 from pinecall.tenancy.tokens import Signer
 
