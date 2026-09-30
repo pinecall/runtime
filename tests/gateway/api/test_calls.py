@@ -369,7 +369,8 @@ async def test_the_seal_prices_the_call_and_its_score_ends_the_log(knocking: Kno
     kinds = [entry.type for entry in await knocking.gateway.logs.store.whole(context.call)]
     assert kinds[-2:] == ["call.summary", "call.score"]
     assert await knocking.gateway.logs.store.sealed(context.call)
-    assert again.status_code == 404
+    # Over, not forgotten: the worker is told so at once, as a reopen would have told it.
+    assert again.status_code == 409
     async with knocking.gateway.connections.pool.connection() as connection:
         row = await (
             await connection.execute("select lent from call_facts where call = %s", (context.call,))

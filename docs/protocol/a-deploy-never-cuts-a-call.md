@@ -25,10 +25,12 @@ for the next socket.
 
 ## The gateway restarts
 
-The gateway keeps the calls it serves in memory; the worker holds each call and the context it
-opened it with. A door that names a call the gateway is not serving answers `404`, and the worker
-says the call again, once, `POST /v1/calls/{call}/reopened {agent, context}`, and asks again: no
-quota asked, no token spent, no second `call.ringing`; `409` for a call already sealed. While the
+What a call is, its context and the config it runs on, is kept in Postgres when it opens, so a
+gateway that restarted, or another gateway of the box, serves any door of it from one read the
+first time a door asks, and from memory after. A call sealed is `409` at every door. A call an
+older release opened kept nothing: its door answers `404`, and the worker says the call again,
+once, `POST /v1/calls/{call}/reopened {agent, context}`, and asks again: no quota asked, no token
+spent, no second `call.ringing`. While the
 gateway is away the worker retries an entry, the seal, a tool and the command stream, backing off
 from half a second to five, for as long as nothing answers or a `5xx` does; a `4xx` is an answer. A
 tool retries within its own deadline, the seal within thirty seconds. A tool call is run once per

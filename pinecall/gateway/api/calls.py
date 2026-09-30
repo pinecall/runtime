@@ -40,6 +40,7 @@ from pinecall.gateway._served import (
     Served,
     attach,
     claim_code,
+    first_seen,
     looked_up,
     opened,
     served_call,
@@ -48,7 +49,7 @@ from pinecall.gateway._served import (
 from pinecall.gateway._sockets import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registration
 from pinecall.gateway._streams import frame, paced, streamed, wants_sse
 from pinecall.gateway.ending.seal import remembered, sealed
-from pinecall.log import queries
+from pinecall.log import openings, queries
 from pinecall.log.readers import Filter, parse_filter, project_entry, project_state
 from pinecall.log.store import DEFAULT_LIMIT, Claim
 from pinecall.process.recordings import (
@@ -190,6 +191,7 @@ async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) 
     _refuse_unserved(gateway, scope, body, found)
     config, versions = await _tuned(gateway, scope, body.agent, found, context.call)
     await gateway.logs.store.claim(context.call, body.agent, scope.org, Claim(scope, versions))
+    await openings.kept(gateway.connections.pool, scope.org, context, config)
     await gateway.prompts.keep(gateway.connections.pool, scope.org, config.knowledge or "")
     owner = None if found is None else found.owner
     served = served_call(gateway.serving, owner, context, config, scope)
@@ -224,6 +226,7 @@ async def reopen_call(
         raise Conflict(SEALED.format(call=call))
     registration = gateway.sockets.serving(scope, body.agent, None)
     config, _ = await _tuned(gateway, scope, body.agent, registration, call)
+    await openings.kept(gateway.connections.pool, scope.org, body.context, config)
     served_call(gateway.serving, None, body.context, config, scope)
     if registration is not None:
         await attach(gateway.live, call, registration.owner)
@@ -237,7 +240,7 @@ async def append_entry(
     """Write one entry of a call this gateway serves."""
     if body.type not in EVENTS:
         raise DeclarationRefused(UNKNOWN_EVENT.format(kind=body.type))
-    served = _orgs_call(gateway, key, call)
+    served = await _known(gateway, key, call)
     began = time.perf_counter()
     entry = await served.log.append(body.type, body.data, ephemeral=body.ephemeral)
     _counted(gateway, time.perf_counter() - began, [entry])
@@ -253,7 +256,7 @@ async def append_entries(
     for item in body.entries:
         if item.type not in EVENTS:
             raise DeclarationRefused(UNKNOWN_EVENT.format(kind=item.type))
-    served = _orgs_call(gateway, key, call)
+    served = await _known(gateway, key, call)
     began = time.perf_counter()
     entries = await served.log.append_many(body.entries, after=body.after)
     _counted(gateway, time.perf_counter() - began, entries)
@@ -263,7 +266,7 @@ async def append_entries(
 @router.post("/v1/calls/{call}/sealed", status_code=204)
 async def seal_call(call: str, body: SealCallRequest, key: WorkerKey, gateway: GatewayDep) -> None:
     """Price the call, write its summary and score, and seal its log."""
-    await sealed(gateway.serving, _orgs_call(gateway, key, call), body, lent=body.lent)
+    await sealed(gateway.serving, await _known(gateway, key, call), body, lent=body.lent)
 
 
 # The gateway writes tool.call and tool.result: appending the call is what reaches the app.
@@ -276,7 +279,7 @@ async def run_tool(
     gateway: GatewayDep,
 ) -> ToolResult:
     """Run a worker's tool call through the app that holds its agent, and answer its result."""
-    served = _orgs_call(gateway, key, call)
+    served = await _known(gateway, key, call)
     if agent != served.agent:
         raise NotFound(NOT_OPEN.format(call=call))
     # Parked because nobody holds the agent: a refusal now, not a wait until the tool's deadline.
@@ -292,7 +295,7 @@ async def run_tool(
 @router.post("/v1/calls/{call}/recording/key")
 async def recording_key(call: str, key: WorkerKey, gateway: GatewayDep) -> RecordingKeyResponse:
     """The key the call's recording is sealed under, made once for the call."""
-    served = _orgs_call(gateway, key, call)
+    served = await _known(gateway, key, call)
     connections = gateway.connections
     found = await recording_keys.key_for(
         connections.pool, connections.vault, served.scope.org, call
@@ -306,14 +309,14 @@ async def recording_key(call: str, key: WorkerKey, gateway: GatewayDep) -> Recor
 @router.get("/v1/calls/{call}/commands")
 async def stream_commands(call: str, key: WorkerKey, gateway: GatewayDep) -> StreamingResponse:
     """The app's commands for the call, in order, until it is sealed."""
-    served = _orgs_call(gateway, key, call)
+    served = await _known(gateway, key, call)
     return streamed(_commanded(served.commands), gateway.closing)
 
 
 @router.get("/v1/calls/{call}/judging")
 async def call_judging(call: str, key: WorkerKey, gateway: GatewayDep) -> JudgingSettings:
     """Whether the call's org judges its calls at hang-up."""
-    served = _orgs_call(gateway, key, call)
+    served = await _known(gateway, key, call)
     pool = gateway.connections.pool
     on = await orgs.judged(pool, served.scope.org)
     return JudgingSettings(on=on, ceiling_usd=judge_ceiling(await catalog.providers(pool)))
@@ -325,7 +328,7 @@ async def lookup(
     call: str, body: LookupRequest, key: WorkerKey, gateway: GatewayDep
 ) -> LookupResponse:
     """Recall or search for a call served here, answered as the model reads it."""
-    served = _orgs_call(gateway, key, call)
+    served = await _known(gateway, key, call)
     started = time.perf_counter()
     output = await looked_up(gateway.serving, served, body)
     return LookupResponse(output=output, took_ms=(time.perf_counter() - started) * 1000)
@@ -334,7 +337,7 @@ async def lookup(
 @router.post("/v1/calls/{call}/remember")
 async def remember(call: str, key: WorkerKey, gateway: GatewayDep) -> RememberResponse:
     """Write what the call taught into its contact's memory now, as the seal would."""
-    served = _orgs_call(gateway, key, call)
+    served = await _known(gateway, key, call)
     started = time.perf_counter()
     written = await remembered(gateway.serving, served)
     ops = 0 if written is None else len(written.op.facts)
@@ -347,7 +350,7 @@ async def claim_keypad_code(
     call: str, call_claim: CallClaim, key: WorkerKey, gateway: GatewayDep
 ) -> None:
     """The caller keyed a page's code: tie the call to it."""
-    served = _orgs_call(gateway, key, call)
+    served = await _known(gateway, key, call)
     if not await claim_code(gateway.codes, served, call_claim.code, via="keypad"):
         raise NotFound(_deps.NOBODY_ISSUED.format(code=call_claim.code, agent=served.agent))
 
@@ -481,14 +484,33 @@ def _call_corner(key: Acting, context: CallContext) -> Scope:
 
 # An id grants nothing: another org's or world's call is the same 404 as a call nobody opened.
 # The fleet's key serves every org of its world; a tenant's worker its own org alone.
-def _orgs_call(gateway: Gateway, key: Acting, call: str) -> Served:
+# A call this gateway serves, or one another gateway opened, served here from what was kept when
+# it opened: one read, the first time a door here asks. A call opened by a release that kept
+# nothing is the 404 a worker answers by saying the call again (`/reopened`).
+async def _known(gateway: Gateway, key: Acting, call: str) -> Served:
+    now = time.monotonic()
     served = gateway.live.calls.get(call)
+    if served is not None:
+        _yours(key, served.scope, call)
+        gateway.live.in_use(call, now)
+        return served
+    pool = gateway.connections.pool
+    kept = await queries.scope_of_call(pool, call)
+    if kept is None or kept.scope is None:
+        raise NotFound(NOT_OPEN.format(call=call))
+    _yours(key, kept.scope, call)
+    if kept.sealed:
+        raise Conflict(SEALED.format(call=call))
+    opening = await openings.opening_of(pool, call)
+    if opening is None:
+        raise NotFound(NOT_OPEN.format(call=call))
+    return first_seen(gateway.serving, opening.context, opening.config, kept.scope, now)
+
+
+def _yours(key: Acting, scope: Scope, call: str) -> None:
     fleet = THE_FLEET in key.bearer.key.scopes
-    if served is None or served.scope.env != key.env:
+    if scope.env != key.env or (not fleet and scope.org != key.org):
         raise NotFound(NOT_OPEN.format(call=call))
-    if not fleet and served.scope.org != key.org:
-        raise NotFound(NOT_OPEN.format(call=call))
-    return served
 
 
 # A call a dial placed already has its head: the worker opens it in the scope the head keeps, or
