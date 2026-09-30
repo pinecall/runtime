@@ -5,19 +5,30 @@ from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
-from pinecall.evals.case import GateKind, GateLine, gate_line, words_of
+from pinecall.evals.case import (
+    AGENT,
+    CALLER,
+    PUNCTUATION,
+    GateKind,
+    GateLine,
+    Role,
+    gate_line,
+    words_of,
+)
 from pinecall.log.reduce import interruption_delays, reduce, samples
 from pinecall.wire.events import (
     AgentTurnEnded,
+    CallEnded,
     ConfirmDeclined,
     ConfirmGranted,
     ConfirmRequest,
     ErrorEvent,
     ToolCall,
+    UserTurnEnded,
     event_of,
 )
 from pinecall.wire.frames import Entry
-from pinecall.wire.parts import ScoreVerdict
+from pinecall.wire.parts import EndedBy, ScoreVerdict
 from pinecall.wire.rest.evals import CheckVerdict
 
 # ungated and undeclared are apart from kept, so neither is ever read as a pass.
@@ -27,6 +38,10 @@ type ConsentOutcome = Literal["kept", "broken", "ungated", "undeclared"]
 CONFIRMATIONS: frozenset[str] = frozenset(
     {"confirm.request", "confirm.granted", "confirm.declined"}
 )
+
+
+# The entries the checks read, but the confirmations.
+READ: frozenset[str] = frozenset({"turn.agent", "turn.user", "tool.call", "error", "call.ended"})
 
 
 # This runtime writes no confirm.* yet: a call it wrote is reported, not failed.
@@ -73,6 +88,21 @@ NO_TALK_BUDGET = (
 NOTHING_TIMED = "no turn of this call said when anybody started and stopped speaking"
 
 
+NOTHING_CUT_OFF = "no reply of the agent's was cut off in this call"
+
+
+# A cut-off reply the caller said no words over (a cough, a false start) is livekit's to resume,
+# and one the caller hung up after has nothing left to answer: neither is judged.
+NOTHING_TO_ANSWER = (
+    "the caller cut the agent off {count} time(s) and said nothing it could answer, or hung up"
+)
+
+
+# The agent that starts its cut-off reply over, rather than answering, opens with the same
+# words: four in a row is not a coincidence of Spanish or English.
+STARTED_OVER_WORDS = 4
+
+
 # Seconds, under livekit's own metric names; a request may bring its own.
 DEFAULT_BUDGET: Mapping[str, float] = {
     "e2e_latency": 2.0,
@@ -100,6 +130,16 @@ class Failure:
 
 
 @dataclass(frozen=True)
+class Spoken:
+    """One finished turn in log order: whose, what, and whether the caller cut it off."""
+
+    seq: int
+    role: Role
+    text: str
+    interrupted: bool = False
+
+
+@dataclass(frozen=True)
 class Replayed:
     """A call as the code checks read it."""
 
@@ -109,6 +149,8 @@ class Replayed:
     # Tool calls and confirmations in seq order: consent is about their order.
     gate: tuple[GateLine, ...] = ()
     failures: tuple[Failure, ...] = ()
+    turns: tuple[Spoken, ...] = ()
+    ended_by: EndedBy | None = None
     # Each measure's values (reduce.MEASURES), per turn; talk_share is one value for the call, and
     # interruption_delay one per reply the caller cut off.
     latencies: Mapping[str, tuple[float, ...]] = field(default_factory=dict[str, tuple[float, ...]])
@@ -126,14 +168,21 @@ AS_A_STATUS: Mapping[ConsentOutcome, ScoreVerdict] = {
 def rebuild(entries: Sequence[Entry]) -> Replayed:
     """The call the checks read, folded from its entries."""
     spoken: list[str] = []
+    turns: list[Spoken] = []
     gate: list[GateLine] = []
     failures: list[Failure] = []
+    ended_by: EndedBy | None = None
     for entry in entries:
-        if entry.type not in {"turn.agent", "tool.call", "error", *CONFIRMATIONS}:
+        if entry.type not in {*READ, *CONFIRMATIONS}:
             continue
         match event_of(entry):
             case AgentTurnEnded() as turn:
                 spoken.append(turn.text)
+                turns.append(Spoken(entry.seq, AGENT, turn.text, turn.interrupted))
+            case UserTurnEnded() as heard:
+                turns.append(Spoken(entry.seq, CALLER, heard.text))
+            case CallEnded() as over:
+                ended_by = over.ended_by
             case ToolCall() as tool:
                 gate.append(GateLine(entry.seq, "tool.call", tool.call_id, tool.name))
             case ConfirmRequest() | ConfirmGranted() | ConfirmDeclined() as confirmation:
@@ -152,6 +201,8 @@ def rebuild(entries: Sequence[Entry]) -> Replayed:
         said=tuple(spoken),
         gate=tuple(gate),
         failures=tuple(failures),
+        turns=tuple(turns),
+        ended_by=ended_by,
         latencies={name: tuple(values) for name, values in measured.items()},
     )
 
@@ -277,6 +328,40 @@ def talk(call: Replayed, budget: Mapping[str, float]) -> CheckVerdict:
     return CheckVerdict(check="talk", status="broken" if over else "held", detail=detail)
 
 
+# Only the replies the caller cut off with words are judged: those words want an answer.
+def interruptions(call: Replayed) -> CheckVerdict:
+    """Each reply the caller cut off, followed by the agent answering them, not starting over."""
+    cut = [index for index, line in enumerate(call.turns) if line.interrupted]
+    if not cut:
+        return CheckVerdict(check="interruptions", status="skipped", detail=NOTHING_CUT_OFF)
+    faults: list[str] = []
+    answered = unanswerable = 0
+    for index in cut:
+        found = _answer_to(call, index)
+        if found is None:
+            unanswerable += 1
+            continue
+        heard, answer = found
+        if answer is None:
+            faults.append(f"the caller cut in at seq {heard.seq} and the agent never answered")
+        elif _started_over(call.turns[index].text, answer.text):
+            faults.append(
+                f"the reply at seq {answer.seq} started over the one cut off at seq "
+                f"{call.turns[index].seq} instead of answering the caller at seq {heard.seq}"
+            )
+        else:
+            answered += 1
+    if faults:
+        return CheckVerdict(check="interruptions", status="broken", detail="; ".join(faults))
+    if not answered:
+        detail = NOTHING_TO_ANSWER.format(count=unanswerable)
+        return CheckVerdict(check="interruptions", status="skipped", detail=detail)
+    detail = (
+        f"the agent stopped and answered the caller each of the {answered} time(s) it was cut off"
+    )
+    return CheckVerdict(check="interruptions", status="held", detail=detail)
+
+
 def replay(
     entries: Sequence[Entry],
     *,
@@ -284,7 +369,7 @@ def replay(
     budget: Mapping[str, float],
     irreversible: Collection[str] | None,
 ) -> list[CheckVerdict]:
-    """The five checks over a finished call: consent, register, errors, latency, talk."""
+    """The six checks over a finished call: consent, register, errors, latency, talk, barge-ins."""
     call = rebuild(entries)
     return [
         consent(call, irreversible),
@@ -292,6 +377,7 @@ def replay(
         errors(call),
         latency(call, budget or DEFAULT_BUDGET),
         talk(call, budget),
+        interruptions(call),
     ]
 
 
@@ -324,3 +410,28 @@ def _first(about: Sequence[GateLine], kind: GateKind) -> GateLine | None:
 
 def _failed(failure: Failure) -> str:
     return f"seq {failure.seq} {failure.code}: {failure.message}"
+
+
+# The caller's next words after the cut, and the agent's next reply after them: None when the
+# agent spoke again before the caller said anything, or the caller hung up with no reply owed.
+def _answer_to(call: Replayed, index: int) -> tuple[Spoken, Spoken | None] | None:
+    after = call.turns[index + 1 :]
+    heard = next(iter(after), None)
+    if heard is None or heard.role != CALLER:
+        return None
+    answer = next((line for line in after if line.role == AGENT), None)
+    if answer is None and call.ended_by == "caller":
+        return None
+    return heard, answer
+
+
+def _started_over(cut_off: str, answer: str) -> bool:
+    opening = _words_in_order(cut_off)[:STARTED_OVER_WORDS]
+    return (
+        len(opening) == STARTED_OVER_WORDS
+        and _words_in_order(answer)[:STARTED_OVER_WORDS] == opening
+    )
+
+
+def _words_in_order(text: str) -> list[str]:
+    return [word.strip(PUNCTUATION).casefold() for word in text.split() if word.strip(PUNCTUATION)]

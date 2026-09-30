@@ -6,7 +6,7 @@ from pinecall.domain.errors import Conflict
 from pinecall.domain.scope import Scope
 from pinecall.evals import runs
 from pinecall.evals.case import case_of
-from pinecall.evals.judges import golden_judges
+from pinecall.evals.goldens import golden_judges
 from pinecall.evals.runs import Runner, cell_of, matrix_of, score
 from pinecall.postgres.pool import Pool
 from pinecall.wire.parts import ModelConfig

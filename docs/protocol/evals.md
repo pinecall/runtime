@@ -81,6 +81,7 @@ open. A model that is unsure scores a half and never passes.
 | `heard` | a golden with lines | code: every line reached the agent |
 | `tools` · `not_tools` | `expect.tools`, `expect.not_tools` | code, the second naming the seq of the call that ran |
 | `silence` · `says` | `expect.not`, `expect.says` | code, case-blind; the turn is named |
+| `says_any` | `expect.says_any` | code, case-blind: any one of the phrases is enough, for an expectation with several right answers (`de 9 a 14`, `de nueve a dos`); the reason names the one said, or every one when none was |
 | `grounded` | `expect.grounded`, and at hang-up | every price, hour, date and name stated is in the evidence of its scope (prices in the text shown, the rest in tool answers and states); what code cannot match goes to the model |
 | `register` | `expect.register` | code: no word of the other register (`tú`, `usted`) |
 | `replies` | `expect.replies` | code: the agent's turn after each fact names what it carried, or does not |
@@ -93,10 +94,11 @@ open. A model that is unsure scores a half and never passes.
 
 ## A finished call
 
-`POST /v1/evals/replay/{call}` `{banned?, budget?}` runs five checks by code alone: consent,
+`POST /v1/evals/replay/{call}` `{banned?, budget?}` runs six checks by code alone: consent,
 the banned words, the errors the session did not recover from, each latency's **worst turn**
 against the budget (seconds, under livekit's names; the default is 2 s end to end, 1 s to the
-model's first token, 0.6 s to the voice's first byte), and how much of the talking the agent did.
+model's first token, 0.6 s to the voice's first byte), how much of the talking the agent did,
+and how it took being interrupted.
 A call nobody wrote and another org's are the same `404`.
 
 Two of the budget's keys are the runtime's own measures. `dead_air` is the silence between the
@@ -107,6 +109,13 @@ part of the time anybody spoke on the call, 0 to 1, and is judged by the `talk` 
 obeyed: from the caller starting to speak over the agent to the agent leaving `speaking`, one
 value per reply written as interrupted, read off `user.state` and `agent.state`. None of the three
 has a default: a budget that leaves them out does not judge them.
+
+`interruptions` reads every reply of the agent's written as interrupted: the caller's words that
+cut it off must be followed by a reply of the agent's, and that reply must not start over the one
+cut off (its first four words the same as the cut reply's). A reply the agent went on with before
+the caller said anything (a cough, a false start: livekit resumes it) and a caller who hung up
+after cutting in are not judged; a call where nothing was cut off, or nothing cut off wanted an
+answer, is `skipped`. The detail names the seqs of the cut reply, the caller's words and the reply.
 
 ```json
 {"call": "call_…", "agent": "recepcion", "passed": true,
