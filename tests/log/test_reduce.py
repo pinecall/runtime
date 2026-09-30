@@ -519,18 +519,37 @@ def test_the_metered_types_are_the_summary_and_the_score_and_nothing_else() -> N
 GOLDEN_TURNS = reduce(GOLDEN).turns
 
 
-def test_the_medians_are_the_five_measures_over_the_turns_that_carried_them() -> None:
-    rows = {median.name: (median.seconds, median.turns) for median in medians(GOLDEN_TURNS)}
+def test_the_medians_are_the_seven_measures_over_the_turns_that_carried_them() -> None:
+    rows = {median.name: (median.seconds, median.turns) for median in medians([GOLDEN_TURNS])}
     assert list(rows) == list(MEASURES)
     assert rows["e2e_latency"] == (0.94, 5)
+    assert (round(rows["dead_air"][0], 2), rows["dead_air"][1]) == (0.94, 5)
+    assert (round(rows["talk_share"][0], 2), rows["talk_share"][1]) == (0.75, 1)
+
+
+def test_dead_air_pairs_a_reply_with_its_own_caller_and_never_one_it_talked_over() -> None:
+    def turn(role: str, started: float, stopped: float) -> UserTurn | AgentTurn:
+        timing = {"started_speaking_at": started, "stopped_speaking_at": stopped}
+        if role == "user":
+            return UserTurn.model_validate({"speech_id": "u", "text": "a", "metrics": timing})
+        return AgentTurn.model_validate(
+            {"speech_id": "a", "text": "b", "interrupted": False, "metrics": timing}
+        )
+
+    first = [turn("user", 0.0, 2.0), turn("agent", 3.0, 4.0), turn("user", 5.0, 6.0)]
+    second = [turn("agent", 100.0, 101.0), turn("user", 102.0, 104.0), turn("agent", 103.5, 105.0)]
+    rows = {median.name: (median.seconds, median.turns) for median in medians([first, second])}
+    assert rows["dead_air"] == (1.0, 1)
+    assert samples(first)["talk_share"] == [1.0 / 4.0]
 
 
 def test_a_measure_no_turn_carried_gets_no_row_at_all() -> None:
     callers = [turn for turn in GOLDEN_TURNS if isinstance(turn, UserTurn)]
-    assert [median.name for median in medians(callers)] == [
-        "transcription_delay",
-        "end_of_turn_delay",
-    ]
+    rows = {median.name: median.seconds for median in medians([callers])}
+    # Only the caller spoke: the agent's share of the talking is nothing, and no reply means no
+    # dead air.
+    assert list(rows) == ["transcription_delay", "end_of_turn_delay", "talk_share"]
+    assert rows["talk_share"] == 0.0
 
 
 def test_a_sample_keeps_every_value_in_turn_order_and_drops_the_measures_nobody_took() -> None:

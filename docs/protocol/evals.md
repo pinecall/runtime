@@ -93,10 +93,18 @@ open. A model that is unsure scores a half and never passes.
 
 ## A finished call
 
-`POST /v1/evals/replay/{call}` `{banned?, budget?}` runs four checks by code alone: consent,
-the banned words, the errors the session did not recover from, and each latency's median against
-the budget (seconds, under livekit's names; the default is 2 s end to end). A call nobody wrote
-and another org's are the same `404`.
+`POST /v1/evals/replay/{call}` `{banned?, budget?}` runs five checks by code alone: consent,
+the banned words, the errors the session did not recover from, each latency's **worst turn**
+against the budget (seconds, under livekit's names; the default is 2 s end to end, 1 s to the
+model's first token, 0.6 s to the voice's first byte), and how much of the talking the agent did.
+A call nobody wrote and another org's are the same `404`.
+
+Two of the budget's keys are the runtime's own measures. `dead_air` is the silence between the
+caller stopping and the agent starting, one value per reply that followed the caller; a reply that
+started before the caller stopped talked over them and is not counted. `talk_share` is the agent's
+part of the time anybody spoke on the call, 0 to 1, and is judged by the `talk` check, which is
+`skipped` when the budget names none. Neither has a default: a budget that leaves them out does
+not judge them.
 
 ```json
 {"call": "call_…", "agent": "recepcion", "passed": true,
