@@ -44,7 +44,6 @@ from pinecall.providers.credentials import Keyring, thinking
 from pinecall.providers.declared import model_of
 from pinecall.tenancy import judges, personas, tokens
 from pinecall.tenancy.keys import check_agent
-from pinecall.wire.events import CallScore
 from pinecall.wire.parts import ModelConfig
 from pinecall.wire.rest.evals import (
     CallerPersona,
@@ -61,6 +60,7 @@ from pinecall.wire.rest.evals import (
     RunSuiteRequest,
     ScoreRow,
 )
+from pinecall.wire.scores import CallScore
 
 router = APIRouter()
 

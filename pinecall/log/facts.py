@@ -15,7 +15,6 @@ from pinecall.wire.events import (
     CallDialing,
     CallEnded,
     CallRinging,
-    CallScore,
     CallStarted,
     CallSummary,
     RoomOpened,
@@ -23,6 +22,7 @@ from pinecall.wire.events import (
     event_of,
 )
 from pinecall.wire.frames import Entry, WireModel
+from pinecall.wire.scores import CallScore
 
 # The judge whose broken verdict raises the promise flag (evals/judges.py).
 PROMISES = "promises"

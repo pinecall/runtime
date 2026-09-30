@@ -11,9 +11,10 @@ from pinecall.domain.errors import Conflict, NotAvailable
 from pinecall.gateway._served import Serving
 from pinecall.gateway.ending.seal import summed_up
 from pinecall.log import queries
-from pinecall.wire.events import CallEnded, CallScore
+from pinecall.wire.events import CallEnded
 from pinecall.wire.parts import EndReason
 from pinecall.wire.rest.calls import SealCallRequest
+from pinecall.wire.scores import CallScore
 
 logger = logging.getLogger(__name__)
 

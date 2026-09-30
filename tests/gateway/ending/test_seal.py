@@ -23,10 +23,10 @@ from pinecall.retrieval import memory
 from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy import admission, consents, judges, orgs
 from pinecall.tenancy.consents import Given
-from pinecall.wire.events import CallScore
 from pinecall.wire.frames import Entry
 from pinecall.wire.metrics import LLMModelUsage
 from pinecall.wire.rest.calls import SealCallRequest
+from pinecall.wire.scores import CallScore
 from tests.conftest import configured, postgres
 from tests.fakes.embeddings import Embeddings
 from tests.gateway.conftest import AGENT, OURS, a_call, a_start

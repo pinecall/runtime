@@ -19,7 +19,6 @@ from pinecall.wire.events import (
     CallEnded,
     CallLine,
     CallRinging,
-    CallScore,
     CallStarted,
     CallSummary,
     CallTransferred,
@@ -63,6 +62,7 @@ from pinecall.wire.metrics import (
     VADMetrics,
 )
 from pinecall.wire.parts import ToolResult
+from pinecall.wire.scores import CallScore
 from pinecall.wire.state import (
     AgentTurn,
     AttentionState,
