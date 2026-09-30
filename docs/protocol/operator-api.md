@@ -58,7 +58,8 @@ Four rows of `box_settings`, each read and written whole, the console's box scre
 ## Quotas and dial guards
 
 `PUT /v1/ops/orgs/{named}/quotas {env, quotas: {limits: {minutes, messages, agents,
-concurrent_calls, memory_facts, knowledge_chunks, numbers, seats, llm_tokens}, budget_usd, lends}}`
+concurrent_calls, memory_facts, knowledge_chunks, numbers, seats, llm_tokens, hosted_apps},
+budget_usd, lends}}`
 replaces the org's limits **in one world**, whole: a limit left out is no limit, `lends` null lends
 every key the box holds, `[]` none, else vendors or `vendor/model`. They bite the next call and
 the next register. `budget_usd` is whole dollars a calendar month, shown beside what was spent,
@@ -84,8 +85,8 @@ mean is [limits.md](../limits.md).
 ## Keys
 
 - `POST /v1/ops/orgs/{named}/keys {env, label?, scopes?, subject?, name?}`: a key of the org in
-  the world named, `pc_live_` or `pc_test_`, answered this once; every scope but `fleet` when
-  `scopes` is left out; `subject` and `name` make it a person's key.
+  the world named, `pc_live_` or `pc_test_`, answered this once; every scope but `fleet` and
+  `runner` when `scopes` is left out; `subject` and `name` make it a person's key.
 - `GET /v1/ops/orgs/{named}/keys`: every key by fingerprint, the revoked ones said; never a key.
 - `POST /v1/ops/keys/{fingerprint}/revoke`: stops the key from the next request; the row stays, so
   the entries that name it still read.

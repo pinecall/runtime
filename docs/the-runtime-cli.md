@@ -9,17 +9,20 @@ writes an agent, nothing there issues a key.
 
 | group | speaks to |
 |---|---|
-| `gateway` · `worker` · `doctor` · `providers` | this machine: its settings, its database, its LiveKit |
+| `gateway` · `worker` · `runner` · `doctor` · `providers` | this machine: its settings, its database, its LiveKit |
 | `migrate` · `sessions` · `memory` · `retention` · `traceback` | Postgres, straight, over `DATABASE_URL` |
 | `box up` · `box upgrade` | this machine as root: it made a box from the package itself |
-| `init` · `orgs` · `keys` · `routes` · `fleet` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` alone is minted on the database, before any gateway answers |
+| `init` · `orgs` · `keys` · `routes` · `fleet` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` and `keys runner` alone are minted on the database, before any gateway answers |
 
-## `gateway` · `worker start` · `worker overflow`
+## `gateway` · `worker start` · `worker overflow` · `runner start`
 
 `gateway` serves both worlds on the loopback address `PINECALL_GATEWAY_URL` names, behind Caddy;
 a URL that is not loopback is refused in one sentence. `worker start` is a worker of the fleet
 `PINECALL_FLEET` names, until told to stop or cordoned; `worker overflow` the one that answers when
-the fleet is full. Every variable they read is [the-environment.md](the-environment.md).
+the fleet is full. `runner start` keeps the hosted apps of the world its `PINECALL_RUNNER_KEY`
+opens running, one gVisor container each, on a machine that is not the box
+([../infra/apps/README.md](../infra/apps/README.md)). Every variable they read is
+[the-environment.md](the-environment.md).
 
 ## `box up` · `box upgrade`
 
@@ -68,10 +71,12 @@ what `ps` shows.
 ```
 keys issue [--org <org>] --env production|sandbox [--label "…"] [--scope <scope>]… [--subject <member>] [--name "…"]
 keys list [--org <org>] · keys revoke <fingerprint> · keys fleet production|sandbox
+keys runner production|sandbox
 ```
 
 `issue` prints the key once; the table keeps the fingerprint. `fleet` mints a world's fleet key on
-the database, printed once where the unit that seals it reads it.
+the database, printed once where the unit that seals it reads it; `runner` mints the key of the
+world's runner the same way ([protocol/hosting.md](protocol/hosting.md)).
 
 ## `routes`
 

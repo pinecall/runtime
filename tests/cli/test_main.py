@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from pinecall.cli import main as cli
-from pinecall.cli._operator import fleet_key
+from pinecall.cli._operator import fleet_key, runner_key
 from pinecall.cli.main import (
     doctor,
     gateway,
@@ -73,6 +73,19 @@ def test_a_migrated_database_mints_a_fleet_key_printed_once_and_nothing_else(
     assert fleet_key(settings, argparse.Namespace(env="sandbox")) == 0
     printed = capsys.readouterr().out
     assert printed.startswith("pc_test_")
+    assert "\n" not in printed
+
+
+@postgres
+def test_a_migrated_database_mints_a_runner_key_printed_once_and_nothing_else(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    settings = Settings.model_validate({"DATABASE_URL": DSN})
+    assert migrate_up(settings, argparse.Namespace()) == 0
+    capsys.readouterr()
+    assert runner_key(settings, argparse.Namespace(env="production")) == 0
+    printed = capsys.readouterr().out
+    assert printed.startswith("pc_live_")
     assert "\n" not in printed
 
 

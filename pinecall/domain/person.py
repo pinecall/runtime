@@ -9,7 +9,8 @@ from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import AN_ADDRESS, PRODUCTION, Env
 
 # Every gateway door belongs to exactly one scope; `fleet` is the box's worker, resolved per call
-# instead of per key org, and only `keys issue --scope fleet` grants it.
+# instead of per key org, and only `keys issue --scope fleet` grants it. `runner` is the box's
+# own too: the process that runs every org's hosted apps, handed their tokens and secrets.
 type KeyScope = Literal[
     "app",
     "calls",
@@ -26,6 +27,7 @@ type KeyScope = Literal[
     "usage",
     "words",
     "fleet",
+    "runner",
 ]
 
 
@@ -98,10 +100,14 @@ EVERY_SCOPE: tuple[KeyScope, ...] = (
     "usage",
     "words",
     "fleet",
+    "runner",
 )
 
 
 THE_FLEET: KeyScope = "fleet"
+
+
+THE_RUNNER: KeyScope = "runner"
 
 
 HOLDING: KeyScope = "app"
@@ -113,8 +119,8 @@ THE_TEAM: KeyScope = "team"
 THE_KEYS: KeyScope = "keys"
 
 
-# Default scopes: every scope except fleet.
-KEY_SCOPES: frozenset[KeyScope] = frozenset(EVERY_SCOPE) - {THE_FLEET}
+# Default scopes: every scope except the box's own two.
+KEY_SCOPES: frozenset[KeyScope] = frozenset(EVERY_SCOPE) - {THE_FLEET, THE_RUNNER}
 
 
 # Doors take the org only from this record, never from the request.
