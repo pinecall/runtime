@@ -40,10 +40,10 @@ from pinecall.evals.compliance import Compliance, Panel
 from pinecall.providers import prices
 from pinecall.providers.build import Running, a_mapping, completion_usage, llm_of
 from pinecall.providers.catalog import Providers
-from pinecall.wire.events import CallScore, Judgment, JudgmentEvidence
 from pinecall.wire.frames import Entry
 from pinecall.wire.metrics import LLMModelUsage
 from pinecall.wire.rest.evals import Golden, Register
+from pinecall.wire.scores import CallScore, Judgment, JudgmentEvidence
 
 logger = logging.getLogger(__name__)
 

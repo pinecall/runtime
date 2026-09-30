@@ -23,10 +23,11 @@ from pinecall.retrieval import extraction, lookups, memory
 from pinecall.retrieval.extraction import MemoryWrite
 from pinecall.tenancy import admission, consents, disclosure, orgs, policy, vault
 from pinecall.tenancy.judges import StoredJudge, for_call
-from pinecall.wire.events import CallEnded, CallScore, CallSummary, ErrorEvent, MemoryOps
+from pinecall.wire.events import CallEnded, CallSummary, ErrorEvent, MemoryOps
 from pinecall.wire.frames import Entry
 from pinecall.wire.parts import MemoryOp
 from pinecall.wire.rest.calls import SealCallRequest
+from pinecall.wire.scores import CallScore
 from pinecall.wire.state import AgentTurn
 
 logger = logging.getLogger(__name__)
