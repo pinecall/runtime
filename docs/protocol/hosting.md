@@ -12,6 +12,11 @@ with is the org's secrets, its token and the world's address, and the command is
 `pinecall start` (`--prod` in production): a hosted project is a Node project with `pinecall` in
 its dependencies.
 
+From a terminal, the doors are two verbs of the `pinecall` CLI (0.9.10 and later):
+`pinecall deploy` packs the folder (never `node_modules` or a `.env`), uploads it and follows it
+until it is live or failed, with `list`, `releases`, `rollback <n>` and `rm`; `pinecall secrets`
+sets, lists and drops the org's secrets. Their page is the agents repo's `docs/the-cli.md`.
+
 ## An app and its releases
 
 | door | what |

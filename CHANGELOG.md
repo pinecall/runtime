@@ -212,3 +212,7 @@ console and the widget inside; `docs/from-zero.md` walks a box to its first call
   stops the release it replaced only then; one that does not install, exits or never registers is
   reported failed with its last lines, and the one before keeps serving. `PINECALL_RUNNER_KEY`,
   `PINECALL_RUNNER_ROOT`, `PINECALL_RUNNER_IMAGE`, `PINECALL_RUNNER_RUNTIME`.
+- Each runner sees only its world's containers (`pinecall.world`), so two share a machine; an app's
+  network is DNS-less and on a bridge of the runner's own (`pca…`), the only one the fence matches;
+  the install's HOME is a scratch folder on disk. Found putting northwind and clinica-norte on the
+  first apps machine. From a terminal: `pinecall deploy` and `pinecall secrets` (pinecall 0.9.10).
