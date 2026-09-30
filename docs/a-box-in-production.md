@@ -124,6 +124,23 @@ subprocessor: the Privacy Policy's table names every one, and it is edited by ha
 change. The journal keeps a month
 (`journald.conf.d/pinecall.conf`, 1 GB at most) and Caddy writes no access log.
 
+### Recordings, off the disk
+
+A recording is the file egress writes under `/var/lib/pinecall/recordings/<call>/`. With
+`PINECALL_RECORDINGS_BUCKET=<bucket>` in `/etc/pinecall/backup.env` (read by the gateway, the
+workers and the retention run; restart them after adding it), the worker uploads that file to
+`gs://<bucket>/<org>/<call>/audio.ogg` with the VM's own identity before it seals the call, and
+removes it from the disk. `GET /v1/calls/{call}/recording` then reads it from the bucket with the
+player's byte range, so any gateway serves it and it outlives the machine that took the call. A
+recording whose upload failed stays on the disk, the worker's journal says `the recording of
+<call> stays on this disk`, and the door serves it from there, as it does every recording made
+before the bucket was set. Erasing a call, a contact or an org, and the nightly retention, delete
+the object as well as any file left. It is a bucket of its own, not the backup's: it has no
+lifecycle rule (each org's `retention_days` is the rule, and the backup bucket's 35 days would
+forget what an org keeps longer), and the VM's identity needs `roles/storage.objectUser` on it
+(create, read, delete). The nightly tar then holds only what is still on the disk. Unset, nothing
+changes.
+
 ### Backups
 
 `pinecall-backup.timer` runs `infra/box/backup.sh` at 03:00: `pg_dump -Fc` of the database, read

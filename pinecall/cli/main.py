@@ -22,6 +22,7 @@ from pinecall.gateway.app import announce_closing, app, embedder_of
 from pinecall.postgres.migrate import apply_migrations, migration_files, migrations_behind
 from pinecall.postgres.pool import open_pool
 from pinecall.process.connections import opened, server_of, vault_of
+from pinecall.process.recordings import recordings_of
 from pinecall.process.settings import Settings, load
 from pinecall.providers import catalog, prices
 from pinecall.providers.build import installed
@@ -321,7 +322,8 @@ async def _purged(settings: Settings) -> tuple[list[str], int, int]:
     pool = await open_pool(settings.database_url)
     now = time.time()
     try:
-        erased = await retention.purge(pool, Path(settings.recordings_root), now)
+        async with httpx.AsyncClient() as http:
+            erased = await retention.purge(pool, recordings_of(settings, http), now)
         records = await retention.forget_records(pool, now)
         return erased, records, await retention.forget_dials(pool, now)
     finally:

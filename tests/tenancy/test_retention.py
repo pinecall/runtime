@@ -5,6 +5,7 @@ from pathlib import Path
 from pinecall.domain.scope import Scope
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
+from pinecall.process.recordings import Disk
 from pinecall.tenancy import erasure, policy, retention, traceback
 from pinecall.wire.rest.accounts import OrgPolicy
 from tests.conftest import postgres
@@ -55,13 +56,13 @@ async def test_the_run_erases_what_is_due_through_the_trail_as_retention(
     second = await logged_call(store, org.id)
     await policy.put_policy(pool, org.id, OrgPolicy(retention_days=7), by="m_1")
 
-    erased = await retention.purge(pool, tmp_path, DAYS_LATER)
+    erased = await retention.purge(pool, Disk(tmp_path), DAYS_LATER)
 
     assert sorted(erased) == sorted([first, second])
     assert await store.whole(first) == []
     trail = await erasure.trail(pool, org.id)
     assert {(row.what, row.asked_by) for row in trail} == {("call", "retention")}
-    assert await retention.purge(pool, tmp_path, DAYS_LATER) == []
+    assert await retention.purge(pool, Disk(tmp_path), DAYS_LATER) == []
 
 
 async def test_a_run_stops_at_its_limit_and_the_next_one_takes_the_rest(
@@ -70,8 +71,8 @@ async def test_a_run_stops_at_its_limit_and_the_next_one_takes_the_rest(
     org = await an_org(pool)
     calls = [await logged_call(store, org.id) for _ in range(3)]
     await policy.put_policy(pool, org.id, OrgPolicy(retention_days=1), by="m_1")
-    assert len(await retention.purge(pool, tmp_path, DAYS_LATER, limit=2)) == 2
-    assert len(await retention.purge(pool, tmp_path, DAYS_LATER, limit=2)) == 1
+    assert len(await retention.purge(pool, Disk(tmp_path), DAYS_LATER, limit=2)) == 2
+    assert len(await retention.purge(pool, Disk(tmp_path), DAYS_LATER, limit=2)) == 1
     for call in calls:
         assert await store.whole(call) == []
 
@@ -94,7 +95,7 @@ async def test_an_erased_calls_record_is_kept_24_months_and_then_forgotten(
 ) -> None:
     org = await an_org(pool)
     call = await logged_call(store, org.id, ACall(caller="+34600555666"))
-    await erasure.call(pool, tmp_path, Scope(org.id), call, by="m_1")
+    await erasure.call(pool, Disk(tmp_path), Scope(org.id), call, by="m_1")
     await retention.forget_records(pool, 1.0 + 700 * A_DAY_S)
     assert [kept.call for kept in (await traceback.of_number(pool, "+34600555666", 0)).calls] == [
         call

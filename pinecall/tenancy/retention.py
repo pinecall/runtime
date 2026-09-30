@@ -1,11 +1,11 @@
 """Retention: calls past their org's days (policy.py); call records and dials past 24 months."""
 
 from dataclasses import dataclass
-from pathlib import Path
 
 from pinecall.domain.names import parse_env
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
+from pinecall.process.recordings import Recordings
 from pinecall.tenancy import erasure
 
 # Sealed calls only: a call still running is the caller's, not the calendar's. Oldest first, so a
@@ -61,7 +61,7 @@ async def due(pool: Pool, now: float, *, limit: int = A_RUN_ERASES) -> list[Due]
 
 
 async def purge(
-    pool: Pool, recordings: Path, now: float, *, limit: int = A_RUN_ERASES
+    pool: Pool, recordings: Recordings, now: float, *, limit: int = A_RUN_ERASES
 ) -> list[str]:
     """Erase every call past its org's days, one erasure each; the calls erased."""
     erased: list[str] = []
