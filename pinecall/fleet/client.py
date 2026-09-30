@@ -56,6 +56,10 @@ A_FILE_S = 15.0
 # knock waits all of it: a seal writes memory and asks the judges, which outlast TIMEOUT_S.
 SEALED_WITHIN_S = 30.0
 
+# The header a balancer keeps a call's requests on one gateway by: `/v1/calls/{call}/...`.
+CALL_HEADER = "Pinecall-Call"
+CALL_AT = 3
+
 
 # A restarting gateway is back in seconds; the cap keeps the log catching up after it.
 FIRST_WAIT_S = 0.5
@@ -309,7 +313,7 @@ class GatewayClient:
                 json=data,
                 timeout=wait_s or TIMEOUT_S,
                 params=params or None,
-                headers=traced(),
+                headers={**traced(), **affine(path)},
             )
         except httpx.HTTPError as unreachable:
             raise GatewayRefused(f"{method} {path}: {unreachable}") from unreachable
@@ -340,7 +344,7 @@ class GatewayClient:
     async def _streamed(self, path: str) -> AsyncIterator[JsonObject]:
         try:
             async with self.http.stream(
-                "GET", path, headers={"Accept": EVENT_STREAM}, timeout=STREAMED
+                "GET", path, headers={"Accept": EVENT_STREAM, **affine(path)}, timeout=STREAMED
             ) as stream:
                 if stream.status_code >= httpx.codes.BAD_REQUEST:
                     raise GatewayRefused(
@@ -419,6 +423,17 @@ def traced() -> dict[str, str]:
     carried: dict[str, str] = {}
     propagate.inject(carried)
     return carried
+
+
+# A box of several gateways hashes this header at its balancer, so a call's doors land on one
+# gateway while it lives: its first sights, its sequencer's fills and its writers stay rare. Only
+# a speed-up: any gateway serves any door, and an old worker sends none.
+def affine(path: str) -> dict[str, str]:
+    """The header naming the call a door is about, when its path names one."""
+    parts = path.split("/")
+    if len(parts) > CALL_AT and parts[1:CALL_AT] == ["v1", "calls"] and parts[CALL_AT]:
+        return {CALL_HEADER: parts[CALL_AT]}
+    return {}
 
 
 def _scope_headers(scope: Scope | None) -> dict[str, str]:

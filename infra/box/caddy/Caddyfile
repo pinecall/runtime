@@ -2,6 +2,20 @@
 # caddy drop-in install.sh writes. Media does not pass here. A site of something else that runs
 # beside the runtime on this box goes in conf.d/, which no deploy of the runtime touches.
 import /etc/caddy/conf.d/*.caddy
+
+# The gateways: a call's requests go to one while it lives (the worker names the call in
+# Pinecall-Call, hashed so a gateway gone moves only its own calls), a request with none to any;
+# one restarting is stepped over for as long as it takes, the request tried on the other.
+(gateways) {
+	reverse_proxy 127.0.0.1:8080 127.0.0.1:8081 {
+		lb_policy header Pinecall-Call
+		lb_try_duration 10s
+		lb_try_interval 250ms
+		fail_duration 5s
+		health_uri /
+		health_interval 2s
+	}
+}
 {$PINECALL_DOMAINS} {
 	# LiveKit's signalling, and /agent for a worker on a machine of its own.
 	@livekit path /rtc* /twirp* /validate* /agent*
@@ -9,6 +23,11 @@ import /etc/caddy/conf.d/*.caddy
 		reverse_proxy 127.0.0.1:7880
 	}
 	handle {
-		reverse_proxy 127.0.0.1:8080
+		import gateways
 	}
+}
+
+# The box's own workers knock here, on loopback, not at a public name: the same two gateways.
+http://127.0.0.1:8088 {
+	import gateways
 }

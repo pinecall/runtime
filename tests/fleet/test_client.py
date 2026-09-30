@@ -20,7 +20,16 @@ from pinecall.domain.call import CallContext, Route, new_call_id
 from pinecall.domain.errors import GatewayRefused
 from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
-from pinecall.fleet.client import GatewayClient, again, away, gateway_at, server_sent, traced, waits
+from pinecall.fleet.client import (
+    GatewayClient,
+    affine,
+    again,
+    away,
+    gateway_at,
+    server_sent,
+    traced,
+    waits,
+)
 from pinecall.providers.credentials import Pipeline
 from pinecall.session.call import Writing
 from pinecall.tenancy import carriers
@@ -439,3 +448,10 @@ def test_the_workers_trace_rides_its_requests_to_the_gateway() -> None:
     finally:
         otel_context.detach(token)
     assert carried == {"traceparent": f"00-{0x1234:032x}-{0x5678:016x}-01"}
+
+
+def test_a_calls_doors_name_the_call_for_the_balancer_and_the_others_do_not() -> None:
+    assert affine("/v1/calls/CA_1/entries") == {"Pinecall-Call": "CA_1"}
+    assert affine("/v1/calls/CA_1") == {"Pinecall-Call": "CA_1"}
+    assert affine("/v1/calls") == {}
+    assert affine("/v1/fleet/heartbeat") == {}

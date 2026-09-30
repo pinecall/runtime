@@ -1,6 +1,8 @@
-# The one control plane of the box: both worlds, HTTP and WebSocket on loopback behind Caddy.
+# The box's control plane: both worlds, HTTP and WebSocket on loopback behind Caddy. Two
+# instances, pinecall-gateway@8080 and @8081, each its own process on its own port: any serves any
+# door, told what the other did through Redis, and a release restarts them one at a time.
 [Unit]
-Description=Pinecall gateway (both worlds: apps, calls, the log)
+Description=Pinecall gateway on port %i (both worlds: apps, calls, the log)
 Wants=network-online.target pinecall-migrate.service
 # Only ordered after Redis, never bound to it: a gateway whose Redis is away still serves.
 After=network-online.target pinecall-migrate.service pinecall-livekit.service pinecall-redis.service
@@ -10,9 +12,10 @@ User=pinecall
 Group=pinecall
 WorkingDirectory=/opt/pinecall
 Environment=LIVEKIT_URL=ws://127.0.0.1:7880
-Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
+Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:%i
 Environment=PINECALL_RECORDINGS=/var/lib/pinecall/recordings
-# LiveKit's Redis, published on loopback; database 1, so its keys are never among LiveKit's.
+# LiveKit's Redis, published on loopback; database 1, so its keys are never among LiveKit's. Two
+# gateways with no Redis would each serve alone: the second instance is enabled only once it is.
 Environment=PINECALL_REDIS_URL=redis://127.0.0.1:6379/1
 EnvironmentFile=/etc/pinecall/box.env
 # The operator's object store, when there is one: PINECALL_RECORDINGS_BUCKET moves recordings

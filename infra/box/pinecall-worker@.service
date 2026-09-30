@@ -4,8 +4,8 @@
 # it: two workers per world, so a release replaces one while the other takes the calls.
 [Unit]
 Description=Pinecall worker, fleet %i
-Wants=network-online.target pinecall-gateway.service pinecall-fleet-key@%i.service
-After=network-online.target pinecall-livekit.service pinecall-gateway.service pinecall-fleet-key@%i.service
+Wants=network-online.target pinecall-gateway@8080.service pinecall-fleet-key@%i.service
+After=network-online.target pinecall-livekit.service pinecall-gateway@8080.service pinecall-fleet-key@%i.service
 
 [Service]
 # Ready once LiveKit registered it and the gateway heard it: `systemctl restart` waits for that,
@@ -17,7 +17,8 @@ User=pinecall
 Group=pinecall
 WorkingDirectory=/opt/pinecall
 Environment=LIVEKIT_URL=ws://127.0.0.1:7880
-Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
+# Both gateways, through Caddy's loopback site: a release restarting one never stops a call.
+Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8088
 Environment=PINECALL_RECORDINGS=/var/lib/pinecall/recordings
 EnvironmentFile=/etc/pinecall/box.env
 # The operator's object store, when there is one: PINECALL_RECORDINGS_BUCKET moves recordings
