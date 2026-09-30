@@ -10,7 +10,7 @@ writes an agent, nothing there issues a key.
 | group | speaks to |
 |---|---|
 | `gateway` · `worker` · `runner` · `doctor` · `providers` | this machine: its settings, its database, its LiveKit |
-| `migrate` · `sessions` · `memory` · `retention` · `traceback` | Postgres, straight, over `DATABASE_URL` |
+| `migrate` · `sessions` · `memory` · `retention` · `traceback` · `facts` | Postgres, straight, over `DATABASE_URL` |
 | `box up` · `box upgrade` | this machine as root: it made a box from the package itself |
 | `init` · `orgs` · `keys` · `routes` · `fleet` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` and `keys runner` alone are minted on the database, before any gateway answers |
 | `load` | a running gateway's sandbox, over the worker's own call doors with the sandbox fleet's key (`PINECALL_WORKER_KEY`) |
@@ -143,7 +143,7 @@ a line each:
 | `logs verified` · `logs found wrong` · `logs unread` | each sealed call's log read back: every durable entry sent, once each, in order, and seqs that rose; `unread` counts the reads refused, by status: today every one (403), since a fleet key does not open `calls`, so only the seqs are checked |
 | `loop lag ms` | the p99 lag of the generator's own event loop; over 50 ms a `warning:` line follows, since a saturated generator measures itself |
 
-## `sessions` · `memory` · `retention` · `traceback` · `migrate` · `providers` · `doctor`
+## `sessions` · `memory` · `retention` · `traceback` · `facts` · `migrate` · `providers` · `doctor`
 
 `sessions list [--agent] [--limit]`, `sessions show <call> [--json]`, `sessions tail [<call>]`,
 `sessions recording <call>`: the log read back off Postgres, every tenant's; each read of a call is a row of its org's access log (`reader: operator`), and so is each org a `traceback` showed. `memory reembed`
@@ -162,5 +162,13 @@ runs and whether the box holds its key; `providers seed <file>` writes the provi
 starts from, once: after it, the console edits it at `/v1/ops/providers`. `providers prices
 <file.csv> [--apply]` says what a prices file changes in the row's rates (new, changed, the same,
 and the models only the box holds, which it keeps) and writes nothing until `--apply`; the box
-ships `infra/box/prices.csv`. `doctor` asks each thing the box needs one question, a line
-each, and exits 1 when one is missing; it is the last line of every deploy.
+ships `infra/box/prices.csv`. `facts rebuild [--call <call>] [--org <org id>] [--since
+YYYY-MM-DD]` folds each call's facts row (what the lists, the inbox and the insights read) again
+from its log, every call's when no flag is given, and writes the row where it differs: one call at
+a time, each in a transaction of its own under the lock its appends take, so a live call waits
+milliseconds and nothing holds a long transaction; it prints how many calls it read and how many
+rows it rewrote. `doctor` asks each thing the box needs one question, a line each, and exits 1
+when one is missing; it is the last line of every deploy. Its `facts` line names every log whose
+head gave out fewer seqs than its rows hold, and refolds 20 sealed calls from a random point of
+the call ids, naming each whose stored facts differ and the columns that do: `facts rebuild
+--call` mends one.
