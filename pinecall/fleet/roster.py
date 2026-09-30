@@ -165,16 +165,6 @@ def heard_lately(seat: WorkerStatus, now: float) -> bool:
     return now - seat.seen_at <= STALE_AFTER_S
 
 
-def accepting_now(seat: WorkerStatus, now: float) -> bool:
-    """Whether livekit would dispatch to it: up, not cordoned, not draining, under the line."""
-    return (
-        heard_lately(seat, now)
-        and not seat.cordoned
-        and not seat.draining
-        and seat.load < REFUSED_AT
-    )
-
-
 def failing(seat: WorkerStatus) -> bool:
     """Whether the worker's last minute is past the line: its calls fail, or its callers wait."""
     ended, failed = seat.ended or 0, seat.failed or 0
@@ -188,7 +178,7 @@ def failing(seat: WorkerStatus) -> bool:
 # never empties a fleet, so a box of one worker per world keeps counting its one.
 def accepting_of(seats: Iterable[WorkerStatus], now: float) -> list[WorkerStatus]:
     """The fleet's workers counted as accepting: up and under the line, and not failing."""
-    accepting = [seat for seat in seats if accepting_now(seat, now)]
+    accepting = [seat for seat in seats if _accepting_now(seat, now)]
     sound = [seat for seat in accepting if not failing(seat)]
     return sound or accepting
 
@@ -203,4 +193,14 @@ def worker_state(seat: WorkerStatus, fleet: Sequence[WorkerStatus], now: float) 
         return "draining"
     if seat in accepting_of(fleet, now):
         return "accepting"
-    return "failing" if accepting_now(seat, now) else "full"
+    return "failing" if _accepting_now(seat, now) else "full"
+
+
+def _accepting_now(seat: WorkerStatus, now: float) -> bool:
+    """Whether livekit would dispatch to it: up, not cordoned, not draining, under the line."""
+    return (
+        heard_lately(seat, now)
+        and not seat.cordoned
+        and not seat.draining
+        and seat.load < REFUSED_AT
+    )

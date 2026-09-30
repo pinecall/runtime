@@ -150,8 +150,7 @@ class Relay:
             return
         async for data in listening:
             await self._heard(following, data)
-        if not following.closed:
-            self._dropped(following.name)
+        self._over(following)
 
     # The signal is down: a log's durable entries are read off the store each second (a feed
     # spans calls and cannot be, so its readers hear this process alone), until it is back, when
@@ -168,7 +167,7 @@ class Relay:
                     if entry.seq > following.last:
                         self._handed(following, entry)
             if self.signal.up:
-                self._dropped(following.name)
+                self._over(following)
                 return
 
     async def _heard(self, following: Following, data: bytes) -> None:
@@ -222,6 +221,16 @@ class Relay:
             following.filling = None
             if following.held and not following.closed:
                 following.filling = asyncio.create_task(self._filled(following))
+
+    # The channel was lost: this following is over, so a reader that comes back follows a new one
+    # (subscribed again) rather than this one, which nobody listens on; its readers are dropped.
+    def _over(self, following: Following) -> None:
+        if following.closed:
+            return
+        following.closed = True
+        if self._following.get(following.name) is following:
+            del self._following[following.name]
+        self._dropped(following.name)
 
     def _handed(self, following: Following, entry: Entry) -> None:
         following.last = entry.seq

@@ -367,19 +367,8 @@ async def at_hangup(
     if any(member.spent for member in panel):
         scored["judge_cost_usd"] = _priced(panel, running, configured)
     if judged:
-        scored["judged_by"] = judged_by_of(judged, running)
+        scored["judged_by"] = _judged_by_of(judged, running)
     return CallScore.model_validate(scored)
-
-
-# The panel's questions in its order: the same questions hash the same, whatever the call said.
-def judged_by_of(judged: Sequence[Judgment], running: Running | None) -> JsonObject:
-    """The judge model and one hash of every question asked, as call.score carries them."""
-    questions = "\n".join(f"{judgment.name}\n{judgment.criteria}" for judgment in judged)
-    return {
-        "provider": None if running is None else running.vendor,
-        "model": None if running is None else running.model,
-        "criteria": block_hash(questions),
-    }
 
 
 # Priced by the names the operator configured, which the rates are keyed by.
@@ -522,3 +511,14 @@ def _verdict_of(answered: object) -> Verdict:
     if answered == "pass":
         return "pass"
     return "fail" if answered == "fail" else "maybe"
+
+
+# The panel's questions in its order: the same questions hash the same, whatever the call said.
+def _judged_by_of(judged: Sequence[Judgment], running: Running | None) -> JsonObject:
+    """The judge model and one hash of every question asked, as call.score carries them."""
+    questions = "\n".join(f"{judgment.name}\n{judgment.criteria}" for judgment in judged)
+    return {
+        "provider": None if running is None else running.vendor,
+        "model": None if running is None else running.model,
+        "criteria": block_hash(questions),
+    }
