@@ -100,15 +100,16 @@ type RunTool = Callable[[ToolUse, str | None], Awaitable[ToolResult]]
 class Writing:
     """The call's entries in the order they happened, sent to the log in batches."""
 
-    # livekit calls most listeners synchronously; one queue drained by one task keeps order.
-    def __init__(self, append_many: AppendMany, call: str) -> None:
+    # livekit calls most listeners synchronously; one queue drained by one task keeps order. A
+    # writer that takes over a call another wrote to follows on from what the log took from it.
+    def __init__(self, append_many: AppendMany, call: str, *, after: int = 0) -> None:
         """An empty queue for the call, drained once `open` starts it."""
         self.append_many = append_many
         self.call = call
         self.queued: asyncio.Queue[tuple[BatchedEntry, asyncio.Future[Entry]]] = asyncio.Queue()
         self.draining: asyncio.Task[None] | None = None
-        # How many entries the log took from this writer: what the next batch says it follows.
-        self.after = 0
+        # How many entries the log took from this call's writer: what the next batch follows.
+        self.after = after
         self.refused: list[str] = []
         self.shed: list[str] = []
 

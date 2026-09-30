@@ -20,9 +20,19 @@ from pinecall.fleet.roster import HEARTBEAT_S
 from pinecall.process.settings import Settings, load
 from pinecall.providers.build import tts_of
 from pinecall.providers.credentials import Pipeline
+from pinecall.session.call import Writing
+from pinecall.session.session import SEAL_S
 from pinecall.wire.events import AgentTranscript, CallEnded
 from pinecall.wire.rest.calls import CallbackRequest, OpenCallRequest, SealCallRequest
-from pinecall.worker._job import answer, arrival_of, context_of, named_by, resolve
+from pinecall.worker._job import (
+    answer,
+    arrival_of,
+    context_of,
+    ended_and_sealed,
+    named_by,
+    resolve,
+    writer_of,
+)
 from pinecall.worker._traces import traced_to
 
 logger = logging.getLogger(__name__)
@@ -170,8 +180,9 @@ async def overflow_job(ctx: JobContext) -> None:
     stages = _STAGES.validate_python(await gateway.stages(route.agent, scope))
     context = context_of(ctx, dispatch, arrival, route, settings)
     await gateway.open(OpenCallRequest(agent=route.agent, context=context))
+    writing = writer_of(gateway, context.call)
     try:
-        await _said_once(ctx, gateway, context.call, stages, settings.overflow_says)
+        await _said_once(ctx, writing, stages, settings.overflow_says)
         if route.channel == "phone" and arrival.caller:
             wanted = CallbackRequest(
                 agent=route.agent, channel=route.channel, number=arrival.caller, call=context.call
@@ -186,10 +197,7 @@ async def overflow_job(ctx: JobContext) -> None:
             ended_at=time.time(),
             duration_s=time.monotonic() - began,
         )
-        await gateway.append(context.call, "call.ended", ended.written())
-        await gateway.sealed(
-            context.call, SealCallRequest(usage=[], outcome=settings.overflow_says)
-        )
+        await ended_and_sealed(gateway, writing, ended, settings.overflow_says)
 
 
 def overflow_of(settings: Settings, gate: OverflowGate) -> AgentServer:
@@ -226,8 +234,14 @@ async def overflow(settings: Settings) -> int:
     return 0
 
 
-# The gateway ended the call as drained before sending this job, and offered the call back; a
-# gateway that no longer serves the call refuses the entry and the seal, and its reaper seals it.
+def sentence_entry(says: str) -> AgentTranscript:
+    """The overflow's one sentence as the call's transcript holds it."""
+    return AgentTranscript(speech_id=THE_ONE_SENTENCE, text=says, final=True)
+
+
+# The gateway ended the call as drained before sending this job, and offered the call back; the
+# job's writer takes the call over where the dead worker's stopped. A gateway that no longer
+# serves the call refuses the entry and the seal, and its reaper seals it.
 async def _sentence_job(
     ctx: JobContext, gateway: GatewayClient, settings: Settings, dispatch: Dispatch
 ) -> None:
@@ -236,23 +250,23 @@ async def _sentence_job(
     scope = named_by(dispatch)
     await ctx.connect()
     says = settings.overflow_says
+    writing = writer_of(gateway, call, after=dispatch.entries_written)
     try:
         if scope is not None and dispatch.agent is not None:
             stages = _STAGES.validate_python(await gateway.stages(dispatch.agent, scope))
-            await _said_once(ctx, gateway, call, stages, says)
+            await _said_once(ctx, writing, stages, says)
     except GatewayRefused:
         logger.warning(NOT_TOLD, call, exc_info=True)
     finally:
         await room_closed(ctx.api, call)
+    await writing.close(SEAL_S)
     try:
         await gateway.sealed(call, SealCallRequest(usage=[], outcome=says))
     except GatewayRefused:
         logger.warning(NOT_SEALED, call, exc_info=True)
 
 
-async def _said_once(
-    ctx: JobContext, gateway: GatewayClient, call: str, stages: Pipeline, says: str
-) -> None:
+async def _said_once(ctx: JobContext, writing: Writing, stages: Pipeline, says: str) -> None:
     try:
         async with asyncio.timeout(A_CALLER_MAY_TAKE_S):
             await ctx.wait_for_participant()
@@ -262,8 +276,7 @@ async def _said_once(
     session: AgentSession[None] = AgentSession(tts=tts_of(stages.tts))
     await session.start(Agent(instructions=says), room=ctx.room, record=False)  # pyright: ignore[reportUnknownMemberType]
     await session.say(says, allow_interruptions=False)
-    data = AgentTranscript(speech_id=THE_ONE_SENTENCE, text=says, final=True)
-    await gateway.append(call, "agent.transcript", data.written())
+    writing.write("agent.transcript", sentence_entry(says))
     await session.aclose()
 
 
