@@ -38,7 +38,8 @@ TIMEOUT_S = 5.0
 A_FILE_S = 15.0
 
 
-# Under the job's sealing budget (worker/main.py); what does not seal here the reaper seals.
+# Under the job's sealing budget (worker/main.py); what does not seal here the reaper seals. One
+# knock waits all of it: a seal writes memory and asks the judges, which outlast TIMEOUT_S.
 SEALED_WITHIN_S = 30.0
 
 
@@ -162,7 +163,11 @@ class GatewayClient:
         """Hand the end of the call to the gateway, which prices, judges and seals it."""
         path = f"/v1/calls/{call}/sealed"
         body = sealing.written()
-        await again(lambda: self._on_the_call(call, "POST", path, body), SEALED_WITHIN_S, path)
+        await again(
+            lambda: self._on_the_call(call, "POST", path, body, SEALED_WITHIN_S),
+            SEALED_WITHIN_S,
+            path,
+        )
         self.opened.pop(call, None)
 
     async def lookup(

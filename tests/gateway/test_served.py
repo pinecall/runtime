@@ -139,4 +139,13 @@ async def test_a_command_is_held_for_the_worker_of_its_agents_call_only(wired: G
     other = Command(type="agent.say", agent="otra", call=context.call, data={"text": "hola"})
     assert wired.live.commanded(context.call, AGENT, text)
     assert not wired.live.commanded(context.call, "otra", other)
-    assert wired.live.running("org_a") == 1
+
+
+@postgres
+async def test_the_calls_an_org_runs_are_counted_in_their_own_world(wired: Gateway) -> None:
+    served_call(wired.serving, None, a_call(), AgentConfig(slug=AGENT), OURS)
+    served_call(wired.serving, None, a_call(ANA), AgentConfig(slug=AGENT), ANA)
+    served_call(wired.serving, None, a_call(PRODUCTION), AgentConfig(slug=AGENT), PRODUCTION)
+    assert wired.live.running("org_a", "sandbox") == 2
+    assert wired.live.running("org_a", "production") == 1
+    assert wired.live.running("org_b", "production") == 0

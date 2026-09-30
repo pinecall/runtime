@@ -8,8 +8,8 @@ from livekit import api
 
 from pinecall.channels.rooms import room_closed, rooms_with_an_agent
 from pinecall.domain.errors import Conflict, NotAvailable
-from pinecall.gateway._seal import summed_up
 from pinecall.gateway._served import Serving
+from pinecall.gateway.ending.seal import summed_up
 from pinecall.log import queries
 from pinecall.wire.events import CallEnded, CallScore
 from pinecall.wire.parts import EndReason

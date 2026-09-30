@@ -34,9 +34,9 @@ from pinecall.gateway import _deps
 from pinecall.gateway._call_setup import exhausted, keys_of, tuned
 from pinecall.gateway._deps import EvalsKey, GatewayDep, ScopeDep
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._seal import compliance_of, judge_of, judged_call
 from pinecall.gateway._sockets import NO_AGENT, Registration
 from pinecall.gateway._text_calls import TextSetup, open_text_as
+from pinecall.gateway.ending.seal import compliance_of, judge_of, judged_call
 from pinecall.providers import catalog, credentials
 from pinecall.providers.build import Running, llm_of, tts_of
 from pinecall.providers.catalog import Providers

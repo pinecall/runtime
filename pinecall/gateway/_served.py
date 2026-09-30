@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Iterable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -62,6 +62,8 @@ class Served:
     tools: ToolCalls
     # A written call runs here; a voice call runs in a worker.
     session: Session | None = None
+    # Held while the call is sealed, so its seal runs once however many times it is asked for.
+    sealing: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     @property
     def call(self) -> str:
@@ -162,10 +164,14 @@ class ServedCalls:
         ]
 
     # The concurrent calls quota counts these, never head rows: a dead worker's row would count
-    # for ever.
-    def running(self, org: str) -> int:
-        """How many of the org's calls are open here."""
-        return sum(1 for served in self.calls.values() if served.scope.org == org)
+    # for ever. Per world, as every quota is: the sandbox's calls never close production.
+    def running(self, org: str, env: Env) -> int:
+        """How many of the org's calls are open here in the world."""
+        return sum(
+            1
+            for served in self.calls.values()
+            if served.scope.org == org and served.scope.env == env
+        )
 
     def commanded(self, call: str | None, agent: str, command: Command) -> bool:
         """Queue an app's command for the worker running the call; False when it is not here."""

@@ -5,7 +5,15 @@ from livekit.agents import AgentServer
 
 from pinecall.domain.errors import SettingsRefused
 from pinecall.process.settings import Settings
-from pinecall.worker.main import CLOSED, INITIALIZE_S, OPEN, OverflowGate, overflow_of, server_of
+from pinecall.worker.main import (
+    CLOSED,
+    INITIALIZE_S,
+    OPEN,
+    OverflowGate,
+    overflow_of,
+    run,
+    server_of,
+)
 
 REGISTRABLE = {
     "LIVEKIT_URL": "ws://127.0.0.1:7880",
@@ -49,6 +57,33 @@ def test_both_servers_give_a_new_process_the_time_the_plugins_take(
     server_of(settings_with())
     overflow_of(settings_with(), OverflowGate())
     assert given == [INITIALIZE_S, INITIALIZE_S]
+
+
+# livekit's drain raises at its timeout; the close after it is what seals the calls still up.
+async def test_a_drain_that_runs_out_still_closes_the_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    closed: list[AgentServer] = []
+
+    async def stopped_at_once(_server: AgentServer) -> None:
+        return None
+
+    async def out_of_time(_server: AgentServer, _timeout: int) -> None:
+        raise TimeoutError
+
+    async def closing(server: AgentServer) -> None:
+        closed.append(server)
+
+    def no_jobs(_server: AgentServer) -> list[object]:
+        return []
+
+    # A server that never ran has no process pool to count the jobs of.
+    monkeypatch.setattr(AgentServer, "active_jobs", property(no_jobs))
+    monkeypatch.setattr(AgentServer, "run", stopped_at_once)
+    monkeypatch.setattr(AgentServer, "drain", out_of_time)
+    monkeypatch.setattr(AgentServer, "aclose", closing)
+    assert await run(settings_with(PINECALL_GATEWAY_URL="http://127.0.0.1:9")) == 0
+    assert len(closed) == 1
 
 
 def test_a_worker_without_its_livekit_pair_is_refused() -> None:

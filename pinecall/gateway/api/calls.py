@@ -34,7 +34,6 @@ from pinecall.gateway._deps import (
     asked_by,
 )
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._seal import remembered, sealed
 from pinecall.gateway._served import (
     Served,
     attach,
@@ -46,6 +45,7 @@ from pinecall.gateway._served import (
 )
 from pinecall.gateway._sockets import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registration
 from pinecall.gateway._streams import frame, paced, streamed, wants_sse
+from pinecall.gateway.ending.seal import remembered, sealed
 from pinecall.log import queries
 from pinecall.log.readers import Filter, parse_filter, project_entry, project_state
 from pinecall.log.store import DEFAULT_LIMIT, Claim

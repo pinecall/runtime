@@ -5,6 +5,7 @@ import contextlib
 from collections.abc import AsyncIterator
 from datetime import date
 
+import httpx
 import pytest
 from pydantic import TypeAdapter
 from websockets.asyncio.client import ClientConnection
@@ -76,6 +77,30 @@ async def test_a_call_opened_writes_and_seals_through_the_client(knocking: Knock
     assert written.seq == 2
     assert await knocking.gateway.logs.store.sealed(context.call)
     assert context.call not in client.opened
+    await client.aclose()
+
+
+# The seal is held from here as its memory and its judges hold it: longer than a request waits.
+@postgres
+async def test_a_seal_slower_than_a_request_is_waited_for_and_never_asked_twice(
+    knocking: Knocking,
+) -> None:
+    headers = {"Authorization": f"Bearer {knocking.fleet['sandbox']}"}
+    hasty = httpx.AsyncClient(base_url=knocking.url, headers=headers, timeout=0.2)
+    client = GatewayClient(hasty)
+    context = a_call(knocking)
+    await client.open(OpenCallRequest(agent=AGENT, context=context))
+    served = knocking.gateway.live.calls[context.call]
+    await served.sealing.acquire()
+    sealing = asyncio.create_task(
+        client.sealed(context.call, SealCallRequest(usage=[], outcome="done"))
+    )
+    await asyncio.sleep(0.6)
+    served.sealing.release()
+    await sealing
+    kinds = [item.type for item in await knocking.gateway.logs.store.whole(context.call)]
+    assert kinds.count("call.summary") == 1
+    assert await knocking.gateway.logs.store.sealed(context.call)
     await client.aclose()
 
 

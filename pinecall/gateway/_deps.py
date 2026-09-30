@@ -175,7 +175,7 @@ async def admit_call(gateway: Gateway, scope: Scope, agent: str) -> admission.Ce
             gateway.connections.pool,
             scope.org,
             scope.env,
-            running=gateway.live.running(scope.org),
+            running=gateway.live.running(scope.org, scope.env),
         )
     except QuotaExhausted as refused:
         await exhausted(gateway.logs, scope.org, agent, refused)

@@ -5,9 +5,9 @@ from datetime import date
 from pinecall.domain.agent import AgentConfig
 from pinecall.domain.call import CallContext, Route, new_call_id
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._reaper import reaped
-from pinecall.gateway._seal import sealed
 from pinecall.gateway._served import opened, served_call
+from pinecall.gateway.ending.reaper import reaped
+from pinecall.gateway.ending.seal import sealed
 from pinecall.wire.rest.calls import SealCallRequest
 from tests.conftest import postgres
 from tests.fakes.livekit import Server
