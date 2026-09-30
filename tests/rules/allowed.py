@@ -133,6 +133,11 @@ TASK_OWNERS: tuple[Allowed, ...] = (
     Allowed(
         "pinecall/session/session.py", "create_task", "closing and waiting are cancelled in close()"
     ),
+    Allowed(
+        "pinecall/log/_writer.py",
+        "create_task",
+        "the writing task ends when the queue is empty; Writer.drained() awaits it",
+    ),
     Allowed("pinecall/session/call.py", "create_task", "the drain task ends in Writing.close()"),
     Allowed(
         "pinecall/session/hold.py", "create_task", "pending is cancelled when the player stops"

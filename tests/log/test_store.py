@@ -504,8 +504,10 @@ async def test_a_feed_read_by_cursor_never_passes_a_row_that_commits_late(
             numbered_first = asyncio.create_task(fed(store, early))
             blocked = await waiter_of(pool, holder.info.backend_pid)
             assert blocked is not None
+            # Another store is another gateway: a writer of its own, not queued behind this one.
+            elsewhere = Store(pool, clock=store.clock)
             numbered_last = asyncio.create_task(
-                store.append(late, AGENT, "call.score", A_SUMMARY, ephemeral=False)
+                elsewhere.append(late, AGENT, "call.score", A_SUMMARY, ephemeral=False)
             )
             await waiter_of(pool, blocked, numbered_last.done)
             read_first = await store.across(FEEDS)

@@ -223,3 +223,8 @@ why = "the world is what the door knows; the box's name is read where a Twilio t
 path = "pinecall/gateway/_gateway.py"
 checks = ["unstable_dependency"]
 why = "Gateway is the process's state: it holds each part, the WhatsApp threads among them"
+
+[[tool.vibesmell.skip]]
+path = "pinecall/log/store.py"
+checks = ["unstable_dependency"]
+why = "the writer is the store's own write half (log/_writer.py), split out as the queue that outlives a request; nothing else reaches it"
