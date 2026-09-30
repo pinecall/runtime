@@ -1,10 +1,12 @@
 """The fleet loop: the roster and the cloud read, one tick decided, a machine grown or let go."""
 
+import math
 import re
 import subprocess
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from fractions import Fraction
 from pathlib import Path
 from typing import TextIO
 
@@ -42,6 +44,9 @@ class Line:
     # after registering, after this long.
     boot_grace_s: float = 600.0
     gone_after_s: float = 300.0
+    # The most machines one tick asks for. 1 is the loop as it was: a fleet far under its target
+    # then grows by one machine a tick. The operator raises it with `--grow-at-most`.
+    grow_at_most: int = 1
 
 
 @dataclass(frozen=True)
@@ -115,9 +120,9 @@ class Cloud:
 NUMBERED = re.compile(rf"^{re.escape(MACHINE_PREFIX)}(\d+)$")
 
 
-# At most one grow or one cordon a tick: a boot takes minutes, and the next tick sees better
-# numbers. Every delete that is due goes out. A machine the cloud does not list as the fleet's
-# counts in the numbers and is never let go.
+# A tick grows by what is missing, up to `grow_at_most` machines, or cordons one: a boot takes
+# minutes, and the next tick sees better numbers. Every delete that is due goes out. A machine the
+# cloud does not list as the fleet's counts in the numbers and is never let go.
 def decide(
     seats: Sequence[WorkerStatus], machines: Sequence[Machine], line: Line, now: float
 ) -> list[Decision]:
@@ -143,9 +148,9 @@ def decide(
     active = sum(seat.active for seat in counted)
     capacity = sum(seat.max_jobs or 0 for seat in holding) + booting * line.seats_per_worker
     workers = len(holding) + booting
-    grow = _room_for_one_more(active, capacity, workers, line)
-    if grow is not None:
-        decided.append(Grow(next_name(machines), grow))
+    wanted, why = _missing(active, capacity, workers, line)
+    if wanted:
+        decided += [Grow(name, why) for name in free_names(machines, wanted)]
     elif booting == 0:
         letting_go = _one_too_many(holding, managed, active, capacity, line)
         if letting_go is not None:
@@ -153,13 +158,16 @@ def decide(
     return decided
 
 
-def next_name(machines: Sequence[Machine]) -> str:
-    """The lowest free `pinecall-worker-N`."""
+def free_names(machines: Sequence[Machine], count: int) -> list[str]:
+    """The `count` lowest free `pinecall-worker-N`."""
     taken = {int(found.group(1)) for machine in machines if (found := NUMBERED.match(machine.name))}
+    names: list[str] = []
     number = 1
-    while number in taken:
+    while len(names) < count:
+        if number not in taken:
+            names.append(f"{MACHINE_PREFIX}{number}")
         number += 1
-    return f"{MACHINE_PREFIX}{number}"
+    return names
 
 
 def status_line(
@@ -224,17 +232,23 @@ def _drained(seats: Sequence[WorkerStatus], managed: set[str], now: float) -> li
     ]
 
 
-def _room_for_one_more(active: int, capacity: int, workers: int, line: Line) -> str | None:
-    if workers >= line.at_most:
-        return None
+# The seats missing are those that bring busy back to the target, in whole machines; the
+# minimum and a fleet with no seat at all ask for theirs too, and the ceilings cut all of it.
+def _missing(active: int, capacity: int, workers: int, line: Line) -> tuple[int, str]:
+    reasons: list[tuple[int, str]] = []
     if workers < line.at_least:
-        return f"{workers} of at least {line.at_least} workers"
+        reasons.append((line.at_least - workers, f"{workers} of at least {line.at_least} workers"))
     if capacity == 0:
-        return "no seat anywhere"
-    busy = active / capacity
-    if busy > line.target:
-        return f"busy {busy:.2f} over {line.target:.2f}"
-    return None
+        reasons.append((1, "no seat anywhere"))
+    elif active / capacity > line.target:
+        # The flag's decimal as written: 6 / 0.6 in floats is 10.000000000000002, one seat too many.
+        seats = math.ceil(Fraction(active) / Fraction(str(line.target))) - capacity
+        why = f"busy {active / capacity:.2f} over {line.target:.2f}: {seats} seats missing"
+        reasons.append((math.ceil(seats / line.seats_per_worker), why))
+    if not reasons:
+        return 0, ""
+    wanted, why = max(reasons, key=lambda reason: reason[0])
+    return max(min(wanted, line.at_most - workers, line.grow_at_most), 0), why
 
 
 # The quietest worker goes, and only if the fleet stays under `target - slack` without it; ties

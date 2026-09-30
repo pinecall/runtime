@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from pinecall.cli.main import main, verbs
-from pinecall.domain.errors import GatewayRefused, PinecallError
+from pinecall.domain.errors import DeclarationRefused, GatewayRefused, PinecallError
 from pinecall.process.settings import Settings
 from tests.conftest import AGENT, BOX_DOMAIN, FLEETS, Knocking, postgres
 from tests.gateway.api.test_ops import THE_OPS_KEY, with_an_ops_key
@@ -185,7 +185,10 @@ async def test_the_fleet_is_listed_cordoned_and_looped_once_in_a_dry_run(
     )
     ticked = capsys.readouterr().out
     assert ticked.startswith("fleet: 1 workers up · 1 machines · 4/4 seats held")
-    assert "grow    pinecall-worker-2: busy 1.00 over 0.60  (dry run)" in ticked
+    assert "grow    pinecall-worker-2: busy 1.00 over 0.60: 3 seats missing  (dry run)" in ticked
+    loop = ("fleet", "loop", "--cloud", str(script), "--seats", "4", "--once", "--dry-run")
+    with pytest.raises(DeclarationRefused, match="--grow-at-most is at least 1"):
+        await ran(settings, *loop, "--grow-at-most", "0")
 
 
 @postgres
