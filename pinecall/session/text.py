@@ -7,8 +7,9 @@ from dataclasses import dataclass
 from livekit.agents import llm
 from livekit.agents.voice import AgentSession
 
-from pinecall.providers.build import Running, llm_of
+from pinecall.providers.build import Running, thinking_of
 from pinecall.session import tools
+from pinecall.session._livekit import switches_written
 from pinecall.session.call import SPEECH, Call
 from pinecall.session.session import ONE_ANSWER_PER_TOOL, Session
 from pinecall.session.tools import TEXT_LOOKUP_MS
@@ -99,7 +100,8 @@ async def resume(session: Session, taken: TakenUp) -> None:
 # its turns are taken by hand, one message at a time.
 def text_session(call: Call, thinking: Running) -> Session:
     """A written call: the same session with the model alone."""
-    model = llm_of(thinking)
+    model = thinking_of(thinking)
+    switches_written(call.writing, (model,))
     live: AgentSession[None] = AgentSession(
         llm=model,
         turn_handling={"turn_detection": "manual", "preemptive_generation": {"enabled": False}},

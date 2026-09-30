@@ -31,6 +31,27 @@ No door a person reads answers with a key. The one door that does is the worker'
 runs on, to the fleet's key or the org's own worker. Every row is sealed under `PINECALL_VAULT_KEY`,
 which a gateway does not start without.
 
+## When a vendor fails
+
+The providers row may give each default stage an ordered list of `fallbacks`
+([operator-api.md](operator-api.md)). A call whose agent runs that default stage then runs
+livekit's `FallbackAdapter` over the default and its fallbacks: a vendor that errors or times out
+is marked down, the stage's next request goes to the first one still up, and livekit keeps asking
+the one that failed until it answers again. A stage with no fallbacks is the vendor's own object,
+as before; an agent that names its own vendor runs that vendor alone.
+
+Each fallback runs on its own key, found as the default's is: the org's own, else the box's where
+its `lends` allow. One this org has no key for is left out, and so is, when the call is built, ears
+that do not stream or a voice of another channel count; the call runs on the rest. A fallback voice
+speaks the row's voice for its vendor and the call's language, never the agent's (a voice id is its
+own vendor's). The worker's door, `GET /v1/agents/{slug}/provider-keys`, hands each stage with its
+`fallbacks` beside it; a worker of an earlier release reads the stage and runs the default alone.
+
+Each switch is a `vendor.switched` entry on the call's log (which vendor went down or came back, and
+which serves the stage now), and every metrics block keeps the vendor that served it. Usage is
+counted per vendor and model that answered, so a call is priced at the rates of the vendors that
+actually ran, and a lent fallback's usage is the operator's like any lent stage's.
+
 ## The voices
 
 `GET /v1/voices?tts=&language=` lists a vendor's own voices as its plugin lists them, on the key a

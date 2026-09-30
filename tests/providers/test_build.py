@@ -1,11 +1,12 @@
 """Every installed plugin is a vendor, and one path builds any of them."""
 
+import dataclasses
 import importlib.metadata
 import re
 import sys
 
 import pytest
-from livekit.agents import llm
+from livekit.agents import llm, metrics, stt, tts
 
 from pinecall.domain.agent import Turn
 from pinecall.domain.errors import DeclarationRefused, NotAvailable
@@ -15,11 +16,14 @@ from pinecall.providers.build import (
     Running,
     Vendor,
     completion_usage,
+    ears_of,
     installed,
     llm_of,
     plugin,
     primary,
+    speaking_of,
     stt_of,
+    thinking_of,
     tts_of,
 )
 from tests.fakes.acme import AcmeContext, AcmeLLM, AcmeOptions, AcmeSTT, AcmeTTS
@@ -233,3 +237,55 @@ def test_a_models_answer_is_counted_as_the_calls_usage_counts_it(acme: str) -> N
     )
     assert counted.output_tokens == 5
     assert completion_usage(thinking, None) is None
+
+
+def test_a_stage_with_no_fallback_is_exactly_the_plugins_object(acme: str) -> None:
+    assert isinstance(thinking_of(Running(acme, "k")), AcmeLLM)
+    assert isinstance(ears_of(Running(acme, "k"), None), AcmeSTT)
+    assert isinstance(speaking_of(Running(acme, "k")), AcmeTTS)
+
+
+def test_a_stage_with_fallbacks_is_livekits_adapter_led_by_the_default(acme: str) -> None:
+    backup = Running(acme, "k2", model="acme-2")
+    thinking = thinking_of(Running(acme, "k1", fallbacks=(backup,)))
+    ears = ears_of(Running(acme, "k1", fallbacks=(backup,)), Turn(endpointing_ms=700))
+    voice = speaking_of(Running(acme, "k1", fallbacks=(backup,)))
+    assert isinstance(thinking, llm.FallbackAdapter)
+    assert isinstance(ears, stt.FallbackAdapter)
+    assert isinstance(voice, tts.FallbackAdapter)
+    assert thinking.model == "acme-1"
+
+
+async def test_the_adapter_answers_from_the_next_vendor_when_the_default_is_down(
+    acme: str,
+) -> None:
+    down = Running(acme, "k1", options={"refusal": "down"})
+    backup = Running(acme, "k2", model="acme-2", options={"replies": [["from the backup"]]})
+    thinking = thinking_of(dataclasses.replace(down, fallbacks=(backup,)))
+    served: list[object] = []
+
+    def measured(block: metrics.LLMMetrics) -> None:
+        served.append(None if block.metadata is None else block.metadata.model_name)
+
+    # livekit's emitter is untyped: it is reached as an object, as the session reaches it.
+    listen: object = getattr(thinking, "on", None)
+    assert callable(listen)
+    listen("metrics_collected", measured)
+    chat = llm.ChatContext.empty()
+    chat.add_message(role="user", content="hola")
+    async with thinking.chat(chat_ctx=chat) as stream:
+        answered = "".join([chunk.delta.content or "" async for chunk in stream if chunk.delta])
+    assert answered == "from the backup"
+    assert served == ["acme-2"]
+
+
+@pytest.mark.parametrize("stage", ["stt", "tts"])
+def test_a_fallback_the_adapter_cannot_take_is_left_out_and_the_default_runs_alone(
+    acme: str, stage: str
+) -> None:
+    if stage == "stt":
+        deaf = Running(acme, "k2", options={"streams": False})
+        assert isinstance(ears_of(Running(acme, "k1", fallbacks=(deaf,)), None), AcmeSTT)
+    else:
+        stereo = Running(acme, "k2", options={"channels": 2})
+        assert isinstance(speaking_of(Running(acme, "k1", fallbacks=(stereo,))), AcmeTTS)

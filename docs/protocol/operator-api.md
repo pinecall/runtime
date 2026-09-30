@@ -30,6 +30,10 @@ Four rows of `box_settings`, each read and written whole, the console's box scre
   off the caller's audio on the worker's CPU, no transcript: `turn_model` `v1-mini` (livekit's own,
   the default) or `smart-turn-v3` (Daily's Smart Turn v3, 23 languages; its 8 MB of weights come
   from Hugging Face on the first call that asks for it).
+  A default stage may name who takes over, in order: `"defaults": {"llm": {"vendor", "model",
+  "fallbacks": [{"vendor", "model"}]}}`. Each is checked as the default is; a fallback names none
+  of its own, the judge names none, and the ears' fallbacks end the turn as the default does
+  ([provider-keys.md](provider-keys.md#when-a-vendor-fails)).
 - `GET /v1/ops/provider-keys`, `PUT` · `DELETE /v1/ops/provider-keys/{vendor} {key | credentials}`:
   the box's own vendor keys, sealed and never read back. Offering a vendor is holding its key; an
   org runs on it where its `lends` allow.

@@ -2,13 +2,11 @@
 
 from collections.abc import Sequence
 from functools import cache
-from typing import Never
 
 from livekit.agents import (
     NOT_GIVEN,
     NotGivenOr,
     inference,
-    stt,
 )
 from livekit.agents.voice import AgentSession, STTContextOptions
 from livekit.agents.voice import text_transforms as transforms
@@ -17,10 +15,18 @@ from livekit.agents.voice.turn import InterruptionOptions, TurnDetectionMode, Tu
 from smart_turn_livekit import SmartTurnDetector
 
 from pinecall.domain.agent import AgentConfig
-from pinecall.providers.build import Running, TurnModel, llm_of, stt_of, tts_of
+from pinecall.providers.build import (
+    Ears,
+    Running,
+    TurnModel,
+    ears_of,
+    speaking_of,
+    thinking_of,
+)
 from pinecall.providers.credentials import Pipeline
 from pinecall.session import tools
 from pinecall.session._hearing import keyterms, policy_for
+from pinecall.session._livekit import switches_written
 from pinecall.session.call import Call
 from pinecall.session.session import ONE_ANSWER_PER_TOOL, Session
 from pinecall.session.tools import VOICE_LOOKUP_MS
@@ -36,10 +42,11 @@ SMART_TURN: TurnModel = "smart-turn-v3"
 def voice_session(call: Call, stages: Pipeline) -> Session:
     """A voice call: the three stages built for it, the turn taken as a phone line needs."""
     thinking, ears, voice = (
-        llm_of(stages.llm),
-        stt_of(stages.stt, call.config.turn),
-        tts_of(stages.tts),
+        thinking_of(stages.llm),
+        ears_of(stages.stt, call.config.turn),
+        speaking_of(stages.tts),
     )
+    switches_written(call.writing, (thinking, ears, voice))
     live: AgentSession[None] = AgentSession(
         llm=thinking,
         stt=ears,
@@ -56,7 +63,7 @@ def voice_session(call: Call, stages: Pipeline) -> Session:
     )
 
 
-def context_of(config: AgentConfig, ears: stt.STT[Never]) -> NotGivenOr[STTContextOptions]:
+def context_of(config: AgentConfig, ears: Ears) -> NotGivenOr[STTContextOptions]:
     """The keyterms the ears are told at start, when they take any."""
     if not config.hears or not ears.capabilities.keyterms:
         return NOT_GIVEN
