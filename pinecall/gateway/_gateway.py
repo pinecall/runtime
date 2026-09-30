@@ -14,6 +14,7 @@ from pinecall.process.metrics import Counters
 from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy.codes import Codes
 from pinecall.tenancy.mail import Outbox
+from pinecall.tenancy.prompts import Prompts
 from pinecall.tenancy.signin import SignIns, Throttle
 from pinecall.tenancy.throttle import Window
 from pinecall.tenancy.tokens import Signer
@@ -44,10 +45,15 @@ class Gateway:
     paced: Window
     # What GET /metrics reads: counted on the append path since the process started.
     counters: Counters = field(default_factory=Counters)
+    prompts: Prompts = field(default_factory=Prompts)
 
     @property
     def serving(self) -> Serving:
         """What a call runs through."""
         return Serving(
-            connections=self.connections, logs=self.logs, live=self.live, embedder=self.embedder
+            connections=self.connections,
+            logs=self.logs,
+            live=self.live,
+            embedder=self.embedder,
+            prompts=self.prompts,
         )

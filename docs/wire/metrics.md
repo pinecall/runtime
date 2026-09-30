@@ -173,7 +173,7 @@ Every field livekit-agents 1.8 measures, block by block, with its unit and who m
 | `EOTModelUsage` | `model` | name | yes | the session's usage collector | The model name. |
 | `EOTModelUsage` | `total_requests` | count | no | the session's usage collector | Inference requests sent to the model. |
 
-## Per day, by vendor
+## Per day, by vendor and by version
 
 `GET /v1/insights` reads three of the turn's numbers across a day of the scope's calls (the day a
 call started, in UTC), grouped by stage and by the vendor and model the turn's own report names:
@@ -183,3 +183,14 @@ call started, in UTC), grouped by stage and by the vendor and model the turn's o
 stage, the median and the 95th percentile in seconds, so "the ears are 500 ms slower than
 yesterday" is two rows of two days, and "the ears are wrong" is the confidence falling. The vendor
 is `model_provider` as the plugin reports it, and absent when the report named none.
+
+They are counted once per call, when it is sealed, from the call's own log (`log/drift.py`), never
+read off the log at the door: a day holds the calls sealed in it, not those still going. Each
+stage's seconds are kept as a fixed histogram (`log/_histogram.py`: under 10 ms, 92 buckets each
+10 % wider than the one below it up to 63 s, and one for anything slower), so the calls of a day,
+of an agent and of a version add bucket by bucket, and a median or p95 read off the buckets is
+within 5 % of the exact one. The same fold counts each judge's settled verdicts of the call, by
+the version of the agent's settings it ran on and the hash of the judge's question, which is what
+`GET /v1/insights/drift` compares ([console-api.md](../protocol/console-api.md)); a call judged
+again (`POST /v1/evals/judge/{call}?again=true`) replaces its verdicts rather than adding them.
+`pinecall-runtime drift rebuild` counts them again from the log ([the-runtime-cli.md](../the-runtime-cli.md)).

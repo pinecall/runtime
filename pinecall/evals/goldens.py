@@ -1,4 +1,4 @@
-"""A golden played on a written call: its state, its lines, its facts injected, its memory."""
+"""A golden played on a written call, and the judges its expectations set."""
 
 import asyncio
 from collections.abc import Callable, Sequence
@@ -6,13 +6,15 @@ from dataclasses import dataclass
 
 from pinecall.domain.errors import PinecallError
 from pinecall.domain.names import JsonObject
+from pinecall.evals.case import AGENT, CALLER, PUNCTUATION, Case, calls_of, said_by
+from pinecall.evals.judges import CaseJudge, consent_judge, failing, grounded_judge, passing
 from pinecall.log.logs import Subscription
 from pinecall.session import text
 from pinecall.session.call import Lookup
 from pinecall.session.session import Session
 from pinecall.wire.commands import CallEvent, SessionConfigure
 from pinecall.wire.parts import EndedBy, EndReason, PlatformTool
-from pinecall.wire.rest.evals import EventStep, Golden
+from pinecall.wire.rest.evals import EventStep, Golden, Register
 
 # The wire has no "the app is done reacting": the log going quiet is the sign. Long enough for a
 # render and its re-render to be one burst, short enough to cost little per turn.
@@ -37,6 +39,47 @@ HUNG_UP: tuple[EndReason, EndedBy] = ("caller_hung_up", "caller")
 BROKE: tuple[EndReason, EndedBy] = ("error", "platform")
 
 
+HEARD = "Every line this golden puts in the caller's mouth reached the agent."
+
+
+TOOLS = "Every tool this golden names was called in the conversation."
+
+
+NOT_TOOLS = "The conversation called none of the tools this golden forbids."
+
+
+SAYS = "The agent said every phrase this golden names."
+
+
+SAYS_ANY = "The agent said at least one of the phrases this golden accepts."
+
+
+SILENCE = "The agent said none of the phrases this golden names."
+
+
+ANSWERED = "The agent answered every fact that arrived mid-call."
+
+
+STAYED_QUIET = "The agent carried on without answering the facts that arrived mid-call."
+
+
+# A check that could not look must not pass.
+NO_EVENT = "this golden expects a reply to an event, and no event.received reached the call"
+
+
+REGISTER = "The agent addressed the caller as {register} in every one of its turns."
+
+
+# Unmistakable tú; `té` (tea) carries its accent, so `te` never matches it.
+TUTEO: frozenset[str] = frozenset(
+    {"tú", "ti", "te", "contigo", "tu", "tus", "tuyo", "tuya", "tuyos", "tuyas"}
+)
+
+
+# `le`, `les`, `su` and `sus` are left out: they are as often the third person.
+USTEO: frozenset[str] = frozenset({"usted", "ustedes", "consigo", "suyo", "suya", "suyos", "suyas"})
+
+
 @dataclass(frozen=True)
 class Played:
     """A golden played to its end, or to where the app let go of the agent."""
@@ -44,6 +87,32 @@ class Played:
     held: bool
     # The requests the model was sent, one per request, as they went.
     requests: tuple[JsonObject, ...]
+
+
+def golden_judges(golden: Golden, case: Case) -> list[CaseJudge]:
+    """Consent, then one judge per expectation the golden sets, in the order Expect names them."""
+    expect = golden.expect
+    judges = [consent_judge(case)]
+    # Without it an unheard caller would pass every "never did X".
+    if golden.input:
+        judges.append(_heard(case, len(golden.input)))
+    if expect.tools:
+        judges.append(_tools(case, expect.tools))
+    if expect.not_tools:
+        judges.append(_not_tools(case, expect.not_tools))
+    if expect.not_said:
+        judges.append(_silence(case, expect.not_said))
+    if expect.says:
+        judges.append(_says(case, expect.says))
+    if expect.says_any:
+        judges.append(_says_any(case, expect.says_any))
+    if expect.grounded:
+        judges.append(grounded_judge(case))
+    if expect.addressed_as is not None:
+        judges.append(_register_judge(case, expect.addressed_as))
+    if expect.replies is not None:
+        judges.append(_replies(case, replies=expect.replies))
+    return judges
 
 
 def events_after(golden: Golden, turn: int) -> tuple[EventStep, ...]:
@@ -108,3 +177,135 @@ async def _played(
         await text.hears(session, line)
         await settled(heard)
     return True
+
+
+def _register_judge(case: Case, expected: Register) -> CaseJudge:
+    """Whether the agent never used the other register's words."""
+    other = USTEO if expected == "tu" else TUTEO
+    turns = said_by(case, AGENT)
+    slips = [
+        (number, word) for number, turn in enumerate(turns, 1) for word in _marked(turn, other)
+    ]
+    if slips:
+        spoken = "; ".join(f"{word!r} in agent turn {number}" for number, word in slips)
+        ruling = failing(f"the agent was asked for {expected} and said {spoken}")
+    else:
+        ruling = passing(
+            f"no word of the other register in {len(turns)} agent turn(s), asked for {expected}"
+        )
+    return CaseJudge("register", REGISTER.format(register=expected), ruling)
+
+
+def _heard(case: Case, lines: int) -> CaseJudge:
+    heard = len(said_by(case, CALLER))
+    if heard < lines:
+        word = "line" if lines == 1 else "lines"
+        ruling = failing(
+            f"the golden says {lines} {word} and the agent heard {heard}: "
+            "whatever else this call did, it was not this golden"
+        )
+    else:
+        ruling = passing(f"the agent heard all {lines} of the caller's lines")
+    return CaseJudge("heard", HEARD, ruling)
+
+
+# The order the tools ran in is not judged.
+def _tools(case: Case, names: Sequence[str]) -> CaseJudge:
+    ran = {called.name for called in calls_of(case)}
+    missing = [name for name in names if name not in ran]
+    if missing:
+        what_ran = ", ".join(sorted(ran)) or "no tool at all"
+        ruling = failing(f"the golden expects {', '.join(missing)}, and this call ran {what_ran}")
+    else:
+        ruling = passing(f"every expected tool ran: {', '.join(names)}")
+    return CaseJudge("tools", TOOLS, ruling)
+
+
+def _not_tools(case: Case, names: Sequence[str]) -> CaseJudge:
+    forbidden = frozenset(names)
+    slips = [
+        f"{line.tool} at seq {line.seq}"
+        for line in case.gate
+        if line.kind == "tool.call" and line.tool in forbidden
+    ]
+    if slips:
+        ruling = failing(
+            f"the golden forbids {', '.join(names)}, and this call ran {'; '.join(slips)}"
+        )
+    else:
+        ruling = passing(f"none of the {len(names)} forbidden tool(s) ran")
+    return CaseJudge("not_tools", NOT_TOOLS, ruling)
+
+
+def _says(case: Case, phrases: Sequence[str]) -> CaseJudge:
+    turns = [turn.casefold() for turn in said_by(case, AGENT)]
+    missing = [phrase for phrase in phrases if not any(phrase.casefold() in turn for turn in turns)]
+    if missing:
+        ruling = failing(f"the agent never said {', '.join(repr(phrase) for phrase in missing)}")
+    else:
+        ruling = passing(f"the agent said all {len(phrases)} expected phrase(s)")
+    return CaseJudge("says", SAYS, ruling)
+
+
+def _says_any(case: Case, phrases: Sequence[str]) -> CaseJudge:
+    turns = [turn.casefold() for turn in said_by(case, AGENT)]
+    found = [phrase for phrase in phrases if any(phrase.casefold() in turn for turn in turns)]
+    if found:
+        ruling = passing(f"the agent said {found[0]!r}, one of the {len(phrases)} accepted")
+    else:
+        accepted = ", ".join(repr(phrase) for phrase in phrases)
+        ruling = failing(f"the agent said none of {accepted}")
+    return CaseJudge("says_any", SAYS_ANY, ruling)
+
+
+def _silence(case: Case, phrases: Sequence[str]) -> CaseJudge:
+    turns = [turn.casefold() for turn in said_by(case, AGENT)]
+    slips = [
+        f"{phrase!r} in agent turn {number}"
+        for phrase in phrases
+        for number, turn in enumerate(turns, 1)
+        if phrase.casefold() in turn
+    ]
+    if slips:
+        ruling = failing(f"the golden forbids these and the agent said {'; '.join(slips)}")
+    else:
+        ruling = passing(f"none of the {len(phrases)} forbidden phrase(s) was said")
+    return CaseJudge("silence", SILENCE, ruling)
+
+
+# Whether the agent took the fact up, not when: the timing is the app's.
+def _replies(case: Case, *, replies: bool) -> CaseJudge:
+    criteria = ANSWERED if replies else STAYED_QUIET
+    if not case.arrived:
+        return CaseJudge("replies", criteria, failing(NO_EVENT))
+    findings: list[str] = []
+    for fact in case.arrived:
+        after = next(
+            (turn for turn in case.turns if turn.role == AGENT and turn.seq > fact.seq), None
+        )
+        carried = [str(value) for value in fact.data.values() if str(value)]
+        named = after is not None and (
+            not carried or any(value.casefold() in after.text.casefold() for value in carried)
+        )
+        if replies and after is None:
+            findings.append(f"{fact.name} at seq {fact.seq} was followed by no turn of the agent's")
+        elif replies and not named:
+            findings.append(f"the agent's turn after {fact.name} names nothing the event carried")
+        elif not replies and named:
+            findings.append(f"the agent took {fact.name} up, and this golden expects it quiet")
+    if findings:
+        return CaseJudge("replies", criteria, failing("; ".join(findings)))
+    kept = "taken up" if replies else "left alone"
+    return CaseJudge(
+        "replies", criteria, passing(f"all {len(case.arrived)} fact(s) that arrived were {kept}")
+    )
+
+
+# Whole words only: `tu` is not `tutor`.
+def _marked(turn: str, markers: frozenset[str]) -> list[str]:
+    found: list[str] = []
+    for word in turn.split():
+        bare = word.strip(PUNCTUATION).casefold()
+        if bare in markers and bare not in found:
+            found.append(bare)
+    return found

@@ -1,4 +1,4 @@
-"""The bodies of the settings doors: an agent's tuning and lexicon, versioned."""
+"""The bodies of the settings doors: an agent's tuning and lexicon, versioned, and its canary."""
 
 from pydantic import Field
 
@@ -93,6 +93,41 @@ class RollbackSettingsRequest(WireModel):
     team: bool = False
 
 
+# A share is whole percents: 0 keeps the version off every call without clearing the canary.
+class PutCanaryRequest(WireModel):
+    """PUT /v1/agents/{slug}/settings/canary: the version, its share of the calls, why, whose."""
+
+    version: int = Field(ge=1)
+    share: int = Field(ge=0, le=100)
+    note: str | None = None
+    team: bool = False
+
+
+class CanaryQuery(WireModel):
+    """The query string of a canary's read or clearing: whose scope."""
+
+    team: bool = False
+
+
+class CanaryRow(WireModel):
+    """The canary a scope stands on: which version takes how many calls in a hundred, by whom."""
+
+    holder: str
+    version: int
+    share: int
+    author: str
+    note: str | None
+    set_at: float
+
+
+class CanaryResponse(WireModel):
+    """GET, PUT and DELETE /v1/agents/{slug}/settings/canary: the scope's canary, or null."""
+
+    world: Env
+    holder: str
+    canary: CanaryRow | None
+
+
 class LexiconBody(WireModel):
     """The agent's lexicon: how the voice says its words, and the words the ears must know."""
 
@@ -144,3 +179,5 @@ class CallSettingsResponse(WireModel):
     lexicon_version: int | None
     config: SettingsRow | None
     lexicon: LexiconRow | None
+    # The call ran a canary's version, picked for its share of the calls.
+    canary: bool = False

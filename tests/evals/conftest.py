@@ -1,12 +1,19 @@
 """What the eval tests share: finished calls written by hand, a clinic's declaration, a judge."""
 
+from livekit.agents.evals import EvaluationResult, JudgmentResult
+
 from pinecall.domain.agent import AgentConfig, ToolSpec
 from pinecall.domain.names import JsonObject
-from pinecall.evals.case import Arrived, Called, Case, Said
+from pinecall.evals.case import Arrived, Called, Case, Said, as_chat
+from pinecall.evals.judges import CaseJudge
 from pinecall.wire.frames import Entry
+from pinecall.wire.rest.evals import Golden
 from tests.fakes.acme import AcmeLLM
 
 AGENT = "clinica-norte"
+
+
+WHEN = "¿Cuándo tiene hueco?"
 
 
 CALL = "CA_8f4a2c"
@@ -210,3 +217,24 @@ def prompts_of(model: AcmeLLM) -> list[str]:
         "\n".join(item.text_content or "" for item in request.items if item.type == "message")
         for request in model.requests
     ]
+
+
+def judge_named(judges: list[CaseJudge], name: str) -> CaseJudge:
+    """The judge of that name among these."""
+    return next(judge for judge in judges if judge.name == name)
+
+
+def expecting(**expect: object) -> Golden:
+    """A golden of one line that expects this."""
+    return Golden.model_validate({"name": "g", "input": ["hola"], "expect": expect})
+
+
+async def score_of(judge: CaseJudge, case: Case, model: AcmeLLM | None = None) -> float:
+    """The judge's verdict as livekit scores it: 1, a half, or 0."""
+    result = await verdict(judge, case, model)
+    return EvaluationResult(judgments={judge.name: result}).score
+
+
+async def verdict(judge: CaseJudge, case: Case, model: AcmeLLM | None = None) -> JudgmentResult:
+    """The judge's verdict on the case, asked of this model."""
+    return await judge.evaluate(chat_ctx=as_chat(case), llm=model)

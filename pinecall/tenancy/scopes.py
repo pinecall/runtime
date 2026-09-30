@@ -1,7 +1,8 @@
 """An agent's tuning and lexicon, versioned per scope, and what is current."""
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, replace
+from datetime import datetime
 from typing import Literal, LiteralString
 
 from psycopg import sql
@@ -14,6 +15,7 @@ from pinecall.domain.errors import Conflict
 from pinecall.domain.names import PRODUCTION, Json, JsonObject
 from pinecall.domain.scope import THE_ORGS_OWN, Scope
 from pinecall.postgres.pool import Connection, Pool
+from pinecall.tenancy.canary import bucket_of
 
 type VersionedTable = Literal["agent_config", "lexicon"]
 
@@ -75,14 +77,31 @@ RETURNING version
 
 
 # Both chains in one statement, so the tuning and the lexicon a call is built on are read from
-# the same moment: the holder's newest row, then the org's own, of each.
+# the same moment: the holder's newest row, then the org's own, of each. Where a level stands on a
+# canary (tenancy/canary.py), a call whose bucket is under its share runs the canary's version and
+# every other call, or a read for no call, the newest version but that one. A version named (an
+# eval run's candidate) is the scope's own level's, whatever canary stands there.
 STANDING = """
 SELECT * FROM (
-    SELECT DISTINCT ON (holder) 'tuning' AS kind, holder, version, config AS value, author, note,
-           set_at
-    FROM agent_config
-    WHERE org = %(org)s AND env = %(env)s AND holder IN (%(holder)s, '') AND agent = %(agent)s
-    ORDER BY holder DESC, version DESC
+    SELECT DISTINCT ON (config.holder) 'tuning' AS kind, config.holder, config.version,
+           config.config AS value, config.author, config.note, config.set_at
+    FROM agent_config config
+    LEFT JOIN LATERAL (
+        SELECT canary.version, canary.share FROM agent_canaries canary
+        WHERE canary.org = config.org AND canary.env = config.env
+          AND canary.holder = config.holder AND canary.agent = config.agent
+        ORDER BY canary.set_at DESC, canary.id DESC
+        LIMIT 1
+    ) standing ON true
+    WHERE config.org = %(org)s AND config.env = %(env)s AND config.holder IN (%(holder)s, '')
+      AND config.agent = %(agent)s
+      AND CASE WHEN %(version)s::integer IS NOT NULL AND config.holder = %(holder)s
+               THEN config.version = %(version)s
+               ELSE standing.version IS NULL
+                    OR (config.version = standing.version)
+                       = coalesce(%(bucket)s::integer < standing.share, false)
+          END
+    ORDER BY config.holder DESC, config.version DESC
 ) tuning
 UNION ALL
 SELECT * FROM (
@@ -102,6 +121,37 @@ FROM agent_config
 WHERE org = %(org)s AND env = %(env)s AND holder IN (%(holder)s, '')
 ORDER BY agent, holder DESC, version DESC
 """
+
+
+# The versions a drift names: the ones its calls ran and the ones set in its window. The same
+# number at both levels is the holder's, as the version a call ran on is read (AT).
+NOTED = """
+SELECT DISTINCT ON (version) holder, version, author, note, set_at FROM agent_config
+WHERE org = %(org)s AND env = %(env)s AND holder IN (%(holder)s, '') AND agent = %(agent)s
+  AND (version = ANY(%(versions)s)
+       OR (set_at >= to_timestamp(%(since)s) AND set_at < to_timestamp(%(until)s)))
+ORDER BY version, holder DESC
+"""
+
+
+@dataclass(frozen=True)
+class Noted:
+    """A version of the agent's tuning without its value: whose, which, who wrote it, why, when."""
+
+    holder: str
+    version: int
+    author: str
+    note: str | None
+    set_at: datetime
+
+
+# The call picks between a canary's version and the rest by its id; neither is the rest.
+@dataclass(frozen=True)
+class Picked:
+    """Which of a scope's versions a read is for: a call's, a version named, or the rest's."""
+
+    call: str | None = None
+    version: int | None = None
 
 
 @dataclass(frozen=True)
@@ -192,10 +242,16 @@ async def put_lexicon(
     return await _put(pool, "lexicon", PUT_LEXICON, values)
 
 
-async def current(pool: Pool, scope: Scope, agent: str) -> Current:
+async def current(pool: Pool, scope: Scope, agent: str, picked: Picked | None = None) -> Current:
     """What a call in the scope is built on: each knob from the nearest scope that sets it."""
+    wanted = picked or Picked()
+    params = {
+        **_where(scope, agent),
+        "bucket": None if wanted.call is None else bucket_of(wanted.call),
+        "version": wanted.version,
+    }
     async with pool.connection() as connection:
-        rows = await (await connection.execute(STANDING, _where(scope, agent))).fetchall()
+        rows = await (await connection.execute(STANDING, params)).fetchall()
     tuned = resolve([_tuning(row) for row in rows if row["kind"] == "tuning"])
     words = next((_lexicon(row) for row in rows if row["kind"] == "lexicon"), None)
     return Current(
@@ -206,6 +262,20 @@ async def current(pool: Pool, scope: Scope, agent: str) -> Current:
             lexicon=None if words is None else words.version,
         ),
     )
+
+
+async def versions_noted(
+    pool: Pool, scope: Scope, agent: str, versions: Collection[int], between: tuple[float, float]
+) -> list[Noted]:
+    """The agent's versions named, and those set in [since, until), oldest first, without values."""
+    since, until = between
+    params = {**_where(scope, agent), "versions": list(versions), "since": since, "until": until}
+    async with pool.connection() as connection:
+        rows = await (await connection.execute(NOTED, params)).fetchall()
+    return [
+        Noted(row["holder"], row["version"], row["author"], row["note"], row["set_at"])
+        for row in rows
+    ]
 
 
 async def every_tuning(pool: Pool, scope: Scope) -> dict[str, Tuning]:

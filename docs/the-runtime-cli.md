@@ -175,7 +175,12 @@ rows it rewrote. `doctor` asks each thing the box needs one question, a line eac
 when one is missing; it is the last line of every deploy. Its `facts` line names every log whose
 head gave out fewer seqs than its rows hold, and refolds 20 sealed calls from a random point of
 the call ids, naming each whose stored facts differ and the columns that do: `facts rebuild
---call` mends one.
+--call` mends one. `drift rebuild [--org <org id>] [--since YYYY-MM-DD]` forgets the drift of
+the days the flags name (every org's and every day's when none), each stage's histogram and each
+judge's count that `/v1/insights` and `/v1/insights/drift` read, and counts every sealed call of
+them again from its log, each in a transaction of its own; it prints how many sealed calls it read
+and how many it counted. A seal whose count broke says so in the gateway's journal, and this is what
+mends it.
 
 ## `vault rotate`
 

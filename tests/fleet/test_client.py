@@ -62,8 +62,10 @@ async def test_the_agent_and_its_stages_come_back_as_the_domain_holds_them(
     socket = await holding_app(knocking)
     client = fleet_client(knocking)
     scope = Scope(knocking.org.id, "sandbox")
-    config = await client.agent(AGENT, scope)
-    stages = TypeAdapter(Pipeline).validate_python(await client.stages(AGENT, scope))
+    config = await client.agent(AGENT, scope, call="CA_not_opened_yet")
+    stages = TypeAdapter(Pipeline).validate_python(
+        await client.stages(AGENT, scope, call="CA_not_opened_yet")
+    )
     assert config.slug == AGENT
     assert stages.lent == ["acme"]
     await client.aclose()

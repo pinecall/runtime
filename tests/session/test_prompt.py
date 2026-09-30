@@ -5,14 +5,13 @@ import json
 import pytest
 from livekit.agents import llm
 
-from pinecall.domain.agent import DEFAULT_LAYOUT, Greeting, PromptBlock
+from pinecall.domain.agent import DEFAULT_LAYOUT, Greeting, PromptBlock, block_hash
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.providers.build import a_list, a_mapping
 from pinecall.session._prompt import (
     Blocks,
     Request,
     greeting_for,
-    hashed,
     knowledge_changed,
     request,
 )
@@ -222,16 +221,10 @@ def test_a_greeting_that_names_neither_verb_or_both_is_refused_at_declaration() 
         Greeting(say="a", reply="b")
 
 
-def test_a_prompt_hash_is_sha256_hex_and_says_nothing_of_the_text() -> None:
-    text = hashed("Sos la recepción")
-    assert len(text) == 64
-    assert all(character in "0123456789abcdef" for character in text)
-
-
 def test_the_file_a_class_ships_with_gets_a_line_of_its_own_and_none_ships_none() -> None:
     changed = knowledge_changed(Blocks(DEFAULT_LAYOUT, "# Precios"))
     assert changed is not None
-    assert (changed.name, changed.chars, changed.hash) == ("knowledge", 9, hashed("# Precios"))
+    assert (changed.name, changed.chars, changed.hash) == ("knowledge", 9, block_hash("# Precios"))
     assert knowledge_changed(Blocks(DEFAULT_LAYOUT)) is None
 
 

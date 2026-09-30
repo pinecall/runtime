@@ -14,7 +14,6 @@ from pinecall.log.facts import (
     CORNER_OF_CALL,
     DAY,
     DAY_BY_AGENT,
-    DAY_BY_STAGE,
     DAY_MEDIAN_E2E,
     EVER_REACHED,
     FACTS_OF,
@@ -84,20 +83,6 @@ class AgentDay:
     score: float | None
 
 
-# vendor and model are what the turn's report names (livekit's provider label), None when absent.
-@dataclass(frozen=True, slots=True)
-class StageDay:
-    """One stage on one vendor and model over a day: its turns, median and p95, and confidence."""
-
-    stage: str
-    vendor: str | None
-    model: str | None
-    turns: int
-    median_s: float | None
-    p95_s: float | None
-    confidence: float | None
-
-
 @dataclass(frozen=True, slots=True)
 class Day:
     """A scope's day in numbers."""
@@ -110,7 +95,6 @@ class Day:
     spent: float
     channels: dict[str, int]
     agents: list[AgentDay]
-    stages: list[StageDay]
     total: int
     live: int
 
@@ -271,7 +255,6 @@ async def counted_day(pool: Pool, scope: Scope, start: float) -> Day:
         counted = await (await connection.execute(DAY, params)).fetchone()
         median = await (await connection.execute(DAY_MEDIAN_E2E, params)).fetchone()
         agents = await (await connection.execute(DAY_BY_AGENT, params)).fetchall()
-        stages = await (await connection.execute(DAY_BY_STAGE, params)).fetchall()
     if counted is None:
         raise DeclarationRefused("a day counts, even an empty one")
     return Day(
@@ -285,7 +268,6 @@ async def counted_day(pool: Pool, scope: Scope, start: float) -> Day:
         agents=[
             AgentDay(slug=row["slug"], calls=row["calls"], score=row["score"]) for row in agents
         ],
-        stages=[StageDay(**row) for row in stages],
         total=int(counted["total"]),
         live=int(counted["live"]),
     )

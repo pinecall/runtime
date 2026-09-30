@@ -22,6 +22,7 @@ from pinecall.gateway._sockets import NO_AGENT, Registration
 from pinecall.providers import catalog
 from pinecall.providers.credentials import Pipeline, pipeline
 from pinecall.tenancy import agents, keys
+from pinecall.tenancy.scopes import Picked
 from pinecall.wire.rest.agents import (
     AgentList,
     AgentRow,
@@ -42,17 +43,22 @@ class RouteQuery(BaseModel):
     channel: Channel = "phone"
 
 
+# A worker names the call it asks for before opening it (`for_call`: `call` would ask to act in an
+# opened call's scope), so a canary's share is picked by the call's id; a worker that names none
+# (an older one) is answered the version every call off the canary runs.
 @router.get("/v1/agents/{slug}/config")
 async def agent_config(
-    slug: str, _key: _deps.DeclarationKey, where: ScopeDep, gateway: GatewayDep
+    slug: str,
+    _key: _deps.DeclarationKey,
+    where: ScopeDep,
+    gateway: GatewayDep,
+    for_call: Annotated[str | None, Query()] = None,
 ) -> AgentConfig:
-    """The agent as the scope runs it: its declaration under the scope's settings."""
+    """The agent as the scope runs it, for the call named: its declaration under the settings."""
     found = _registration_of(gateway, where, slug)
+    configured = await catalog.providers(gateway.connections.pool)
     tuned_config, _ = await tuned(
-        gateway.connections.pool,
-        found.config,
-        where,
-        await catalog.providers(gateway.connections.pool),
+        gateway.connections.pool, found.config, where, configured, Picked(call=for_call)
     )
     return tuned_config
 
@@ -60,12 +66,18 @@ async def agent_config(
 # The one answer that carries keys: to the fleet's key, or the org's own worker's.
 @router.get("/v1/agents/{slug}/provider-keys")
 async def agent_credentials(
-    slug: str, _key: WorkerKey, where: ScopeDep, gateway: GatewayDep
+    slug: str,
+    _key: WorkerKey,
+    where: ScopeDep,
+    gateway: GatewayDep,
+    for_call: Annotated[str | None, Query()] = None,
 ) -> Pipeline:
     """The three stages a call of the agent runs, each on the key it runs on."""
     found = _registration_of(gateway, where, slug)
     configured = await catalog.providers(gateway.connections.pool)
-    tuned_config, _ = await tuned(gateway.connections.pool, found.config, where, configured)
+    tuned_config, _ = await tuned(
+        gateway.connections.pool, found.config, where, configured, Picked(call=for_call)
+    )
     return pipeline(
         tuned_config,
         configured,

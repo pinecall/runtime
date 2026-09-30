@@ -16,7 +16,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/metrics` | loopback | What the gateway counted and holds, as Prometheus text; refused to anything that came through Caddy. |
 | `GET` | `/v1/agents` | calls | The org's held agents in the world: one row per slug, one per scope for a team reader. |
 | `GET` | `/v1/agents/{slug}/calls` | calls | An agent's own log: its registrations, its declarations, its errors. It never ends. |
-| `GET` | `/v1/agents/{slug}/config` | app · calls · fleet | The agent as the scope runs it: its declaration under the scope's settings. |
+| `GET` | `/v1/agents/{slug}/config` | app · calls · fleet | The agent as the scope runs it, for the call named: its declaration under the settings. |
 | `POST` | `/v1/agents/{slug}/dev/chat/{verb}` | talk | A chat verb, answered by the app holding the agent. |
 | `POST` | `/v1/agents/{slug}/dev/evals/{verb}` | evals | An evals verb, answered by the app holding the agent. |
 | `POST` | `/v1/agents/{slug}/dev/knowledge/{verb}` | knowledge | A knowledge verb, answered by the app holding the agent. |
@@ -55,6 +55,9 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/agents/{slug}/settings` | pipeline · words | The agent's settings as this key sees them: yours, the team's and production's. |
 | `PUT` | `/v1/agents/{slug}/settings` | pipeline · words | The agent's next version in this scope or the team's, checked as a call would build it. |
 | `GET` | `/v1/agents/{slug}/settings/diff` | pipeline · words | This key's scope's newest against the team's or production's, and which fields differ. |
+| `GET` | `/v1/agents/{slug}/settings/canary` | pipeline · words | The version this scope, or the team's, runs on a share of the agent's calls, or none. |
+| `PUT` | `/v1/agents/{slug}/settings/canary` | pipeline | One of the scope's versions on a share of the agent's calls; the rest run the others. |
+| `DELETE` | `/v1/agents/{slug}/settings/canary` | pipeline | The scope's canary cleared: one version for every call. |
 | `GET` | `/v1/agents/{slug}/settings/history` | pipeline · words | One scope's versions of the agent's settings, newest first. |
 | `POST` | `/v1/agents/{slug}/settings/rollback` | pipeline | An old version brought back as the scope's next one. |
 | `GET` | `/v1/agents/{slug}/threads` | calls | The agent's contacts, the one that moved last first, with what this reader has not read. |
@@ -82,6 +85,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `POST` | `/v1/calls/{call}/remember` | app · fleet | Write what the call taught into its contact's memory now, as the seal would. |
 | `POST` | `/v1/calls/{call}/reopened` | app · fleet | Serve again a call the gateway forgot. |
 | `POST` | `/v1/calls/{call}/sealed` | app · fleet | Price the call, write its summary and score, and seal its log. |
+| `GET` | `/v1/calls/{call}/prompt` | calls | Every block of prompt the call was told, in order, each with its words when kept. |
 | `GET` | `/v1/calls/{call}/settings` | calls | The exact settings and lexicon a call was built on. |
 | `GET` | `/v1/calls/{call}/state` | calls · fleet | The call's folded state as this reader may see it, and the seq a stream resumes from. |
 | `POST` | `/v1/calls/{call}/supervise` | supervise | A seat that speaks in one live call; its token also sends the verbs. |
@@ -101,8 +105,11 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `DELETE` | `/v1/contacts/{contact}/memory` | memory | Every fact of the contact deleted, history included; zero is an answer, not a 404. |
 | `GET` | `/v1/contacts/{contact}/memory` | memory | Every fact ever kept of the contact, current first. |
 | `POST` | `/v1/evals/caller` | evals | The persona's next line on the call so far, improvised by its model. |
+| `GET` | `/v1/evals/cases` | evals | The org's cases, one agent's or every one, by agent and name. |
+| `POST` | `/v1/evals/cases` | evals | A finished call's caller lines kept as a case of the org's dataset. |
+| `DELETE` | `/v1/evals/cases/{id}` | evals | Forget one of the org's cases; another org's, or nobody's, is the same 404. |
 | `POST` | `/v1/evals/judge/{call}` | evals | Judge a finished call, write the verdict on its log, and answer it. |
-| `POST` | `/v1/evals/replay/{call}` | evals | The four code checks over a finished call: consent, register, errors, latency. |
+| `POST` | `/v1/evals/replay/{call}` | evals | The six code checks over a finished call, the barge-ins it answered among them. |
 | `POST` | `/v1/evals/run` | evals | Every golden under every model through the app that holds the agent, judged and stored. |
 | `GET` | `/v1/evals/runs` | evals | The runs of the key's org in its world, newest first. |
 | `GET` | `/v1/evals/runs/{id}` | evals | One run; another org's, or one nobody ran, is the same 404. |
@@ -121,6 +128,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `POST` | `/v1/hosted/{name}/start` | app | Run a stopped app again, its newest release. |
 | `POST` | `/v1/hosted/{name}/stop` | app | Stop running the app: its process drains, and its releases and token stay. |
 | `GET` | `/v1/insights` | calls | One day of the key's world and scope at a glance, and the month's spend. |
+| `GET` | `/v1/insights/drift` | calls | What moved between two days or versions of an agent, and the versions run or set. |
 | `POST` | `/v1/invitations/{token}` | — | Choose a password: the member is active, and here is their first key. |
 | `GET` | `/v1/keys` | — | The org's keys this key may see, oldest first, the revoked ones too; never a key. |
 | `POST` | `/v1/keys` | app | A server's token for the org in one world, `pc_live_` or `pc_test_`. |

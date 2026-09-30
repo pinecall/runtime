@@ -19,16 +19,16 @@ from pinecall.domain.call import CallContext, Route, new_call_id, today_in
 from pinecall.domain.errors import (
     Conflict,
     DeclarationRefused,
+    NotAllowed,
     NotAvailable,
     NotFound,
     QuotaExhausted,
 )
-from pinecall.domain.names import THE_WIDGET
+from pinecall.domain.names import PRODUCTION, THE_WIDGET
 from pinecall.domain.scope import Scope
-from pinecall.evals import checks, goldens, runs, spoken
+from pinecall.evals import checks, dataset, goldens, runs, spoken
 from pinecall.evals.callers import heard_in, improvise_line
 from pinecall.evals.case import case_of
-from pinecall.evals.judges import golden_judges
 from pinecall.fleet import worlds
 from pinecall.gateway import _deps
 from pinecall.gateway._call_setup import exhausted, keys_of, tuned
@@ -36,15 +36,15 @@ from pinecall.gateway._deps import EvalsKey, GatewayDep, ScopeDep
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._sockets import NO_AGENT, Registration
 from pinecall.gateway._text_calls import TextSetup, open_text_as
-from pinecall.gateway.ending.seal import compliance_of, judge_of, judged_call
+from pinecall.gateway.ending.seal import compliance_of, drifted, judge_of, judged_call
 from pinecall.providers import catalog, credentials
 from pinecall.providers.build import Running, llm_of, tts_of
 from pinecall.providers.catalog import Providers
 from pinecall.providers.credentials import Keyring, thinking
 from pinecall.providers.declared import model_of
-from pinecall.tenancy import judges, personas, tokens
+from pinecall.tenancy import judges, personas, scopes, tokens
 from pinecall.tenancy.keys import check_agent
-from pinecall.wire.events import CallScore
+from pinecall.tenancy.scopes import Picked
 from pinecall.wire.parts import ModelConfig
 from pinecall.wire.rest.evals import (
     CallerPersona,
@@ -61,6 +61,7 @@ from pinecall.wire.rest.evals import (
     RunSuiteRequest,
     ScoreRow,
 )
+from pinecall.wire.scores import CallScore
 
 router = APIRouter()
 
@@ -101,6 +102,18 @@ NO_PINNED_DAY_OUT_LOUD = (
 
 
 NO_LINE = "the simulated call could not be held: {broke}"
+
+
+CASES_IN_THE_SANDBOX = (
+    "cases are real callers' words played again: they run in the sandbox, against the app a "
+    "developer holds there, never through production's, whose tools act for real"
+)
+
+
+CASES_WRITTEN = "cases are played as written calls: drop --voice, or play only goldens out loud"
+
+
+NO_SUCH_VERSION = "no version {version} of {slug} in the scope of the app that holds it"
 
 
 # The worker writes call.summary and call.score after the caller leaves.
@@ -162,6 +175,8 @@ async def run_suite(
         raise NotFound(NO_AGENT.format(slug=body.agent))
     if body.voice:
         _refuse_out_loud(body)
+    if body.cases or body.dataset:
+        body = await _with_cases(gateway, body, scope)
     suite = await _suite_of(gateway, body, registration)
     pool, where = gateway.connections.pool, registration.scope
     async with gateway.evals.alone(suite.run.id, body.agent):
@@ -207,7 +222,7 @@ async def replay_call(
     gateway: GatewayDep,
     body: ReplayCallRequest | None = None,
 ) -> ReplayCallResponse:
-    """The four code checks over a finished call: consent, register, errors, latency."""
+    """The six code checks over a finished call, the barge-ins it answered among them."""
     declared = await _deps.check_readable(gateway, _deps.Reader(acting=key, scope=scope), call)
     entries = await gateway.logs.store.whole(call)
     if not entries:
@@ -254,6 +269,7 @@ async def judge_call(
     org_facts = await compliance_of(gateway.connections.pool, key.org, call, declared)
     score = await judged_call(gateway.connections, entries, declared, own, org_facts)
     await store.rescored(call, entries[0].agent, score.written())
+    await drifted(gateway.connections.pool, call, entries, score)
     return score
 
 
@@ -315,10 +331,28 @@ async def place_voice_call(
 async def _suite_of(gateway: Gateway, body: RunSuiteRequest, registration: Registration) -> Suite:
     pool, where = gateway.connections.pool, registration.scope
     configured = await catalog.providers(pool)
-    config, versions = await tuned(pool, registration.config, where, configured)
+    if body.version is not None:
+        candidate = await scopes.tuning_at(pool, where, body.agent, body.version)
+        if candidate is None or candidate.holder != where.holder:
+            raise NotFound(NO_SUCH_VERSION.format(version=body.version, slug=body.agent))
+    picked = Picked(version=body.version)
+    config, versions = await tuned(pool, registration.config, where, configured, picked)
     keys = await keys_of(pool, gateway.connections.vault, where)
     setup = TextSetup(config, versions, thinking(config, configured, keys))
     return Suite(body, registration, setup, configured, keys, runs.new_run(body.agent))
+
+
+# Real callers' words are played in written calls in the sandbox: never through the live app,
+# whose tools act for real, and never out loud.
+async def _with_cases(gateway: Gateway, body: RunSuiteRequest, scope: Scope) -> RunSuiteRequest:
+    if scope.env == PRODUCTION:
+        raise NotAllowed(CASES_IN_THE_SANDBOX)
+    if body.voice:
+        raise DeclarationRefused(CASES_WRITTEN)
+    played = await dataset.picked(
+        gateway.connections.pool, scope.org, body.agent, body.cases, every=body.dataset
+    )
+    return body.model_copy(update={"goldens": [*body.goldens, *played]})
 
 
 async def _judged_suite(gateway: Gateway, suite: Suite, org: str) -> str | None:
@@ -359,7 +393,7 @@ async def _every_golden(gateway: Gateway, suite: Suite, judge: llm.LLM[Never] | 
                 return THE_APP_LEFT.format(done=len(suite.cells), total=total, slug=body.agent)
             entries = await gateway.logs.store.whole(opened.call)
             case = case_of(entries, setup.config)
-            scores = await runs.score(golden_judges(golden, case), case, judge)
+            scores = await runs.score(goldens.golden_judges(golden, case), case, judge)
             requests = None if body.voice else played.requests
             suite.cells.append(runs.cell_of(opened, case, scores, requests))
             await runs.put(gateway.connections.pool, registration.scope, suite.now)

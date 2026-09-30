@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+from pinecall.domain.agent import Versions
 from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.log.store import Claim, Store
@@ -29,6 +30,7 @@ class ACall:
     scope: Scope | None = None
     persona: str | None = None
     ended: bool = True
+    versions: Versions | None = None
 
 
 @pytest.fixture
@@ -55,7 +57,9 @@ async def logged_call(store: Store, org: str, went: ACall | None = None) -> str:
     went = went or ACall()
     agent = went.agent
     call = f"CA_{uuid4().hex[:12]}"
-    await store.claim(call, agent, org, Claim(went.scope or Scope(org)))
+    await store.claim(
+        call, agent, org, Claim(went.scope or Scope(org), went.versions or Versions())
+    )
     line: JsonObject = {
         "channel": went.channel,
         "from": went.caller,
