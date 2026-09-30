@@ -31,7 +31,9 @@ grep -q '^containers:' /etc/subgid || echo "containers:2147483647:2147483648" >>
 install -D -m 0644 "$HERE/fence.nft" /etc/nftables.d/pinecall-apps.nft
 grep -q 'pinecall-apps.nft' /etc/nftables.conf || echo 'include "/etc/nftables.d/pinecall-apps.nft"' >> /etc/nftables.conf
 systemctl enable --now nftables
-nft -f /etc/nftables.d/pinecall-apps.nft 2>/dev/null || { nft delete table inet pinecall_apps; nft -f /etc/nftables.d/pinecall-apps.nft; }
+# Loaded whole once: enabling nftables may have loaded it already, and a second -f adds each rule again.
+nft delete table inet pinecall_apps 2>/dev/null || true
+nft -f /etc/nftables.d/pinecall-apps.nft
 
 command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 # A venv of its own: a machine that is also a box keeps the box's runtime where it is.
