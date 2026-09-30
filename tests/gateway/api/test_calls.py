@@ -12,7 +12,7 @@ from pinecall.domain.names import JsonObject
 from pinecall.domain.person import KEY_SCOPES
 from pinecall.domain.scope import Scope
 from pinecall.log.store import Claim
-from pinecall.tenancy import orgs, policy, reads, tokens
+from pinecall.tenancy import keys, orgs, policy, reads, tokens
 from pinecall.wire.rest.accounts import OrgPolicy
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
 from tests.conftest import (
@@ -811,7 +811,7 @@ async def test_another_orgs_key_and_the_other_world_erase_nothing(knocking: Knoc
 
 
 @postgres
-async def test_a_persons_read_of_a_call_is_written_once_an_hour_and_a_servers_is_not(
+async def test_a_persons_read_and_a_servers_are_written_once_an_hour_and_the_workers_is_not(
     knocking: Knocking,
 ) -> None:
     app = await an_app(knocking)
@@ -823,7 +823,14 @@ async def test_a_persons_read_of_a_call_is_written_once_an_hour_and_a_servers_is
             read = await person.get(f"/v1/calls/{context.call}/state", headers=sandbox)
             assert read.status_code == 200
     async with knocking.http(knocking.app["sandbox"]) as server:
-        assert (await server.get(f"/v1/calls/{context.call}/state")).status_code == 200
-    rows = await reads.of_org(knocking.gateway.connections.pool, knocking.org.id)
-    assert [(row.subject, row.what, row.reader) for row in rows] == [(context.call, "log", ana)]
+        assert (await server.get(f"/v1/calls/{context.call}/events")).status_code == 200
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        assert (await worker.get(f"/v1/calls/{context.call}/state")).status_code == 200
+    pool = knocking.gateway.connections.pool
+    servers = await keys.verify(pool, knocking.app["sandbox"])
+    assert servers is not None
+    rows = await reads.of_org(pool, knocking.org.id)
+    assert sorted((row.subject, row.what, row.reader) for row in rows) == sorted(
+        [(context.call, "log", ana), (context.call, "log", servers.key.key_id)]
+    )
     await app.close()
