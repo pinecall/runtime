@@ -1,4 +1,4 @@
-"""The bodies of the eval doors: a golden, a suite, a run, a replay, a persona, a judge."""
+"""The bodies of the eval doors: a golden, a case, a suite, a run, a replay, a persona, a judge."""
 
 from datetime import date
 from typing import Literal
@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import Field
 
 from pinecall.domain.agent import RunsOn
-from pinecall.domain.names import Json, JsonObject
+from pinecall.domain.names import Env, Json, JsonObject
 from pinecall.wire.frames import WireModel
 from pinecall.wire.parts import EndReason, ModelConfig, ScoreVerdict
 from pinecall.wire.rest.calls import SessionScore
@@ -69,10 +69,16 @@ class Golden(WireModel):
 
 
 class RunSuiteRequest(WireModel):
-    """POST /v1/evals/run, the body: the agent, its goldens, the models to run them under."""
+    """POST /v1/evals/run, the body: the agent, its goldens and cases, the models, a version."""
 
     agent: str
-    goldens: list[Golden]
+    goldens: list[Golden] = Field(default_factory=list[Golden])
+    # Cases of the org's dataset by name; a case held out is played only when named here.
+    cases: list[str] = Field(default_factory=list[str])
+    # Every case of the agent's that is not held out: the nightly run.
+    dataset: bool = False
+    # A version of the agent's settings in the app's scope to run instead of the one standing.
+    version: int | None = Field(default=None, ge=1)
     # Empty: the model the agent declares.
     models: list[ModelConfig] = Field(default_factory=list[ModelConfig])
     # The app socket to drive, as `WS /v1/chat?app=`; absent, the newest that holds the agent.
@@ -151,6 +157,39 @@ class EvalRunList(WireModel):
     """GET /v1/evals/runs: the runs of the key's org and world, newest first."""
 
     runs: list[EvalRunResponse]
+
+
+# ── the org's dataset: real calls kept as goldens ──
+
+
+class PromoteCaseRequest(WireModel):
+    """POST /v1/evals/cases, the body: the finished call, its name, what it expects, held out."""
+
+    call: str
+    name: str = Field(min_length=1)
+    expect: Expect = Field(default_factory=Expect)
+    # Left out of a nightly run, read only when a run names it.
+    held_out: bool = False
+
+
+class EvalCase(WireModel):
+    """One case of the org's dataset: the golden a real call made, whose, from where, by whom."""
+
+    id: str
+    agent: str
+    name: str
+    golden: Golden
+    source_call: str
+    source_env: Env
+    held_out: bool
+    author: str
+    created_at: float
+
+
+class EvalCaseList(WireModel):
+    """GET /v1/evals/cases: the org's cases, by agent and name."""
+
+    cases: list[EvalCase]
 
 
 # ── a finished call checked again ──

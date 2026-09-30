@@ -22,6 +22,7 @@ from pinecall.gateway._sockets import NO_AGENT, Registration
 from pinecall.providers import catalog
 from pinecall.providers.credentials import Pipeline, pipeline
 from pinecall.tenancy import agents, keys
+from pinecall.tenancy.scopes import Picked
 from pinecall.wire.rest.agents import (
     AgentList,
     AgentRow,
@@ -57,7 +58,7 @@ async def agent_config(
     found = _registration_of(gateway, where, slug)
     configured = await catalog.providers(gateway.connections.pool)
     tuned_config, _ = await tuned(
-        gateway.connections.pool, found.config, where, configured, call=for_call
+        gateway.connections.pool, found.config, where, configured, Picked(call=for_call)
     )
     return tuned_config
 
@@ -75,7 +76,7 @@ async def agent_credentials(
     found = _registration_of(gateway, where, slug)
     configured = await catalog.providers(gateway.connections.pool)
     tuned_config, _ = await tuned(
-        gateway.connections.pool, found.config, where, configured, call=for_call
+        gateway.connections.pool, found.config, where, configured, Picked(call=for_call)
     )
     return pipeline(
         tuned_config,

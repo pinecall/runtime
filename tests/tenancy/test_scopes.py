@@ -14,6 +14,7 @@ from pinecall.tenancy import canary
 from pinecall.tenancy.canary import Canary, CanarySet, bucket_of
 from pinecall.tenancy.orgs import create
 from pinecall.tenancy.scopes import (
+    Picked,
     Written,
     current,
     every_tuning,
@@ -170,16 +171,32 @@ async def test_a_canary_takes_its_share_of_the_calls_and_the_rest_run_the_others
         pool, team, AGENT, CanarySet(Canary(version=2, share=30), "m_ana", time.time())
     )
     picked, rest = a_call_placed(inside=True, share=30), a_call_placed(inside=False, share=30)
-    on_canary = await current(pool, team, AGENT, call=picked)
-    on_rest = await current(pool, team, AGENT, call=rest)
+    on_canary = await current(pool, team, AGENT, Picked(call=picked))
+    on_rest = await current(pool, team, AGENT, Picked(call=rest))
     assert (on_canary.tuning.voice, on_canary.versions.config) == ("new", 2)
     assert (on_rest.tuning.voice, on_rest.versions.config) == ("old", 1)
     assert (await current(pool, team, AGENT)).versions.config == 1, "no call is the rest"
-    assert (await current(pool, mine, AGENT, call=picked)).versions.config == 2, "falls through"
+    assert (await current(pool, mine, AGENT, Picked(call=picked))).versions.config == 2, (
+        "falls through"
+    )
     await canary.put(pool, team, AGENT, CanarySet(Canary(version=2, share=0), "m_ana", time.time()))
-    assert (await current(pool, team, AGENT, call=picked)).versions.config == 1
+    assert (await current(pool, team, AGENT, Picked(call=picked))).versions.config == 1
     await canary.put(pool, team, AGENT, CanarySet(None, "m_ana", time.time()))
-    assert (await current(pool, team, AGENT, call=rest)).versions.config == 2, "cleared: newest"
+    assert (await current(pool, team, AGENT, Picked(call=rest))).versions.config == 2, (
+        "cleared: newest"
+    )
+
+
+@postgres
+async def test_a_version_named_is_the_scopes_own_whatever_canary_stands(pool: Pool) -> None:
+    mine, team, _ = await _corners(pool)
+    await put_tuning(pool, team, AGENT, Tuning(voice="team"), BY_ANA)
+    await put_tuning(pool, mine, AGENT, Tuning(voice="first"), BY_ANA)
+    await put_tuning(pool, mine, AGENT, Tuning(voice="second"), BY_ANA)
+    await canary.put(pool, mine, AGENT, CanarySet(Canary(version=2, share=100), "m_ana", 1.0))
+    named = await current(pool, mine, AGENT, Picked(version=1, call="CA_1"))
+    assert (named.tuning.voice, named.versions.config) == ("first", 1)
+    assert (await current(pool, mine, AGENT, Picked(version=9))).tuning.voice == "team"
 
 
 @postgres

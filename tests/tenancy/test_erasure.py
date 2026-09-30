@@ -9,12 +9,15 @@ from psycopg import errors
 from pinecall.domain.errors import UpstreamFailed
 from pinecall.domain.person import KEY_SCOPES
 from pinecall.domain.scope import Scope
+from pinecall.evals import dataset
+from pinecall.evals.dataset import Promoted
 from pinecall.log import drift
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.process.recordings import Bucket, Disk
 from pinecall.tenancy import canary, erasure
 from pinecall.tenancy.canary import Canary, CanarySet
+from pinecall.wire.rest.evals import Expect
 from pinecall.wire.scores import CallScore
 from tests.conftest import issued, postgres
 from tests.fakes.bucket import Bucket as Remote
@@ -43,7 +46,8 @@ SELECT (SELECT count(*) FROM call_log WHERE log = %(call)s) AS entries,
        (SELECT count(*) FROM call_facts WHERE call = %(call)s) AS facts,
        (SELECT count(*) FROM tokens WHERE call = %(call)s) AS tokens,
        (SELECT count(*) FROM contact_memories WHERE source_call = %(call)s) AS memories,
-       (SELECT count(*) FROM drift_calls WHERE call = %(call)s) AS drifted
+       (SELECT count(*) FROM drift_calls WHERE call = %(call)s) AS drifted,
+       (SELECT count(*) FROM eval_cases WHERE source_call = %(call)s) AS promoted
 """
 
 
@@ -51,6 +55,12 @@ async def a_fact(pool: Pool, org: str, contact: str, call: str | None) -> None:
     async with pool.connection() as connection:
         params = {"org": org, "contact": contact, "text": "prefers mornings", "call": call}
         await connection.execute(A_FACT, params)
+
+
+async def a_case(pool: Pool, org: str, call: str) -> None:
+    """The call kept as a case of the org's dataset."""
+    golden = dataset.golden_of(await Store(pool).whole(call), call, Expect())
+    await dataset.promoted(pool, golden, AGENT, Promoted(org, "production", call, "m_1"))
 
 
 async def left_of(pool: Pool, call: str) -> dict[str, int]:
@@ -77,7 +87,15 @@ INSERT INTO thread_reads (org, env, holder, agent, reader, contact, read_at)
 VALUES (%s, 'production', '', %s, 'm_1', '+1', 1)
 """
 
-NOTHING_LEFT = {"entries": 0, "heads": 0, "facts": 0, "tokens": 0, "memories": 0, "drifted": 0}
+NOTHING_LEFT = {
+    "entries": 0,
+    "heads": 0,
+    "facts": 0,
+    "tokens": 0,
+    "memories": 0,
+    "drifted": 0,
+    "promoted": 0,
+}
 
 
 async def test_a_call_erased_in_a_box_with_a_bucket_leaves_no_object_and_is_counted(
@@ -119,6 +137,7 @@ async def test_a_call_erased_leaves_no_row_no_recording_and_a_trail_that_counts_
     recording = a_recording(tmp_path, call)
     entries = await store.whole(call)
     assert await drift.fold(pool, call, entries, CallScore.model_validate(entries[-1].data))
+    await a_case(pool, org.id, call)
 
     erased = await erasure.call(pool, Disk(tmp_path), Scope(org.id), call, by="m_1")
 
@@ -159,6 +178,8 @@ async def test_a_contacts_erasure_takes_their_calls_and_facts_and_spares_another
     await a_fact(pool, org.id, ANA, anas[0])
     await a_fact(pool, org.id, ANA, None)
     await a_fact(pool, org.id, LUIS, luis)
+    await a_case(pool, org.id, anas[1])
+    await a_case(pool, org.id, luis)
 
     erased = await erasure.contact(pool, Disk(tmp_path), Scope(org.id), ANA, by="k_1")
 
@@ -168,7 +189,7 @@ async def test_a_contacts_erasure_takes_their_calls_and_facts_and_spares_another
         assert await left_of(pool, call) == NOTHING_LEFT
     kept = await left_of(pool, luis)
     assert kept["entries"] > 0
-    assert kept["memories"] == 1
+    assert (kept["memories"], kept["promoted"]) == (1, 1)
 
 
 async def test_a_contact_in_the_other_world_is_not_touched(
@@ -255,7 +276,8 @@ ORGS_ROWS = """
 SELECT (SELECT count(*) FROM stage_days WHERE org = %(org)s)
      + (SELECT count(*) FROM judge_days WHERE org = %(org)s)
      + (SELECT count(*) FROM drift_calls WHERE org = %(org)s)
-     + (SELECT count(*) FROM agent_canaries WHERE org = %(org)s) AS rows
+     + (SELECT count(*) FROM agent_canaries WHERE org = %(org)s)
+     + (SELECT count(*) FROM eval_cases WHERE org = %(org)s) AS rows
 """
 
 
@@ -275,6 +297,7 @@ async def test_the_drift_and_the_canary_of_an_org_go_with_it(
     entries = await store.whole(call)
     await drift.fold(pool, call, entries, CallScore.model_validate(entries[-1].data))
     await canary.put(pool, Scope(org.id), AGENT, CanarySet(Canary(1, 10), "m_1", 1.0))
-    assert await orgs_rows(pool, org.id) == 3, "a verdict, the call counted, a canary"
+    await a_case(pool, org.id, call)
+    assert await orgs_rows(pool, org.id) == 4, "a verdict, the call counted, a canary, a case"
     await erasure.org(pool, Disk(tmp_path), org.id, by="operator")
     assert await orgs_rows(pool, org.id) == 0

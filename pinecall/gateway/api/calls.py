@@ -57,6 +57,7 @@ from pinecall.providers.catalog import judge_ceiling
 from pinecall.session.call import ToolUse
 from pinecall.tenancy import disclosure, erasure, keys, orgs, policy, reads, tokens
 from pinecall.tenancy.reads import Read
+from pinecall.tenancy.scopes import Picked
 from pinecall.wire.commands import CallClaim
 from pinecall.wire.events import (
     EVENTS,
@@ -548,7 +549,7 @@ async def _tuned(
     declared = gateway.sockets.of(scope, agent) if registration is None else registration
     config = AgentConfig(slug=agent) if declared is None else declared.config
     configured = await catalog.providers(gateway.connections.pool)
-    return await tuned(gateway.connections.pool, config, scope, configured, call=call)
+    return await tuned(gateway.connections.pool, config, scope, configured, Picked(call=call))
 
 
 # A person's read and a server's are written down, by the person or the key; a visitor reads
