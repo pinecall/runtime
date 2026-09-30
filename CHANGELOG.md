@@ -191,3 +191,10 @@ console and the widget inside; `docs/from-zero.md` walks a box to its first call
   `failed` reports kept), a release's source and an app's environment (the org's secrets, its
   token, the world's address). `GET /v1/hosted` says `live_release` and `failed_why`.
   Migration 0019.
+- The runner: `pinecall-runtime runner start`, the process that keeps a world's hosted apps
+  running on a machine of their own (`infra/apps/`: podman, gVisor, an nftables fence, one runner
+  unit per world). It installs a release inside gVisor, starts it read-only, capped and on a
+  network of its own under the release's host name, reports it live once its agents register, and
+  stops the release it replaced only then; one that does not install, exits or never registers is
+  reported failed with its last lines, and the one before keeps serving. `PINECALL_RUNNER_KEY`,
+  `PINECALL_RUNNER_ROOT`, `PINECALL_RUNNER_IMAGE`, `PINECALL_RUNNER_RUNTIME`.

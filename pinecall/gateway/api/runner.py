@@ -41,6 +41,7 @@ async def runner_heartbeat(
             await _kept(gateway, key, status, report, runner=body.runner)
     statuses = await hosting.hosted_in(pool, key.env) if body.reports else list(wanted.values())
     return RunnerHeartbeatResponse(
+        world=key.env,
         apps=[
             WantedApp(
                 org=status.org,
@@ -53,7 +54,7 @@ async def runner_heartbeat(
             )
             for status in statuses
             if status.release is not None and status.sha256 and status.host
-        ]
+        ],
     )
 
 

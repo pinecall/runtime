@@ -1,0 +1,22 @@
+# The runner of world %i (production or sandbox): every org's hosted apps of that world, one
+# gVisor container each. Root, because podman's --userns=auto maps each container to its own
+# range of unprivileged ids, which only root may hand out; the containers never run as root.
+[Unit]
+Description=Pinecall runner, world %i
+Wants=network-online.target
+After=network-online.target nftables.service
+
+[Service]
+WorkingDirectory=/var/lib/pinecall/runner
+EnvironmentFile=/etc/pinecall/runner/%i.env
+Environment=PINECALL_RUNNER_ROOT=/var/lib/pinecall/runner/%i
+LoadCredentialEncrypted=PINECALL_RUNNER_KEY:/etc/pinecall/runner/%i.credstore/PINECALL_RUNNER_KEY
+ExecStart=/opt/pinecall/venv/bin/pinecall-runtime runner start
+# The apps are podman's and outlive the runner: stopping it stops nothing of theirs.
+KillMode=process
+TimeoutStopSec=30
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

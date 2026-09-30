@@ -5,9 +5,12 @@ A tenant's agent is a process the tenant runs ([the-smallest-app.md](the-smalles
 and the box keeps them as a **release**. Every door here takes a key that opens `app`, and acts in
 the world the request names: an app hosted in production is not hosted in the sandbox.
 
-**What exists today is the record and the runner's doors**: the app, its token, its releases, the
-org's secrets, and what a runner asks the gateway. The runner itself, the process that builds a
-release and starts it, is not written yet, so an upload is kept and nothing runs it.
+The box's **runner** of that world installs each release and starts it, one gVisor container
+each, on a machine that is not the box ([../../infra/apps/README.md](../../infra/apps/README.md));
+`GET /v1/hosted` says which release serves and why the newest failed. What the process is started
+with is the org's secrets, its token and the world's address, and the command is always
+`pinecall start` (`--prod` in production): a hosted project is a Node project with `pinecall` in
+its dependencies.
 
 ## An app and its releases
 
@@ -56,7 +59,7 @@ opens `runner`, a scope no org's key and no person's role holds: it is minted on
 
 | door | what |
 |---|---|
-| `POST /v1/runner/heartbeat {runner, reports: [{org, name, host, state, why}]}` | keeps the reports, and answers every app of the key's world that has a release: `{apps: [{org, name, release, sha256, host, registered, failed}]}` |
+| `POST /v1/runner/heartbeat {runner, reports: [{org, name, host, state, why}]}` | keeps the reports, and answers the key's world and every app of it that has a release: `{world, apps: [{org, name, release, sha256, host, registered, failed}]}` |
 | `GET /v1/runner/apps/{org}/{name}/releases/{release}/source` | the tarball, of any org in the key's world |
 | `GET /v1/runner/apps/{org}/{name}/environment` | `{environment: {…}}`: the org's secrets in that world opened, `PINECALL_KEY` (the app's token) and `PINECALL_URL` (the box's address for that world; `503` on a box with no name) |
 

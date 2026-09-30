@@ -193,6 +193,28 @@ class Settings(BaseModel):
         repr=False,
         description="The org key the worker knocks its gateway with, as `keys issue` printed it.",
     )
+    # ── the runner ──
+    runner_key: str | None = Field(
+        None,
+        alias="PINECALL_RUNNER_KEY",
+        repr=False,
+        description="The key a world's runner knocks with, as `keys runner` printed it.",
+    )
+    runner_root: str = Field(
+        "/var/lib/pinecall/runner",
+        alias="PINECALL_RUNNER_ROOT",
+        description="Where the runner unpacks each release and installs its dependencies.",
+    )
+    runner_image: str = Field(
+        "docker.io/library/node:24-slim",
+        alias="PINECALL_RUNNER_IMAGE",
+        description="The image every hosted app installs and runs in.",
+    )
+    runner_runtime: str = Field(
+        "runsc",
+        alias="PINECALL_RUNNER_RUNTIME",
+        description="The OCI runtime a hosted app runs under: runsc (gVisor), or crun.",
+    )
     # Kept out of the database so a stolen dump does not expose tenants' secrets. To rotate: a
     # comma-separated list, the new key first; a secret seals under the first and opens under
     # whichever sealed it.
