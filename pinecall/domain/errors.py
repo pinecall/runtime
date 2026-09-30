@@ -58,6 +58,15 @@ class TooManyRequests(PinecallError):
     status = 429
 
 
+class Throttled(TooManyRequests):
+    """An org's family of doors took its minute's requests; the answer says when to come back."""
+
+    def __init__(self, sentence: str, *, retry_after_s: int) -> None:
+        """The refusal, and the whole seconds until the minute turns."""
+        super().__init__(sentence)
+        self.retry_after_s = retry_after_s
+
+
 class UpstreamFailed(PinecallError):
     """A vendor, a carrier or an identity provider did not answer as it should."""
 

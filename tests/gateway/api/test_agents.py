@@ -5,6 +5,7 @@ from pydantic import TypeAdapter
 from pinecall.providers import catalog
 from pinecall.providers.catalog import Stage
 from pinecall.providers.credentials import Pipeline
+from pinecall.wire.rest.calls import OpenCallRequest
 from tests.conftest import (
     AGENT,
     Knocking,
@@ -15,7 +16,7 @@ from tests.conftest import (
     sent,
 )
 from tests.fakes.acme import ACME
-from tests.gateway.api.conftest import A_NUMBER, an_app
+from tests.gateway.api.conftest import A_NUMBER, a_call, an_app
 
 
 @postgres
@@ -117,4 +118,34 @@ async def test_the_org_lists_its_agents_each_on_the_widget(knocking: Knocking) -
     async with knocking.http(knocking.app["sandbox"]) as tenant:
         listed = (await tenant.get("/v1/agents")).json()
     assert listed == {"agents": [{"slug": AGENT, "channels": ["web"], "holder": None}]}
+    await socket.close()
+
+
+# A worker that names a call is answered in the call's scope, as its head keeps it, and never in
+# one the query string claims instead.
+@postgres
+async def test_a_worker_naming_a_call_acts_in_the_calls_scope_and_no_other(
+    knocking: Knocking,
+) -> None:
+    socket = await an_app(knocking)
+    context = a_call(knocking)
+    ours = {"org": knocking.org.id, "env": "sandbox", "holder": ""}
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+        by_the_call = await worker.get(f"/v1/agents/{AGENT}/config", params={"call": context.call})
+        agreeing = await worker.get(
+            f"/v1/agents/{AGENT}/config", params={**ours, "call": context.call}
+        )
+        elsewhere = await worker.get(
+            f"/v1/agents/{AGENT}/provider-keys",
+            params={**ours, "org": "org_other", "call": context.call},
+        )
+        unopened = await worker.get(
+            f"/v1/agents/{AGENT}/provider-keys", params={**ours, "call": "call_nobody"}
+        )
+    assert (by_the_call.status_code, agreeing.status_code) == (200, 200)
+    assert elsewhere.status_code == 404
+    assert "not in the scope the dispatch names" in elsewhere.json()["detail"]
+    assert unopened.status_code == 404
+    assert "no call call_nobody was opened" in unopened.json()["detail"]
     await socket.close()

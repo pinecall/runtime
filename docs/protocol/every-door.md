@@ -15,7 +15,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/.well-known/pinecall` | — | What this gateway is and how it signs people in, before anybody holds a key. |
 | `GET` | `/metrics` | loopback | What the gateway counted and holds, as Prometheus text; refused to anything that came through Caddy. |
 | `GET` | `/v1/agents` | calls | The org's held agents in the world: one row per slug, one per scope for a team reader. |
-| `GET` | `/v1/agents/{slug}/calls` | calls · fleet | An agent's own log: its registrations, its declarations, its errors. It never ends. |
+| `GET` | `/v1/agents/{slug}/calls` | calls | An agent's own log: its registrations, its declarations, its errors. It never ends. |
 | `GET` | `/v1/agents/{slug}/config` | app · calls · fleet | The agent as the scope runs it: its declaration under the scope's settings. |
 | `POST` | `/v1/agents/{slug}/dev/chat/{verb}` | talk | A chat verb, answered by the app holding the agent. |
 | `POST` | `/v1/agents/{slug}/dev/evals/{verb}` | evals | An evals verb, answered by the app holding the agent. |
@@ -214,7 +214,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/org/consents/{number}` | calls | What stands for the number, and every fact about it, newest first. |
 | `GET` | `/v1/org/dnc` | calls | The world's do-not-call list, newest first, a page after the cursor. |
 | `POST` | `/v1/org/dnc` | talk | Numbers the org's own list or its Registry scrub says not to call, onto the list at once. |
-| `GET` | `/v1/org/reads` | team | Who read the org's calls and recordings, newest first; of one call or number when named. |
+| `GET` | `/v1/org/reads` | team | Who read the org's calls, recordings, seats, exports and memory, newest first; of one subject when named. |
 | `GET` | `/v1/org/erasures` | team | The org's erasures, newest first: what went, when, and who asked. |
 | `GET` | `/v1/org/policy` | team | The org's compliance settings: retention, calling hours, calls a day per number, and who set them. |
 | `PUT` | `/v1/org/policy` | team | The org's compliance settings replaced whole, from the next nightly run. |

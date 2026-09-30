@@ -1,19 +1,21 @@
 """API keys: minted, revoked, found by fingerprint, and the world and scope a request acts in."""
 
 import secrets
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
 from psycopg import sql
 from psycopg.rows import DictRow
 
-from pinecall.domain.errors import DeclarationRefused, NotAllowed
+from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotFound, NotSignedIn
 from pinecall.domain.names import ENVS, PRODUCTION, SANDBOX, Env, parse_env
 from pinecall.domain.person import (
     HOLDING,
     KEY_SCOPES,
     READS_ITS_OWN_CALL,
     ROLE_SCOPES,
+    SERVER_SCOPES,
     THE_FLEET,
     THE_TEAM,
     Key,
@@ -61,8 +63,22 @@ NOT_AT_THIS_NAME = "this name is the {world}'s: {asked} answers at its own name"
 NOT_OPENED = "this key does not open {scope}: it opens {opens}"
 
 
+EXPIRED = "this key expired at {at}: it opens nothing now, and a new one is made in the console"
+
+
+NOT_A_SERVERS = "a server's token opens some of {scopes}, and at least one; not {wanted}"
+
+
+ALREADY_OVER = "a key's expiry is a moment to come, not {at}"
+
+
 NOT_YOURS_TO_GRANT = (
     "this key does not open everything {role} would: it opens {opens}, so it cannot grant {role}"
+)
+
+
+NOT_THEIR_AGENT = (
+    "{name} works on {agents}, and agent {slug} is not one of them: an admin adds it in Team"
 )
 
 
@@ -78,6 +94,9 @@ NOT_A_COLLEAGUE = "no active member of this org answers to that corner"
 NO_DISPATCH = "the fleet's key acts in the corner of the call it serves: name the call"
 
 
+NOT_THE_CALLS = "the call named is not in the scope the dispatch names: a worker acts in its call's"
+
+
 NOT_THIS_FLEET = (
     "this is the {world} fleet's key, and the call is the {asked}'s: the unit holds the wrong key"
 )
@@ -85,14 +104,17 @@ NOT_THIS_FLEET = (
 
 # A key that names a person opens nothing once the person is gone, disabled, or (on a visit to
 # another org) no longer runs the box: the member row is read with the key, every request. Its
-# use is written at most once a minute, so a request is not a write.
+# use is written at most once a minute, so a request is not a write. An expired key is found, so
+# the refusal can say it expired; it opens nothing and its use is not written.
 VERIFY = sql.SQL("""
 WITH found AS (
-    SELECT id, org, label, env, scopes, subject, name, expires_at, last_used_at FROM api_keys
-    WHERE hash = %(hash)s AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())
+    SELECT id, org, label, env, scopes, subject, name, expires_at, last_used_at,
+           expires_at IS NOT NULL AND expires_at <= now() AS expired
+    FROM api_keys
+    WHERE hash = %(hash)s AND revoked_at IS NULL
 ), touched AS (
     UPDATE api_keys SET last_used_at = now() FROM found
-    WHERE api_keys.id = found.id
+    WHERE api_keys.id = found.id AND NOT found.expired
       AND (found.last_used_at IS NULL OR found.last_used_at < now() - interval '1 minute')
 )
 SELECT found.*, m.id AS member, {member}
@@ -274,11 +296,13 @@ async def person_key(
 
 
 async def verify(pool: Pool, bearer: str) -> Bearer | None:
-    """The key and its person; None for a key unknown, revoked, expired, or whose person is gone."""
+    """The key and its person; None for a key unknown, revoked, or whose person is gone."""
     async with pool.connection() as connection:
         row = await (await connection.execute(VERIFY, {"hash": fingerprint(bearer)})).fetchone()
     if row is None:
         return None
+    if row["expired"]:
+        raise NotSignedIn(EXPIRED.format(at=row["expires_at"].isoformat(timespec="seconds")))
     member = None if row["member"] is None else member_of(_member_columns(row))
     return Bearer(key=_key(row), member=member)
 
@@ -331,15 +355,11 @@ def scope_of(
     *,
     looking_at: Member | None = None,
     dispatched: Scope | None = None,
+    called: Scope | None = None,
 ) -> Scope:
     """The scope a request acts in: the org's in production, the person's own in the sandbox."""
     if THE_FLEET in bearer.key.scopes:
-        if dispatched is None:
-            raise DeclarationRefused(NO_DISPATCH)
-        # A fleet serves one world: a unit holding the other world's key is refused here too.
-        if dispatched.env != bearer.key.env:
-            raise NotAllowed(NOT_THIS_FLEET.format(world=bearer.key.env, asked=dispatched.env))
-        return dispatched
+        return _fleets_scope(bearer, dispatched, called)
     if world == PRODUCTION or bearer.member is None:
         return Scope(bearer.key.org, world, THE_ORGS_OWN)
     if looking_at is None or looking_at.id == bearer.member.id:
@@ -352,12 +372,45 @@ def scope_of(
     return Scope(bearer.key.org, world, looking_at.id)
 
 
+# Fewer scopes than a server's, never others: a token for pushing knowledge alone opens that.
+def server_scopes(wanted: Sequence[str] | None) -> frozenset[KeyScope]:
+    """The scopes a server's token is made with: all of a server's, or those of them asked for."""
+    if wanted is None:
+        return SERVER_SCOPES
+    scopes = frozenset[KeyScope](scope for scope in SERVER_SCOPES if scope in wanted)
+    if not scopes or len(scopes) != len(set(wanted)):
+        wanted = ", ".join(sorted(set(wanted))) or "none"
+        raise DeclarationRefused(
+            NOT_A_SERVERS.format(scopes=", ".join(sorted(SERVER_SCOPES)), wanted=wanted)
+        )
+    return scopes
+
+
+def check_expiry(expires_at: datetime | None, now: datetime) -> None:
+    """Refuse an expiry that is not a moment to come; None is a key that never expires."""
+    if expires_at is not None and expires_at <= now:
+        raise DeclarationRefused(ALREADY_OVER.format(at=expires_at.isoformat(timespec="seconds")))
+
+
 def check_opens(bearer: Bearer, *scopes: KeyScope) -> None:
     """Refuse, naming what the key does open, unless it holds one of the scopes."""
     if any(scope in bearer.key.scopes for scope in scopes):
         return
     opens = " · ".join(sorted(bearer.key.scopes)) or "nothing"
     raise NotAllowed(NOT_OPENED.format(scope=" or ".join(sorted(scopes)), opens=opens))
+
+
+# A member's agents bind their own org alone: on a visit the member row is the visitor's own
+# org's, and names none of the visited org's agents.
+def check_agent(bearer: Bearer, slug: str) -> None:
+    """Refuse a person whose list of agents leaves this one out; an empty list is every agent."""
+    member = bearer.member
+    if member is None or not member.agents or member.org != bearer.key.org:
+        return
+    if slug in member.agents:
+        return
+    agents = ", ".join(sorted(member.agents))
+    raise NotAllowed(NOT_THEIR_AGENT.format(name=member.name, agents=agents, slug=slug))
 
 
 # A key grants only a role whose scopes it holds, or a manager would make an admin.
@@ -376,6 +429,19 @@ def check_may_grant(bearer: Bearer, role: Role | None, *, production: bool) -> N
     if production and not acts_there:
         name = bearer.key.name or "this key"
         raise NotAllowed(NOT_YOURS_TO_SWITCH.format(name=name))
+
+
+# The call's head row is the proof; the dispatch's word stands only where no call exists yet.
+def _fleets_scope(bearer: Bearer, dispatched: Scope | None, called: Scope | None) -> Scope:
+    acting = called if called is not None else dispatched
+    if acting is None:
+        raise DeclarationRefused(NO_DISPATCH)
+    if dispatched is not None and dispatched != acting:
+        raise NotFound(NOT_THE_CALLS)
+    # A fleet serves one world: a unit holding the other world's key is refused here too.
+    if acting.env != bearer.key.env:
+        raise NotAllowed(NOT_THIS_FLEET.format(world=bearer.key.env, asked=acting.env))
+    return acting
 
 
 def _key(row: DictRow) -> Key:

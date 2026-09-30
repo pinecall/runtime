@@ -27,7 +27,8 @@ from pinecall.providers import catalog
 from pinecall.providers.credentials import thinking
 from pinecall.retrieval import extraction, knowledge, memory
 from pinecall.retrieval.knowledge import Answered, Push, Question, SearchQuery
-from pinecall.tenancy import admission, erasure, scopes
+from pinecall.tenancy import admission, erasure, reads, scopes
+from pinecall.tenancy.reads import Read
 from pinecall.wire.rest.calls import Erasure
 from pinecall.wire.rest.retrieval import (
     AgentFact,
@@ -78,9 +79,10 @@ KEEPS_NOTHING = "agent {slug} declares no extraction.remember: there is nothing 
 # The whole history, superseded facts included; a call reads the current ones through `recall`.
 @router.get("/v1/contacts/{contact}/memory")
 async def contact_memory(
-    contact: str, _key: MemoryKey, where: ScopeDep, box: GatewayDep
+    contact: str, key: MemoryKey, where: ScopeDep, box: GatewayDep
 ) -> ContactMemory:
     """Every fact ever kept of the contact, current first."""
+    await reads.record(box.connections.pool, where, Read(contact, "memory", asked_by(key)))
     return ContactMemory(
         facts=[
             ContactFact(
@@ -133,12 +135,13 @@ async def memory_eval(
 @router.get("/v1/agents/{slug}/memory")
 async def agent_memory(
     slug: str,
-    _key: MemoryKey,
+    key: MemoryKey,
     where: ScopeDep,
     box: GatewayDep,
     page: Annotated[memory.Paging, Query()],
 ) -> AgentMemory:
     """The current facts the agent's calls taught, across contacts, newest first, a page."""
+    await reads.record(box.connections.pool, where, Read(slug, "memory", asked_by(key)))
     found = await memory.taught_by(box.connections.pool, where, slug, page=page)
     return AgentMemory(
         facts=[
@@ -157,9 +160,10 @@ async def agent_memory(
 
 @router.get("/v1/memory")
 async def org_memory(
-    _key: MemoryKey, where: ScopeDep, box: GatewayDep, page: Annotated[memory.Paging, Query()]
+    key: MemoryKey, where: ScopeDep, box: GatewayDep, page: Annotated[memory.Paging, Query()]
 ) -> OrgMemory:
     """The current facts every agent's calls taught, each with its agent, newest first, a page."""
+    await reads.record(box.connections.pool, where, Read(where.org, "memory", asked_by(key)))
     found = await memory.taught_by(box.connections.pool, where, None, page=page)
     return OrgMemory(
         facts=[

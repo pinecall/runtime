@@ -18,7 +18,7 @@ from tests.conftest import (
     received_until,
     sent,
 )
-from tests.gateway.api.conftest import A_NUMBER, THE_CALLER, a_call, an_app
+from tests.gateway.api.conftest import A_NUMBER, THE_CALLER, a_call, an_app, bound_to
 
 
 @postgres
@@ -248,3 +248,17 @@ async def test_an_opt_out_puts_the_calls_number_on_the_list_and_lands_nothing_in
     assert refused.data["code"] == "bad_shape"
     assert "no phone number" in str(refused.data["message"])
     await app.close()
+
+
+@postgres
+async def test_a_member_bound_to_other_agents_does_not_register_this_one(
+    knocking: Knocking,
+) -> None:
+    elsewhere = await bound_to(knocking, "bo@clinica.test", frozenset({"ventas"}))
+    socket = await knocking.socket("/v1/apps", elsewhere)
+    await sent(socket, "agent.register", {"routes": []})
+    refused = await received(socket)
+    assert refused.type == "error"
+    assert f"agent {AGENT} is not one of them" in str(refused.data["message"])
+    assert knocking.gateway.sockets.slugs(knocking.org.id) == frozenset()
+    await socket.close()

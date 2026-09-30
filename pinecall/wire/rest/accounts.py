@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Annotated, Literal, Self
 
-from pydantic import Field, model_validator
+from pydantic import AwareDatetime, Field, model_validator
 
 from pinecall.domain.names import Env
 from pinecall.domain.person import Key, Member, MemberStatus, Role
@@ -149,10 +149,14 @@ class OrgMadeResponse(WireModel):
 
 
 class CreateKeyRequest(WireModel):
-    """POST /v1/keys: a server's token, named, for one world."""
+    """POST /v1/keys: a server's token, named, for one world; fewer scopes, and an end, if asked."""
 
     label: str
     env: str
+    # None is every scope a server's token opens; a list is some of them.
+    scopes: list[str] | None = None
+    # None never expires.
+    expires_at: AwareDatetime | None = None
 
 
 class KeyRow(WireModel):
@@ -169,6 +173,7 @@ class KeyRow(WireModel):
     last_used_at: datetime | None
     revoked_at: datetime | None
     scopes: list[str]
+    expires_at: datetime | None = None
 
 
 class RevokeKeyResponse(WireModel):
