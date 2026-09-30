@@ -1,13 +1,12 @@
 # The WAL spool shipped to the backup bucket (infra/box/wal.sh ship), started by pinecall-wal.timer,
-# which `wal.sh apply` enables only on a box with a bucket. Root: it reads Postgres's segments and
-# the bucket is the VM's own identity's, as the nightly backup's is.
+# which `wal.sh apply` enables only on a box with a bucket. Root: it reads Postgres's segments.
 [Unit]
 Description=Pinecall: ship the archived WAL to the backup bucket, encrypted
 
 [Service]
 Type=oneshot
-# gcloud is a snap: /snap/bin is on a login shell's PATH and not on a unit's.
-Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin
+# The object store's secret, which objects.sh hands rclone; absent, nothing leaves the box.
+ImportCredential=PINECALL_S3_SECRET_ACCESS_KEY
 ExecStart=/opt/pinecall/infra/box/wal.sh ship
 # A bucket that hangs is given up on and tried again on the next tick; the spool keeps it all.
 TimeoutStartSec=5min

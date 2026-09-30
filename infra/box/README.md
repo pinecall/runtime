@@ -19,6 +19,7 @@ pinecall-migrate.service · pinecall-doctor.service · pinecall-fleet-key@.servi
 pinecall-retention.service · pinecall-retention.timer   the nightly erasure of calls past their org's days
 pinecall-backup.service · pinecall-backup.timer · backup.sh · backup.age.pub   the nightly encrypted backup
 wal.sh · pinecall-wal.service · pinecall-wal.timer   the WAL archive to the backup bucket, for a restore to any minute
+objects.sh             the object store (any S3-compatible one) as rclone speaks it, from backup.env
 pinecall-postgres-image.service · hardening.conf · polkit/ · sysusers.d/ · tmpfiles.d/ · journald.conf.d/
 ```
 
@@ -44,7 +45,15 @@ ports and the options: `docs/a-box-in-production.md`.
    The first start mints each world's fleet key (`pinecall-fleet-key@production`, `@sandbox`).
 
 A secret you bring is read from stdin: `ssh $BOX sudo /opt/pinecall/infra/box/install.sh secret
-PINECALL_SMTP_URL`. A database restored from elsewhere keeps opening its sealed rows once that
+PINECALL_SMTP_URL`.
+
+What leaves the disk (backups, the WAL archive, recordings) goes to one S3-compatible object store —
+AWS S3, Google Cloud Storage by HMAC key, R2, B2, a MinIO of your own — named in
+`/etc/pinecall/backup.env` by `PINECALL_S3_ENDPOINT`, `PINECALL_S3_REGION`,
+`PINECALL_S3_ACCESS_KEY_ID`, `PINECALL_BACKUP_BUCKET` and `PINECALL_RECORDINGS_BUCKET`, with the
+secret sealed by `install.sh secret PINECALL_S3_SECRET_ACCESS_KEY`. Unset, everything stays on the
+disk. The examples per store, and Google Cloud's HMAC key: `docs/a-box-in-production.md` §The
+object store. Only making machines (`infra/fleet/`, the fleet loop's `--cloud`) names a cloud. A database restored from elsewhere keeps opening its sealed rows once that
 box's vault key is added: `… install.sh vault-add`, the old key on stdin.
 
 ## The worlds

@@ -9,7 +9,7 @@ import pytest
 
 from pinecall.process.settings import Settings
 from pinecall.worker._recorder import recording_path, stored
-from tests.fakes.bucket import Bucket
+from tests.fakes.bucket import STORE_SETTINGS, Bucket
 
 AUDIO = b"OggS a call"
 
@@ -23,13 +23,13 @@ def test_a_call_gets_a_directory_of_its_own_the_recorder_may_write_in(tmp_path: 
 
 
 def reaching(monkeypatch: pytest.MonkeyPatch, remote: Bucket) -> None:
-    """Every client the worker opens reaches the fake bucket and its metadata server."""
+    """Every client the worker opens reaches the fake bucket."""
     real = httpx.AsyncClient
     monkeypatch.setattr(httpx, "AsyncClient", lambda: real(transport=remote.transport()))
 
 
 def settings_with(root: Path, bucket: str | None) -> Settings:
-    named = {} if bucket is None else {"PINECALL_RECORDINGS_BUCKET": bucket}
+    named = {} if bucket is None else {"PINECALL_RECORDINGS_BUCKET": bucket, **STORE_SETTINGS}
     return Settings.model_validate({"PINECALL_RECORDINGS": str(root), **named})
 
 

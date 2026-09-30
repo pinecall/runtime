@@ -27,7 +27,7 @@ from tests.conftest import (
     received_until,
     sent,
 )
-from tests.fakes.bucket import Bucket
+from tests.fakes.bucket import ACCESS_KEY_ID, ENDPOINT, REGION, SECRET_ACCESS_KEY, Bucket
 from tests.gateway.api.conftest import a_call, an_app, first_data
 
 AUDIO = b"OggS" + bytes(range(60))
@@ -878,7 +878,15 @@ async def test_with_a_bucket_a_recording_is_served_from_it_and_from_the_disk_unt
     waiting = await a_recorded_call(knocking, still_here)
     remote = Bucket(objects={f"{knocking.org.id}/{moved.call}/audio.ogg": AUDIO[::-1]})
     connections = knocking.gateway.connections
-    settings = connections.settings.model_copy(update={"recordings_bucket": remote.name})
+    settings = connections.settings.model_copy(
+        update={
+            "recordings_bucket": remote.name,
+            "s3_endpoint": ENDPOINT,
+            "s3_region": REGION,
+            "s3_access_key_id": ACCESS_KEY_ID,
+            "s3_secret_access_key": SECRET_ACCESS_KEY,
+        }
+    )
     async with httpx.AsyncClient(transport=remote.transport()) as http:
         with_a_bucket = replace(connections, settings=settings, http=http)
         monkeypatch.setattr(
