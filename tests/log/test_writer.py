@@ -10,9 +10,9 @@ import psycopg
 import pytest
 
 from pinecall.domain.errors import Conflict
-from pinecall.log._writer import GATHER_S, MOST_IN_A_GROUP, Append, Unnumbered, Writer
+from pinecall.log._writer import FEED_ORDER_KEY, MOST_IN_A_GROUP, Append, Unnumbered, Writer
 from pinecall.log.store import Store
-from pinecall.postgres.pool import Pool
+from pinecall.postgres.pool import Pool, connect
 from tests.conftest import DSN, postgres
 
 pytestmark = postgres
@@ -102,14 +102,6 @@ async def test_a_group_carries_at_most_its_size_and_the_rest_go_in_the_next(
     assert await transactions(store.pool, calls) >= 2
 
 
-async def test_a_lone_append_waits_no_longer_than_the_gather(store: Store, call: str) -> None:
-    loop = asyncio.get_running_loop()
-    started = loop.time()
-    await store.append(call, AGENT, "custom", {}, ephemeral=False)
-    # The gather and one transaction on a machine other suites share.
-    assert loop.time() - started < GATHER_S + 1.0
-
-
 # ── one member refused, the others written ──
 
 
@@ -164,7 +156,7 @@ async def test_a_batch_retried_among_other_calls_is_answered_with_its_seqs_and_w
 # ── a request given up on, and the end ──
 
 
-async def test_a_request_given_up_before_its_group_closes_is_not_written(
+async def test_a_request_given_up_before_its_group_is_taken_is_not_written(
     pool: Pool, call: str
 ) -> None:
     writer = Writer(pool)
@@ -242,3 +234,43 @@ async def test_a_writer_killed_mid_group_loses_nothing_it_answered(
         assert [entry.seq for entry in entries] == list(range(1, len(entries) + 1)), "a hole"
         assert len(entries) >= last, f"{each} was answered seq {last} and has {len(entries)}"
         assert await store.latest_seq(each) == len(entries), "an unwritten group moved a head"
+
+
+# ── the two lanes ──
+
+FEED_HELD = "select pg_advisory_lock(%s)"
+
+FEED_LET_GO = "select pg_advisory_unlock(%s)"
+
+
+async def test_an_append_never_waits_on_the_feed_lock_another_gateway_holds(
+    store: Store, call: str
+) -> None:
+    async with await connect(DSN) as elsewhere:
+        await elsewhere.execute(FEED_HELD, (FEED_ORDER_KEY,))
+        summary = asyncio.create_task(
+            store.append(f"{call}-seal", AGENT, "call.summary", {}, ephemeral=False)
+        )
+        async with asyncio.timeout(5):
+            entry = await store.append(call, AGENT, "turn.user", {}, ephemeral=False)
+        assert entry.seq == 1
+        assert not summary.done(), "the summary did not wait for the lock"
+        await elsewhere.execute(FEED_LET_GO, (FEED_ORDER_KEY,))
+        assert (await summary).seq == 1
+
+
+async def test_a_log_waiting_in_the_fed_lane_is_not_written_ahead_of_it_by_the_plain_one(
+    store: Store, call: str
+) -> None:
+    async with await connect(DSN) as elsewhere:
+        await elsewhere.execute(FEED_HELD, (FEED_ORDER_KEY,))
+        summary = asyncio.create_task(
+            store.append(call, AGENT, "call.summary", {}, ephemeral=False)
+        )
+        await asyncio.sleep(0)
+        after = asyncio.create_task(store.append(call, AGENT, "turn.user", {}, ephemeral=False))
+        other = await store.append(f"{call}-other", AGENT, "turn.user", {}, ephemeral=False)
+        assert other.seq == 1
+        assert not after.done(), "the plain lane wrote the log past its waiting summary"
+        await elsewhere.execute(FEED_LET_GO, (FEED_ORDER_KEY,))
+        assert ((await summary).seq, (await after).seq) == (1, 2)
