@@ -59,9 +59,15 @@ A runner per world may share a machine, as the first one does: each container ca
 `pinecall.world`, and a runner lists and touches only its own world's. Their keys, env files and
 state folders are per world (`/etc/pinecall/runner/<world>.*`, `/var/lib/pinecall/runner/<world>`).
 
+## The machines
+
+`pinecall-apps-1` (e2-medium, 2 vCPU, 4 GB, `us-central1-c`, no service account) runs both worlds'
+runners since 2026-09-30: at 72 MB an idle app it holds about forty. The old box ran them for the
+first day; its runners are disabled and their keys revoked.
+
 ## A machine that is also a box
 
-The first apps machine is the old box, which runs its own containers on a podman bridge and has
+The first day's apps machine was the old box, which runs its own containers on a podman bridge and has
 its own fence. What that asked of the runner, and still asks of whoever touches the machine:
 
 - the runner's venv is `/opt/pinecall-runner/venv`, never the box's `/opt/pinecall/venv`;
