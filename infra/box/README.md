@@ -63,7 +63,10 @@ The overflow runs for production only: a full sandbox refuses at the token door.
   a uid nobody can name, the setgid bit keeps its files readable by the gateway.
 - A 5060 rule in `input` fences nothing: a published port is DNAT'd and routed through `forward`.
   The fence is in `raw` prerouting.
-- Redis holds livekit-sip's trunks and rules: its volume is the numbers.
+- Redis holds livekit-sip's trunks and rules: its volume is the numbers. The gateway's live
+  signal uses it too (database 1, channels under `pinecall:`), through `127.0.0.1:6379`. A change
+  to its container takes `systemctl restart pinecall-redis`, which restarts LiveKit, SIP and
+  egress with it (`Requires=`): every call in progress ends.
 - `/etc/pinecall/livekit.yaml` is written by `install.sh` (the webhook's key name and the box's
   name filled in), and livekit-server reads it when it starts: a change takes
   `systemctl restart pinecall-livekit`, which ends every call in progress.

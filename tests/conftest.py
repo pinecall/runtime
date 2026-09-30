@@ -1,4 +1,4 @@
-"""What the suites share: a schema per test, a pool, a store, and a vendor nobody ships."""
+"""What the suites share: a schema and a signal per test, a pool, a store, a vendor nobody ships."""
 
 import asyncio
 import json
@@ -36,6 +36,7 @@ from pinecall.postgres.migrate import apply_migrations
 from pinecall.postgres.pool import Pool, connect, open_pool
 from pinecall.process.connections import Connections, vault_of
 from pinecall.process.settings import Settings
+from pinecall.process.signal import RedisSignal
 from pinecall.providers import catalog
 from pinecall.providers.build import MODALITIES, Vendor, installed
 from pinecall.providers.catalog import Providers
@@ -54,6 +55,13 @@ from tests.fakes.twilio import Twilio
 DSN = os.environ.get("DATABASE_URL", "")
 
 postgres = pytest.mark.skipif(not DSN, reason="DATABASE_URL: a Postgres, `make test`")
+
+REDIS = os.environ.get("PINECALL_REDIS_URL", "")
+
+redis = pytest.mark.skipif(not REDIS, reason="PINECALL_REDIS_URL: a Redis, `make test`")
+
+# How long a test waits for a signal's listening connection to come up.
+UP_WITHIN_S = 5.0
 
 # Tests read the clock, so it is one they can predict: 1.0, then half a second more each time.
 FIRST_TICK = 1.0
@@ -78,6 +86,29 @@ async def pool(schema: str) -> AsyncIterator[Pool]:
     opened = await open_pool(DSN, schema=schema, max_size=4)
     yield opened
     await opened.close()
+
+
+@pytest.fixture
+def redis_prefix() -> str:
+    """A prefix of this test alone: its channels and keys never meet another test's."""
+    return f"pinecall-test-{uuid4().hex[:12]}:"
+
+
+@pytest.fixture
+async def redis_signal(redis_prefix: str) -> AsyncIterator[RedisSignal]:
+    """A signal on the suites' Redis under the test's prefix, listening; skipped with no Redis."""
+    if not REDIS:
+        pytest.skip("PINECALL_REDIS_URL: a Redis, `make test`")
+    signal = RedisSignal(REDIS, prefix=redis_prefix)
+    signal.start()
+    await came_up(signal)
+    yield signal
+    await signal.close()
+
+
+async def came_up(signal: RedisSignal) -> None:
+    """Wait until the signal's listening connection is up; the test fails past UP_WITHIN_S."""
+    await asyncio.wait_for(signal.connected(), UP_WITHIN_S)
 
 
 @pytest.fixture
