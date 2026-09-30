@@ -1,9 +1,8 @@
-"""Rule 11: every door of v1 exists in v2; for now, every door PARITY.md says is done."""
+"""Rule 11: every door the page of doors names is a route of the gateway."""
 
 import re
 from pathlib import Path
 
-import pytest
 from fastapi.routing import APIRoute, APIWebSocketRoute
 
 from pinecall.gateway.api import (
@@ -41,42 +40,14 @@ from pinecall.gateway.api import (
     widget,
 )
 from pinecall.gateway.app import app
-from tests.rules.tree import FIXTURES, PARITY_MD, V1
+from tests.rules.tree import FIXTURES, ROOT
 
-EVERY_DOOR = V1 / "docs/protocol/every-door.md"
-
-# Doors of v1 that are not written again: rule 11 skips them when it reads the table whole.
-GONE: tuple[tuple[str, str], ...] = (
-    # The sandbox asked production who a person was; one gateway serves both worlds now.
-    ("POST", "/v1/login/redeem"),
-    # The lexicon is one agent's: its doors are under /v1/agents/{slug}/lexicon.
-    ("GET", "/v1/lexicon"),
-    ("PUT", "/v1/lexicon"),
-    ("GET", "/v1/lexicon/history"),
-    # A persona is the agent's: its doors are under /v1/agents/{slug}/personas.
-    ("GET", "/v1/personas"),
-    ("PUT", "/v1/personas/{name}"),
-    ("DELETE", "/v1/personas/{name}"),
-    ("GET", "/v1/personas/{name}/runs"),
-)
-
-# Two doors of v1 the gateway spells otherwise: one route per dev family, and the widget's files
-# under one path.
-SPELLED: dict[tuple[str, str], tuple[tuple[str, str], ...]] = {
-    ("POST", "/v1/agents/{slug}/dev/{family}/{verb}"): tuple(
-        ("POST", f"/v1/agents/{{slug}}/dev/{family}/{{verb}}")
-        for family in ("chat", "knowledge", "memory", "view", "evals")
-    ),
-    ("GET", "/widget/pinecall-widget.js"): (("GET", "/widget/{file}"),),
-}
-
-# A row of the table names one path and its methods, or several paths; every pair is a door.
-ROWS_OF_V1 = 133
-DOORS_OF_V1 = 193
+# The contract: the page the docs site publishes, which a tenant and an SDK read.
+EVERY_DOOR = ROOT / "docs/protocol/every-door.md"
 
 
 def routes_of_the_gateway() -> frozenset[tuple[str, str]]:
-    """Return every (method, path) the gateway answers, spelled as the table of v1 spells them."""
+    """Return every (method, path) the gateway answers, a path parameter spelled by its name."""
     found: set[tuple[str, str]] = set()
     routers = (
         accounts,
@@ -179,43 +150,22 @@ def _without_query(path: str) -> str:
     return path.split("?", 1)[0]
 
 
-def done_per_parity() -> list[tuple[str, str]]:
-    """Return the doors PARITY.md lists under `## Doors done`, as `- METHOD /path` lines."""
-    text = PARITY_MD.read_text(encoding="utf-8")
-    section = text.split("## Doors done", 1)[1].split("\n## ", 1)[0]
-    return [
-        (row[2:].split(" ", 1)[0], row[2:].split(" ", 1)[1])
-        for row in section.splitlines()
-        if row.startswith("- ") and "/" in row
-    ]
-
-
-@pytest.mark.skipif(not EVERY_DOOR.is_file(), reason="the v1 checkout is not beside this one")
-def test_the_table_of_v1_names_the_doors_and_this_parser_reads_every_one() -> None:
+def test_the_page_names_each_door_once_and_the_parser_reads_every_row() -> None:
     rows = [
-        line for row in EVERY_DOOR.read_text(encoding="utf-8").splitlines() if row.startswith("| `")
+        line
+        for line in EVERY_DOOR.read_text(encoding="utf-8").splitlines()
+        if line.startswith("| `")
     ]
     doors = doors_in(EVERY_DOOR)
-    assert len(rows) == ROWS_OF_V1
-    assert len(doors) == DOORS_OF_V1
-    assert len(set(doors)) == DOORS_OF_V1
+    assert len(doors) == len(set(doors)) == len(rows)
     assert all(path.startswith("/") and "?" not in path for _, path in doors)
 
 
-@pytest.mark.skipif(not PARITY_MD.is_file(), reason="PARITY.md is internal: a clean clone has none")
-def test_every_door_parity_says_is_done_is_a_route_of_the_gateway() -> None:
-    doors = set(doors_in(EVERY_DOOR))
-    for door in done_per_parity():
-        assert door in doors, f"{door} is not a door of v1"
-        assert door in ROUTES, f"{door} is done per PARITY.md and not a route"
-
-
-@pytest.mark.skipif(not EVERY_DOOR.is_file(), reason="the v1 checkout is not beside this one")
-def test_every_door_of_v1_answers_here_or_is_named_gone() -> None:
+def test_every_door_the_page_names_is_a_route_of_the_gateway() -> None:
     missing = [
-        door
-        for door in doors_in(EVERY_DOOR)
-        if door not in GONE and not all(spelt in ROUTES for spelt in SPELLED.get(door, (door,)))
+        (method, path)
+        for method, path in doors_in(EVERY_DOOR)
+        if (method, _spelled(path)) not in ROUTES
     ]
     assert missing == []
 
@@ -244,11 +194,3 @@ def test_the_parser_reads_every_shape_the_table_uses() -> None:
         ("GET", "/v1/calls/{call}/commands"),
         ("GET", "/{path}"),
     ]
-
-
-@pytest.mark.skipif(not EVERY_DOOR.is_file(), reason="the v1 checkout is not beside this one")
-def test_a_door_of_v1_that_is_gone_is_in_the_table_and_no_route_of_the_gateway() -> None:
-    doors = set(doors_in(EVERY_DOOR))
-    for door in GONE:
-        assert door in doors, f"{door} is not a door of v1"
-        assert door not in ROUTES, f"{door} is gone and still a route"
