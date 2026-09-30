@@ -79,7 +79,8 @@ RETURNING version
 # Both chains in one statement, so the tuning and the lexicon a call is built on are read from
 # the same moment: the holder's newest row, then the org's own, of each. Where a level stands on a
 # canary (tenancy/canary.py), a call whose bucket is under its share runs the canary's version and
-# every other call, or a read for no call, the newest version but that one.
+# every other call, or a read for no call, the newest version but that one. A version named (an
+# eval run's candidate) is the scope's own level's, whatever canary stands there.
 STANDING = """
 SELECT * FROM (
     SELECT DISTINCT ON (config.holder) 'tuning' AS kind, config.holder, config.version,
@@ -94,9 +95,12 @@ SELECT * FROM (
     ) standing ON true
     WHERE config.org = %(org)s AND config.env = %(env)s AND config.holder IN (%(holder)s, '')
       AND config.agent = %(agent)s
-      AND (standing.version IS NULL
-           OR (config.version = standing.version)
-              = coalesce(%(bucket)s::integer < standing.share, false))
+      AND CASE WHEN %(version)s::integer IS NOT NULL AND config.holder = %(holder)s
+               THEN config.version = %(version)s
+               ELSE standing.version IS NULL
+                    OR (config.version = standing.version)
+                       = coalesce(%(bucket)s::integer < standing.share, false)
+          END
     ORDER BY config.holder DESC, config.version DESC
 ) tuning
 UNION ALL
@@ -139,6 +143,15 @@ class Noted:
     author: str
     note: str | None
     set_at: datetime
+
+
+# The call picks between a canary's version and the rest by its id; neither is the rest.
+@dataclass(frozen=True)
+class Picked:
+    """Which of a scope's versions a read is for: a call's, a version named, or the rest's."""
+
+    call: str | None = None
+    version: int | None = None
 
 
 @dataclass(frozen=True)
@@ -229,10 +242,14 @@ async def put_lexicon(
     return await _put(pool, "lexicon", PUT_LEXICON, values)
 
 
-# The call picks between a canary's version and the rest by its id; no call is the rest.
-async def current(pool: Pool, scope: Scope, agent: str, *, call: str | None = None) -> Current:
+async def current(pool: Pool, scope: Scope, agent: str, picked: Picked | None = None) -> Current:
     """What a call in the scope is built on: each knob from the nearest scope that sets it."""
-    params = {**_where(scope, agent), "bucket": None if call is None else bucket_of(call)}
+    wanted = picked or Picked()
+    params = {
+        **_where(scope, agent),
+        "bucket": None if wanted.call is None else bucket_of(wanted.call),
+        "version": wanted.version,
+    }
     async with pool.connection() as connection:
         rows = await (await connection.execute(STANDING, params)).fetchall()
     tuned = resolve([_tuning(row) for row in rows if row["kind"] == "tuning"])

@@ -3,11 +3,14 @@
 from pathlib import Path
 
 from pinecall.domain.scope import Scope
+from pinecall.evals import dataset
+from pinecall.evals.dataset import Promoted
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.process.recordings import Disk
 from pinecall.tenancy import erasure, policy, retention, traceback
 from pinecall.wire.rest.accounts import OrgPolicy
+from pinecall.wire.rest.evals import Expect
 from tests.conftest import postgres
 from tests.log.conftest import ACall, logged_call
 from tests.tenancy.conftest import an_org
@@ -56,10 +59,14 @@ async def test_the_run_erases_what_is_due_through_the_trail_as_retention(
     second = await logged_call(store, org.id)
     await policy.put_policy(pool, org.id, OrgPolicy(retention_days=7), by="m_1")
 
+    golden = dataset.golden_of(await store.whole(first), "kept", Expect())
+    await dataset.promoted(pool, golden, "dental-sur", Promoted(org.id, "production", "k", "m_1"))
+
     erased = await retention.purge(pool, Disk(tmp_path), DAYS_LATER)
 
     assert sorted(erased) == sorted([first, second])
     assert await store.whole(first) == []
+    assert await dataset.listed(pool, org.id, None) == [], "the case made of it went with it"
     trail = await erasure.trail(pool, org.id)
     assert {(row.what, row.asked_by) for row in trail} == {("call", "retention")}
     assert await retention.purge(pool, Disk(tmp_path), DAYS_LATER) == []

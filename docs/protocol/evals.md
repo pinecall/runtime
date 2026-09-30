@@ -70,6 +70,46 @@ session from the declaration, so a spoken run refuses `models` and a golden that
 `GET /v1/evals/runs?agent=&since=&limit=` lists the runs of the key's org in its world, newest
 first; `GET /v1/evals/runs/{id}` is one of them, and another org's is `404`.
 
+A run may also name the org's **cases** (below): `cases: ["jueves-tarde"]` plays those by name,
+and `dataset: true` plays every case of the agent that is not held out, which is what a nightly
+run asks for; a case held out is played only when a run names it, which is what a release asks
+for. `version: 4` builds every call of the run on that version of the agent's settings in the
+scope of the app that holds it, instead of the one standing (a candidate, a canary's: see
+[settings-api.md](settings-api.md)); a version the scope never had is `404`. Beside `models`, it
+is how a run compares a candidate with what runs now. A run of cases is refused in production
+(`403`): a case is a real caller's words, and it is played only in the sandbox, as written calls
+through the app a developer holds there, never through production's app, whose tools act for real,
+and never out loud or on a phone.
+
+## The dataset — `POST /v1/evals/cases`, `GET /v1/evals/cases?agent=`, `DELETE /v1/evals/cases/{id}`
+
+Real calls are the dataset. `pinecall runs promote` keeps a finished call as a **case**: its
+caller's lines, the state it opened in (the first `state.changed` before the caller spoke), the
+facts the app injected (`event.received` from the app, after the line they followed) and the day
+it ran, as a golden the org names, with what it expects.
+
+```
+POST /v1/evals/cases
+{"call": "call_…", "name": "jueves-tarde", "expect": {"says_any": ["jueves"]}, "held_out": false}
+
+{"id": "case_3f0c…", "agent": "recepcion", "name": "jueves-tarde",
+ "golden": {"name": "jueves-tarde", "state": {"stage": "book"}, "input": ["Quiero cita el jueves"],
+            "today": "2026-09-29", "expect": {"says_any": ["jueves"]}, "promoted_from": "call_…"},
+ "source_call": "call_…", "source_env": "production", "held_out": false,
+ "author": "m_ana", "created_at": 1790000000.1}
+```
+
+The key must read the call, as a replay's does: a production call is promoted with a key of
+production. The case is the org's, in both worlds, and played in the sandbox. A call still going is
+`409`, one whose caller said nothing is `409`, and a name the agent has already is `409`.
+`GET` lists the org's cases by agent and name; `DELETE` forgets one, and another org's, or one
+nobody kept, is `404`.
+
+A case is tenant data like the call it came from, and never outlives it: erasing the call, the
+contact who made it, or the org erases the case in the same transaction (`tenancy/erasure.py`),
+and so does the nightly retention run, which erases through the same path. The calls a run
+plays a case in are calls of the sandbox like any other, under the org's retention there.
+
 ## The judges
 
 A judge is settled by code, or by one question to the judge model when code leaves the answer

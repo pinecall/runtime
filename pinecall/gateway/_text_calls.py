@@ -23,6 +23,7 @@ from pinecall.session.call import Call, Platform
 from pinecall.session.session import Session
 from pinecall.session.text import text_session
 from pinecall.tenancy import admission
+from pinecall.tenancy.scopes import Picked
 from pinecall.wire.events import (
     TERMINAL_EVENT,
     CallStarted,
@@ -48,7 +49,9 @@ async def open_text(serving: Serving, registration: Registration, context: CallC
     """A new written call on the socket that holds the agent, admitted and unstarted."""
     pool, scope = serving.connections.pool, registration.scope
     configured = await catalog.providers(pool)
-    config, versions = await tuned(pool, registration.config, scope, configured, call=context.call)
+    config, versions = await tuned(
+        pool, registration.config, scope, configured, Picked(call=context.call)
+    )
     model = thinking(config, configured, await keys_of(pool, serving.connections.vault, scope))
     return await open_text_as(serving, registration, context, TextSetup(config, versions, model))
 
@@ -84,7 +87,7 @@ async def resume_text(
         return None
     configured = await catalog.providers(serving.connections.pool)
     config, _ = await tuned(
-        serving.connections.pool, registration.config, kept.scope, configured, call=call
+        serving.connections.pool, registration.config, kept.scope, configured, Picked(call=call)
     )
     model = thinking(
         config,

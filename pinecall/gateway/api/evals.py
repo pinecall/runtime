@@ -19,13 +19,14 @@ from pinecall.domain.call import CallContext, Route, new_call_id, today_in
 from pinecall.domain.errors import (
     Conflict,
     DeclarationRefused,
+    NotAllowed,
     NotAvailable,
     NotFound,
     QuotaExhausted,
 )
-from pinecall.domain.names import THE_WIDGET
+from pinecall.domain.names import PRODUCTION, THE_WIDGET
 from pinecall.domain.scope import Scope
-from pinecall.evals import checks, goldens, runs, spoken
+from pinecall.evals import checks, dataset, goldens, runs, spoken
 from pinecall.evals.callers import heard_in, improvise_line
 from pinecall.evals.case import case_of
 from pinecall.fleet import worlds
@@ -41,8 +42,9 @@ from pinecall.providers.build import Running, llm_of, tts_of
 from pinecall.providers.catalog import Providers
 from pinecall.providers.credentials import Keyring, thinking
 from pinecall.providers.declared import model_of
-from pinecall.tenancy import judges, personas, tokens
+from pinecall.tenancy import judges, personas, scopes, tokens
 from pinecall.tenancy.keys import check_agent
+from pinecall.tenancy.scopes import Picked
 from pinecall.wire.parts import ModelConfig
 from pinecall.wire.rest.evals import (
     CallerPersona,
@@ -100,6 +102,18 @@ NO_PINNED_DAY_OUT_LOUD = (
 
 
 NO_LINE = "the simulated call could not be held: {broke}"
+
+
+CASES_IN_THE_SANDBOX = (
+    "cases are real callers' words played again: they run in the sandbox, against the app a "
+    "developer holds there, never through production's, whose tools act for real"
+)
+
+
+CASES_WRITTEN = "cases are played as written calls: drop --voice, or play only goldens out loud"
+
+
+NO_SUCH_VERSION = "no version {version} of {slug} in the scope of the app that holds it"
 
 
 # The worker writes call.summary and call.score after the caller leaves.
@@ -161,6 +175,8 @@ async def run_suite(
         raise NotFound(NO_AGENT.format(slug=body.agent))
     if body.voice:
         _refuse_out_loud(body)
+    if body.cases or body.dataset:
+        body = await _with_cases(gateway, body, scope)
     suite = await _suite_of(gateway, body, registration)
     pool, where = gateway.connections.pool, registration.scope
     async with gateway.evals.alone(suite.run.id, body.agent):
@@ -315,10 +331,28 @@ async def place_voice_call(
 async def _suite_of(gateway: Gateway, body: RunSuiteRequest, registration: Registration) -> Suite:
     pool, where = gateway.connections.pool, registration.scope
     configured = await catalog.providers(pool)
-    config, versions = await tuned(pool, registration.config, where, configured)
+    if body.version is not None:
+        candidate = await scopes.tuning_at(pool, where, body.agent, body.version)
+        if candidate is None or candidate.holder != where.holder:
+            raise NotFound(NO_SUCH_VERSION.format(version=body.version, slug=body.agent))
+    picked = Picked(version=body.version)
+    config, versions = await tuned(pool, registration.config, where, configured, picked)
     keys = await keys_of(pool, gateway.connections.vault, where)
     setup = TextSetup(config, versions, thinking(config, configured, keys))
     return Suite(body, registration, setup, configured, keys, runs.new_run(body.agent))
+
+
+# Real callers' words are played in written calls in the sandbox: never through the live app,
+# whose tools act for real, and never out loud.
+async def _with_cases(gateway: Gateway, body: RunSuiteRequest, scope: Scope) -> RunSuiteRequest:
+    if scope.env == PRODUCTION:
+        raise NotAllowed(CASES_IN_THE_SANDBOX)
+    if body.voice:
+        raise DeclarationRefused(CASES_WRITTEN)
+    played = await dataset.picked(
+        gateway.connections.pool, scope.org, body.agent, body.cases, every=body.dataset
+    )
+    return body.model_copy(update={"goldens": [*body.goldens, *played]})
 
 
 async def _judged_suite(gateway: Gateway, suite: Suite, org: str) -> str | None:

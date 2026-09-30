@@ -58,6 +58,18 @@ FROM agent_canaries WHERE org = %(org)s AND env = %(env)s
 ORDER BY agent, holder, set_at, id
 """
 
+# The dataset is the org's in both worlds: every export carries it whole, with the world its
+# call ran in.
+CASES = """
+SELECT jsonb_build_object(
+    'kind', 'eval_case', 'id', id, 'agent', agent, 'name', name, 'golden', golden,
+    'source_call', source_call, 'source_env', source_env, 'held_out', held_out,
+    'author', author, 'created_at', created_at
+)::text AS line
+FROM eval_cases WHERE org = %(org)s
+ORDER BY agent, name
+"""
+
 WORDS = """
 SELECT jsonb_build_object(
     'kind', 'lexicon', 'agent', agent, 'holder', holder, 'version', version,
@@ -110,6 +122,20 @@ ORDER BY day, agent, config_version, judge, criteria
 A_PAGE_OF_CALLS = 100
 
 
+# What follows the calls, in this order.
+AFTER_THE_CALLS = (
+    MEMORIES,
+    SETTINGS,
+    CANARIES,
+    WORDS,
+    DOCUMENTS,
+    CONSENTS,
+    CASES,
+    STAGE_DAYS,
+    JUDGE_DAYS,
+)
+
+
 async def lines(pool: Pool, org: str, env: Env) -> AsyncIterator[str]:
     """Every line: the header, calls, memories, settings, words, documents, consent, drift."""
     yield json.dumps({"kind": "export", "org": org, "env": env, "exported_at": time.time()})
@@ -123,7 +149,7 @@ async def lines(pool: Pool, org: str, env: Env) -> AsyncIterator[str]:
         if len(rows) < A_PAGE_OF_CALLS:
             break
         at, call = float(rows[-1]["at"]), str(rows[-1]["call"])
-    for query in (MEMORIES, SETTINGS, CANARIES, WORDS, DOCUMENTS, CONSENTS, STAGE_DAYS, JUDGE_DAYS):
+    for query in AFTER_THE_CALLS:
         async with pool.connection() as connection:
             rows = await (await connection.execute(query, {"org": org, "env": env})).fetchall()
         for row in rows:

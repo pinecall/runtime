@@ -104,6 +104,9 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `DELETE` | `/v1/contacts/{contact}/memory` | memory | Every fact of the contact deleted, history included; zero is an answer, not a 404. |
 | `GET` | `/v1/contacts/{contact}/memory` | memory | Every fact ever kept of the contact, current first. |
 | `POST` | `/v1/evals/caller` | evals | The persona's next line on the call so far, improvised by its model. |
+| `GET` | `/v1/evals/cases` | evals | The org's cases, one agent's or every one, by agent and name. |
+| `POST` | `/v1/evals/cases` | evals | A finished call's caller lines kept as a case of the org's dataset. |
+| `DELETE` | `/v1/evals/cases/{id}` | evals | Forget one of the org's cases; another org's, or nobody's, is the same 404. |
 | `POST` | `/v1/evals/judge/{call}` | evals | Judge a finished call, write the verdict on its log, and answer it. |
 | `POST` | `/v1/evals/replay/{call}` | evals | The six code checks over a finished call, the barge-ins it answered among them. |
 | `POST` | `/v1/evals/run` | evals | Every golden under every model through the app that holds the agent, judged and stored. |

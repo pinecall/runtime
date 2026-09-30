@@ -25,7 +25,8 @@ WHERE head.org = %(org)s AND head.env = %(env)s AND facts.contact = %(contact)s
 LOGS_OF_ORG = "SELECT log, call, agent FROM call_log_head WHERE org = %(org)s"
 
 # What a call left: its entries, its head, its facts, its tokens, the memories it taught, the
-# verdicts its day's drift counted (the day's sums keep its numbers, which name nobody). A phone
+# verdicts its day's drift counted (the day's sums keep its numbers, which name nobody), and the
+# case of the org's dataset made of it (evals/dataset.py). A phone
 # call's numbers, times and end stay in call_records, and the dials ledger stays: they name numbers
 # and times, never what was said, and a traceback asks for them (0016_call_records.sql). Every
 # statement of the WITH reads the rows as they were before it, so the record reads the facts.
@@ -44,7 +45,8 @@ WITH recorded AS (
      facts AS (DELETE FROM call_facts WHERE call = ANY(%(calls)s) RETURNING 1),
      spent AS (DELETE FROM tokens WHERE call = ANY(%(calls)s) RETURNING 1),
      taught AS (DELETE FROM contact_memories WHERE source_call = ANY(%(calls)s) RETURNING 1),
-     drifted AS (DELETE FROM drift_calls WHERE call = ANY(%(calls)s))
+     drifted AS (DELETE FROM drift_calls WHERE call = ANY(%(calls)s)),
+     promoted AS (DELETE FROM eval_cases WHERE source_call = ANY(%(calls)s))
 SELECT (SELECT count(*) FROM entries) AS entries, (SELECT count(*) FROM taught) AS memories
 """
 

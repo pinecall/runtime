@@ -6,12 +6,15 @@ import pytest
 
 from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
+from pinecall.evals import dataset
+from pinecall.evals.dataset import Promoted
 from pinecall.log import drift
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy import canary, consents, export
 from pinecall.tenancy.canary import Canary, CanarySet
 from pinecall.tenancy.consents import Given
+from pinecall.wire.rest.evals import Expect
 from pinecall.wire.scores import CallScore
 from tests.conftest import postgres
 from tests.log.conftest import ACall, judgment, logged_call
@@ -93,6 +96,22 @@ async def test_the_drift_the_seal_counted_comes_out_as_numbers_by_day(
     assert (stage["stage"], stage["turns"], stage["day"]) == ("llm", 1, "1970-01-01")
     assert (verdict["judge"], verdict["held"], verdict["broken"]) == ("consent", 1, 0)
     assert call not in json.dumps(lines[-2:]), "a day's numbers name no call"
+
+
+async def test_the_orgs_cases_come_out_in_each_worlds_export(pool: Pool, store: Store) -> None:
+    org = await an_org(pool)
+    call = await logged_call(store, org.id)
+    golden = dataset.golden_of(await store.whole(call), "hola", Expect())
+    await dataset.promoted(pool, golden, "dental-sur", Promoted(org.id, "production", "hola", "m"))
+    for world in ("production", "sandbox"):
+        case = next(
+            line for line in await exported(pool, org.id, world) if line["kind"] == "eval_case"
+        )
+        assert (case["name"], case["source_call"], case["source_env"]) == (
+            "hola",
+            call,
+            "production",
+        )
 
 
 A_SETTING = """
