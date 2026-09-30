@@ -271,6 +271,8 @@ async def test_an_app_dropped_has_its_container_stopped(world: World) -> None:
     await tick(world)
     assert world.podman.stopped() == [host]
     assert world.podman.containers == {}
+    await tick(world)
+    assert list(world.runner.root.iterdir()) == []
 
 
 # Found on the first machine with two: the sandbox's runner stopped production's apps.

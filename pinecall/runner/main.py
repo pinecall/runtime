@@ -370,6 +370,10 @@ def _swept_releases(root: Path, in_use: set[tuple[str, str, int]]) -> None:
         release = int(stem[1:]) if stem[1:].isdigit() else -1
         if (path.parent.parent.name, path.parent.name, release) not in in_use:
             _gone(path)
+    # An app, then an org, with no release left is a folder of nothing: it goes too.
+    for folder in sorted(root.glob("*/*"), reverse=True) + sorted(root.glob("*"), reverse=True):
+        if folder.is_dir() and not any(folder.iterdir()):
+            folder.rmdir()
 
 
 def _swept_environments(root: Path, hosts: set[str]) -> None:
