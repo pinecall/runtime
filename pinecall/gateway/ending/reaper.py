@@ -63,7 +63,13 @@ async def reaped(serving: Serving, server: api.LiveKitAPI, now: float) -> list[s
     ):
         # A written call waits for its caller as long as its channel would.
         patience = A_THREAD_WAITS_S if orphan.channel == "whatsapp" else QUIET_S
-        if serving.live.calls.get(orphan.call) is not None or now - orphan.last_at < patience:
+        # Its session may run on another gateway, which says so: it is that gateway's to end.
+        runs = serving.live.calls.get(orphan.call) is not None
+        if (
+            runs
+            or serving.live.owners.text_elsewhere(orphan.call)
+            or now - orphan.last_at < patience
+        ):
             continue
         if await _finished(serving, orphan, "timeout"):
             sealed_now.append(orphan.call)

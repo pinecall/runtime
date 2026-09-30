@@ -15,6 +15,7 @@ from pinecall.domain.names import CHANNELS_WITH_A_NUMBER, Env, JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.gateway._sockets import Process, Registration, SocketId, Sockets, orgs_own
 from pinecall.gateway.calls.commands import COMMANDS_CHANNEL, SUPERVISOR_VERB
+from pinecall.gateway.calls.owners import Owners
 from pinecall.gateway.calls.pump import Bound, Send, pumped, told_bound
 from pinecall.log import queries
 from pinecall.log.logs import Log, Logs, arrival_entry
@@ -86,6 +87,8 @@ class ServedCalls:
     def __init__(self, signal: Signal | None = None) -> None:
         """Nothing open; bindings to other gateways' sockets told on the signal."""
         self.signal = signal or LocalSignal()
+        # Which written calls and threads run here, and on the other gateways.
+        self.owners = Owners(self.signal)
         self.sockets: dict[SocketId, Send] = {}
         self.processes: dict[SocketId, Process] = {}
         self.calls: dict[str, Served] = {}
@@ -235,6 +238,7 @@ class ServedCalls:
             return
         self._stopped(call)
         served.commands.put_nowait(None)
+        self.owners.running(call, here=False)
         listening = self.listening.pop(call, None)
         if listening is not None:
             listening[1].cancel()

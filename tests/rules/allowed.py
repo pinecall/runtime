@@ -134,7 +134,7 @@ TASK_OWNERS: tuple[Allowed, ...] = (
     Allowed(
         "pinecall/gateway/calls/threads.py",
         "create_task",
-        "answering_now holds them; closed() awaits the set",
+        "answering_now and handed hold them; closed() cancels and awaits them",
     ),
     Allowed(
         "pinecall/process/signal.py",
