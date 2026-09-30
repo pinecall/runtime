@@ -181,6 +181,69 @@ async def test_a_call_answers_the_versions_it_was_built_on(knocking: Knocking) -
     await app.close()
 
 
+CANARY = f"{SETTINGS}/canary"
+
+
+@postgres
+async def test_a_canary_is_the_pipelines_to_set_and_a_version_the_scope_never_had_is_404(
+    knocking: Knocking,
+) -> None:
+    pool = knocking.gateway.connections.pool
+    words = await issued(pool, knocking.org.id, "sandbox", frozenset({"words"}))
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        await org.put(SETTINGS, json=A_SET)
+        await org.put(SETTINGS, json={**A_SET, "if_version": 1})
+        none = await org.get(CANARY)
+        set_ = await org.put(CANARY, json={"version": 2, "share": 10, "note": "try v2"})
+        missing = await org.put(CANARY, json={"version": 9, "share": 10})
+        over = await org.put(CANARY, json={"version": 2, "share": 101})
+    async with knocking.http(words) as supervisor:
+        read = await supervisor.get(CANARY)
+        refused = await supervisor.put(CANARY, json={"version": 2, "share": 50})
+        not_cleared = await supervisor.delete(CANARY)
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        cleared = await org.delete(CANARY)
+    assert none.json() == {"world": "sandbox", "holder": "", "canary": None}
+    kept = set_.json()["canary"]
+    assert (kept["version"], kept["share"], kept["note"], kept["holder"]) == (2, 10, "try v2", "")
+    assert read.json()["canary"] == kept
+    assert missing.status_code == 404
+    assert over.status_code in {400, 422}
+    assert (refused.status_code, not_cleared.status_code) == (403, 403)
+    assert cleared.json()["canary"] is None
+
+
+@postgres
+async def test_a_call_on_the_canarys_share_runs_its_version_and_says_so(
+    knocking: Knocking,
+) -> None:
+    app = await an_app(knocking)
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        await org.put(SETTINGS, json=A_SET)
+        await org.put(SETTINGS, json={**A_SET, "if_version": 1, "note": "the candidate"})
+        await org.put(CANARY, json={"version": 2, "share": 100})
+    on_canary = await _opened(knocking)
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        await org.put(CANARY, json={"version": 2, "share": 0})
+    on_rest = await _opened(knocking)
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        first = (await org.get(f"/v1/calls/{on_canary}/settings")).json()
+        second = (await org.get(f"/v1/calls/{on_rest}/settings")).json()
+    assert (first["config_version"], first["canary"]) == (2, True)
+    assert (second["config_version"], second["canary"]) == (1, False)
+    await app.close()
+
+
+async def _opened(knocking: Knocking) -> str:
+    context = a_call(knocking)
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        opened = await worker.post(
+            "/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written()
+        )
+    assert opened.status_code == 200, opened.text
+    return context.call
+
+
 @postgres
 async def test_the_lexicon_is_set_read_and_kept_as_versions(knocking: Knocking) -> None:
     words = {"said": [{"word": "Vidal", "spoken": "Bidál"}], "heard": ["Vidal", "ortodoncia"]}

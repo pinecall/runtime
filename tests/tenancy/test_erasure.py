@@ -13,11 +13,12 @@ from pinecall.log import drift
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.process.recordings import Bucket, Disk
-from pinecall.tenancy import erasure
+from pinecall.tenancy import canary, erasure
+from pinecall.tenancy.canary import Canary, CanarySet
 from pinecall.wire.scores import CallScore
 from tests.conftest import issued, postgres
 from tests.fakes.bucket import Bucket as Remote
-from tests.log.conftest import AGENT, ACall, logged_call
+from tests.log.conftest import AGENT, ACall, judgment, logged_call
 from tests.tenancy.conftest import an_org
 
 pytestmark = postgres
@@ -247,3 +248,33 @@ async def test_the_trail_is_the_orgs_alone_newest_first(
     await erasure.call(pool, Disk(tmp_path), Scope(org.id), second, by="m_1")
     await erasure.call(pool, Disk(tmp_path), Scope(other.id), theirs, by="m_2")
     assert [row.subject for row in await erasure.trail(pool, org.id)] == [second, first]
+
+
+# Each tenant table keyed by org goes with the org: its foreign key cascades.
+ORGS_ROWS = """
+SELECT (SELECT count(*) FROM stage_days WHERE org = %(org)s)
+     + (SELECT count(*) FROM judge_days WHERE org = %(org)s)
+     + (SELECT count(*) FROM drift_calls WHERE org = %(org)s)
+     + (SELECT count(*) FROM agent_canaries WHERE org = %(org)s) AS rows
+"""
+
+
+async def orgs_rows(pool: Pool, org: str) -> int:
+    """How many rows the org holds in the tables of drift and the canary."""
+    async with pool.connection() as connection:
+        row = await (await connection.execute(ORGS_ROWS, {"org": org})).fetchone()
+    assert row is not None
+    return int(row["rows"])
+
+
+async def test_the_drift_and_the_canary_of_an_org_go_with_it(
+    pool: Pool, store: Store, tmp_path: Path
+) -> None:
+    org = await an_org(pool)
+    call = await logged_call(store, org.id, ACall(judges=(judgment("consent", "held"),)))
+    entries = await store.whole(call)
+    await drift.fold(pool, call, entries, CallScore.model_validate(entries[-1].data))
+    await canary.put(pool, Scope(org.id), AGENT, CanarySet(Canary(1, 10), "m_1", 1.0))
+    assert await orgs_rows(pool, org.id) == 3, "a verdict, the call counted, a canary"
+    await erasure.org(pool, Disk(tmp_path), org.id, by="operator")
+    assert await orgs_rows(pool, org.id) == 0

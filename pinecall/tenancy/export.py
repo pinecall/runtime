@@ -48,6 +48,16 @@ FROM agent_config WHERE org = %(org)s AND env = %(env)s
 ORDER BY agent, holder, version
 """
 
+# Every canary set and cleared, as the settings are: nothing is ever updated.
+CANARIES = """
+SELECT jsonb_build_object(
+    'kind', 'canary', 'agent', agent, 'holder', holder, 'version', version, 'share', share,
+    'author', author, 'note', note, 'set_at', set_at
+)::text AS line
+FROM agent_canaries WHERE org = %(org)s AND env = %(env)s
+ORDER BY agent, holder, set_at, id
+"""
+
 WORDS = """
 SELECT jsonb_build_object(
     'kind', 'lexicon', 'agent', agent, 'holder', holder, 'version', version,
@@ -113,7 +123,7 @@ async def lines(pool: Pool, org: str, env: Env) -> AsyncIterator[str]:
         if len(rows) < A_PAGE_OF_CALLS:
             break
         at, call = float(rows[-1]["at"]), str(rows[-1]["call"])
-    for query in (MEMORIES, SETTINGS, WORDS, DOCUMENTS, CONSENTS, STAGE_DAYS, JUDGE_DAYS):
+    for query in (MEMORIES, SETTINGS, CANARIES, WORDS, DOCUMENTS, CONSENTS, STAGE_DAYS, JUDGE_DAYS):
         async with pool.connection() as connection:
             rows = await (await connection.execute(query, {"org": org, "env": env})).fetchall()
         for row in rows:

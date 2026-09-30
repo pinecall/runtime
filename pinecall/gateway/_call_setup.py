@@ -16,11 +16,17 @@ from pinecall.wire.events import (
 )
 
 
+# A call's own id picks its version where the scope stands on a canary; no call is the rest.
 async def tuned(
-    pool: Pool, declared: AgentConfig, scope: Scope, configured: Providers
+    pool: Pool,
+    declared: AgentConfig,
+    scope: Scope,
+    configured: Providers,
+    *,
+    call: str | None = None,
 ) -> tuple[AgentConfig, Versions]:
     """The declaration under the scope's settings, and the versions it was built from."""
-    existing = await scopes.current(pool, scope, declared.slug)
+    existing = await scopes.current(pool, scope, declared.slug, call=call)
     config = apply_tuning(declared, existing.tuning, existing.lexicon, defaults=configured.defaults)
     return config, existing.versions
 

@@ -18,16 +18,21 @@ from pinecall.log import queries
 from pinecall.providers import build, catalog, credentials
 from pinecall.providers.credentials import Pipeline
 from pinecall.providers.declared import apply_tuning
-from pinecall.tenancy import keys, scopes
+from pinecall.tenancy import canary, keys, scopes
+from pinecall.tenancy.canary import Canary, CanarySet
 from pinecall.tenancy.scopes import TUNING, Written
 from pinecall.wire.parts import Pronunciation
 from pinecall.wire.rest.settings import (
     CallSettingsResponse,
+    CanaryQuery,
+    CanaryResponse,
+    CanaryRow,
     HistoryQuery,
     LexiconBody,
     LexiconHistoryResponse,
     LexiconResponse,
     LexiconRow,
+    PutCanaryRequest,
     PutLexiconRequest,
     PutSettingsRequest,
     RollbackSettingsRequest,
@@ -152,6 +157,53 @@ async def rollback_settings(
     return await _side_by_side(gateway, scope, slug, world=key.env)
 
 
+@router.get("/v1/agents/{slug}/settings/canary", response_model_exclude_unset=True)
+async def get_canary(
+    slug: str,
+    key: WordsKey,
+    scope: ScopeDep,
+    gateway: GatewayDep,
+    query: Annotated[CanaryQuery, Query()],
+) -> CanaryResponse:
+    """The version this scope, or the team's, runs on a share of the agent's calls, or none."""
+    return await _canary_of(gateway, _written_to(scope, team=query.team), slug, world=key.env)
+
+
+# The pipeline's alone, as the vendors are: a canary decides what a share of the calls runs.
+@router.put("/v1/agents/{slug}/settings/canary", response_model_exclude_unset=True)
+async def put_canary(
+    slug: str, body: PutCanaryRequest, key: PipelineKey, scope: ScopeDep, gateway: GatewayDep
+) -> CanaryResponse:
+    """One of the scope's versions on a share of the agent's calls; the rest run the others."""
+    pool = gateway.connections.pool
+    written_to = _written_to(scope, team=body.team)
+    row = await scopes.tuning_at(pool, written_to, slug, body.version)
+    if row is None or row.holder != written_to.holder:
+        raise NotFound(NO_SUCH_VERSION.format(version=body.version, slug=slug))
+    wanted = Canary(version=body.version, share=body.share)
+    now = gateway.logs.store.clock()
+    await canary.put(pool, written_to, slug, CanarySet(wanted, _author(key), now, body.note))
+    return await _canary_of(gateway, written_to, slug, world=key.env)
+
+
+# Cleared, every call runs the scope's newest version again, the canary's included.
+@router.delete("/v1/agents/{slug}/settings/canary", response_model_exclude_unset=True)
+async def clear_canary(
+    slug: str,
+    key: PipelineKey,
+    scope: ScopeDep,
+    gateway: GatewayDep,
+    query: Annotated[CanaryQuery, Query()],
+) -> CanaryResponse:
+    """The scope's canary cleared: one version for every call."""
+    pool = gateway.connections.pool
+    written_to = _written_to(scope, team=query.team)
+    if await canary.current(pool, written_to, slug) is not None:
+        now = gateway.logs.store.clock()
+        await canary.put(pool, written_to, slug, CanarySet(None, _author(key), now))
+    return await _canary_of(gateway, written_to, slug, world=key.env)
+
+
 # By the versions the call's head row kept, never the current ones.
 @router.get("/v1/calls/{call}/settings", response_model_exclude_unset=True)
 async def call_settings(call: str, key: CallsKey, gateway: GatewayDep) -> CallSettingsResponse:
@@ -172,11 +224,16 @@ async def call_settings(call: str, key: CallsKey, gateway: GatewayDep) -> CallSe
         if versions.lexicon is None
         else await scopes.lexicon_at(pool, kept.scope, kept.agent, versions.lexicon)
     )
+    opened_at = kept.started_at
+    ran = opened_at is not None and await canary.ran_the_canary(
+        pool, kept.scope, kept.agent, versions.config, opened_at
+    )
     return CallSettingsResponse(
         config_version=versions.config,
         lexicon_version=versions.lexicon,
         config=None if config is None else _settings_row(config),
         lexicon=None if words is None else _lexicon_row(words),
+        canary=ran,
     )
 
 
@@ -329,6 +386,24 @@ async def _lexicon_side_by_side(
 
 
 # A key holding no agent writes the org's own scope: no call resolves in its holder's.
+async def _canary_of(gateway: Gateway, scope: Scope, slug: str, *, world: Env) -> CanaryResponse:
+    found = await canary.current(gateway.connections.pool, scope, slug)
+    return CanaryResponse(
+        world=world,
+        holder=scope.holder,
+        canary=None
+        if found is None
+        else CanaryRow(
+            holder=found.holder,
+            version=found.canary.version,
+            share=found.canary.share,
+            author=found.author,
+            note=found.note,
+            set_at=found.set_at.timestamp(),
+        ),
+    )
+
+
 def _written_to(scope: Scope, *, team: bool) -> Scope:
     return replace(scope, holder=THE_ORGS_OWN) if team else scope
 

@@ -174,7 +174,7 @@ async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) 
     ceiling = await _deps.admit_call(gateway, scope, body.agent)
     found = serving_agent(gateway.sockets, scope, body.agent, body.app, context)
     _refuse_unserved(gateway, scope, body, found)
-    config, versions = await _tuned(gateway, scope, body.agent, found)
+    config, versions = await _tuned(gateway, scope, body.agent, found, context.call)
     await gateway.logs.store.claim(context.call, body.agent, scope.org, Claim(scope, versions))
     owner = None if found is None else found.owner
     served = served_call(gateway.serving, owner, context, config, scope)
@@ -208,7 +208,7 @@ async def reopen_call(
     if kept.sealed:
         raise Conflict(SEALED.format(call=call))
     registration = gateway.sockets.serving(scope, body.agent, None)
-    config, _ = await _tuned(gateway, scope, body.agent, registration)
+    config, _ = await _tuned(gateway, scope, body.agent, registration, call)
     served_call(gateway.serving, None, body.context, config, scope)
     if registration is not None:
         await attach(gateway.live, gateway.logs.store, call, registration.owner)
@@ -541,14 +541,14 @@ def _refuse_unserved(
         raise Conflict(NO_UNCLAIMED.format(slug=body.agent))
 
 
+# The call's id picks its version where the scope stands on a canary, the same on a reopen.
 async def _tuned(
-    gateway: Gateway, scope: Scope, agent: str, registration: Registration | None
+    gateway: Gateway, scope: Scope, agent: str, registration: Registration | None, call: str
 ) -> tuple[AgentConfig, Versions]:
     declared = gateway.sockets.of(scope, agent) if registration is None else registration
     config = AgentConfig(slug=agent) if declared is None else declared.config
-    return await tuned(
-        gateway.connections.pool, config, scope, await catalog.providers(gateway.connections.pool)
-    )
+    configured = await catalog.providers(gateway.connections.pool)
+    return await tuned(gateway.connections.pool, config, scope, configured, call=call)
 
 
 # A person's read and a server's are written down, by the person or the key; a visitor reads
