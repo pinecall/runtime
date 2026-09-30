@@ -17,6 +17,10 @@ APP_LABEL = "pinecall.app"
 HOST_LABEL = "pinecall.host"
 
 
+# Two runners, one per world, may share a machine and its podman: each sees only its own world's.
+WORLD_LABEL = "pinecall.world"
+
+
 # The spike's measure (72 MB an idle agent under gVisor) with room for a tool's burst.
 MEMORY = "256m"
 
@@ -89,6 +93,7 @@ class Container:
 class Launch:
     """One release to start: the app's label, its host, its network, its folder, its command."""
 
+    world: str
     app: str
     host: str
     network: str
@@ -184,6 +189,7 @@ def run_argv(engine: Engine, launch: Launch, names: Sequence[str]) -> list[str]:
         f"--hostname={launch.host}",
         f"--label={APP_LABEL}={launch.app}",
         f"--label={HOST_LABEL}={launch.host}",
+        f"--label={WORLD_LABEL}={launch.world}",
         *sandboxed(engine),
         "--read-only",
         f"--network={launch.network}",
@@ -218,9 +224,16 @@ def network_argv(network: str, bridge: str) -> list[str]:
     ]
 
 
-def listing_argv() -> list[str]:
-    """Every container the runner started, running or not."""
-    return ["podman", "ps", "--all", f"--filter=label={APP_LABEL}", "--format=json"]
+def listing_argv(world: str) -> list[str]:
+    """Every container this world's runner started, running or not; never another world's."""
+    return [
+        "podman",
+        "ps",
+        "--all",
+        f"--filter=label={APP_LABEL}",
+        f"--filter=label={WORLD_LABEL}={world}",
+        "--format=json",
+    ]
 
 
 def stop_argv(name: str) -> list[str]:
