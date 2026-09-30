@@ -83,6 +83,44 @@ core under `_` names.
    memory and the judges' verdicts are folded from the entries. A call is sealed once: a second
    knock waits for the first, and a seal that broke after its summary goes on from the score.
 
+## What is retried, and what never is
+
+A retry is written only where doing a thing twice changes nothing, or where not doing it loses
+something a call cannot get back. The worker's client (`fleet/client.py` `again`) retries while
+the gateway is away (unreachable, or a `5xx`), waiting 0.5 s and doubling to 5 s; a `4xx` is an
+answer and is never retried.
+
+| what | retried how | why | file |
+|---|---|---|---|
+| a batch of a call's entries | without limit, the same batch after the same `after` | the head counts what it took, so a retry is answered with the seqs it was given; an entry dropped is a hole in the log | `fleet/client.py` `append_many`, `log/store.py` |
+| one entry (`call.ended`, `error`, the overflow's transcript the job writes itself) | without limit | a hole in the log is worse than a repeat, and this door is not written once: an answer lost after the write writes the entry again | `fleet/client.py` `append` |
+| a tool call | while the gateway is away, up to the tool's `timeout_s` (30 s unless declared) plus 5 s | the gateway runs one round trip per call id and a retry joins the one still running; one already finished is not remembered, and runs again | `fleet/client.py` `tool`, `session/tools.py` `ToolCalls` |
+| the seal | within 30 s | a call is sealed once: a second knock waits for the first; a seal that broke after its summary goes on from the score | `fleet/client.py` `sealed`, `gateway/ending/seal.py` |
+| a call nothing sealed | every 60 s: a spoken call silent 5 min with no agent in its room, a written one this gateway no longer serves quiet 5 min (2 h on WhatsApp) | a worker that dies writes no `call.ended` | `gateway/ending/reaper.py` |
+| a page of a call's log | within 30 s | a read | `fleet/client.py` `since` |
+| the commands stream | reopened without limit; a `4xx` ends it | commands have no seq: a worker that loses the stream asks again | `worker/_job.py` `_commands` |
+| a request for a call the gateway forgot (`404`) | the call said again (`/reopened`), once, then the request once more | a gateway that restarted serves it from the worker's word | `fleet/client.py` `_on_the_call` |
+| the heartbeat | every 5 s, whatever the last one answered | the worker keeps its calls while the gateway is away | `fleet/heartbeat.py` |
+| a tool call whose app's socket went | sent again to the socket that takes the call over | the model is still waiting on that call id | `gateway/_served.py`, `session/tools.py` `pending` |
+| an embedding | two more tries on a transport error, `408`, `409`, `429` or `5xx`, 0.5 s doubling to 8 s or the server's `retry-after` up to 60 s; a batch too big is split in halves, 5 times at most | an embedding is the same vector however often it is asked | `retrieval/embed.py` |
+| a vendor's stream (ears, model, voice) | livekit's own: 3 retries 2 s apart, 10 s each (its defaults, which the session keeps); the session closes after 3 unrecoverable errors of a stage | `408`, `429` and `5xx` pass; a refusal that never succeeds (`400`–`404`, `422`, a WebSocket policy close) ends the call on the first | `session/session.py` `_failed`, `session/_livekit.py` |
+| a reader's stream (SSE) | the client reconnects after 1 s and resumes from `Last-Event-ID` | stored before published: nothing is lost between two reads | `gateway/_streams.py` |
+| Meta's webhook | Meta delivers again for 7 days | each message id is claimed once per org before it is read | `gateway/_threads.py`, `channels/whatsapp.py` |
+| a recording's file | asked every 0.2 s for 8 s after the call | egress finishes writing after the call, and the summary points at the file | `worker/_recorder.py` |
+
+| never retried | what happens instead | why | file |
+|---|---|---|---|
+| a dial | a dispatch LiveKit refuses ends the call `dial_failed`; a far end that does not answer ends and seals it; each dial is one row of the ledger, counted against the org's pace and the number's day | a person is never dialled twice by a retry | `channels/telephony/dialing.py`, `worker/_job.py` `_answered`, `tenancy/dial_policy.py` |
+| a lookup (recall, search) | the turn waits 250 ms spoken, 3 s written, and goes on without what did not come back | a turn is waiting | `fleet/client.py` `lookup`, `session/tools.py` `Lookups` |
+| opening a call | once; a gateway away fails the job | opening writes `call.ringing` and counts the call against the quota | `fleet/client.py` `open` |
+| the tenant's app | a tool unanswered by its `timeout_s` is an error the model reads in the same turn; a console's verb waits 120 s | the app's side effects are the app's: the platform never sends a call twice | `session/tools.py` `_awaited`, `gateway/api/relay.py` |
+| a reply to a WhatsApp contact | Meta's refusal is an `error` entry `whatsapp_not_sent` on the call | a send whose answer was lost may have reached the contact | `gateway/_threads.py` `replied` |
+| a judge | a judge whose model broke is skipped and says why; the call seals all the same | the seal never fails on a judge | `evals/judges.py`, `gateway/ending/seal.py` |
+| memory at hang-up | one try within 8 s unless the settings say; what fails is logged | memory is a courtesy to the next call | `gateway/ending/seal.py` |
+| the overflow's sentence | said once, then a phone caller's call back is written down | the caller hears it once | `worker/main.py` `_said_once` |
+| Twilio's API | one request, 30 s; its refusal is its own sentence | an import or a purchase waits for a person, never a call; a purchase twice is two numbers | `channels/telephony/twilio.py` |
+| a statement to Postgres | the door answers `5xx` | the worker's client outlasts it; the gateway holds no retry of its own | `postgres/pool.py` |
+
 ## Three hops
 
 A door (or a job) calls one function of the domain, which calls the library. A function that
