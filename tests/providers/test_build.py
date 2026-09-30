@@ -3,15 +3,17 @@
 import importlib.metadata
 import re
 import sys
+from typing import Never
 
 import pytest
-from livekit.agents import llm
+from livekit.agents import llm, stt, tts
 
-from pinecall.domain.agent import Turn
+from pinecall.domain.agent import Tuning, Turn
 from pinecall.domain.errors import DeclarationRefused, NotAvailable
 from pinecall.domain.names import JsonObject
 from pinecall.providers.build import (
     INFERENCE,
+    Modality,
     Running,
     Vendor,
     completion_usage,
@@ -19,6 +21,7 @@ from pinecall.providers.build import (
     llm_of,
     plugin,
     primary,
+    refuse_untaken,
     stt_of,
     tts_of,
 )
@@ -233,3 +236,109 @@ def test_a_models_answer_is_counted_as_the_calls_usage_counts_it(acme: str) -> N
     )
     assert counted.output_tokens == 5
     assert completion_usage(thinking, None) is None
+
+
+def test_a_turn_knob_the_ears_take_under_no_name_is_refused_and_not_dropped(acme: str) -> None:
+    ears, voice = Running(acme, "k"), Running(acme, "k")
+    taken = Tuning(turn=Turn(endpointing_ms=700, eot_threshold=0.8, min_interruption_words=3))
+    refuse_untaken(ears, voice, taken)
+    with pytest.raises(DeclarationRefused, match="acme's stt takes no eager_eot_threshold"):
+        refuse_untaken(ears, voice, Tuning(turn=Turn(eager_eot_threshold=0.5)))
+
+
+def test_a_voice_the_voice_takes_under_no_name_is_refused_and_one_it_takes_passes(
+    acme: str,
+) -> None:
+    refuse_untaken(Running(acme, "k"), Running(acme, "k"), Tuning(voice="v-7"))
+    wordless = Running("deepgram", "k")
+    with pytest.raises(DeclarationRefused, match="deepgram's tts takes no voice"):
+        refuse_untaken(Running(acme, "k"), wordless, Tuning(voice="v-7"))
+    refuse_untaken(Running(acme, "k"), wordless, Tuning())
+
+
+def test_the_class_the_row_names_is_the_one_whose_knobs_are_read() -> None:
+    flux = Running("deepgram", "k", builds="STTv2")
+    nova = Running("deepgram", "k")
+    eager = Tuning(turn=Turn(eot_threshold=0.8, eager_eot_threshold=0.5))
+    refuse_untaken(flux, Running("cartesia", "k"), eager)
+    with pytest.raises(DeclarationRefused, match="eot_threshold, eager_eot_threshold"):
+        refuse_untaken(nova, Running("cartesia", "k"), eager)
+
+
+def test_a_plugin_that_refuses_in_its_own_exception_is_refused_in_ours(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # spitch takes no key argument and reads its own variable, so without it SpitchError.
+    monkeypatch.delenv("SPITCH_API_KEY", raising=False)
+    with pytest.raises(DeclarationRefused, match="spitch refused its STT"):
+        stt_of(Running("spitch", "k"), None)
+
+
+# ── every installed vendor, offline: what the runtime reads of livekit's classes ──
+
+
+def _every_stage() -> list[tuple[str, Modality]]:
+    return [
+        (vendor.name, modality)
+        for vendor in sorted(installed().values(), key=lambda found: found.name)
+        if vendor.broken is None
+        for modality in sorted(vendor.does)
+    ]
+
+
+# A key and nothing else, as an org that brought one: a vendor needs more (an endpoint, a
+# model) only from the operator's row, and says so in our words, never in its own exception.
+@pytest.mark.parametrize(("vendor", "modality"), _every_stage())
+def test_every_installed_vendor_builds_offline_or_is_refused_in_our_words(
+    vendor: str, modality: Modality, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for variable in ("LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "SPITCH_API_KEY"):
+        monkeypatch.delenv(variable, raising=False)
+    built = _built_or_why(Running(vendor, "a-key"), modality)
+    if isinstance(built, str):
+        assert built.startswith(vendor), built
+        return
+    assert isinstance(built.model, str)
+    assert isinstance(built.provider, str)
+    if isinstance(built, llm.LLM):
+        used = llm.CompletionUsage(completion_tokens=1, prompt_tokens=2, total_tokens=3)
+        counted = completion_usage(built, used)
+        assert counted is not None
+        assert (counted.provider, counted.model) == (built.provider, built.model)
+    elif isinstance(built, stt.STT):
+        assert isinstance(built.capabilities, stt.STTCapabilities)
+    else:
+        assert isinstance(built.capabilities, tts.TTSCapabilities)
+        assert built.sample_rate > 0
+
+
+async def test_the_fake_transport_streams_a_reply_in_pieces(acme: str) -> None:
+    script: JsonObject = {"replies": [["Hola", " Ana"]]}
+    thinking = llm_of(Running(acme, "k", options=script))
+    async with thinking.chat(chat_ctx=llm.ChatContext.empty()) as stream:
+        pieces = [chunk.delta.content async for chunk in stream if chunk.delta]
+    assert pieces == ["Hola", " Ana"]
+
+
+async def test_a_stream_closed_before_its_first_piece_ends_without_an_error(acme: str) -> None:
+    script: JsonObject = {"replies": [["tarde"]]}
+    thinking = llm_of(Running(acme, "k", options=script))
+    assert isinstance(thinking, AcmeLLM)
+    thinking.thinks_s = 5.0
+    stream = thinking.chat(chat_ctx=llm.ChatContext.empty())
+    await stream.aclose()
+    assert len(thinking.requests) == 1
+
+
+def _built_or_why(
+    running: Running, modality: Modality
+) -> llm.LLM[Never] | stt.STT[Never] | tts.TTS[Never] | str:
+    """The stage built, or the sentence it was refused with."""
+    try:
+        if modality == "llm":
+            return llm_of(running)
+        if modality == "stt":
+            return stt_of(running, None)
+        return tts_of(running)
+    except DeclarationRefused as refused:
+        return str(refused)
