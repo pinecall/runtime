@@ -24,7 +24,7 @@ from pinecall.gateway._deps import (
     WorkerKey,
     asked_by,
 )
-from pinecall.tenancy import carriers, consents, tokens
+from pinecall.tenancy import carriers, consents, keys, tokens
 from pinecall.tenancy.carriers import TwilioAccount
 from pinecall.tenancy.consents import Given
 from pinecall.tenancy.dial_policy import Dial
@@ -159,6 +159,7 @@ async def import_number(
     body: ImportNumberRequest, key: NumbersKey, gateway: GatewayDep, *, dry_run: DryRun = False
 ) -> ImportNumberResponse:
     """Hook a number at its account, admit it on the SFU in the key's world, route it."""
+    keys.check_agent(key.bearer, body.agent)
     wanted = NumberImport(
         scope=_org_scope(key),
         agent=body.agent,
@@ -182,6 +183,7 @@ async def buy_number(
     body: BuyNumberRequest, key: NumbersKey, gateway: GatewayDep, *, dry_run: DryRun = False
 ) -> ImportNumberResponse:
     """Buy a number on the box's account and hook it, counted against the world's stock."""
+    keys.check_agent(key.bearer, body.agent)
     wanted = NumberPurchase(
         scope=_org_scope(key),
         agent=body.agent,

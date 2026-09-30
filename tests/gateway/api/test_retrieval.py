@@ -22,7 +22,7 @@ from pinecall.providers.catalog import Embedding
 from pinecall.retrieval import memory
 from pinecall.retrieval.embed import Embedder, halfvec
 from pinecall.retrieval.knowledge import HEADING_SEPARATOR
-from pinecall.tenancy import admission, scopes
+from pinecall.tenancy import admission, keys, reads, scopes
 from pinecall.tenancy.scopes import Written
 from tests.conftest import AGENT, Knocking, issued, postgres, received_until, sent
 from tests.fakes.acme import AcmeLLM
@@ -418,6 +418,21 @@ async def test_forgetting_a_stranger_answers_zero_and_never_404(knocking: Knocki
     async with knocking.http(knocking.app[PRODUCTION]) as http:
         forgotten = await http.delete("/v1/contacts/nobody/memory")
     assert (forgotten.status_code, forgotten.json()) == (200, {"forgotten": 0})
+
+
+@postgres
+async def test_every_read_of_what_memory_keeps_is_on_the_record(knocking: Knocking) -> None:
+    pool, org = knocking.gateway.connections.pool, knocking.org.id
+    await a_fact(pool, org, "vive en Montevideo")
+    async with knocking.http(knocking.app[PRODUCTION]) as http:
+        for path in (A_CONTACT, TAUGHT, "/v1/memory"):
+            assert (await http.get(path)).status_code == 200
+    server = await keys.verify(pool, knocking.app[PRODUCTION])
+    assert server is not None
+    rows = await reads.of_org(pool, org)
+    assert sorted((row.subject, row.what, row.reader) for row in rows) == sorted(
+        (subject, "memory", server.key.key_id) for subject in (CONTACT, AGENT, org)
+    )
 
 
 @postgres

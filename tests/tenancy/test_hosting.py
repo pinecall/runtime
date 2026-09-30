@@ -20,6 +20,7 @@ from pinecall.tenancy.hosting import (
     failed,
     host_of,
     hosted_in,
+    is_a_host_of,
     is_hosted,
     keep_release,
     key_of,
@@ -291,3 +292,11 @@ async def test_the_apps_token_opens_for_whoever_starts_it_and_not_for_an_app_not
     assert await keys.verify(pool, token) is not None
     with pytest.raises(NotFound, match="hosts no app called nobody"):
         await key_of(pool, VAULT, HostedApp(org=org.id, env="sandbox", name="nobody"))
+
+
+def test_a_host_is_the_apps_whatever_its_release_and_never_a_longer_names() -> None:
+    host = host_of("support", 3, "a" * 64, "")
+    assert is_a_host_of("support", host)
+    assert not is_a_host_of("support", host_of("support-rest", 3, "a" * 64, ""))
+    assert not is_a_host_of("support", "support-r3")
+    assert is_a_host_of("x" * 200, host_of("x" * 200, 1, "a" * 64, ""))

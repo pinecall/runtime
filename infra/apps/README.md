@@ -47,6 +47,35 @@ $ ssh example-box 'sudo pinecall-runtime keys runner production' \
 $ gcloud compute ssh pinecall-apps-1 --command 'sudo systemctl enable --now pinecall-runner@production'
 ```
 
+## What an org does
+
+Nothing on this machine: `pinecall deploy` in the project's folder (`--prod` for production), and
+`pinecall secrets set <NAME>` for what its code reads from the environment. The first upload makes
+the app, within the org's `hosted_apps` quota; the runner of that world picks it up on its next beat.
+
+## One machine, both worlds
+
+A runner per world may share a machine, as the first one does: each container carries
+`pinecall.world`, and a runner lists and touches only its own world's. Their keys, env files and
+state folders are per world (`/etc/pinecall/runner/<world>.*`, `/var/lib/pinecall/runner/<world>`).
+
+## The machines
+
+`pinecall-apps-1` (e2-medium, 2 vCPU, 4 GB, `us-central1-c`, no service account) runs both worlds'
+runners since 2026-09-30: at 72 MB an idle app it holds about forty. The old box ran them for the
+first day; its runners are disabled and their keys revoked.
+
+## A machine that is also a box
+
+The first day's apps machine was the old box, which runs its own containers on a podman bridge and has
+its own fence. What that asked of the runner, and still asks of whoever touches the machine:
+
+- the runner's venv is `/opt/pinecall-runner/venv`, never the box's `/opt/pinecall/venv`;
+- the fence matches only the runner's bridges (`pca…`), never `podman*`;
+- the app networks carry no podman DNS (`--disable-dns`): the box's fence closes the host to them;
+- a box deploy that rewrites `/etc/nftables.conf` drops the `include` of `pinecall-apps.nft`:
+  run `install.sh` again after one.
+
 ## What the runner does, every five seconds
 
 It tells the gateway what happened and is told every app of its world with a release. For each:

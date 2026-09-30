@@ -15,7 +15,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/.well-known/pinecall` | — | What this gateway is and how it signs people in, before anybody holds a key. |
 | `GET` | `/metrics` | loopback | What the gateway counted and holds, as Prometheus text; refused to anything that came through Caddy. |
 | `GET` | `/v1/agents` | calls | The org's held agents in the world: one row per slug, one per scope for a team reader. |
-| `GET` | `/v1/agents/{slug}/calls` | calls · fleet | An agent's own log: its registrations, its declarations, its errors. It never ends. |
+| `GET` | `/v1/agents/{slug}/calls` | calls | An agent's own log: its registrations, its declarations, its errors. It never ends. |
 | `GET` | `/v1/agents/{slug}/config` | app · calls · fleet | The agent as the scope runs it: its declaration under the scope's settings. |
 | `POST` | `/v1/agents/{slug}/dev/chat/{verb}` | talk | A chat verb, answered by the app holding the agent. |
 | `POST` | `/v1/agents/{slug}/dev/evals/{verb}` | evals | An evals verb, answered by the app holding the agent. |
@@ -112,9 +112,14 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/fleet/standing` | fleet | A fleet's workers summed; the overflow opens when it is full. |
 | `GET` | `/v1/hosted` | app | The apps the box hosts for the org in this world, by name. |
 | `DELETE` | `/v1/hosted/{name}` | app | Stop hosting the app: its releases go, and its token is revoked. |
+| `GET` | `/v1/hosted/usage` | app | The time the org's apps served here per UTC day, in one month: this one by default. |
+| `GET` | `/v1/hosted/{name}/logs` | app | The last lines of the app's process, and the runner told to send them again. |
 | `GET` | `/v1/hosted/{name}/releases` | app | The app's releases, newest first. |
 | `POST` | `/v1/hosted/{name}/releases` | app | The project's sources as the app's next release. |
 | `GET` | `/v1/hosted/{name}/releases/{release}/source` | app | The tarball one release was uploaded as. |
+| `POST` | `/v1/hosted/{name}/rollback` | app | An earlier release's sources kept again as the app's next release. |
+| `POST` | `/v1/hosted/{name}/start` | app | Run a stopped app again, its newest release. |
+| `POST` | `/v1/hosted/{name}/stop` | app | Stop running the app: its process drains, and its releases and token stay. |
 | `GET` | `/v1/insights` | calls | One day of the key's world and scope at a glance, and the month's spend. |
 | `POST` | `/v1/invitations/{token}` | — | Choose a password: the member is active, and here is their first key. |
 | `GET` | `/v1/keys` | — | The org's keys this key may see, oldest first, the revoked ones too; never a key. |
@@ -166,6 +171,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `PUT` | `/v1/ops/admission` | operator | What a newborn org is given, replaced whole. |
 | `GET` | `/v1/ops/brand` | operator | What the box's letters and sign-in page are called and painted with. |
 | `PUT` | `/v1/ops/brand` | operator | The brand changed field by field: one left out stays, an empty one goes to the default. |
+| `GET` | `/v1/ops/hosted-usage` | operator | The time every org's apps served, both worlds, per UTC day, one month: what bills them. |
 | `GET` | `/v1/ops/events` | operator | Every org's floor at once, each frame saying whose. |
 | `GET` | `/v1/ops/fleet` | operator | Every worker heard from, of both fleets, and each fleet summed over the ones up. |
 | `DELETE` | `/v1/ops/fleet/{worker}/cordon` | operator | Take a worker's cordon back, when it has not left yet. |
@@ -214,7 +220,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/org/consents/{number}` | calls | What stands for the number, and every fact about it, newest first. |
 | `GET` | `/v1/org/dnc` | calls | The world's do-not-call list, newest first, a page after the cursor. |
 | `POST` | `/v1/org/dnc` | talk | Numbers the org's own list or its Registry scrub says not to call, onto the list at once. |
-| `GET` | `/v1/org/reads` | team | Who read the org's calls and recordings, newest first; of one call or number when named. |
+| `GET` | `/v1/org/reads` | team | Who read the org's calls, recordings, seats, exports and memory, newest first; of one subject when named. |
 | `GET` | `/v1/org/erasures` | team | The org's erasures, newest first: what went, when, and who asked. |
 | `GET` | `/v1/org/policy` | team | The org's compliance settings: retention, calling hours, calls a day per number, and who set them. |
 | `PUT` | `/v1/org/policy` | team | The org's compliance settings replaced whole, from the next nightly run. |

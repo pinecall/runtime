@@ -12,11 +12,13 @@ from pinecall.gateway import _deps
 from pinecall.gateway._deps import Acting, GatewayDep, Reader, ReaderDep
 from pinecall.gateway._gateway import Gateway
 from pinecall.log import queries
-from pinecall.tenancy import keys, tokens
+from pinecall.tenancy import keys, reads, tokens
+from pinecall.tenancy.reads import Read
 from pinecall.wire.commands import SupervisorVerb, Verb
 from pinecall.wire.frames import Command
 from pinecall.wire.parts import Supervisor
 from pinecall.wire.rest.calls import (
+    ReadKind,
     SeatResponse,
     VerbResponse,
 )
@@ -34,14 +36,14 @@ A_KEY = "key:{org}"
 @router.post("/v1/calls/{call}/listen")
 async def listen(call: str, key: _deps.SuperviseKey, gateway: GatewayDep) -> SeatResponse:
     """A hidden seat that hears one live call."""
-    return await _seated(gateway, key, call, "observe")
+    return await _seated(gateway, key, call, "observe", "listen")
 
 
 # Not hidden: livekit delivers no track of a hidden seat, and a takeover would be silent.
 @router.post("/v1/calls/{call}/supervise")
 async def supervise(call: str, key: _deps.SuperviseKey, gateway: GatewayDep) -> SeatResponse:
     """A seat that speaks in one live call; its token also sends the verbs."""
-    return await _seated(gateway, key, call, "supervise")
+    return await _seated(gateway, key, call, "supervise", "supervise")
 
 
 # The body never says who sent it: the credential does.
@@ -72,13 +74,19 @@ async def queue_verb(
     return VerbResponse(call=call, verb=verb.verb, seq=None)
 
 
-async def _seated(gateway: Gateway, key: Acting, call: str, scope: RoomScope) -> SeatResponse:
+# A seat hears the call live: it is recorded as a read of the call, once it is handed out.
+async def _seated(
+    gateway: Gateway, key: Acting, call: str, scope: RoomScope, what: ReadKind
+) -> SeatResponse:
     kept = await queries.scope_of_call(gateway.connections.pool, call)
     if kept is None or kept.scope is None or kept.scope.org != key.org:
         raise NotFound(_deps.NO_SUCH_CALL.format(call=call))
+    keys.check_agent(key.bearer, kept.agent)
     if await gateway.logs.store.sealed(call):
         raise Conflict(IS_OVER.format(call=call))
     seat = tokens.seat(gateway.signer, call, scope, key.bearer)
+    read = Read(call, what, _deps.asked_by(key))
+    await reads.record(gateway.connections.pool, kept.scope, read)
     return SeatResponse(
         server_url=gateway.connections.settings.livekit_url_for(kept.scope.env),
         participant_token=seat.token,

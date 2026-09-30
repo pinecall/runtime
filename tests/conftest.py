@@ -43,6 +43,7 @@ from pinecall.tenancy import keys, orgs, people, vault
 from pinecall.tenancy.codes import Codes
 from pinecall.tenancy.mail import Outbox
 from pinecall.tenancy.signin import SignIns, Throttle
+from pinecall.tenancy.throttle import Window
 from pinecall.tenancy.tokens import Signer
 from pinecall.wire.frames import Entry
 from tests.fakes.acme import ACME
@@ -315,6 +316,7 @@ async def wired(
         signins=SignIns.fresh(store.clock),
         outbox=outbox,
         samples=Throttle(store.clock, tries=SAMPLES_A_MINUTE),
+        paced=Window(store.clock),
     )
     await outbox.drained()
     await threads.closed()

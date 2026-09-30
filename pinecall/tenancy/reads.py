@@ -1,6 +1,9 @@
-"""Who read what: a person's or the operator's read of a call or a number, once an hour at most."""
+"""Who read what: a key's or the operator's read of a call, a number or memory, once an hour."""
 
+import logging
 from dataclasses import dataclass
+
+import psycopg
 
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
@@ -28,6 +31,8 @@ LIMIT %(limit)s
 # Who reads, or erases, on the box's own behalf: off the box, or through its own doors.
 OPERATOR = "operator"
 
+logger = logging.getLogger(__name__)
+
 A_PAGE = 200
 
 
@@ -40,11 +45,22 @@ class Read:
     reader: str
 
 
+# One statement, awaited: a read waits on its record and on nothing more. A record that cannot be
+# written (the database away, the pool spent) is said in the log and the read goes on: an audit
+# that fails a read would be a way to stop every read.
 async def record(pool: Pool, scope: Scope, read: Read) -> None:
     """Write the read down, unless the same reader read the same thing within the hour."""
     params = {"org": scope.org, "env": scope.env, **vars(read)}
-    async with pool.connection() as connection:
-        await connection.execute(RECORD, params)
+    try:
+        async with pool.connection() as connection:
+            await connection.execute(RECORD, params)
+    except psycopg.Error:
+        logger.warning(
+            "the read of %s by %s went unrecorded; the read goes on",
+            read.subject,
+            read.reader,
+            exc_info=True,
+        )
 
 
 async def of_org(

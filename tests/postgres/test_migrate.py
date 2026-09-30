@@ -435,3 +435,22 @@ async def test_a_hosted_app_starts_with_nothing_live_and_nothing_failed(schema: 
     assert await column_of(schema, "hosted_apps", "live_release") == ["None"]
     assert await column_of(schema, "hosted_apps", "failed_host") == ["None"]
     assert await column_of(schema, "hosted_apps", "failed_why") == [""]
+
+
+@postgres
+async def test_the_time_an_app_served_is_a_count_per_day_of_an_org_that_exists(
+    schema: str,
+) -> None:
+    await apply_migrations(DSN, schema=schema)
+    insert = (
+        "insert into hosted_usage (org, env, name, day, seconds)"
+        " values (%s, 'production', 'support', '2026-09-30', %s)"
+    )
+    async with await connect(DSN) as connection:
+        await connection.execute(sql.SQL("set search_path to {}").format(sql.Identifier(schema)))
+        await connection.execute(insert, ("default", 5.0))
+        with pytest.raises(psycopg.errors.CheckViolation):
+            await connection.execute(insert.replace("'support'", "'other'"), ("default", -1.0))
+        with pytest.raises(psycopg.errors.ForeignKeyViolation):
+            await connection.execute(insert, ("nobody", 1.0))
+    assert await column_of(schema, "hosted_usage", "seconds") == ["5.0"]
