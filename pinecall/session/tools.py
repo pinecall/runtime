@@ -117,13 +117,18 @@ VOICE_LOOKUP_MS = 250
 TEXT_LOOKUP_MS = 3000
 
 
-class ToolCalls:
-    """The app's tool calls of one call that are still out, each written once and awaited."""
+# The `tool.result` a call's log holds for a tool call id, or None: what a finished call answered.
+type Answered = Callable[[str], Awaitable[ToolResult | None]]
 
-    def __init__(self, config: AgentConfig, append: Append) -> None:
+
+class ToolCalls:
+    """The app's tool calls of one call, each run once and awaited, and answered once finished."""
+
+    def __init__(self, config: AgentConfig, append: Append, answered_before: Answered) -> None:
         """Nothing out yet."""
         self.config = config
         self.append = append
+        self.answered_before = answered_before
         self.waiting: dict[str, asyncio.Future[ToolResult]] = {}
         # One round trip per call id: a request retried joins the one running.
         self.running: dict[str, asyncio.Future[ToolResult]] = {}
@@ -152,7 +157,13 @@ class ToolCalls:
         waiting.set_result(result)
         return True
 
+    # A call id the log already answered (a retry whose answer was lost, or asked of a gateway
+    # that restarted) is answered from it and never sent to the app again: a tool may book or
+    # charge. Looked up inside the round trip, so a retry that arrives meanwhile joins it.
     async def _round_trip(self, use: ToolUse, speech: str | None) -> ToolResult:
+        earlier = await self.answered_before(use.call_id)
+        if earlier is not None:
+            return earlier
         called = ToolCall(
             call_id=use.call_id, name=use.name, arguments=use.arguments, speech_id=speech
         )

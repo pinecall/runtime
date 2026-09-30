@@ -31,7 +31,10 @@ says the call again, once, `POST /v1/calls/{call}/reopened {agent, context}`, an
 quota asked, no token spent, no second `call.ringing`; `409` for a call already sealed. While the
 gateway is away the worker retries an entry, the seal, a tool and the command stream, backing off
 from half a second to five, for as long as nothing answers or a `5xx` does; a `4xx` is an answer. A
-tool retries within its own deadline, the seal within thirty seconds.
+tool retries within its own deadline, the seal within thirty seconds. A tool call is run once per
+call id: a retry joins the round trip still running, and one that finished, before the answer was
+lost or the gateway restarted, is answered with the `tool.result` its log holds and never reaches
+the app a second time.
 
 A retried entry is written once when it travels in a batch, `POST /v1/calls/{call}/entries
 {after, entries}`: a call's log has one writer, which sends its entries in order and says how many

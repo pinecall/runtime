@@ -5,6 +5,7 @@ import logging
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from functools import partial
 from typing import Literal
 
 from pinecall.domain.agent import AgentConfig
@@ -12,6 +13,7 @@ from pinecall.domain.call import CallContext
 from pinecall.domain.names import CHANNELS_WITH_A_NUMBER, Env, JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.gateway._sockets import Process, Registration, SocketId, Sockets, orgs_own
+from pinecall.log import queries
 from pinecall.log.logs import Log, Logs, Subscription, arrival_entry
 from pinecall.log.reduce import reduce
 from pinecall.log.store import Store
@@ -238,7 +240,11 @@ def served_call(
         commands=asyncio.Queue(),
         context=context,
         config=config,
-        tools=ToolCalls(config, log.append),
+        tools=ToolCalls(
+            config,
+            log.append,
+            partial(queries.tool_answered, serving.connections.pool, context.call),
+        ),
     )
     serving.live.serve(served)
     return serving.live.calls[context.call]

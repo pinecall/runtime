@@ -9,9 +9,12 @@ from pinecall.gateway._served import attach, handed_on, served_call
 from pinecall.gateway._sockets import Sockets
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store
+from pinecall.session.call import ToolUse
 from pinecall.wire.frames import Command, Entry
+from pinecall.wire.parts import ToolResult
 from tests.conftest import postgres
 from tests.gateway.conftest import AGENT, OURS, a_call, a_start
+from tests.session.test_tools import went_out
 
 ANA = Scope("org_a", "sandbox", "m_ana")
 BEN = Scope("org_a", "sandbox", "m_ben")
@@ -149,3 +152,26 @@ async def test_the_calls_an_org_runs_are_counted_in_their_own_world(wired: Gatew
     assert wired.live.running("org_a", "sandbox") == 2
     assert wired.live.running("org_a", "production") == 1
     assert wired.live.running("org_b", "production") == 0
+
+
+# A gateway that restarted serves the call again from the worker's word, with nothing in memory:
+# the tool the worker asks again is answered from the log, never sent to the app a second time.
+@postgres
+async def test_a_tool_that_finished_before_a_restart_is_answered_from_the_log(
+    wired: Gateway,
+) -> None:
+    context = a_call()
+    config = AgentConfig(slug=AGENT)
+    served = served_call(wired.serving, None, context, config, OURS)
+    use = ToolUse("t1", "book", {})
+    out = went_out(served.log)
+    first = asyncio.create_task(served.tools.ran(use, None))
+    await asyncio.wait_for(out.wait(), 5)
+    assert served.tools.answered(ToolResult(call_id="t1", name="book", output="booked"))
+    await first
+    wired.live.close(context.call)
+    wired.logs.forget(context.call)
+    again = served_call(wired.serving, None, context, config, OURS)
+    assert await again.tools.ran(use, None) == await first
+    kinds = [entry.type for entry in await wired.logs.store.whole(context.call)]
+    assert kinds == ["tool.call", "tool.result"]
