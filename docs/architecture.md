@@ -26,7 +26,7 @@ surface is the URL.
 | `fleet/` | the fleet each world dispatches to (`worlds.py`), the roster of workers, a worker's heartbeat, the worker's client to the gateway | `domain` `wire` `postgres` `log` `process` |
 | `gateway/` | the FastAPI app; private, each named for what it holds and none the logic of a door of the same name: the process's state (`_gateway.py`, the `Gateway`), each request's dependencies (`_deps.py`), what a call of an agent is set up with (`_call_setup.py`), written calls opened and taken up (`_text_calls.py`), SSE streams, the app sockets registered (`_sockets.py`), the calls served (`_served.py`), the WhatsApp threads kept open (`_threads.py`: they need the sockets and the session, so they are the gateway's; `api/threads.py` holds their doors); `ending/`: how a call ends (`seal.py`: memory, the bill, the judges, the seal) and the calls nobody ends (`reaper.py`); `api/`: one module per topic of doors, the account doors among them (`accounts.py`: sign-in, whoami, codes, pairing, invitations; `members.py`, `keys.py`, `signup.py`, `sso_login.py`, `org.py`'s provider and mailbox, `ops.py`) | everything above |
 | `worker/` | the LiveKit worker: the entrypoint and, private, one job per call, the recorder, the traces | `session` `providers` `fleet` `channels` `log` `process` and the leaves |
-| `cli/` | `pinecall-runtime`: migrate, doctor, fleet, vault | anything |
+| `cli/` | `pinecall-runtime`: migrate, doctor, fleet, vault, and `load` (`_load.py`: synthetic calls held against a sandbox through the worker's client, and measured) | anything |
 
 Three edges are forbidden outright: `gateway` never imports `worker`, `worker` never imports
 `gateway`, and nothing imports `gateway/api/`. The leaves hold data and no framework: `domain`
@@ -47,7 +47,7 @@ core under `_` names.
 | folder | files | lines | imports of ours |
 |---|---|---|---|
 | `channels/` | 7 | 2148 | `domain`, `fleet`, `log`, `postgres`, `process`, `tenancy`, `wire` |
-| `cli/` | 5 | 1384 | `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `tenancy`, `wire`, `worker` |
+| `cli/` | 6 | 1811 | `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `tenancy`, `wire`, `worker` |
 | `domain/` | 8 | 1145 | — |
 | `evals/` | 9 | 2470 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
 | `fleet/` | 5 | 897 | `domain`, `postgres`, `process`, `wire` |
