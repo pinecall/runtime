@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import logging
 from dataclasses import dataclass
+from typing import Literal
 
 import httpx
 from cryptography.fernet import MultiFernet
@@ -61,6 +62,46 @@ NOT_THE_WORD = "the verify token is not this box's"
 
 
 META_SAID = "WhatsApp: {message}"
+
+
+# Meta retries a webhook not answered 200 with decreasing frequency for up to 7 days
+# (developers.facebook.com/docs/whatsapp/cloud-api/guides/set-up-webhooks): an id is kept as long.
+SEEN_KEPT_S = 7 * 24 * 60 * 60
+
+
+# Longer than a delivery is ever read in (the route, and opening the conversation at worst): a
+# claim still unread past it is a process that died reading it, and the next delivery reads it.
+READING_S = 10 * 60
+
+
+# The insert is the check: of two deliveries at once, one inserts and the other finds the row.
+CLAIM = """
+INSERT INTO whatsapp_seen (org, message_id, claimed_at)
+VALUES (%(org)s, %(message)s, to_timestamp(%(now)s))
+ON CONFLICT (org, message_id) DO UPDATE SET claimed_at = excluded.claimed_at
+WHERE whatsapp_seen.read_at IS NULL AND whatsapp_seen.claimed_at < to_timestamp(%(stale)s)
+RETURNING org
+"""
+
+
+SEEN = "SELECT read_at FROM whatsapp_seen WHERE org = %(org)s AND message_id = %(message)s"
+
+
+READ = """
+UPDATE whatsapp_seen SET read_at = to_timestamp(%(now)s)
+WHERE org = %(org)s AND message_id = %(message)s
+"""
+
+
+RELEASE = "DELETE FROM whatsapp_seen WHERE org = %(org)s AND message_id = %(message)s"
+
+
+FORGET_SEEN = "DELETE FROM whatsapp_seen WHERE claimed_at < to_timestamp(%(before)s)"
+
+
+# `new`: this delivery claimed it and reads it; `seen`: another read it; `reading`: another
+# delivery is reading it now, and Meta must be told to come back.
+type Claim = Literal["new", "seen", "reading"]
 
 
 class Meta(BaseModel):
@@ -315,6 +356,36 @@ async def waiting_in(store: Store) -> list[Waiting]:
             )
         after = page[-1].position
     return list(waiting.values())
+
+
+async def claimed(pool: Pool, org: str, message_id: str, now: float) -> Claim:
+    """Claim the org's message for this delivery, unless another has read it or is reading it."""
+    params = {"org": org, "message": message_id, "now": now, "stale": now - READING_S}
+    async with pool.connection() as connection:
+        if await (await connection.execute(CLAIM, params)).fetchone() is not None:
+            return "new"
+        row = await (await connection.execute(SEEN, params)).fetchone()
+    # A row gone between the two is a claim released: the delivery that held it failed.
+    return "seen" if row is not None and row["read_at"] is not None else "reading"
+
+
+async def read(pool: Pool, org: str, message_id: str, now: float) -> None:
+    """The claimed message is read: every later delivery of it is dropped."""
+    async with pool.connection() as connection:
+        await connection.execute(READ, {"org": org, "message": message_id, "now": now})
+
+
+async def released(pool: Pool, org: str, message_id: str) -> None:
+    """Give up the claim of a message whose reading failed, so Meta's next delivery reads it."""
+    async with pool.connection() as connection:
+        await connection.execute(RELEASE, {"org": org, "message": message_id})
+
+
+async def forget_seen(pool: Pool, now: float) -> int:
+    """Forget the message ids claimed longer ago than Meta retries; how many."""
+    async with pool.connection() as connection:
+        done = await connection.execute(FORGET_SEEN, {"before": now - SEEN_KEPT_S})
+    return done.rowcount
 
 
 async def meta_token_for(

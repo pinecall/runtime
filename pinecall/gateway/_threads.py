@@ -44,6 +44,9 @@ KEPT = "whatsapp: nobody holds agent %s, so a message to %s waits for somebody"
 EXPIRED = "whatsapp: a message to agent %s outlived Meta's window unanswered"
 
 
+AGAIN = "whatsapp: message %s delivered again, dropped: %s"
+
+
 TURN_FAILED = "whatsapp: a turn of call %s failed and was not answered"
 
 
@@ -101,16 +104,40 @@ class Threads:
         self.waiting: list[Waiting] = []
         self.answering_now: set[asyncio.Task[None]] = set()
 
-    # Returns once the message is queued: Meta sends a slow webhook again.
-    async def received(self, inbound: Inbound) -> None:
-        """Queue the message on its contact's conversation, opening one when there is none."""
+    # Meta delivers a message again when it thinks it unanswered. The row is claimed before the
+    # message is read, so of two deliveries at once only one reads it; it is marked read once the
+    # message is queued or kept, and a reading that fails gives the claim back, so Meta's next
+    # delivery reads it again. A process that dies mid-reading leaves a claim its lease expires.
+    async def received(self, inbound: Inbound) -> bool:
+        """Read the message once, onto its contact's conversation; False while another reads it."""
+        route = await self._route_of(inbound)
+        if route is None:
+            return True
+        pool = self.serving.connections.pool
+        now = self.serving.logs.store.clock()
+        claim = await whatsapp.claimed(pool, route.org, inbound.message_id, now)
+        if claim != "new":
+            logger.info(AGAIN, inbound.message_id, claim)
+            return claim == "seen"
+        try:
+            await self._heard(route, inbound)
+        except Exception:
+            await whatsapp.released(pool, route.org, inbound.message_id)
+            raise
+        await whatsapp.read(pool, route.org, inbound.message_id, now)
+        return True
+
+    async def _route_of(self, inbound: Inbound) -> Route | None:
         if inbound.kind != "text" or not inbound.text:
             logger.warning(NOT_TEXT, inbound.kind or "message", inbound.number)
-            return
+            return None
         route = await routes.at(self.serving.connections.pool, "whatsapp", inbound.number)
         if route is None:
             logger.warning(NOBODY_AT, inbound.number, inbound.number)
-            return
+        return route
+
+    # Returns once the message is queued or kept: Meta sends a slow webhook again.
+    async def _heard(self, route: Route, inbound: Inbound) -> None:
         scope = Scope(route.org, route.env)
         registration = self.sockets.taking(scope, route.agent, inbound.caller)
         thread = self.open.get(_door(registration.scope if registration else scope, inbound))
@@ -143,7 +170,10 @@ class Threads:
                 logger.warning(EXPIRED, waiting.agent)
                 await whatsapp.taken(self.serving.logs, waiting, None)
                 continue
-            await self.received(waiting.inbound)
+            # Claimed and read when it was kept: it is heard, not received again.
+            route = await self._route_of(waiting.inbound)
+            if route is not None:
+                await self._heard(route, waiting.inbound)
             opened = self.open.get(_door(registration.scope, waiting.inbound))
             await whatsapp.taken(
                 self.serving.logs,

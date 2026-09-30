@@ -48,7 +48,7 @@ core under `_` names.
 | folder | files | lines | imports of ours |
 |---|---|---|---|
 | `channels/` | 7 | 2148 | `domain`, `fleet`, `log`, `postgres`, `process`, `tenancy`, `wire` |
-| `cli/` | 6 | 1874 | `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `runner`, `session`, `tenancy`, `wire`, `worker` |
+| `cli/` | 6 | 1877 | `channels`, `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `runner`, `session`, `tenancy`, `wire`, `worker` |
 | `domain/` | 8 | 1156 | — |
 | `evals/` | 9 | 2471 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
 | `fleet/` | 5 | 924 | `domain`, `postgres`, `process`, `wire` |
