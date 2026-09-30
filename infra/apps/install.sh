@@ -34,8 +34,9 @@ systemctl enable --now nftables
 nft -f /etc/nftables.d/pinecall-apps.nft 2>/dev/null || { nft delete table inet pinecall_apps; nft -f /etc/nftables.d/pinecall-apps.nft; }
 
 command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
-[ -d /opt/pinecall/venv ] || uv venv --quiet --python 3.12 /opt/pinecall/venv
-uv pip install --quiet --python /opt/pinecall/venv/bin/python "$PACKAGE"
+# A venv of its own: a machine that is also a box keeps the box's runtime where it is.
+[ -d /opt/pinecall-runner/venv ] || uv venv --quiet --python 3.12 /opt/pinecall-runner/venv
+uv pip install --quiet --python /opt/pinecall-runner/venv/bin/python "$PACKAGE"
 
 podman pull -q docker.io/library/node:24-slim >/dev/null
 install -D -m 0644 "$HERE/pinecall-runner@.service" /etc/systemd/system/pinecall-runner@.service
