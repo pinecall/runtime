@@ -55,6 +55,18 @@ cannot check, and the reader is owed them in one place.
 - Never a bare `except`; a caught exception is re-raised as ours or logged with
   `exc_info=True` and the reason the call goes on.
 
+## The database
+
+- The pool's connections are autocommit: a statement alone is one round trip, with no `BEGIN`
+  and no `COMMIT` around it. Statements that must land together, and any statement that only
+  means something inside a transaction (`FOR UPDATE`, an advisory `xact` lock, `SET LOCAL`), open
+  `connection.transaction()`.
+- A `pool.connection()` block that runs more than one statement outside a transaction says why
+  they are independent, on the line above it: `# independent: <why>` (rule 23).
+- A block holds its connection only while it talks to the database: an HTTP call, a vendor, a
+  sleep or a stream to a client happens before the block or after it. What is long on purpose
+  runs in `unbounded(pool)`, which is a transaction with no timeout.
+
 ## Tasks and time
 
 - Every task has an owner. `asyncio.create_task` appears only in the files

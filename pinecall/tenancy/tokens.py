@@ -339,6 +339,7 @@ async def minted(pool: Pool, token: MintedToken) -> None:
 
 async def spend(pool: Pool, call: str) -> Spending:
     """Spend the call's token: once, and a second spend is told from a token never minted."""
+    # independent: a spend refused, then whether the token was ever minted
     async with pool.connection() as connection:
         if await (await connection.execute(SPEND, {"call": call})).fetchone() is not None:
             return "spent"

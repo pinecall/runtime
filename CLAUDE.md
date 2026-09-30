@@ -40,14 +40,16 @@ session for voice and text) · `channels` (telephony, WhatsApp, rooms) · `evals
 
 ## The rules the machine enforces (`tests/rules/`, run by the pre-commit hook)
 
-Empty `__init__.py`; no pass-through function; the import graph is a list of edges; nothing
-written twice; `TREE.md` is the set of files; tests mirror the source one to one; no suppression
-(`noqa`, `type: ignore`) outside `tests/rules/allowed.py`; ruff, pyright strict, deptry;
+Empty `__init__.py`; no pass-through function; the import graph is a list of edges; nothing written
+twice; `TREE.md` is the set of files; tests mirror the source one to one; no suppression (`noqa`,
+`type: ignore`) outside `tests/rules/allowed.py`; ruff, pyright strict, deptry;
 `docs/protocol/every-door.md` and the gateway's routes agree both ways; no secret-shaped string;
 every task has an owner; no module over 700 lines; no literary names (`said`, `held`, `one`…); a
 module reads top to bottom; the gateway's private modules within budget; `docs/architecture.md`
 carries today's measures; `docs/wire/` describes every field; a migration that contracts (drops,
-renames, a `NOT NULL` with no default) names the release that stopped reading what it contracts.
+renames, a `NOT NULL` with no default) names the release that stopped reading what it contracts;
+the pool is autocommit, and a block of statements that is not a transaction says why they are
+independent.
 
 ## How a file is written (`docs/conventions.md` is the long version)
 

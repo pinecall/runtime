@@ -8,12 +8,14 @@ from unittest.mock import patch
 import pytest
 from livekit.api import TokenVerifier
 from psycopg import AsyncConnection
+from psycopg.abc import PQGen
+from psycopg.rows import TupleRow
 
 from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotFound, NotSignedIn
 from pinecall.domain.org import Org
 from pinecall.domain.person import SERVER_SCOPES, Key, Member
 from pinecall.domain.scope import SCOPE_ATTRIBUTE, Scope
-from pinecall.postgres.pool import Pool
+from pinecall.postgres.pool import Pool, connect, open_pool
 from pinecall.tenancy.keys import (
     Bearer,
     Issued,
@@ -37,7 +39,7 @@ from pinecall.tenancy.tokens import (
     Visitor,
     room_token,
 )
-from tests.conftest import postgres
+from tests.conftest import DSN, postgres
 
 SIGNER = Signer("APIthisisatest", "a-livekit-secret-long-enough-for-hs256-signing")
 ANA = Invitee(email="ana@clinica.test", name="Ana García", role="developer")
@@ -70,6 +72,9 @@ def in_a_minute() -> float:
     return time.time() + 60
 
 
+LAST_STATEMENT = "select query from pg_stat_activity where pid = %s"
+
+
 @postgres
 async def test_the_row_holds_the_fingerprint_and_never_the_key(pool: Pool) -> None:
     org = await org_with_keys(pool)
@@ -91,6 +96,42 @@ async def test_a_key_is_issued_into_one_world_with_the_scopes_and_the_person_ask
     assert verified is not None
     assert verified.key == key
     assert verified.member is None
+
+
+# A statement alone on an autocommit connection: one execute, and no BEGIN or COMMIT around it.
+# The backend's last statement says so from the server's side: a COMMIT would come after it.
+@postgres
+async def test_verifying_a_key_is_one_round_trip_and_no_transaction(
+    schema: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pool = await open_pool(DSN, schema=schema, max_size=1)
+    try:
+        org = await org_with_keys(pool)
+        issued = Issued(org=org.id, env="production", scopes=frozenset({"calls"}))
+        _, secret = await issue(pool, issued)
+        async with pool.connection() as connection:
+            backend = connection.info.backend_pid
+        executed: list[str] = []
+        waited = AsyncConnection.wait
+
+        async def counted[T](
+            connection: AsyncConnection[TupleRow], gen: PQGen[T], interval: float = 0.1
+        ) -> T:
+            executed.append(getattr(gen, "__qualname__", ""))
+            return await waited(connection, gen, interval)
+
+        monkeypatch.setattr(AsyncConnection, "wait", counted)
+        assert await verify(pool, secret) is not None
+        monkeypatch.undo()
+        async with await connect(DSN) as looking:
+            last = await (await looking.execute(LAST_STATEMENT, (backend,))).fetchone()
+    finally:
+        await pool.close()
+    assert [name for name in executed if name.endswith("_execute_gen")] == [
+        "BaseCursor._execute_gen"
+    ]
+    assert last is not None
+    assert str(last["query"]).lstrip().lower().startswith("with found as"), last["query"]
 
 
 @postgres

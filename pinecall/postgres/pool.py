@@ -70,7 +70,8 @@ async def open_pool(
     pool: Pool = AsyncConnectionPool(
         dsn,
         connection_class=psycopg.AsyncConnection[DictRow],
-        kwargs={"row_factory": dict_row, "options": options},
+        # A statement alone is one round trip; what belongs together opens connection.transaction().
+        kwargs={"autocommit": True, "row_factory": dict_row, "options": options},
         min_size=1,
         max_size=max_size,
         timeout=timeouts.wait_s,

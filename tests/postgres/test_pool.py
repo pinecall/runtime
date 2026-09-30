@@ -4,6 +4,7 @@ import asyncio
 
 import pytest
 from psycopg import errors
+from psycopg.pq import TransactionStatus
 from psycopg_pool import PoolTimeout
 
 from pinecall.domain.errors import DeclarationRefused, StoreUnreachable
@@ -101,14 +102,26 @@ async def test_an_unbounded_transaction_runs_past_it_and_the_connection_comes_ba
         assert again == {"statement_timeout": "100ms"}
 
 
-@postgres
-async def test_a_transaction_left_idle_past_its_timeout_is_ended(impatient_pool: Pool) -> None:
-    # A pooled connection is not in autocommit: its first statement opens the transaction.
-    async with impatient_pool.connection() as connection:
+async def idle_in_a_transaction(pool: Pool) -> None:
+    """Open a transaction, say nothing past the idle timeout, then speak again."""
+    async with pool.connection() as connection, connection.transaction():
         await connection.execute("select 1")
         await asyncio.sleep(HELD_PAST_THE_TIMEOUT_S)
-        with pytest.raises(errors.IdleInTransactionSessionTimeout):
-            await connection.execute("select 1")
+        await connection.execute("select 1")
+
+
+@postgres
+async def test_a_transaction_left_idle_past_its_timeout_is_ended(impatient_pool: Pool) -> None:
+    with pytest.raises(errors.IdleInTransactionSessionTimeout):
+        await idle_in_a_transaction(impatient_pool)
+
+
+@postgres
+async def test_a_connection_of_the_pool_is_autocommit(impatient_pool: Pool) -> None:
+    async with impatient_pool.connection() as connection:
+        await connection.execute("select 1")
+        assert connection.autocommit
+        assert connection.info.transaction_status == TransactionStatus.IDLE
 
 
 @postgres
