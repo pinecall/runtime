@@ -9,6 +9,15 @@ calls, one Python package, one wheel, on LiveKit. It runs Pinecall's own product
 [pinecall/agents](https://github.com/pinecall/agents) (TypeScript) or the Ruby SDK, and talk to
 this runtime over the wire `pinecall/wire/` declares. Nothing here is imported by an agent.
 
+On a machine with Ubuntu 24.04 and its names pointed at it, the runtime makes it a box by itself:
+
+```console
+$ curl -LsSf https://astral.sh/uv/install.sh | sudo env UV_INSTALL_DIR=/usr/local/bin sh
+$ sudo uvx --from pinecall pinecall-runtime box up --domains voice.example.com,sandbox.example.com
+```
+
+`docs/from-zero.md` takes it from there to a caller heard. To work on the runtime itself:
+
 ```console
 $ git clone https://github.com/pinecall/runtime && cd runtime
 $ uv sync                      # Python 3.12, one venv, every dev tool

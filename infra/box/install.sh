@@ -4,7 +4,8 @@
 #   install.sh secret <NAME>          one credential from stdin (SMTP, the sign-up key)
 #   install.sh vault-add              appends a key read from stdin to PINECALL_VAULT_KEY, so rows
 #                                     sealed under it (a restored database) open; the first key seals
-# `make box` copies infra/ to /opt/pinecall/infra and runs the first form. Nothing is printed.
+# `make box` copies infra/ to /opt/pinecall/infra and runs the first form; so does
+# `pinecall-runtime box up`, from the copy the package carries. Nothing is printed.
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "install.sh runs as root" >&2; exit 2; }
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -36,7 +37,9 @@ DOMAINS="$1"
 FIRST="${DOMAINS%%,*}"
 # The second name is the sandbox's; a box of one name serves both worlds at it.
 SECOND="${DOMAINS#*,}"; [ "$SECOND" = "$DOMAINS" ] && SECOND=""
-id deploy >/dev/null 2>&1 || { echo "no deploy account: boot the machine from cloud-init.yaml" >&2; exit 2; }
+# cloud-init makes the deploy account with an ssh key, for `make deploy`; a box made by
+# `pinecall-runtime box up` releases as root and only needs the account to own the venv.
+id deploy >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin deploy
 
 # The users and directories first: everything below is owned by them.
 install -D -m 0644 "$HERE/sysusers.d/pinecall.conf" /etc/sysusers.d/pinecall.conf
@@ -44,9 +47,10 @@ install -D -m 0644 "$HERE/tmpfiles.d/pinecall.conf" /etc/tmpfiles.d/pinecall.con
 systemd-sysusers
 systemd-tmpfiles --create /etc/tmpfiles.d/pinecall.conf
 
-# age encrypts the nightly backup; a box born before it was in cloud-init gets it here.
+# age encrypts the nightly backup to a public key whose private half is never on the box: this
+# repository's is Pinecall's own; the package carries none, and `box up --backup-key` writes yours.
 command -v age >/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y -q age
-install -m 0644 "$HERE/backup.age.pub" /etc/pinecall/backup.age.pub
+[ -f "$HERE/backup.age.pub" ] && install -m 0644 "$HERE/backup.age.pub" /etc/pinecall/backup.age.pub
 
 install -m 0644 "$HERE/nftables.conf" /etc/nftables.conf
 nft -f /etc/nftables.conf
@@ -92,6 +96,8 @@ for unit in pinecall-gateway pinecall-worker@ pinecall-overflow@ pinecall-migrat
     install -m 0644 "$HERE/hardening.conf" "/etc/systemd/system/$unit.service.d/hardening.conf"
 done
 install -D -m 0644 "$HERE/polkit/50-pinecall-deploy.rules" /etc/polkit-1/rules.d/50-pinecall-deploy.rules
+# The operator's verbs typed at this box's shell, with the box's settings and credentials.
+install -m 0755 "$HERE/pinecall-runtime" /usr/local/bin/pinecall-runtime
 
 systemctl daemon-reload
 systemctl restart systemd-journald
@@ -101,5 +107,11 @@ systemctl restart caddy
 # Started by the first deploy, which brings the code they run.
 systemctl enable pinecall-migrate pinecall-gateway pinecall-worker@production \
     pinecall-worker@sandbox pinecall-overflow@production
-systemctl enable --now pinecall-retention.timer pinecall-backup.timer
-echo "the box stands at $DOMAINS (production $FIRST, sandbox ${SECOND:-$FIRST}): run \`make deploy BOX=…\` from the checkout"
+systemctl enable --now pinecall-retention.timer
+# No key, no backup: an unencrypted dump of every call is not written anywhere.
+if [ -f /etc/pinecall/backup.age.pub ]; then
+    systemctl enable --now pinecall-backup.timer
+else
+    systemctl disable --now pinecall-backup.timer 2>/dev/null || true
+fi
+echo "the box stands at $DOMAINS (production $FIRST, sandbox ${SECOND:-$FIRST})"

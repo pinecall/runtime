@@ -7,7 +7,8 @@ fleet per world. Every file here is one thing systemd, podman, Caddy or nftables
 ```
 cloud-init.yaml        first boot: packages, the deploy account, uv
 install.sh             as root on the box: files to their places, secrets drawn, media plane up
-release.sh             one wheel released: venv, migrate, restarts, doctor (run by make deploy)
+release.sh             one release: a built wheel (make deploy) or a PyPI version (box up)
+pinecall-runtime       /usr/local/bin/pinecall-runtime: the operator's verbs with the box's credentials
 containers/            redis · livekit · sip · egress · postgres (Quadlet)
 livekit.yaml sip.yaml egress.yaml
 nftables.conf          5060 from the carrier alone; 22, 80, 443, WebRTC for anyone

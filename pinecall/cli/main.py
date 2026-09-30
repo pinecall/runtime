@@ -15,7 +15,7 @@ import httpx
 import uvicorn
 from livekit import api
 
-from pinecall.cli import _operator, _sessions, _traceback
+from pinecall.cli import _box, _operator, _sessions, _traceback
 from pinecall.domain.errors import NotAvailable, PinecallError
 from pinecall.gateway.app import announce_closing, app, embedder_of
 from pinecall.postgres.migrate import apply_migrations, migration_files, migrations_behind
@@ -236,6 +236,7 @@ def verbs() -> argparse.ArgumentParser:
         under.add_parser("traceback", help="a number's calls and dials, for a carrier")
     )
     _operator.init_group(under.add_parser("init", help="the first org and person, on a fresh box"))
+    _box.box_group(under.add_parser("box", help="this machine made a box, from the package itself"))
     _operator.orgs_group(under.add_parser("orgs", help="the tenants"))
     _operator.routes_group(under.add_parser("routes", help="which agent answers a number"))
     _operator.fleet_group(under.add_parser("fleet", help="the workers heard from"))

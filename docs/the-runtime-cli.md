@@ -11,6 +11,7 @@ writes an agent, nothing there issues a key.
 |---|---|
 | `gateway` · `worker` · `doctor` · `providers` | this machine: its settings, its database, its LiveKit |
 | `migrate` · `sessions` · `memory` · `retention` · `traceback` | Postgres, straight, over `DATABASE_URL` |
+| `box up` · `box upgrade` | this machine as root: it made a box from the package itself |
 | `init` · `orgs` · `keys` · `routes` · `fleet` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` alone is minted on the database, before any gateway answers |
 
 ## `gateway` · `worker start` · `worker overflow`
@@ -19,6 +20,20 @@ writes an agent, nothing there issues a key.
 a URL that is not loopback is refused in one sentence. `worker start` is a worker of the fleet
 `PINECALL_FLEET` names, until told to stop or cordoned; `worker overflow` the one that answers when
 the fleet is full. Every variable they read is [the-environment.md](the-environment.md).
+
+## `box up` · `box upgrade`
+
+`sudo uvx --from pinecall pinecall-runtime box up --domains <production>[,<sandbox>]` makes the
+machine it runs on a box, from the files the package carries (`pinecall/infra/`): the system's
+packages, `/opt/pinecall/infra`, `install.sh` (containers, firewall, Caddy for the names, the
+secrets drawn and sealed), then `release.sh` with `PACKAGE=pinecall==<this version>` — the
+runtime from PyPI into `/opt/pinecall/venv`, migrations, the units, the doctor. Ubuntu 24.04 and
+root; the names already point at the machine. `--backup-key age1…` writes
+`/etc/pinecall/backup.age.pub` and turns the nightly backup on; without it there is none.
+`--package` installs a wheel's path or another `pinecall==` instead. `box upgrade` is `box up`
+with the names the box has (`/etc/pinecall/box.env`): run from `uvx --from pinecall@latest`, it
+brings the box to that version. On a box, `/usr/local/bin/pinecall-runtime` runs any verb with the
+box's settings and sealed credentials: `sudo pinecall-runtime doctor`, `sudo pinecall-runtime init …`.
 
 ## `init`
 
