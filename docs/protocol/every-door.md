@@ -2,7 +2,8 @@
 
 Every door of the gateway, method and path, the scope a key must open for it, and what it does in
 one line. `—` is a door that reads any key as who it is, or none (a sign-in page, Meta's webhook,
-a page's token); `operator` is the box's own key or an operator's ([operator-api.md](operator-api.md)).
+a page's token); `operator` is the box's own key or an operator's ([operator-api.md](operator-api.md));
+`loopback` is a door the box's own machine alone may knock, with no key.
 The pages that say each family whole: [gateway-api.md](gateway-api.md).
 
 The page and the gateway agree both ways: every row is a route, and every route is a row but
@@ -12,6 +13,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | method | path | scope | what |
 |---|---|---|---|
 | `GET` | `/.well-known/pinecall` | — | What this gateway is and how it signs people in, before anybody holds a key. |
+| `GET` | `/metrics` | loopback | What the gateway counted and holds, as Prometheus text; refused to anything that came through Caddy. |
 | `GET` | `/v1/agents` | calls | The org's held agents in the world: one row per slug, one per scope for a team reader. |
 | `GET` | `/v1/agents/{slug}/calls` | calls · fleet | An agent's own log: its registrations, its declarations, its errors. It never ends. |
 | `GET` | `/v1/agents/{slug}/config` | app · calls · fleet | The agent as the scope runs it: its declaration under the scope's settings. |

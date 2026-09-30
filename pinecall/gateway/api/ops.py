@@ -1,6 +1,5 @@
 """The box's own doors over its orgs: the box, the orgs, quotas, people, keys, tracebacks."""
 
-import pathlib
 from dataclasses import replace
 from importlib.metadata import version
 from typing import Annotated
@@ -17,6 +16,7 @@ from pinecall.gateway._gateway import Gateway
 from pinecall.gateway.api.keys import key_row
 from pinecall.gateway.api.org import sso_row
 from pinecall.gateway.api.providers import credentials_of, installed_vendor
+from pinecall.process.recordings import recordings_of
 from pinecall.providers.credentials import parse_lending
 from pinecall.retrieval import knowledge, memory
 from pinecall.tenancy import (
@@ -160,7 +160,7 @@ async def remove_org(named: str, gateway: GatewayDep) -> None:
     for env in ENVS:
         if await routes.of_org(pool, org.id, env):
             raise Conflict(STILL_IN_USE.format(slug=org.slug, what="routes"))
-    recordings = pathlib.Path(gateway.connections.settings.recordings_root)
+    recordings = recordings_of(gateway.connections.settings, gateway.connections.http)
     erased = await erasure.org(pool, recordings, org.id, by=reads.OPERATOR)
     for call in erased.calls:
         gateway.logs.forget(call)

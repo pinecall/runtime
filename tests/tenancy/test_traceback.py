@@ -5,6 +5,7 @@ from pathlib import Path
 from pinecall.domain.scope import Scope
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
+from pinecall.process.recordings import Disk
 from pinecall.tenancy import erasure, traceback
 from tests.conftest import postgres
 from tests.log.conftest import ACall, logged_call
@@ -28,7 +29,7 @@ async def test_a_numbers_calls_are_found_kept_or_erased_and_its_dials_beside_the
     kept = await logged_call(store, org.id, ACall(caller=DANA))
     erased = await logged_call(store, org.id, ACall(caller=DANA))
     await logged_call(store, org.id, ACall(caller=LUIS))
-    await erasure.call(pool, tmp_path, Scope(org.id), erased, by="m_ana")
+    await erasure.call(pool, Disk(tmp_path), Scope(org.id), erased, by="m_ana")
     async with pool.connection() as connection:
         await connection.execute(A_DIAL, {"org": org.id, "number": DANA})
     found = await traceback.of_number(pool, DANA, 0)
@@ -44,7 +45,7 @@ async def test_a_call_with_no_number_leaves_no_record_when_it_is_erased(
 ) -> None:
     org = await an_org(pool)
     typed = await logged_call(store, org.id, ACall(channel="web", caller=DANA))
-    await erasure.call(pool, tmp_path, Scope(org.id), typed, by="m_ana")
+    await erasure.call(pool, Disk(tmp_path), Scope(org.id), typed, by="m_ana")
     assert (await traceback.of_number(pool, DANA, 0)).calls == []
 
 

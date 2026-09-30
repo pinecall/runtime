@@ -271,6 +271,12 @@ class Logs:
         # A log's owner never changes; caching it keeps a store read off the append path.
         self._owners: dict[str, Claimant] = {}
 
+    @property
+    def readers(self) -> int:
+        """How many live readers every log and feed of this process holds."""
+        fanouts = [self.box, *self._feeds.values(), *(log.fanout for log in self._logs.values())]
+        return sum(fanout.readers for fanout in fanouts)
+
     def writing(self, call: str, agent: str) -> Log:
         """Return the call's log for its writer, held until the process forgets the call."""
         log = self._log(call, agent)

@@ -5,8 +5,13 @@ import logging
 import time
 from pathlib import Path
 
+import httpx
 from livekit import api
 from livekit.protocol import egress
+
+from pinecall.domain.errors import UpstreamFailed
+from pinecall.process.recordings import AUDIO_FILE, recordings_of
+from pinecall.process.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +19,6 @@ logger = logging.getLogger(__name__)
 # Audio only with no layout runs on livekit's SDK, not Chromium. The default mix, never
 # DUAL_CHANNEL_AGENT: it drops the agent's second track, and the melody records as silence.
 THE_WHOLE_ROOM = egress.AudioMixing.DEFAULT_MIXING
-
-
-AUDIO_FILE = "audio.ogg"
 
 
 # egress finishes writing after the call: the summary must not point at a file not yet there.
@@ -86,6 +88,16 @@ async def file_written(server: api.LiveKitAPI, recording: str, audio: Path) -> b
             return False
         await asyncio.sleep(FILE_ASKED_EVERY_S)
     return True
+
+
+# The seal waits for this: the summary names the file, and the gateway finds it wherever it went.
+async def stored(settings: Settings, org: str, call: str, audio: Path) -> None:
+    """Move a written recording where the box keeps it; one that cannot move stays on this disk."""
+    async with httpx.AsyncClient() as http:
+        try:
+            await recordings_of(settings, http).store(org, call, audio)
+        except UpstreamFailed:
+            logger.warning("the recording of %s stays on this disk", call, exc_info=True)
 
 
 def _written(audio: Path) -> bool:

@@ -24,6 +24,7 @@ from pinecall.providers.build import (
     refuse_untaken,
     stt_of,
     tts_of,
+    vendor_named_in,
 )
 from tests.fakes.acme import AcmeContext, AcmeLLM, AcmeOptions, AcmeSTT, AcmeTTS
 from tests.fakes.livekit import acme_plugin
@@ -342,3 +343,11 @@ def _built_or_why(
         return tts_of(running)
     except DeclarationRefused as refused:
         return str(refused)
+
+
+def test_a_failed_components_vendor_is_read_off_its_label_and_nothing_else_names_one() -> None:
+    assert vendor_named_in("type='stt_error' label='livekit.plugins.deepgram.stt.STT' x") == (
+        "deepgram"
+    )
+    assert vendor_named_in("label='livekit.agents.inference.llm.LLM' error=x") == "livekit"
+    assert vendor_named_in("the calendar did not answer") == ""

@@ -13,7 +13,7 @@ surface is the URL.
 | folder | what it holds | imports of ours |
 |---|---|---|
 | `domain/` | the words (`names.py`), an agent's declaration (`agent.py`), a call (`call.py`), an org (`org.py`), people and keys (`person.py`), the scope a request acts in (`scope.py`), the E.164 country codes (`country_codes.py`), the errors with their HTTP status (`errors.py`); no IO | nothing |
-| `process/` | what one process is given and holds open: `settings.py` (every variable), `connections.py` (`Connections`: the pool, the vault key, an HTTP client, the LiveKit client; opened once, closed in reverse), and the installation's own configuration kept in Postgres (`box_settings.py`: the rows the operator edits) | `domain` `postgres` |
+| `process/` | what one process is given and holds open: `settings.py` (every variable), `connections.py` (`Connections`: the pool, the vault key, an HTTP client, the LiveKit client; opened once, closed in reverse), what the gateway counts as it works and the Prometheus text it is read as (`metrics.py`), where a call's audio is kept (`recordings.py`: the disk it was recorded on, or the recordings bucket under its org, read with byte ranges and erased there too), and the installation's own configuration kept in Postgres (`box_settings.py`: the rows the operator edits) | `domain` `postgres` |
 | `wire/` | every frame, event, command, part, state, metric as pydantic models, one file per family; `rest/` holds the doors' bodies per family (`accounts`, `agents`, `calls`, `evals`, `fleet`, `hosting`, `numbers`, `retrieval`) | `domain` |
 | `postgres/` | the pool and the migration runner, with `migrations/0001_schema.sql` beside it | `domain` |
 | `log/` | a call's log: the store, the facts folded at write (`facts.py`), the queries over them (`queries.py`), the facts folded again from the log (`refold.py`: `facts rebuild` and doctor's check), the logs open in this process and their live readers (`logs.py`), the reducer, the two read projections | `domain` `wire` `postgres` `process` |
@@ -48,21 +48,21 @@ core under `_` names.
 | folder | files | lines | imports of ours |
 |---|---|---|---|
 | `channels/` | 7 | 2219 | `domain`, `fleet`, `log`, `postgres`, `process`, `tenancy`, `wire` |
-| `cli/` | 7 | 1946 | `channels`, `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `runner`, `session`, `tenancy`, `wire`, `worker` |
+| `cli/` | 8 | 2108 | `channels`, `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `runner`, `session`, `tenancy`, `wire`, `worker` |
 | `domain/` | 8 | 1166 | — |
 | `evals/` | 9 | 2508 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
 | `fleet/` | 5 | 924 | `domain`, `postgres`, `process`, `wire` |
-| `gateway/` | 43 | 9502 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
-| `log/` | 7 | 2854 | `domain`, `postgres`, `wire` |
+| `gateway/` | 44 | 9662 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `log/` | 7 | 2860 | `domain`, `postgres`, `wire` |
 | `postgres/` | 2 | 229 | `domain` |
-| `process/` | 3 | 484 | `domain`, `postgres` |
-| `providers/` | 6 | 1133 | `domain`, `postgres`, `process`, `wire` |
+| `process/` | 5 | 787 | `domain`, `postgres` |
+| `providers/` | 6 | 1148 | `domain`, `postgres`, `process`, `wire` |
 | `retrieval/` | 6 | 2351 | `domain`, `log`, `postgres`, `providers`, `wire` |
 | `runner/` | 2 | 534 | `domain`, `process`, `wire` |
 | `session/` | 12 | 3198 | `domain`, `log`, `providers`, `wire` |
-| `tenancy/` | 27 | 6327 | `domain`, `log`, `postgres`, `process`, `wire` |
+| `tenancy/` | 27 | 6316 | `domain`, `log`, `postgres`, `process`, `wire` |
 | `wire/` | 18 | 4575 | `domain` |
-| `worker/` | 4 | 929 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
+| `worker/` | 4 | 952 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
 
 ## The path of a call
 
