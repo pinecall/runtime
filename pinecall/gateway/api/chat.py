@@ -88,6 +88,7 @@ async def _chatting(websocket: WebSocket, gateway: Gateway) -> tuple[Registratio
     env = _deps.world_of_request(websocket, verified, gateway)
     scope = keys.scope_of(verified, env)
     slug = websocket.query_params.get("agent", "")
+    keys.check_agent(verified, slug)
     app = websocket.query_params.get("app")
     registration = gateway.sockets.serving(scope, slug, app)
     if registration is None:

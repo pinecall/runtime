@@ -126,6 +126,16 @@ null`. An address already a member is `409`.
 A key grants only what it holds: a manager invites a `qa` and is refused an `admin` (`403` naming
 what the key opens), and production access only by somebody who has it.
 
+`agents` is the agents the member works on; an empty list is every agent of the org, and every
+member starts with one. A person's key whose list is not empty is refused, `403` naming the list,
+at every door that names an agent outside it: in its path (`/v1/agents/{slug}/…`), as `?agent=`, in
+its body (a token, a code, a number routed, an eval run or voiced, a call opened, a callback), in
+`WS /v1/chat?agent=` and a socket's `agent.register`, and at a call's own doors (its events, state,
+recording, settings, seats, verbs, judging, erasure) by the agent the call was of. A door that
+names no agent (`/v1/agents`, `/v1/sessions` without `?agent=`, `/v1/events`) is not narrowed by
+it. A server's token holds no list, and a visit to another org is not bound by the list of the
+visitor's own.
+
 `PATCH /v1/members/{id} {role?, agents?, status?, production?}` changes what is named. Nobody
 changes their own role or production switch, or disables themselves (`409`); an admin always opens
 production (`409` taking it away); an invited member becomes active only by accepting (`400`).

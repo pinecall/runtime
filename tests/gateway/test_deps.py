@@ -23,7 +23,9 @@ from pinecall.gateway._gateway import Gateway
 from pinecall.tenancy.keys import Bearer
 from pinecall.tenancy.signin import TRIES
 from pinecall.tenancy.tokens import Visit
-from tests.conftest import postgres
+from pinecall.wire.rest.calls import OpenCallRequest
+from tests.conftest import AGENT, Knocking, postgres
+from tests.gateway.api.conftest import a_call, an_app, bound_to
 
 
 def a_request(
@@ -124,3 +126,28 @@ def test_a_socket_at_the_sandboxs_name_acts_in_the_sandbox_and_may_not_ask_for_p
     assert world_of_request(socket(), server, both) == "sandbox"
     with pytest.raises(NotAllowed, match="this name is the sandbox's"):
         world_of_request(socket((b"pinecall-env", b"production")), server, both)
+
+
+# The path's agent, the query's, and a call's by its head: each refused past the member's list.
+@postgres
+async def test_a_member_bound_to_other_agents_is_refused_the_ones_a_door_names(
+    knocking: Knocking,
+) -> None:
+    socket = await an_app(knocking)
+    context = a_call(knocking)
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+    elsewhere = await bound_to(knocking, "bo@clinica.test", frozenset({"ventas"}))
+    everyone = await bound_to(knocking, "cy@clinica.test", frozenset())
+    ours = await bound_to(knocking, "di@clinica.test", frozenset({AGENT}))
+    paths = (
+        f"/v1/agents/{AGENT}/settings",
+        f"/v1/sessions?agent={AGENT}",
+        f"/v1/calls/{context.call}/state",
+    )
+    answers: dict[str, list[int]] = {}
+    for name, key in (("elsewhere", elsewhere), ("everyone", everyone), ("ours", ours)):
+        async with knocking.http(key) as person:
+            answers[name] = [(await person.get(path)).status_code for path in paths]
+    assert answers == {"elsewhere": [403] * 3, "everyone": [200] * 3, "ours": [200] * 3}
+    await socket.close()

@@ -162,6 +162,7 @@ class ListQuery(BaseModel):
 async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) -> OpenCallResponse:
     """Open a call's log, serve it to its agent's socket, say its minutes and its first words."""
     context = body.context
+    keys.check_agent(key.bearer, body.agent)
     scope = _call_corner(key, context)
     await _unclaimed_or_in(gateway, context.call, scope)
     await _spent(gateway, context, body.agent)
@@ -409,6 +410,7 @@ async def erase_call(call: str, key: TeamKey, where: ScopeDep, gateway: GatewayD
     kept = await queries.scope_of_call(gateway.connections.pool, call)
     if kept is None or kept.scope is None or not _sees_to_erase(where, kept.scope):
         raise NotFound(_deps.NO_SUCH_CALL.format(call=call))
+    keys.check_agent(key.bearer, kept.agent)
     if not kept.sealed:
         raise Conflict(STILL_LIVE.format(call=call))
     recordings = Path(gateway.connections.settings.recordings_root)
