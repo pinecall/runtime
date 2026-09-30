@@ -117,11 +117,6 @@ NOT_YET_REACHED: tuple[Allowed, ...] = (
     Allowed(
         "pinecall/wire/rest/retrieval.py", "rest.retrieval", "the bodies of those doors, the same"
     ),
-    Allowed(
-        "pinecall/process/signal.py",
-        "signal",
-        "the log's live readers (P3 3.2) and the gateway's registries (3.3) are its first users",
-    ),
 )
 
 # Rule 14: the files that create a task, and who cancels or awaits it.
@@ -145,6 +140,11 @@ TASK_OWNERS: tuple[Allowed, ...] = (
         "pinecall/process/signal.py",
         "create_task",
         "the sender and the listener are cancelled and awaited in RedisSignal.close()",
+    ),
+    Allowed(
+        "pinecall/log/_relay.py",
+        "create_task",
+        "a following's task and its fill are cancelled in Relay._let_go and awaited in close()",
     ),
     Allowed(
         "pinecall/session/session.py", "create_task", "closing and waiting are cancelled in close()"

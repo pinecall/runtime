@@ -253,7 +253,7 @@ def has_answer_landed(entries: Sequence[Entry], lines: int, *, since: float) -> 
 async def answered(logs: Logs, call: str, lines: int) -> None:
     """Wait until the agent answered `lines` lines (its opening when 0), or the call ended."""
     since = time.time()
-    subscription = logs.reading(call).fanout.subscribe()
+    subscription = await logs.reading(call).followed()
     loop = asyncio.get_running_loop()
     deadline = loop.time() + (AN_OPENING_MAY_TAKE_S if lines == 0 else AN_ANSWER_MAY_TAKE_S)
     try:

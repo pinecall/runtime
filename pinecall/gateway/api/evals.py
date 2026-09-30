@@ -432,7 +432,7 @@ async def _written(
         context,
         dataclasses.replace(setup, recalled=tuple(golden.memory)),
     )
-    heard = gateway.logs.writing(opened.call, registration.slug).fanout.subscribe()
+    heard = await gateway.logs.writing(opened.call, registration.slug).followed()
     try:
         played = await goldens.drive(
             session, golden, heard, is_held=lambda: _holds(gateway, registration)
@@ -541,7 +541,7 @@ async def _on_the_line(
 
 async def _until_sealed(gateway: Gateway, call: str) -> None:
     log = gateway.logs.reading(call)
-    subscription = log.fanout.subscribe()
+    subscription = await log.followed()
     try:
         async with asyncio.timeout(A_SEAL_MAY_TAKE_S):
             while not await gateway.logs.store.sealed(call):
