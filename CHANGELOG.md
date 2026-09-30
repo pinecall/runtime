@@ -178,3 +178,10 @@ console and the widget inside; `docs/from-zero.md` walks a box to its first call
   panel's, nor the org's and an agent's at once, and a judge without a question is refused.
 - The judge's ceiling is the providers row's `judge.ceiling_usd`, applied: a model judge asked
   once the call's judging reached it is `skipped`, saying so. `PINECALL_JUDGE_CEILING_USD` is gone.
+- Hosted apps, the record: `POST /v1/hosted/{name}/releases` keeps a project's sources (a gzipped
+  tarball, read before it is kept: no link, no path out of the project, 10 MB) as the app's next
+  release; the first makes the app, counted against the new `hosted_apps` quota, and mints a
+  server's token for it, sealed. `GET /v1/hosted`, the releases and a release's source back,
+  `DELETE /v1/hosted/{name}`. The org's secrets per world, sealed and never read back:
+  `GET /v1/secrets`, `PUT`·`DELETE /v1/secrets/{name}`. Nothing builds or starts a release yet.
+  Migration 0018.

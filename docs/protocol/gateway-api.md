@@ -168,6 +168,8 @@ An agent's settings and its lexicon: [settings-api.md](settings-api.md). The pip
 melody: [pipeline-api.md](pipeline-api.md). The knowledge bases and a contact's memory, and when a
 call looks either up: [../retrieval/spec.md](../retrieval/spec.md). The vendors, the org's own
 keys, the voices: [provider-keys.md](provider-keys.md). The widget: [console-api.md](console-api.md).
+An agent the box runs itself, from sources the org uploads, and the org's secrets:
+[hosting.md](hosting.md).
 
 ## 6. Evals
 

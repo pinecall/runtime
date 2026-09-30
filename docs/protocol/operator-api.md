@@ -53,7 +53,8 @@ Four rows of `box_settings`, each read and written whole, the console's box scre
 ## Quotas and dial guards
 
 `PUT /v1/ops/orgs/{named}/quotas {env, quotas: {limits: {minutes, messages, agents,
-concurrent_calls, memory_facts, knowledge_chunks, numbers, seats, llm_tokens}, budget_usd, lends}}`
+concurrent_calls, memory_facts, knowledge_chunks, numbers, seats, llm_tokens, hosted_apps},
+budget_usd, lends}}`
 replaces the org's limits **in one world**, whole: a limit left out is no limit, `lends` null lends
 every key the box holds, `[]` none, else vendors or `vendor/model`. They bite the next call and
 the next register. `budget_usd` is whole dollars a calendar month, shown beside what was spent,

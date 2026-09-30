@@ -3,7 +3,8 @@
 ## Quotas, per world
 
 An org has one set of limits in production and another in the sandbox: minutes, messages,
-LLM tokens, calls at once, agents, remembered facts, knowledge chunks, bought numbers and seats.
+LLM tokens, calls at once, agents, remembered facts, knowledge chunks, bought numbers, seats and
+hosted apps.
 A limit nobody set is no limit; zero is a limit that refuses everything, which is how a plan
 leaves a feature out. The set is replaced whole, so a limit left out stops being one.
 
@@ -17,6 +18,9 @@ What the sandbox spent never closes production.
   conversation has spent so far added to the org's totals.
 - **Agents, numbers, facts, seats and chunks** are refused at their limit; a push that would pass
   `knowledge_chunks` is refused whole.
+- **Hosted apps** (`hosted_apps`) are counted when an app's first release is uploaded
+  ([protocol/hosting.md](protocol/hosting.md)); a later release of an app the org already has is
+  never refused for it.
 
 A refusal is a `429` whose sentence names the quota, what was used and the limit
 (`the org has used 30 of its 30 minutes in the sandbox`), and `credits.exhausted` lands in the

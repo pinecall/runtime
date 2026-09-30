@@ -13,6 +13,7 @@ from pinecall.tenancy.admission import (
     admission,
     admit_agent,
     admit_call,
+    admit_hosted_app,
     admit_memory,
     admit_number,
     admit_push,
@@ -147,7 +148,7 @@ async def test_the_stocks_are_refused_at_their_limit_and_a_zero_switches_the_fea
     pool: Pool,
 ) -> None:
     org = await create(pool, "clinica-norte", "Clínica Norte")
-    limits = Quotas(agents=2, numbers=0, memory_facts=5, seats=3)
+    limits = Quotas(agents=2, numbers=0, memory_facts=5, seats=3, hosted_apps=1)
     await set_quotas(pool, org.id, "production", limits)
     await admit_agent(pool, org.id, "production", holding=1)
     with pytest.raises(QuotaExhausted, match="agents"):
@@ -158,6 +159,9 @@ async def test_the_stocks_are_refused_at_their_limit_and_a_zero_switches_the_fea
         await admit_memory(pool, org.id, "production", kept=5)
     with pytest.raises(QuotaExhausted, match="seats"):
         await admit_seat(pool, org.id, "production", seated=3)
+    await admit_hosted_app(pool, org.id, "production", hosting=0)
+    with pytest.raises(QuotaExhausted, match="1 of its 1 hosted apps"):
+        await admit_hosted_app(pool, org.id, "production", hosting=1)
 
 
 @postgres
@@ -191,6 +195,7 @@ async def test_every_quota_round_trips_and_zero_comes_back_as_zero_and_not_as_no
         numbers=6,
         seats=7,
         llm_tokens=8,
+        hosted_apps=10,
         budget_usd=9,
         lends=frozenset({"deepgram", "anthropic/claude-haiku-4-5"}),
     )
