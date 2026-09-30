@@ -1,22 +1,22 @@
 {
   "defaults": {
     "llm": {"vendor": "openai", "model": "gemma4:12b"},
-    "stt": {"vendor": "nvidia", "model": "cache-aware-parakeet-rnnt-multi-asr-streaming-sortformer"},
+    "stt": {"vendor": "openai", "model": "deepdml/faster-whisper-large-v3-turbo-ct2"},
     "tts": {"vendor": "openai", "model": "kokoro"}
   },
   "voices": {"openai/es": "ef_dora", "openai/en": "af_heart"},
   "tuning": {
     "llm/openai": {"options": {"base_url": "http://MODELS_HOST:11434/v1", "reasoning_effort": "none"}},
     "tts/openai": {"options": {"base_url": "http://MODELS_HOST:8880/v1"}},
-    "stt/nvidia": {
-      "options": {"server": "MODELS_HOST:50051", "use_ssl": false, "language_code": "es-US"},
+    "stt/openai": {
+      "options": {"base_url": "http://MODELS_HOST:8000/v1", "use_realtime": false},
       "turn_model": "smart-turn-v3"
     }
   },
   "rates": {
     "gemma4": {"input": 0, "output": 0, "as_of": "2026-09-30"},
     "kokoro": {"characters": 0, "as_of": "2026-09-30"},
-    "cache-aware-parakeet": {"audio_seconds": 0, "as_of": "2026-09-30"},
+    "deepdml/faster-whisper": {"audio_seconds": 0, "as_of": "2026-09-30"},
     "bge-m3": {"input": 0, "as_of": "2026-09-30"}
   },
   "judge": {"llm": {"vendor": "openai", "model": "gemma4:12b"}, "ceiling_usd": 0.05},

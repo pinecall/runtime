@@ -1,13 +1,11 @@
-# The open stack: three model servers on one NVIDIA GPU, each OpenAI- or Riva-shaped, so the box
-# runs them through the livekit plugins it already has and names no vendor in code.
-#   ollama        the LLM (Gemma 4 12B) and the embedder (bge-m3), OpenAI-shaped, :11434
-#   kokoro        the voice (Kokoro-82M), OpenAI-shaped /v1/audio/speech, :8880
-#   nemotron-asr  the ears (NVIDIA Nemotron ASR Streaming, 40 locales), Riva gRPC :50051, HTTP :9000
-# Needs the NVIDIA driver and the container toolkit. MODELS_BIND is the address the box reaches:
-# 127.0.0.1 when the box is this machine, a private address when it is another. NGC_API_KEY, a
-# free key from ngc.nvidia.com, pulls the ASR's image and model; keep it in .env beside this file.
-# About 14 GB of GPU memory with everything loaded; the ASR builds its engine on the first start
-# (~15 min), the cache volume keeps it.
+# The open stack: three model servers on one NVIDIA GPU, all OpenAI-shaped, so the box runs them
+# through the livekit plugin it already has and names no vendor in code.
+#   ollama   the LLM (Gemma 4 12B) and the embedder (bge-m3), :11434
+#   kokoro   the voice (Kokoro-82M), /v1/audio/speech, :8880
+#   whisper  the ears (Whisper large-v3-turbo on Speaches), /v1/audio/transcriptions, :8000
+# Needs the NVIDIA driver and the container toolkit, and no account anywhere. MODELS_BIND is the
+# address the box reaches: 127.0.0.1 when the box is this machine, a private address when it is
+# another. About 10 GB of GPU memory with everything loaded; the volumes keep the models.
 
 name: pinecall-models
 
@@ -52,36 +50,34 @@ services:
         reservations:
           devices: [{driver: nvidia, count: all, capabilities: [gpu]}]
 
-  # A new volume is root's; the ASR runs as uid 1000 and cannot write its model into it.
-  nim-cache-owner:
-    image: nvcr.io/nim/nvidia/nemotron-asr-streaming@sha256:89093f05430be97fbc15e150a08a7d830fd409e402b19b7f7ad06528727281dc
-    user: "0"
-    entrypoint: ["chown", "-R", "1000:1000", "/opt/nim/.cache"]
-    volumes: [nim-cache:/opt/nim/.cache]
-    restart: "no"
-
-  nemotron-asr:
-    image: nvcr.io/nim/nvidia/nemotron-asr-streaming@sha256:89093f05430be97fbc15e150a08a7d830fd409e402b19b7f7ad06528727281dc
-    depends_on:
-      nim-cache-owner: {condition: service_completed_successfully}
-    environment:
-      NGC_API_KEY: "${NGC_API_KEY:?NGC_API_KEY is a free key from ngc.nvidia.com, in .env}"
-      # The multilingual model at batch 32: ~5 GB of GPU memory; the default picks batch 128, ~14 GB.
-      NIM_TAGS_SELECTOR: "name=nemotron-asr-streaming,type=multi,batch_size=32"
-      NIM_HTTP_API_PORT: "9000"
-      NIM_GRPC_API_PORT: "50051"
-    shm_size: 8gb
-    # The image runs as uid 1000 and writes its model and engine here.
-    volumes: [nim-cache:/opt/nim/.cache]
-    ports:
-      - "${MODELS_BIND:-127.0.0.1}:50051:50051"
-      - "${MODELS_BIND:-127.0.0.1}:9000:9000"
+  whisper:
+    image: ghcr.io/speaches-ai/speaches@sha256:6ec12ebf890a17e0d4b242a8ba9e0eb1fb836e60e8a3c857aea9838d541579ac
+    volumes: [whisper:/home/ubuntu/.cache/huggingface/hub]
+    ports: ["${MODELS_BIND:-127.0.0.1}:8000:8000"]
     restart: unless-stopped
     deploy:
       resources:
         reservations:
           devices: [{driver: nvidia, count: all, capabilities: [gpu]}]
 
+  # Downloads the Whisper model into the volume once, then exits; Speaches loads it on first use.
+  whisper-model:
+    image: ghcr.io/speaches-ai/speaches@sha256:6ec12ebf890a17e0d4b242a8ba9e0eb1fb836e60e8a3c857aea9838d541579ac
+    entrypoint:
+      - python
+      - -c
+      - |
+        import time, urllib.request
+        url = "http://whisper:8000/v1/models/deepdml/faster-whisper-large-v3-turbo-ct2"
+        for _ in range(120):
+            try:
+                urllib.request.urlopen(urllib.request.Request(url, method="POST"), timeout=900)
+                break
+            except OSError:
+                time.sleep(5)
+    depends_on: [whisper]
+    restart: "no"
+
 volumes:
   ollama:
-  nim-cache:
+  whisper:
