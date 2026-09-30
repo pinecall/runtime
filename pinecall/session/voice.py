@@ -14,7 +14,7 @@ from livekit.agents.voice import AgentSession, STTContextOptions
 from livekit.agents.voice import text_transforms as transforms
 from livekit.agents.voice.agent_session import DEFAULT_TTS_TEXT_TRANSFORMS
 from livekit.agents.voice.turn import InterruptionOptions, TurnDetectionMode, TurnHandlingOptions
-from smart_turn_livekit import SmartTurnDetector
+from smart_turn_livekit import SmartTurnDetector  # pyright: ignore[reportMissingTypeStubs]
 
 from pinecall.domain.agent import AgentConfig
 from pinecall.providers.build import Running, TurnModel, llm_of, stt_of, tts_of
