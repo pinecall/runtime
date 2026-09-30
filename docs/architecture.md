@@ -69,7 +69,9 @@ core under `_` names.
 1. A carrier or a browser reaches LiveKit; LiveKit dispatches the room to the fleet of the
    call's world (`PINECALL_FLEET`), and a worker takes the job.
 2. The job asks the gateway to open the call (`POST /v1/calls`): the gateway writes
-   `call.started` to a new log, finds the agent's app socket, and answers the minutes left.
+   `call.ringing` to a new log (an outbound call's first entry, `call.dialing`, was written when
+   it was placed), finds the agent's app socket, and answers the minutes left. `call.started` is
+   the session's, once the media is up.
 3. `session/voice.py` builds the pipeline from the org's providers, `session/session.py`
    starts the `AgentSession` and writes every turn, tool call and metric as an entry. The
    entries travel in batches (`session/call.py`, `Writing`): one task per call sends whatever is
