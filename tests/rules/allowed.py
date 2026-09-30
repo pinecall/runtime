@@ -132,7 +132,7 @@ TASK_OWNERS: tuple[Allowed, ...] = (
         "the socket's finally cancels the sender and the hang-up watch",
     ),
     Allowed(
-        "pinecall/gateway/_threads.py",
+        "pinecall/gateway/calls/threads.py",
         "create_task",
         "answering_now holds them; closed() awaits the set",
     ),

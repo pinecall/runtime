@@ -32,7 +32,6 @@ from pinecall.gateway import _deps
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import ServedCalls, Serving
 from pinecall.gateway._sockets import Sockets
-from pinecall.gateway._threads import Threads
 from pinecall.gateway.api import (
     accounts,
     agents,
@@ -73,6 +72,7 @@ from pinecall.gateway.api import (
     widget,
 )
 from pinecall.gateway.api.providers import SAMPLES_A_MINUTE
+from pinecall.gateway.calls.threads import Threads
 from pinecall.gateway.ending.reaper import reap_forever
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store

@@ -7,7 +7,7 @@ from pinecall.evals.runs import Runner
 from pinecall.fleet.roster import Roster
 from pinecall.gateway._served import ServedCalls, Serving
 from pinecall.gateway._sockets import Sockets
-from pinecall.gateway._threads import Threads
+from pinecall.gateway.calls.threads import Threads
 from pinecall.log.logs import Logs
 from pinecall.process.connections import Connections
 from pinecall.process.metrics import Counters
