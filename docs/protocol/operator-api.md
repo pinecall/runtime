@@ -66,8 +66,8 @@ concurrent_calls, memory_facts, knowledge_chunks, numbers, seats, llm_tokens, ho
 budget_usd, lends}}`
 replaces the org's limits **in one world**, whole: a limit left out is no limit, `lends` null lends
 every key the box holds, `[]` none, else vendors or `vendor/model`. They bite the next call and
-the next register. `budget_usd` is whole dollars a calendar month, shown beside what was spent,
-never refused over. `PUT /v1/ops/orgs/{named}/dialling {dial_anywhere?, per_minute?, per_day?,
+the next register. `budget_usd` is whole dollars a calendar month, both worlds together, shown
+beside what was spent; a new call is refused once the month's spend reaches it. `PUT /v1/ops/orgs/{named}/dialling {dial_anywhere?, per_minute?, per_day?,
 max_duration_s?}` replaces the dial guards whole; one left out is the default. What the limits
 mean is [limits.md](../limits.md).
 

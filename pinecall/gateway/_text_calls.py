@@ -63,7 +63,11 @@ async def open_text_as(
     """A new written call on this setup, admitted and unstarted."""
     pool, scope = serving.connections.pool, registration.scope
     await admission.admit_call(
-        pool, scope.org, scope.env, running=serving.live.running(scope.org, scope.env)
+        pool,
+        scope.org,
+        scope.env,
+        running=serving.live.running(scope.org, scope.env),
+        at=serving.logs.store.clock(),
     )
     await serving.logs.store.claim(
         context.call, registration.slug, scope.org, Claim(scope, setup.versions)

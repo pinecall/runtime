@@ -273,10 +273,10 @@ class Threads:
                 try:
                     await admission.admit_turn(
                         self.serving.connections.pool,
-                        scope.org,
-                        scope.env,
+                        Scope(scope.org, scope.env),
                         turns=session.call.turns,
                         tokens=tokens_of(session.usage),
+                        at=self.serving.logs.store.clock(),
                     )
                 except QuotaExhausted as refused:
                     await exhausted(self.serving.logs, scope.org, session.call.config.slug, refused)

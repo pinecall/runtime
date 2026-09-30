@@ -145,10 +145,10 @@ async def _turns(websocket: WebSocket, gateway: Gateway, session: Session) -> No
             try:
                 await admission.admit_turn(
                     gateway.connections.pool,
-                    scope.org,
-                    scope.env,
+                    Scope(scope.org, scope.env),
                     turns=session.call.turns,
                     tokens=tokens_of(session.usage),
+                    at=gateway.logs.store.clock(),
                 )
             except QuotaExhausted as refused:
                 await exhausted(gateway.logs, scope.org, session.call.config.slug, refused)

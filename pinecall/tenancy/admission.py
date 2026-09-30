@@ -7,11 +7,15 @@ from pydantic import BaseModel, ConfigDict, Field
 from pinecall.domain.errors import QuotaExhausted
 from pinecall.domain.names import Env
 from pinecall.domain.org import QuotaName, Quotas
+from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Connection, Pool
 from pinecall.process import box_settings
 from pinecall.tenancy import usage
 
 REFUSED = "the org has used {used} of its {limit} {quota} in the {env}"
+
+# Dollars are the same in both worlds: the month's spend in both is held to the one budget.
+BUDGET_REFUSED = "the org has spent {used} of its {limit} USD budget this month"
 
 
 ADMISSION = "admission"
@@ -60,13 +64,17 @@ class Admission(BaseModel):
     later: dict[Env, Quotas] | None = None
 
 
-async def admit_call(pool: Pool, org: str, env: Env, *, running: int) -> Ceiling | None:
+# `at` is the log's clock, so a call is held to the month its summary will be counted in.
+async def admit_call(pool: Pool, org: str, env: Env, *, running: int, at: float) -> Ceiling | None:
     """Admit one more call, with its ceiling; None when the org's minutes have no limit."""
     quotas = await quotas_of(pool, org, env)
     _refuse_past(quotas, env, "concurrent_calls", running)
+    month = usage.month_of(at)
+    if quotas.budget_usd is not None:
+        _refuse_over_budget(quotas, await usage.spent_in(pool, org, month))
     if quotas.minutes is None and quotas.messages is None and quotas.llm_tokens is None:
         return None
-    spent = await usage.used(pool, org, env)
+    spent = await usage.used(pool, org, env, month)
     _refuse_past(quotas, env, "minutes", spent.minutes)
     _refuse_past(quotas, env, "messages", spent.messages)
     _refuse_past(quotas, env, "llm_tokens", spent.input_tokens + spent.output_tokens)
@@ -78,12 +86,13 @@ async def admit_call(pool: Pool, org: str, env: Env, *, running: int) -> Ceiling
 
 
 # A call is counted at its summary, so a long written call adds what it has used so far.
-async def admit_turn(pool: Pool, org: str, env: Env, *, turns: int, tokens: int) -> None:
+async def admit_turn(pool: Pool, scope: Scope, *, turns: int, tokens: int, at: float) -> None:
     """Admit one more turn of a written call already this long."""
+    org, env = scope.org, scope.env
     quotas = await quotas_of(pool, org, env)
     if quotas.messages is None and quotas.llm_tokens is None:
         return
-    spent = await usage.used(pool, org, env)
+    spent = await usage.used(pool, org, env, usage.month_of(at))
     _refuse_past(quotas, env, "messages", spent.messages + turns)
     _refuse_past(quotas, env, "llm_tokens", spent.input_tokens + spent.output_tokens + tokens)
 
@@ -165,9 +174,21 @@ def _refuse_past(quotas: Quotas, env: Env, quota: QuotaName, spent: float) -> No
 
 
 def _refused(env: Env, quota: QuotaName, spent: float, limit: int) -> None:
-    shown = int(spent) if float(spent).is_integer() else round(spent, 2)
-    sentence = REFUSED.format(used=shown, limit=limit, quota=quota.replace("_", " "), env=env)
+    sentence = REFUSED.format(
+        used=_shown(spent), limit=limit, quota=quota.replace("_", " "), env=env
+    )
     raise QuotaExhausted(sentence, quota=quota, used=spent, limit=limit)
+
+
+def _refuse_over_budget(quotas: Quotas, spent: float) -> None:
+    limit = quotas.reached("budget_usd", spent)
+    if limit is not None:
+        sentence = BUDGET_REFUSED.format(used=_shown(spent), limit=limit)
+        raise QuotaExhausted(sentence, quota="budget_usd", used=spent, limit=limit)
+
+
+def _shown(spent: float) -> int | float:
+    return int(spent) if float(spent).is_integer() else round(spent, 2)
 
 
 async def _admission(connection: Connection) -> Admission:
@@ -179,5 +200,5 @@ async def _set_quotas(connection: Connection, org: str, env: Env, quotas: Quotas
     lends = None if quotas.lends is None else sorted(quotas.lends)
     await connection.execute(
         SET_QUOTAS,
-        {"org": org, "env": env, **quotas.limits, "budget_usd": quotas.budget_usd, "lends": lends},
+        {"org": org, "env": env, **quotas.limits, "lends": lends},
     )

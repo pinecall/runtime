@@ -10,13 +10,10 @@ from pinecall.log.reduce import Metered, Usage, usage_row
 from pinecall.log.store import entry_of
 from pinecall.postgres.pool import Pool, unbounded
 
-# Quotas are counted for ever today: every month the org has used in the world, summed.
+# A quota is the month's: what the org used in the world in one calendar month, one row.
 USED = """
-SELECT coalesce(sum(calls), 0) AS calls, coalesce(sum(minutes), 0) AS minutes,
-       coalesce(sum(messages), 0) AS messages, coalesce(sum(input_tokens), 0) AS input_tokens,
-       coalesce(sum(output_tokens), 0) AS output_tokens,
-       coalesce(sum(characters), 0) AS characters, coalesce(sum(cost_usd), 0) AS cost_usd
-FROM usage_totals WHERE org = %(org)s AND env = %(env)s
+SELECT calls, minutes, messages, input_tokens, output_tokens, characters, cost_usd
+FROM usage_totals WHERE org = %(org)s AND env = %(env)s AND period = %(month)s
 """
 
 # A budget is the org's in both worlds: a month's spend is every world's row of that month.
@@ -61,10 +58,11 @@ class Month:
     period: date
 
 
-async def used(pool: Pool, org: str, env: Env) -> Usage:
-    """What the org's calls in the world consumed, every month summed: one row read."""
+async def used(pool: Pool, org: str, env: Env, month: date) -> Usage:
+    """What the org's calls in the world consumed in the month: one row read."""
+    params = {"org": org, "env": env, "month": month.replace(day=1)}
     async with pool.connection() as connection:
-        row = await (await connection.execute(USED, {"org": org, "env": env})).fetchone()
+        row = await (await connection.execute(USED, params)).fetchone()
     return Usage() if row is None else _usage(row)
 
 
@@ -83,7 +81,7 @@ async def rebuild(pool: Pool) -> dict[Month, Usage]:
         rows = await (await connection.execute(SUMMARIES)).fetchall()
         refolded: dict[Month, Usage] = {}
         for row in rows:
-            month = Month(str(row["org"]), parse_env(str(row["env"])), _period_of(row["ts"]))
+            month = Month(str(row["org"]), parse_env(str(row["env"])), month_of(row["ts"]))
             consumed = usage_row(Metered(position=0, org=month.org, entry=entry_of(row))).used
             refolded[month] = refolded.get(month, Usage()) + consumed
         await connection.execute(FORGOTTEN)
@@ -108,7 +106,7 @@ async def totals(pool: Pool) -> dict[Month, Usage]:
     }
 
 
-def _period_of(ts: float) -> date:
+def month_of(ts: float) -> date:
     """The calendar month, in UTC, a summary written at that time is counted in."""
     return datetime.fromtimestamp(ts, UTC).date().replace(day=1)
 
