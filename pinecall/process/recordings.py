@@ -26,8 +26,10 @@ OBJECTS = "https://storage.googleapis.com/storage/v1/b/{bucket}/o"
 
 UPLOADS = "https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o"
 
-# An hour of a call is tens of megabytes: the default five seconds is a small file's.
-UPLOAD_TIMEOUT_S = 120.0
+# An hour of a call is tens of megabytes: the default five seconds is a small file's. Under what
+# a job is given to seal (worker/main.py SEALING_S): an upload that hangs leaves the file on the
+# disk and the call is still sealed.
+UPLOAD_TIMEOUT_S = 30.0
 
 # What a player needs from the bucket's answer to seek.
 PASSED_ON = ("content-length", "content-range", "accept-ranges")
