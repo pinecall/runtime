@@ -88,6 +88,8 @@ async def test_a_caller_back_on_a_forgotten_call_carries_on_and_nothing_starts_a
     await received_until(chat, "turn.agent")
     await chat.close(code=1012)
     await asyncio.sleep(0.2)
+    store = knocking.gateway.logs.store
+    before = await store.written(call)
     knocking.gateway.live.close(call)
     knocking.gateway.logs.forget(call)
     back = await knocking.socket(f"/v1/chat?agent={AGENT}&call={call}", knocking.app["sandbox"])
@@ -96,6 +98,10 @@ async def test_a_caller_back_on_a_forgotten_call_carries_on_and_nothing_starts_a
     await received_until(back, "turn.agent")
     session = knocking.gateway.live.calls[call].session
     assert session is not None
+    await session.call.writing.flushed(5)
+    assert session.call.writing.refused == []
+    assert before > 0
+    assert session.call.writing.after == await store.written(call) > before
     (model,) = session.built
     assert isinstance(model, AcmeLLM)
     heard = [
@@ -104,9 +110,12 @@ async def test_a_caller_back_on_a_forgotten_call_carries_on_and_nothing_starts_a
     await back.close()
     assert attached.call == call
     assert "quiero un turno" in heard
-    kinds = [item.type for item in await knocking.gateway.logs.store.whole(call)]
+    kept = await store.whole(call)
+    kinds = [item.type for item in kept]
     assert kinds.count("call.started") == 1
     assert "call.ended" not in kinds[: kinds.index("call.attached")]
+    heard_by_the_log = [item.data["text"] for item in kept if item.type == "turn.user"]
+    assert heard_by_the_log == ["quiero un turno", "sigo"]
     await app.close()
 
 

@@ -3,7 +3,9 @@
 import asyncio
 import contextlib
 from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
 from datetime import date
+from functools import partial
 
 import httpx
 import pytest
@@ -17,8 +19,10 @@ from pinecall.domain.errors import GatewayRefused
 from pinecall.domain.scope import Scope
 from pinecall.fleet.client import GatewayClient, again, away, gateway_at, server_sent, waits
 from pinecall.providers.credentials import Pipeline
+from pinecall.session.call import Writing
 from pinecall.tenancy import carriers
 from pinecall.tenancy.carriers import SipPeer
+from pinecall.wire.events import Custom
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
 from pinecall.wire.rest.fleet import HeartbeatRequest
 from tests.conftest import AGENT, Knocking, postgres, received_until, sent
@@ -115,6 +119,106 @@ async def test_a_gateway_that_forgot_the_call_is_told_it_again_and_the_entry_lan
     knocking.gateway.logs.forget(context.call)
     written = await client.append(context.call, "custom", {"name": "x", "data": {}})
     assert written.seq == 2
+    await client.aclose()
+
+
+@dataclass
+class LosingTheFirstBatchAnswer:
+    """The real transport, but the answer to the first batch is lost after the gateway took it."""
+
+    real: httpx.AsyncHTTPTransport = field(default_factory=httpx.AsyncHTTPTransport)
+    lost: int = 0
+
+    async def handled(self, request: httpx.Request) -> httpx.Response:
+        """Pass the request on; drop the first answer to a batch as a broken connection would."""
+        answer = await self.real.handle_async_request(request)
+        if not request.url.path.endswith("/entries") or self.lost:
+            return answer
+        await answer.aread()
+        await answer.aclose()
+        self.lost += 1
+        raise httpx.ReadError("the answer was lost on the way back", request=request)
+
+
+def writing_on(client: GatewayClient, call: str) -> Writing:
+    """A call's writer wired to the client's batch door, as a worker wires it."""
+    return Writing(partial(client.append_many, call), call)
+
+
+def custom(name: str) -> Custom:
+    """An app's own line, named."""
+    return Custom(name=name, data={})
+
+
+@postgres
+async def test_a_calls_entries_written_through_its_writer_land_once_and_in_order(
+    knocking: Knocking,
+) -> None:
+    client = fleet_client(knocking)
+    context = a_call(knocking)
+    await client.open(OpenCallRequest(agent=AGENT, context=context))
+    writing = writing_on(client, context.call)
+    writing.write("custom", custom("uno"))
+    writing.write("custom", custom("dos"))
+    writing.open()
+    await writing.write("custom", custom("tres"))
+    await writing.close(5)
+    kept = await knocking.gateway.logs.store.whole(context.call)
+    assert [entry.data["name"] for entry in kept if entry.type == "custom"] == [
+        "uno",
+        "dos",
+        "tres",
+    ]
+    assert await knocking.gateway.logs.store.written(context.call) == 3
+    assert writing.refused == []
+    await client.aclose()
+
+
+@postgres
+async def test_a_batch_whose_answer_was_lost_is_sent_again_and_lands_once(
+    knocking: Knocking,
+) -> None:
+    losing = LosingTheFirstBatchAnswer()
+    headers = {"Authorization": f"Bearer {knocking.fleet['sandbox']}"}
+    transport = httpx.MockTransport(losing.handled)
+    http = httpx.AsyncClient(base_url=knocking.url, headers=headers, transport=transport)
+    client = GatewayClient(http)
+    context = a_call(knocking)
+    await client.open(OpenCallRequest(agent=AGENT, context=context))
+    writing = writing_on(client, context.call)
+    names = ["uno", "dos", "tres"]
+    written = [writing.write("custom", custom(name)) for name in names]
+    writing.open()
+    await writing.close(5)
+    kept = await knocking.gateway.logs.store.whole(context.call)
+    customs = [entry for entry in kept if entry.type == "custom"]
+    assert losing.lost == 1
+    assert [entry.data["name"] for entry in customs] == names
+    assert [future.result().seq for future in written] == [entry.seq for entry in customs]
+    assert await knocking.gateway.logs.store.written(context.call) == 3
+    await client.aclose()
+    await losing.real.aclose()
+
+
+@postgres
+async def test_a_gateway_that_forgot_the_call_is_told_it_again_and_the_batch_lands(
+    knocking: Knocking,
+) -> None:
+    client = fleet_client(knocking)
+    context = a_call(knocking)
+    await client.open(OpenCallRequest(agent=AGENT, context=context))
+    writing = writing_on(client, context.call)
+    writing.open()
+    await writing.write("custom", custom("uno"))
+    knocking.gateway.live.close(context.call)
+    knocking.gateway.logs.forget(context.call)
+    entry = await writing.write("custom", custom("dos"))
+    await writing.close(5)
+    kept = await knocking.gateway.logs.store.whole(context.call)
+    customs = [item for item in kept if item.type == "custom"]
+    assert [item.data["name"] for item in customs] == ["uno", "dos"]
+    assert entry.seq == customs[-1].seq
+    assert writing.refused == []
     await client.aclose()
 
 

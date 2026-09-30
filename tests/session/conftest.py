@@ -99,7 +99,9 @@ class Box:
 
     def platform(self) -> Platform:
         """The four doors the session is given."""
-        return Platform(append=self.log.append, tool=self.tool, lookup=self.lookup, seal=self.seal)
+        return Platform(
+            append_many=self.log.append_many, tool=self.tool, lookup=self.lookup, seal=self.seal
+        )
 
 
 @pytest.fixture

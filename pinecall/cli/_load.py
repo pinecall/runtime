@@ -9,6 +9,7 @@ from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from functools import partial
 from itertools import pairwise
 from pathlib import Path
 
@@ -17,12 +18,13 @@ from pydantic import TypeAdapter
 
 from pinecall.domain.call import CallContext, Route, new_call_id
 from pinecall.domain.errors import DeclarationRefused, GatewayRefused
-from pinecall.domain.names import SANDBOX, JsonObject
+from pinecall.domain.names import SANDBOX
 from pinecall.fleet.client import SEALED_WITHIN_S, TIMEOUT_S, GatewayClient
 from pinecall.process.settings import Settings
-from pinecall.wire.events import CallEnded
-from pinecall.wire.frames import Entry
-from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
+from pinecall.session.call import Writing
+from pinecall.wire.events import CallEnded, event_of
+from pinecall.wire.frames import Entry, WireModel
+from pinecall.wire.rest.calls import BatchedEntry, OpenCallRequest, SealCallRequest
 
 # What the gateway writes on a call's log itself, never a worker: the arrival, call.attached and
 # call.claimed, the summary and the score, memory and sources, a tool's round trip, and the
@@ -64,6 +66,10 @@ LAG_WARNING_MS = 50.0
 # Past the run's end, what a call still writing and sealing is given before it is cut.
 GRACE_S = 2 * SEALED_WITHIN_S
 
+# A call's writer, once everything it queued was answered or the grace cut the call, stops this
+# soon; nothing is left to send but what a cut call never will.
+LET_GO_S = 0.1
+
 UNREACHABLE = "unreachable"
 
 NO_KEY = "PINECALL_WORKER_KEY is unset: the load knocks with the sandbox fleet's key"
@@ -81,7 +87,7 @@ class Step:
 
     at_s: float
     type: str
-    data: JsonObject
+    event: WireModel
     ephemeral: bool
 
 
@@ -124,7 +130,9 @@ class Tally:
     sent: int = 0
     durable: int = 0
     at_top: int = 0
+    # From an entry queued to the log holding it: what the call waits, as a worker's does.
     append_ms: list[float] = field(default_factory=list[float])
+    batches: list[int] = field(default_factory=list[int])
     seal_ms: list[float] = field(default_factory=list[float])
     refusals: Counter[str] = field(default_factory=Counter[str])
     verified: int = 0
@@ -180,7 +188,7 @@ def written_by_worker(kind: str) -> bool:
 
 # ts may step back between two entries of a real log: a step is never earlier than the last.
 def script_of(entries: Sequence[Entry]) -> Script:
-    """The worker's entries of a call's log, timed from its first; call.ended made when absent."""
+    """The worker's entries of a call's log, timed and read as the wire's; call.ended if absent."""
     first = entries[0].ts
     steps: list[Step] = []
     ending: Step | None = None
@@ -189,7 +197,7 @@ def script_of(entries: Sequence[Entry]) -> Script:
         at_s = max(at_s, entry.ts - first)
         if not written_by_worker(entry.type):
             continue
-        step = Step(at_s, entry.type, dict(entry.data), entry.ephemeral)
+        step = Step(at_s, entry.type, event_of(entry), entry.ephemeral)
         if entry.type == ENDED:
             ending = step
         else:
@@ -198,7 +206,7 @@ def script_of(entries: Sequence[Entry]) -> Script:
         over = CallEnded(
             reason="caller_hung_up", ended_by="caller", ended_at=first + at_s, duration_s=at_s
         )
-        ending = Step(at_s, ENDED, dict(over.written()), ephemeral=False)
+        ending = Step(at_s, ENDED, over, ephemeral=False)
     return Script(tuple(steps), ending)
 
 
@@ -264,6 +272,7 @@ def report_of(tally: Tally, hold_s: float) -> list[str]:
         f"entries sent: {tally.sent} ({tally.durable} durable)",
         f"entries a second at the top: {per_second}",
         f"append ms: {_percentiles(tally.append_ms, (0.5, 0.95, 0.99))}",
+        f"entries per batch: {_percentiles([float(n) for n in tally.batches], (0.5, 0.99))}",
         f"seal ms: {_percentiles(tally.seal_ms, (0.5, 0.99))}",
         f"refusals: {_counted(tally.refusals)}",
         f"logs verified: {tally.verified}",
@@ -348,32 +357,54 @@ async def _call(run: Run) -> None:
     await _verified(run, context.call, sent)
 
 
-# At the script's own times from the open, one request in flight, as the worker's Writing sends;
-# a call the run's end overtakes skips to its call.ended.
+# At the script's own times from the open, queued on the worker's own writer, which sends what
+# is queued as one batch while the last is out; a call the run's end overtakes skips to its
+# call.ended. A refusal ends the call once what it queued has been answered.
 async def _replayed(run: Run, call: str) -> list[Entry]:
     script, ends_at = run.plan.script, run.window.ends_at
+
+    async def batched(entries: list[BatchedEntry], *, after: int) -> list[Entry]:
+        run.tally.batches.append(len(entries))
+        return await run.client.append_many(call, entries, after=after)
+
+    writing = Writing(batched, call)
+    writing.open()
     opened_at = time.monotonic()
+    written: list[asyncio.Future[Entry]] = []
+    try:
+        for step in (*script.steps, script.ending):
+            due = opened_at + step.at_s
+            if due >= ends_at and step is not script.ending:
+                continue
+            await asyncio.sleep(max(min(due, ends_at) - time.monotonic(), 0.0))
+            written.append(_queued(run, writing, step))
+        answered = await asyncio.gather(*written, return_exceptions=True)
+    finally:
+        await writing.close(LET_GO_S)
     sent: list[Entry] = []
-    for step in (*script.steps, script.ending):
-        due = opened_at + step.at_s
-        if due >= ends_at and step is not script.ending:
-            continue
-        await asyncio.sleep(max(min(due, ends_at) - time.monotonic(), 0.0))
-        sent.append(await _sent(run, call, step))
+    for result in answered:
+        if isinstance(result, BaseException):
+            raise result
+        sent.append(result)
     return sent
 
 
-async def _sent(run: Run, call: str, step: Step) -> Entry:
-    tally = run.tally
-    started = time.monotonic()
-    entry = await run.client.append(call, step.type, dict(step.data), ephemeral=step.ephemeral)
-    done = time.monotonic()
-    tally.append_ms.append((done - started) * 1000)
+def _queued(run: Run, writing: Writing, step: Step) -> asyncio.Future[Entry]:
+    queued_at = time.monotonic()
+    written = writing.write(step.type, step.event, ephemeral=step.ephemeral)
+    written.add_done_callback(partial(_landed, run, queued_at))
+    return written
+
+
+def _landed(run: Run, queued_at: float, written: asyncio.Future[Entry]) -> None:
+    if written.cancelled() or written.exception() is not None:
+        return
+    tally, done = run.tally, time.monotonic()
+    tally.append_ms.append((done - queued_at) * 1000)
     tally.sent += 1
-    tally.durable += 0 if entry.ephemeral else 1
+    tally.durable += 0 if written.result().ephemeral else 1
     if run.window.top_at <= done <= run.window.ends_at:
         tally.at_top += 1
-    return entry
 
 
 # Read through the log's own door as a reader pages it; a key that may not read is counted apart.

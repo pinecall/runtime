@@ -441,7 +441,7 @@ async def test_a_state_set_during_a_tool_cites_the_tool_as_its_cause(
         return ToolResult(call_id="t1", name="book", output="ok")
 
     session.call.platform = Platform(
-        append=box.log.append, tool=answering, lookup=box.lookup, seal=box.seal
+        append_many=box.log.append_many, tool=answering, lookup=box.lookup, seal=box.seal
     )
     await session.start()
     await text.hears(session, "reserva")
@@ -1048,7 +1048,7 @@ async def test_a_platform_that_refuses_is_a_tool_that_did_not_answer_and_the_cal
         box, BOOKING, [{"name": "book", "arguments": {}, "call_id": "t1"}], ["Probemos luego"]
     )
     session.call.platform = Platform(
-        append=box.log.append, tool=refusing, lookup=box.lookup, seal=box.seal
+        append_many=box.log.append_many, tool=refusing, lookup=box.lookup, seal=box.seal
     )
     await session.start()
     sentence = await text.hears(session, "reserva")
@@ -1081,7 +1081,7 @@ async def test_the_tool_runs_after_its_announcement_with_or_without_a_receipt(
         ["hecho"],
     )
     session.call.platform = Platform(
-        append=box.log.append, tool=recording, lookup=box.lookup, seal=box.seal
+        append_many=box.log.append_many, tool=recording, lookup=box.lookup, seal=box.seal
     )
     await session.start()
     await text.hears(session, "reservá y cancelá")

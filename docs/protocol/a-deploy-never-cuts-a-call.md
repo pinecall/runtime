@@ -41,6 +41,14 @@ lost is answered with the seqs it was given and writes nothing; anything else is
 both counts. Each entry keeps the worker's `ts`, when it happened, clamped to the gateway's clock.
 The gateway's own entries take seqs and are not counted.
 
+The worker writes its call's entries through this door and no other: what is queued goes as one
+batch, and a batch retried goes again unchanged, after the same count, so a retry can no longer
+write an entry twice. A `409` refuses the whole batch and the call goes on with the next. The
+entries a worker writes outside its session (the overflow's sentence and its `call.ended`, a
+command the session refused, the `call.ended` of a leg nobody answered) still take the one-entry
+door, which counts nothing. A written call's session batches too, straight to its log; taken up
+after a restart, it goes on from the count its log's head keeps.
+
 ## A written call
 
 A chat over `WS /v1/chat` or a WhatsApp thread runs in the gateway's own process, and a restart ends

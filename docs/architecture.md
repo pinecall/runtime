@@ -47,20 +47,20 @@ core under `_` names.
 | folder | files | lines | imports of ours |
 |---|---|---|---|
 | `channels/` | 7 | 2148 | `domain`, `fleet`, `log`, `postgres`, `process`, `tenancy`, `wire` |
-| `cli/` | 6 | 1811 | `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `tenancy`, `wire`, `worker` |
+| `cli/` | 6 | 1841 | `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire`, `worker` |
 | `domain/` | 8 | 1145 | — |
-| `evals/` | 9 | 2470 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
-| `fleet/` | 5 | 897 | `domain`, `postgres`, `process`, `wire` |
-| `gateway/` | 41 | 9142 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
-| `log/` | 6 | 2549 | `domain`, `postgres`, `wire` |
+| `evals/` | 9 | 2471 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
+| `fleet/` | 5 | 924 | `domain`, `postgres`, `process`, `wire` |
+| `gateway/` | 41 | 9203 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `log/` | 6 | 2563 | `domain`, `postgres`, `wire` |
 | `postgres/` | 2 | 229 | `domain` |
 | `process/` | 3 | 462 | `domain`, `postgres` |
-| `providers/` | 6 | 1062 | `domain`, `postgres`, `process`, `wire` |
+| `providers/` | 6 | 1073 | `domain`, `postgres`, `process`, `wire` |
 | `retrieval/` | 6 | 2351 | `domain`, `log`, `postgres`, `providers`, `wire` |
-| `session/` | 12 | 3072 | `domain`, `log`, `providers`, `wire` |
-| `tenancy/` | 25 | 5803 | `domain`, `log`, `postgres`, `process`, `wire` |
-| `wire/` | 17 | 4412 | `domain` |
-| `worker/` | 4 | 907 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
+| `session/` | 12 | 3144 | `domain`, `log`, `providers`, `wire` |
+| `tenancy/` | 25 | 5821 | `domain`, `log`, `postgres`, `process`, `wire` |
+| `wire/` | 17 | 4445 | `domain` |
+| `worker/` | 4 | 929 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
 
 ## The path of a call
 
@@ -69,7 +69,12 @@ core under `_` names.
 2. The job asks the gateway to open the call (`POST /v1/calls`): the gateway writes
    `call.started` to a new log, finds the agent's app socket, and answers the minutes left.
 3. `session/voice.py` builds the pipeline from the org's providers, `session/session.py`
-   starts the `AgentSession` and writes every turn, tool call and metric as an entry.
+   starts the `AgentSession` and writes every turn, tool call and metric as an entry. The
+   entries travel in batches (`session/call.py`, `Writing`): one task per call sends whatever is
+   queued, up to 64, in one `POST /v1/calls/{call}/entries`, and while it is out the next batch
+   fills, so an idle call sends each entry alone and a busy one batches itself. Each entry is
+   stamped when it is queued. Past 4 096 waiting, an ephemeral entry is shed; a durable one never
+   is. A written call's session sends its batches the same way, straight to its log.
 4. A tool call crosses the app socket (`gateway/api/apps.py`) to the tenant's process and back;
    the gateway writes `tool.call` and `tool.result`.
 5. At hang-up the job seals the log (`POST /v1/calls/{call}/sealed`): the summary, the price,

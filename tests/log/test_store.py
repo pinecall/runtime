@@ -179,6 +179,16 @@ async def test_a_batch_after_the_gateways_own_entry_counts_only_the_workers(
     assert [entry.seq for entry in await store.since(call)] == [1, 2, 3, 4, 5]
 
 
+async def test_the_count_a_writer_resumes_from_is_the_heads_and_zero_for_a_new_log(
+    store: Store, call: str
+) -> None:
+    assert await store.written(call) == 0
+    await store.append(call, AGENT, "call.ringing", {}, ephemeral=False)
+    await store.append_many(call, AGENT, batch_of("custom", "user.transcript"), after=0)
+    await store.append(call, AGENT, "tool.call", {}, ephemeral=False)
+    assert await store.written(call) == 2
+
+
 async def test_each_entry_keeps_its_own_time_bounded_by_the_clock_and_never_stepping_back(
     pool: Pool, call: str
 ) -> None:

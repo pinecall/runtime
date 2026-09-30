@@ -3,6 +3,7 @@
 import asyncio
 import dataclasses
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
 
@@ -10,11 +11,12 @@ from livekit.agents.utils import aio
 
 from pinecall.domain.agent import DEFAULT_LAYOUT, AgentConfig, EventSource, PromptBlock, ToolSpec
 from pinecall.domain.call import CallContext
-from pinecall.domain.errors import DeclarationRefused
+from pinecall.domain.errors import DeclarationRefused, NotAvailable
 from pinecall.domain.names import JsonObject
 from pinecall.session._hearing import policy_for
 from pinecall.wire.commands import CallCallback, CallLog, SessionConfigure, StateSet, ToolsSet
 from pinecall.wire.events import (
+    EPHEMERAL_EVENTS,
     AgentConfigured,
     CallbackRequested,
     Custom,
@@ -28,11 +30,17 @@ from pinecall.wire.frames import Entry, WireModel
 from pinecall.wire.metrics import ModelUsage
 from pinecall.wire.parts import AgentConfig as Declared
 from pinecall.wire.parts import Contact, PlatformTool, Supervisor, ToolResult
+from pinecall.wire.rest.calls import BatchedEntry
 
 # What a session reaches outside the process its call runs in. In the gateway these are the
 # call's own log and the doors behind it; in a worker, the same doors over the fleet's client.
 # `append` is called as `append(kind, data, ephemeral=...)`, as `Log.append` is.
 type Append = Callable[..., Awaitable[Entry]]
+
+
+# Called as `append_many(entries, after=...)`, as `Log.append_many` is: the entries numbered, in
+# the order they were sent.
+type AppendMany = Callable[..., Awaitable[list[Entry]]]
 
 
 type Lookup = Callable[[PlatformTool, JsonObject, str | None], Awaitable[JsonObject]]
@@ -65,6 +73,18 @@ CLOSING = (
 )
 
 
+# What one request carries: whatever is queued when the last one was answered, up to this.
+MOST_A_BATCH = 64
+
+
+# Past this many waiting, an ephemeral entry is shed: no store keeps it. A durable one is always
+# queued, so a gateway that was away never leaves a hole in the log.
+MOST_QUEUED = 4096
+
+
+SHED = "call {call}: {queued} entries wait for the log, so {kind} was shed"
+
+
 @dataclass(frozen=True)
 class ToolUse:
     """One tool call the model made: its id, the tool, and the arguments it chose."""
@@ -78,17 +98,19 @@ type RunTool = Callable[[ToolUse, str | None], Awaitable[ToolResult]]
 
 
 class Writing:
-    """The call's entries in the order they happened, sent to the log one at a time."""
+    """The call's entries in the order they happened, sent to the log in batches."""
 
     # livekit calls most listeners synchronously; one queue drained by one task keeps order.
-    def __init__(self, append: Append, call: str) -> None:
+    def __init__(self, append_many: AppendMany, call: str) -> None:
         """An empty queue for the call, drained once `open` starts it."""
-        self.append = append
+        self.append_many = append_many
         self.call = call
-        self.queued: asyncio.Queue[tuple[str, JsonObject, bool | None, asyncio.Future[Entry]]]
-        self.queued = asyncio.Queue()
+        self.queued: asyncio.Queue[tuple[BatchedEntry, asyncio.Future[Entry]]] = asyncio.Queue()
         self.draining: asyncio.Task[None] | None = None
+        # How many entries the log took from this writer: what the next batch says it follows.
+        self.after = 0
         self.refused: list[str] = []
+        self.shed: list[str] = []
 
     def open(self) -> None:
         """Start sending."""
@@ -96,13 +118,20 @@ class Writing:
             self.draining = asyncio.create_task(self._drain())
 
     # livekit calls most listeners synchronously: they queue and move on; a caller that needs
-    # the entry (its seq) awaits the future.
+    # the entry (its seq) awaits the future. The stamp is when it happened, not when it was sent.
     def write(
         self, kind: str, event: WireModel, *, ephemeral: bool | None = None
     ) -> asyncio.Future[Entry]:
         """Queue an entry; the future is the entry once the log holds it."""
         written: asyncio.Future[Entry] = asyncio.get_running_loop().create_future()
-        self.queued.put_nowait((kind, event.written(), ephemeral, written))
+        forgettable = kind in EPHEMERAL_EVENTS if ephemeral is None else ephemeral
+        waiting = self.queued.qsize()
+        if forgettable and waiting >= MOST_QUEUED:
+            self.shed.append(kind)
+            _refused(written, NotAvailable(SHED.format(call=self.call, queued=waiting, kind=kind)))
+            return written
+        entry = BatchedEntry(type=kind, data=event.written(), ephemeral=ephemeral, ts=time.time())
+        self.queued.put_nowait((entry, written))
         return written
 
     async def flushed(self, within_s: float) -> None:
@@ -130,34 +159,56 @@ class Writing:
                 len(self.refused),
                 ", ".join(sorted(set(self.refused))),
             )
+        if self.shed:
+            logger.warning(
+                "call %s: %d ephemeral entries were shed at the queue's ceiling (%s)",
+                self.call,
+                len(self.shed),
+                ", ".join(sorted(set(self.shed))),
+            )
 
-    # A refused entry never ends the call: the client retries what is transient, so what fails
-    # here is a refusal, counted and named at close.
+    # No timer: while one batch is out the next one fills, so an idle call sends each entry
+    # alone and a busy one batches itself.
     async def _drain(self) -> None:
         while True:
-            kind, data, ephemeral, written = await self.queued.get()
+            batch = [await self.queued.get()]
+            while len(batch) < MOST_A_BATCH and not self.queued.empty():
+                batch.append(self.queued.get_nowait())
             try:
-                entry = await self.append(kind, data, ephemeral=ephemeral)
-            except asyncio.CancelledError:
-                self.refused.append(kind)
-                raise
-            except Exception as refused:
-                logger.warning("call %s: the log refused %s", self.call, kind, exc_info=True)
-                self.refused.append(kind)
-                if not written.done():
-                    written.set_exception(refused)
-            else:
-                if not written.done():
-                    written.set_result(entry)
+                await self._sent(batch)
             finally:
-                self.queued.task_done()
+                for _ in batch:
+                    self.queued.task_done()
+
+    # A refused batch never ends the call: the client retries what is transient with the same
+    # `after`, so what fails here is a refusal of the whole batch, counted and named at close.
+    async def _sent(self, batch: list[tuple[BatchedEntry, asyncio.Future[Entry]]]) -> None:
+        kinds = [entry.type for entry, _ in batch]
+        try:
+            numbered = await self.append_many([entry for entry, _ in batch], after=self.after)
+        except asyncio.CancelledError:
+            self.refused += kinds
+            raise
+        except Exception as refused:
+            logger.warning(
+                "call %s: the log refused a batch of %d", self.call, len(batch), exc_info=True
+            )
+            self.refused += kinds
+            for _, written in batch:
+                if not written.done():
+                    _refused(written, refused)
+            return
+        self.after += len(batch)
+        for (_, written), entry in zip(batch, numbered, strict=True):
+            if not written.done():
+                written.set_result(entry)
 
 
 @dataclass(frozen=True)
 class Platform:
     """The log a call writes, the app's tools, the lookups, and the seal at the end."""
 
-    append: Append
+    append_many: AppendMany
     tool: RunTool
     lookup: Lookup
     seal: Seal
@@ -172,7 +223,7 @@ class Call:
         self.config = config
         self.turn_policy = policy_for(config.language)
         self.platform = platform
-        self.writing = Writing(platform.append, context.call)
+        self.writing = Writing(platform.append_many, context.call)
         self.speeches = 0
         self.turns = 0
         self.last_said = ""
@@ -297,3 +348,10 @@ def with_app_fields(current: AgentConfig, declared: Declared) -> AgentConfig:
 def changed_by(declared: Declared) -> list[str]:
     """The fields a declaration sets, sorted."""
     return sorted(declared.model_fields_set)
+
+
+# Most entries are queued and never awaited: read here, the refusal is not logged a second time
+# by asyncio as an exception nobody retrieved. `close` names what was refused and what was shed.
+def _refused(written: asyncio.Future[Entry], why: Exception) -> None:
+    written.set_exception(why)
+    written.exception()

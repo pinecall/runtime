@@ -4,7 +4,15 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Iterator, Mapping
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Iterator,
+    Mapping,
+    Sequence,
+)
 
 import httpx
 from pydantic import TypeAdapter
@@ -18,6 +26,9 @@ from pinecall.wire.frames import Command, Entry
 from pinecall.wire.parts import PlatformTool, ToolResult
 from pinecall.wire.rest.agents import HoldAudio, RingHandoff
 from pinecall.wire.rest.calls import (
+    AppendEntriesRequest,
+    AppendEntriesResponse,
+    BatchedEntry,
     CallbackRequest,
     LogPage,
     OpenCallRequest,
@@ -147,6 +158,17 @@ class GatewayClient:
         path = f"/v1/calls/{call}/events"
         answer = await again(lambda: self._on_the_call(call, "POST", path, payload), None, path)
         return Entry.model_validate(answer)
+
+    # Retried without a limit, the same batch after the same count: the log answers a batch it
+    # already took with the seqs it gave it, so an answer lost never writes an entry twice.
+    async def append_many(
+        self, call: str, entries: Sequence[BatchedEntry], *, after: int
+    ) -> list[Entry]:
+        """Write a batch of the call's entries once, in order; the gateway numbers them."""
+        body = AppendEntriesRequest(after=after, entries=list(entries)).written()
+        path = f"/v1/calls/{call}/entries"
+        answer = await again(lambda: self._on_the_call(call, "POST", path, body), None, path)
+        return AppendEntriesResponse.model_validate(answer).entries
 
     # The gateway answers a lapsed tool at its own deadline: wait past it, so the model reads
     # that answer and not a timeout of ours. Idempotent per call id, so a retry joins.

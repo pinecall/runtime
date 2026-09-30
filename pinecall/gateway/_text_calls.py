@@ -92,6 +92,8 @@ async def resume_text(
     context = _as_it_opened(call, registration, kept.scope, entries, today_in(zone))
     served = served_call(serving, None, context, config, kept.scope)
     session = _session(serving, served, model, None)
+    # The session's batches go on from what the log already took from it, never from zero.
+    session.call.writing.after = await serving.logs.store.written(call)
     await text.resume(session, text.taken_up(entries))
     await attach(serving.live, serving.logs.store, call, registration.owner)
     return session
@@ -117,7 +119,9 @@ def _session(
         await sealed(serving, served, SealCallRequest(usage=usage, outcome=outcome))
 
     looking = lookup if recalled is None else goldens.golden_lookup(recalled, lookup)
-    platform = Platform(append=served.log.append, tool=served.tools.ran, lookup=looking, seal=seal)
+    platform = Platform(
+        append_many=served.log.append_many, tool=served.tools.ran, lookup=looking, seal=seal
+    )
     session = text_session(Call(served.context, served.config, platform), model)
     serving.live.calls[served.call] = replace(served, session=session)
     return session
