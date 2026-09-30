@@ -75,6 +75,7 @@ async def open_text_as(
     )
     await serving.prompts.keep(pool, scope.org, setup.config.knowledge or "")
     served = served_call(serving, registration.owner, context, setup.config, scope)
+    await serving.live.commands_heard(context.call)
     return _session(serving, served, setup.model, setup.recalled)
 
 
@@ -103,6 +104,7 @@ async def resume_text(
     )
     context = _as_it_opened(call, registration, kept.scope, entries, today_in(zone))
     served = served_call(serving, None, context, config, kept.scope)
+    await serving.live.commands_heard(call)
     session = _session(serving, served, model, None)
     # The session's batches go on from what the log already took from it, never from zero.
     session.call.writing.after = await serving.logs.store.written(call)

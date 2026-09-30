@@ -136,6 +136,12 @@ class LocalSignal:
             if not listening.offer(data):
                 self._left(listening)
 
+    async def published(self, channel: str, data: bytes) -> int:
+        """Hand the message to every listener of the channel; how many there were."""
+        heard = len(self._listening.get(channel, ()))
+        self.publish(channel, data)
+        return heard
+
     async def subscribe(self, channel: str) -> Listening:
         """A listener of what is published on the channel from now on."""
         listening = Listening(channel, self._left)
@@ -191,6 +197,16 @@ class RedisSignal:
     def start(self) -> None:
         """Start sending and listening; a Redis that is away is waited for, never a failure."""
         self._tasks = [asyncio.create_task(self._sending()), asyncio.create_task(self._listened())]
+
+    # The one publish that waits: a command must know whether anybody runs its call.
+    async def published(self, channel: str, data: bytes) -> int:
+        """Publish now and answer how many listeners Redis handed it to; NotAvailable while down."""
+        try:
+            async with asyncio.timeout(ANSWER_S):
+                heard = await self._client.publish(self.prefix + channel, data)  # pyright: ignore[reportUnknownMemberType]
+        except (RedisError, OSError, TimeoutError) as away:
+            raise NotAvailable(DOWN) from away
+        return int(heard)
 
     def publish(self, channel: str, data: bytes) -> None:
         """Queue the message for every gateway listening on the channel; never waits for Redis."""

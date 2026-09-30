@@ -52,10 +52,10 @@ core under `_` names.
 | `domain/` | 8 | 1188 | — |
 | `evals/` | 11 | 2928 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
 | `fleet/` | 6 | 1202 | `domain`, `postgres`, `process`, `wire` |
-| `gateway/` | 52 | 11066 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `gateway/` | 53 | 11127 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
 | `log/` | 14 | 4633 | `domain`, `postgres`, `process`, `wire` |
 | `postgres/` | 2 | 283 | `domain` |
-| `process/` | 9 | 1827 | `domain`, `postgres` |
+| `process/` | 9 | 1843 | `domain`, `postgres` |
 | `providers/` | 6 | 1308 | `domain`, `postgres`, `process`, `wire` |
 | `retrieval/` | 6 | 2352 | `domain`, `log`, `postgres`, `providers`, `wire` |
 | `runner/` | 2 | 554 | `domain`, `process`, `wire` |

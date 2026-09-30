@@ -17,7 +17,6 @@ from pinecall.log.queries import CallScope
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.session.call import ToolUse
-from pinecall.wire.frames import Command
 from pinecall.wire.parts import ToolResult
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
 from tests.conftest import AGENT as THE_KNOCKED_AGENT
@@ -100,16 +99,6 @@ async def test_a_socket_leaving_says_whether_anybody_is_left(store: Store) -> No
 
 
 # ── the calls served ──
-
-
-@postgres
-async def test_a_command_is_held_for_the_worker_of_its_agents_call_only(wired: Gateway) -> None:
-    context = a_call()
-    served_call(wired.serving, None, context, AgentConfig(slug=AGENT), OURS)
-    text = Command(type="agent.say", agent=AGENT, call=context.call, data={"text": "hola"})
-    other = Command(type="agent.say", agent="otra", call=context.call, data={"text": "hola"})
-    assert wired.live.commanded(context.call, AGENT, text)
-    assert not wired.live.commanded(context.call, "otra", other)
 
 
 @postgres

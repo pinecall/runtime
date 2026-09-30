@@ -147,6 +147,11 @@ TASK_OWNERS: tuple[Allowed, ...] = (
         "the socket's listener for calls bound to it is cancelled and awaited when it closes",
     ),
     Allowed(
+        "pinecall/gateway/_served.py",
+        "create_task",
+        "a call's listener for its commands is cancelled in ServedCalls.close() when it ends",
+    ),
+    Allowed(
         "pinecall/process/shared.py",
         "create_task",
         "the listener and the beat are cancelled and awaited in Shared.close()",
