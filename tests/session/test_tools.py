@@ -4,6 +4,7 @@ import asyncio
 import json
 import locale
 from datetime import date
+from functools import partial
 
 import pytest
 from livekit.agents import RunContext, llm
@@ -11,12 +12,15 @@ from livekit.agents import RunContext, llm
 from pinecall.domain.agent import AgentConfig, Docs, MemoryPolicy, ToolSpec
 from pinecall.domain.call import Contact
 from pinecall.domain.names import Json, JsonObject
+from pinecall.log import queries
+from pinecall.log.logs import Log
 from pinecall.log.store import Store
 from pinecall.session._prompt import Blocks, request
 from pinecall.session.call import Call, ToolUse
 from pinecall.session.tools import (
     RECALL,
     SEARCH,
+    Answered,
     Lookups,
     ToolCalls,
     as_livekit_tools,
@@ -25,11 +29,33 @@ from pinecall.session.tools import (
     read_back,
     result_text,
 )
+from pinecall.wire.frames import Entry
 from pinecall.wire.parts import PlatformTool, ToolResult
 from tests.conftest import postgres
 from tests.session.conftest import Box, context_of
 
 BOOK = ToolSpec("book", "Book a table.", {"type": "object", "properties": {}}, timeout_s=0.1)
+
+
+def _answered_in(store: Store, call: str) -> Answered:
+    """What the call's own log answered each tool call id, as the gateway reads it."""
+    return partial(queries.tool_answered, store.pool, call)
+
+
+# The tap runs inside the append; the round trip then waits for its answer before this wakes.
+def went_out(log: Log, many: int = 1) -> asyncio.Event:
+    """Set once this many tool calls went out to the app and wait for their answers."""
+    out = asyncio.Event()
+    sent: list[Entry] = []
+
+    async def tap(entry: Entry) -> None:
+        if entry.type == "tool.call":
+            sent.append(entry)
+        if len(sent) >= many:
+            out.set()
+
+    log.tapped(tap)
+    return out
 
 
 def _call(box: Box, config: AgentConfig) -> Call:
@@ -134,32 +160,70 @@ def test_the_pair_reaches_the_provider_as_a_pair_and_never_as_an_instruction() -
 async def test_a_tool_asked_twice_by_call_id_is_written_once_and_answered_once(
     box: Box, store: Store, call: str
 ) -> None:
-    calls = ToolCalls(AgentConfig(slug="a", tools=(BOOK,)), box.log.append)
+    calls = ToolCalls(
+        AgentConfig(slug="a", tools=(BOOK,)), box.log.append, _answered_in(store, call)
+    )
     use = ToolUse("t1", "book", {"day": "lunes"})
+    out = went_out(box.log)
     first = asyncio.create_task(calls.ran(use, "speech_1"))
     second = asyncio.create_task(calls.ran(use, "speech_1"))
-    await asyncio.sleep(0.02)
+    await asyncio.wait_for(out.wait(), 5)
     assert calls.answered(ToolResult(call_id="t1", name="book", output="ok"))
     assert (await first, await second) == (await first, await first)
     written = [entry.type for entry in await store.whole(call)]
     assert written == ["tool.call", "tool.result"]
 
 
+# The answer was lost, or the gateway restarted: the log holds the result, and the app is not
+# asked again, since a tool may book or charge.
 @postgres
-async def test_the_tools_still_waiting_are_the_entries_that_went_out_in_order(box: Box) -> None:
-    calls = ToolCalls(AgentConfig(slug="a", tools=(BOOK,)), box.log.append)
-    running = [asyncio.create_task(calls.ran(ToolUse(f"t{n}", "book", {}), None)) for n in (1, 2)]
-    await asyncio.sleep(0.02)
+async def test_a_tool_asked_again_after_it_finished_is_answered_from_the_log_and_never_run_twice(
+    box: Box, store: Store, call: str
+) -> None:
+    calls = ToolCalls(
+        AgentConfig(slug="a", tools=(BOOK,)), box.log.append, _answered_in(store, call)
+    )
+    use = ToolUse("t1", "book", {"day": "lunes"})
+    out = went_out(box.log)
+    first = asyncio.create_task(calls.ran(use, "speech_1"))
+    await asyncio.wait_for(out.wait(), 5)
+    assert calls.answered(ToolResult(call_id="t1", name="book", output="booked"))
+    assert (await first).output == "booked"
+    again = await calls.ran(use, "speech_1")
+    taken_up = ToolCalls(
+        AgentConfig(slug="a", tools=(BOOK,)), box.log.append, _answered_in(store, call)
+    )
+    after_a_restart = await taken_up.ran(use, "speech_1")
+    assert again == after_a_restart == await first
+    assert calls.waiting == {}
+    assert [entry.type for entry in await store.whole(call)] == ["tool.call", "tool.result"]
+
+
+@postgres
+async def test_the_tools_still_waiting_are_the_entries_that_went_out_in_order(
+    box: Box, store: Store, call: str
+) -> None:
+    slow = ToolSpec("book", "Book.", {"type": "object"}, timeout_s=5)
+    calls = ToolCalls(
+        AgentConfig(slug="a", tools=(slow,)), box.log.append, _answered_in(store, call)
+    )
+    first, both = went_out(box.log, 1), went_out(box.log, 2)
+    running = [asyncio.create_task(calls.ran(ToolUse("t1", "book", {}), None))]
+    await asyncio.wait_for(first.wait(), 5)
+    running.append(asyncio.create_task(calls.ran(ToolUse("t2", "book", {}), None)))
+    await asyncio.wait_for(both.wait(), 5)
     assert [entry.data["call_id"] for entry in calls.pending()] == ["t1", "t2"]
-    for task in running:
-        task.cancel()
+    for future in (*running, *calls.running.values()):
+        future.cancel()
 
 
 @postgres
 async def test_a_tool_that_does_not_answer_in_time_is_an_error_the_model_recovers_from(
-    box: Box,
+    box: Box, store: Store, call: str
 ) -> None:
-    calls = ToolCalls(AgentConfig(slug="a", tools=(BOOK,)), box.log.append)
+    calls = ToolCalls(
+        AgentConfig(slug="a", tools=(BOOK,)), box.log.append, _answered_in(store, call)
+    )
     result = await calls.ran(ToolUse("t1", "book", {}), None)
     assert result.error == "book did not answer within 0.1s"
     assert calls.pending() == []
@@ -170,9 +234,12 @@ async def test_a_cancelled_wait_is_cancelled_and_never_a_lapsed_result(
     box: Box, store: Store, call: str
 ) -> None:
     slow = ToolSpec("book", "Book.", {"type": "object"}, timeout_s=5)
-    calls = ToolCalls(AgentConfig(slug="a", tools=(slow,)), box.log.append)
+    calls = ToolCalls(
+        AgentConfig(slug="a", tools=(slow,)), box.log.append, _answered_in(store, call)
+    )
+    out = went_out(box.log)
     asking = asyncio.create_task(calls.ran(ToolUse("t1", "book", {}), None))
-    await asyncio.sleep(0.02)
+    await asyncio.wait_for(out.wait(), 5)
     calls.running["t1"].cancel()
     with pytest.raises(asyncio.CancelledError):
         await asking
