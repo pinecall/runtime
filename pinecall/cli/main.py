@@ -16,7 +16,7 @@ import uvicorn
 from livekit import api
 
 from pinecall.channels import whatsapp
-from pinecall.cli import _box, _load, _operator, _sessions, _traceback
+from pinecall.cli import _box, _facts, _load, _operator, _sessions, _traceback
 from pinecall.domain.errors import NotAvailable, PinecallError
 from pinecall.gateway.app import announce_closing, app, embedder_of
 from pinecall.postgres.migrate import apply_migrations, migration_files, migrations_behind
@@ -247,6 +247,7 @@ def verbs() -> argparse.ArgumentParser:
         run=retention_run
     )
     _sessions.sessions_group(under.add_parser("sessions", help="the log, off Postgres"))
+    _facts.facts_group(under.add_parser("facts", help="each call's facts, folded from its log"))
     _traceback.traceback_verb(
         under.add_parser("traceback", help="a number's calls and dials, for a carrier")
     )
@@ -334,6 +335,7 @@ async def _examined(settings: Settings) -> list[tuple[str, str | None]]:
     return [
         ("vault", _vault(settings)),
         ("database", await _database(settings)),
+        ("facts", await _facts.examined(settings)),
         ("livekit", await _livekit(settings)),
         ("gateway", await _gateway(settings)),
     ]
