@@ -70,12 +70,14 @@ def readiness(installed: Mapping[str, Vendor], keys: Keyring) -> list[Readiness]
     ]
 
 
-def pipeline(config: AgentConfig, configured: Providers, keys: Keyring) -> Pipeline:
+def pipeline(
+    config: AgentConfig, configured: Providers, keys: Keyring, failing: frozenset[str] = frozenset()
+) -> Pipeline:
     """The stages an agent runs: its vendors or the defaults, each with its key and options."""
     language = primary(config.language)
-    llm = thinking(config, configured, keys)
-    stt = stage("stt", config.stt, configured, keys)
-    tts = stage("tts", config.voice, configured, keys)
+    llm = thinking(config, configured, keys, failing)
+    stt = stage("stt", config.stt, configured, keys, failing)
+    tts = stage("tts", config.voice, configured, keys, failing)
     heard = dict.fromkeys(item for item in (language, *configured.hints) if item)
     voice = config.voice.voice_id if config.voice else None
     ears = (
@@ -96,9 +98,11 @@ def pipeline(config: AgentConfig, configured: Providers, keys: Keyring) -> Pipel
 
 
 # A written call runs this stage alone: a call with no voice is not refused for want of one.
-def thinking(config: AgentConfig, configured: Providers, keys: Keyring) -> Running:
+def thinking(
+    config: AgentConfig, configured: Providers, keys: Keyring, failing: frozenset[str] = frozenset()
+) -> Running:
     """The model an agent thinks with, on its key, at the temperature it declared."""
-    llm = stage("llm", config.llm, configured, keys)
+    llm = stage("llm", config.llm, configured, keys, failing)
     if config.llm is None or config.llm.temperature is None:
         return llm
     return dataclasses.replace(llm, options={**llm.options, "temperature": config.llm.temperature})
@@ -153,9 +157,15 @@ def parse_lending(entries: Iterable[str]) -> frozenset[str]:
 
 
 # An agent that names its vendor runs it alone; one on the row's default runs the default's
-# fallbacks behind it, each on its own key. A fallback this org cannot key is left out.
+# fallbacks behind it, each on its own key. A fallback this org cannot key is left out. The row's
+# order stands but for the vendors `failing` names (over their error line now), which go last,
+# among themselves in the row's order too.
 def stage(
-    modality: Modality, declared: Model | Voice | None, configured: Providers, keys: Keyring
+    modality: Modality,
+    declared: Model | Voice | None,
+    configured: Providers,
+    keys: Keyring,
+    failing: frozenset[str] = frozenset(),
 ) -> Running:
     """One stage on its key: the vendor declared or the default, with the operator's options."""
     if declared is not None:
@@ -170,7 +180,7 @@ def stage(
             logger.info(
                 "%s fallback %s has no key this org may run it on", modality, fallback.vendor
             )
-    return _over(chosen, *backups)
+    return _over(*sorted((chosen, *backups), key=lambda item: item.vendor in failing))
 
 
 def _on_its_key(

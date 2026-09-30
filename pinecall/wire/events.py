@@ -1,4 +1,4 @@
-"""Every event a log holds, the room's included, and the registry of them."""
+"""Every event a log holds, and the registry of them, the room's (`room.py`) included."""
 
 from typing import Annotated, Literal
 
@@ -32,15 +32,21 @@ from pinecall.wire.parts import (
     EndedBy,
     EndReason,
     MemoryOp,
-    ParticipantKind,
     Projection,
     Route,
     Supervisor,
     ToolResult,
-    TrackKind,
-    TrackSource,
     TransferMode,
     UserState,
+)
+from pinecall.wire.room import (
+    ParticipantJoined,
+    ParticipantLeft,
+    ParticipantSpeaking,
+    RoomOpened,
+    RoomSent,
+    TrackPublished,
+    TrackUnpublished,
 )
 from pinecall.wire.scores import CallScore
 from pinecall.wire.state import State
@@ -65,54 +71,6 @@ EPHEMERAL_EVENTS: frozenset[str] = frozenset(
 TERMINAL_EVENT = "call.score"
 
 
-class RoomOpened(WireModel):
-    """The LiveKit room exists and the call lives in it; a text session never logs this."""
-
-    name: str
-    sid: str
-    channel: Channel
-
-
-# The attributes travel verbatim: the caller's number is a fact of the room, not a field of ours.
-class ParticipantJoined(WireModel):
-    """Somebody joined the room."""
-
-    identity: str
-    kind: ParticipantKind
-    name: str | None = None
-    attributes: JsonObject
-
-
-class ParticipantLeft(WireModel):
-    """Somebody left the room; when it is the caller, call.ended follows."""
-
-    identity: str
-    reason: str
-
-
-class ParticipantSpeaking(WireModel):
-    """The room's own voice activity for one participant flipped; a light for the console."""
-
-    identity: str
-    speaking: bool
-
-
-class TrackPublished(WireModel):
-    """A participant put a track on the room: their microphone, their camera, a screen."""
-
-    identity: str
-    kind: TrackKind
-    source: TrackSource
-
-
-class TrackUnpublished(WireModel):
-    """A participant's track left the room."""
-
-    identity: str
-    kind: TrackKind
-    source: TrackSource
-
-
 class EventReceived(WireModel):
     """A fact arrived from outside the conversation, from the app or a participant's browser."""
 
@@ -120,14 +78,6 @@ class EventReceived(WireModel):
     data: JsonObject
     source: EventSource
     identity: str | None = None
-
-
-class RoomSent(WireModel):
-    """The agent pushed a payload to a browser in the room; the payload stays out of the log."""
-
-    topic: str
-    to: str | None = None
-    bytes: int
 
 
 class AgentConfigured(WireModel):
@@ -207,6 +157,7 @@ class CallStarted(WireModel):
     caller: Contact | None
     started_at: float
     env: Env | None = None
+    worker: str | None = None
 
 
 class CallAttached(WireModel):

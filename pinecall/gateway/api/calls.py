@@ -120,6 +120,9 @@ SPENT = "token_spent"
 ERROR = "error"
 
 
+SWITCHED = "vendor.switched"
+
+
 ALREADY_SPENT = "call {call} was opened by its token already: a token opens one call, once"
 
 
@@ -639,11 +642,19 @@ def _sees_to_erase(where: Scope, owner: Scope) -> bool:
 
 
 # What /metrics reads: the append's time at the door, and each vendor's failures as they come in.
+# A vendor fails a call when an error names its plugin, or when a stage switches away from it.
 def _counted(gateway: Gateway, seconds: float, entries: list[Entry]) -> None:
     counters = gateway.counters
     counters.appended_in(seconds, len(entries))
+    at = time.monotonic()
     for entry in entries:
+        vendor = ""
         if entry.type == ERROR:
             code, message = entry.data.get("code"), entry.data.get("message")
-            text = message if isinstance(message, str) else ""
-            counters.failed(code if isinstance(code, str) else "", vendor_named_in(text))
+            vendor = vendor_named_in(message if isinstance(message, str) else "")
+            counters.failed(code if isinstance(code, str) else "", vendor)
+        elif entry.type == SWITCHED and entry.data.get("available") is False:
+            named = entry.data.get("vendor")
+            vendor = named if isinstance(named, str) else ""
+        if vendor and entry.call is not None:
+            counters.failed_on(vendor, entry.call, at)

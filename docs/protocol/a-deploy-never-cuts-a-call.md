@@ -31,7 +31,10 @@ says the call again, once, `POST /v1/calls/{call}/reopened {agent, context}`, an
 quota asked, no token spent, no second `call.ringing`; `409` for a call already sealed. While the
 gateway is away the worker retries an entry, the seal, a tool and the command stream, backing off
 from half a second to five, for as long as nothing answers or a `5xx` does; a `4xx` is an answer. A
-tool retries within its own deadline, the seal within thirty seconds.
+tool retries within its own deadline, the seal within thirty seconds. A tool call is run once per
+call id: a retry joins the round trip still running, and one that finished, before the answer was
+lost or the gateway restarted, is answered with the `tool.result` its log holds and never reaches
+the app a second time.
 
 A retried entry is written once when it travels in a batch, `POST /v1/calls/{call}/entries
 {after, entries}`: a call's log has one writer, which sends its entries in order and says how many
@@ -44,10 +47,26 @@ The gateway's own entries take seqs and are not counted.
 The worker writes its call's entries through this door and no other: what is queued goes as one
 batch, and a batch retried goes again unchanged, after the same count, so a retry can no longer
 write an entry twice. A `409` refuses the whole batch and the call goes on with the next. The
-entries a worker writes outside its session (the overflow's sentence and its `call.ended`, a
-command the session refused, the `call.ended` of a leg nobody answered) still take the one-entry
-door, which counts nothing. A written call's session batches too, straight to its log; taken up
-after a restart, it goes on from the count its log's head keeps.
+entries a worker writes outside its session take the same writer: a command the session refused
+is an `error` on the session's own, and the `call.ended` of a leg nobody answered and the
+overflow's sentence and `call.ended` go through one the job opens with the call. The job sent into
+a room whose worker died writes the sentence through a writer that follows on from the dead
+worker's: the dispatch carries the count the log's head kept (`entries_written`). The one-entry
+door, `POST /v1/calls/{call}/events`, still answers for a worker of an older release, and counts
+nothing. A written call's session batches too, straight to its log; taken up after a restart, it
+goes on from the count its log's head keeps.
+
+## A release of the workers
+
+A worker told to stop takes no new call, finishes the ones it holds (up to ten minutes) and
+leaves; nothing moves a call from one worker to another. So a release keeps a fleet open by never
+stopping its last worker: the box runs two per world, `pinecall-worker-a@` and `-b@`, and
+`release.sh` restarts every `b@`, then every `a@`. Each unit is `Type=notify`: `systemctl restart`
+returns once the old process drained and the new one is registered with LiveKit and heard by the
+gateway, and only then is the other stopped. While one drains the other takes every new call of its
+world, so no caller of a deploy hears the overflow's sentence. A fleet of machines is replaced by
+generation the same way: the new machines first, then the old ones cordoned
+([scaling.md](../scaling.md)).
 
 ## A written call
 

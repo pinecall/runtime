@@ -32,6 +32,14 @@ from pinecall.log.facts import (
 from pinecall.log.reduce import METERED_TYPES, UsageRow, usage_row
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
+from pinecall.wire.parts import ToolResult
+
+TOOL_ANSWERED = """
+select data from call_log
+where log = %(log)s and type = 'tool.result' and data->>'call_id' = %(call_id)s
+order by seq
+limit 1
+"""
 
 # A read cursor never moves back.
 READ = """
@@ -187,7 +195,17 @@ async def scope_of_call(pool: Pool, call: str) -> CallScope | None:
         versions=Versions(config=row["config_version"], lexicon=row["lexicon_version"]),
         sealed=row["sealed"],
         started_at=row["started_at"],
+        written=row["written"],
     )
+
+
+# Read only by a tool's round trip: the log's primary key starts with `log`, so it reads one call.
+async def tool_answered(pool: Pool, call: str, call_id: str) -> ToolResult | None:
+    """The `tool.result` the call's log holds for this tool call id, or None."""
+    wanted = {"log": call, "call_id": call_id}
+    async with pool.connection() as connection:
+        row = await (await connection.execute(TOOL_ANSWERED, wanted)).fetchone()
+    return None if row is None else ToolResult.model_validate(row["data"])
 
 
 async def facts_of_calls(pool: Pool, calls: Sequence[str]) -> dict[str, CallFacts]:

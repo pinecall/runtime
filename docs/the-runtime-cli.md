@@ -95,8 +95,9 @@ fleet loop --cloud <script> --seats <n> [--fleet <name>] [--target 0.6] [--min 1
            [--grow-at-most 1] [--every 15] [--once] [--dry-run]
 ```
 
-`list` is the roster the gateway hears: each worker, what it holds, its seats, load, standing and
-when it was heard, then each fleet summed. `loop` keeps a fleet at its target ([scaling.md](scaling.md)):
+`list` is the roster the gateway hears: each worker, what it holds, its seats, load, standing
+(`accepting`, `failing`, `full`, `draining`, `cordoned`, `gone`) and when it was heard, then each
+fleet summed. `loop` keeps a fleet at its target ([scaling.md](scaling.md)):
 `--cloud` is a script with three verbs, `create <name>`, `delete <name>`, `list`; `infra/fleet/`
 holds one per cloud. A tick grows by the seats missing, at most `--grow-at-most` machines (1 unless
 said), and shrinks by one cordon. `--once --dry-run` prints one tick's verdict and touches nothing.

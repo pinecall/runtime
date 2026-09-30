@@ -257,3 +257,8 @@ def test_a_recordings_bucket_without_its_whole_store_stops_the_process_naming_wh
     settings = load()
     assert settings.s3_access_key_id == "the-key-id"
     assert "the-secret-of-this-box" not in repr(settings)
+
+
+def test_systemd_says_where_a_worker_tells_it_is_ready(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NOTIFY_SOCKET", "/run/systemd/notify")
+    assert load().notify_socket == "/run/systemd/notify"

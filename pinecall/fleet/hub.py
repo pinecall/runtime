@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TextIO
 
 from pinecall.domain.errors import DeclarationRefused, UpstreamFailed
-from pinecall.fleet.roster import accepting_now, heard_lately
+from pinecall.fleet.roster import accepting_of, heard_lately
 from pinecall.wire.rest.fleet import WorkerStatus
 
 type Decision = Grow | Cordon | Delete
@@ -182,7 +182,7 @@ def status_line(
     active = sum(seat.active for seat in up)
     capacity = sum(seat.max_jobs or 0 for seat in up)
     busy = active / capacity if capacity else 0.0
-    accepting = sum(1 for seat in up if accepting_now(seat, now))
+    accepting = len(accepting_of(up, now))
     verdict = "hold" if not decided else f"{len(decided)} to do"
     return (
         f"fleet: {len(up)} workers up · {len(machines)} machines · {active}/{capacity} seats held "
