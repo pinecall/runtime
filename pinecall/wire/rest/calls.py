@@ -22,7 +22,7 @@ from pinecall.wire.state import AttentionState
 
 type ErasureSubject = Literal["call", "contact", "org"]
 
-type ReadKind = Literal["log", "recording", "traceback"]
+type ReadKind = Literal["log", "recording", "traceback", "listen", "supervise", "export", "memory"]
 
 
 # Projected entries keep only part of the envelope, so they travel as plain JSON.

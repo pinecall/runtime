@@ -522,13 +522,13 @@ async def _tuned(
     )
 
 
-# A person's read is written down, a server's and a visitor's are not: the access log is of people.
+# A person's read and a server's are written down, by the person or the key; a visitor reads
+# its own call and the fleet the call it serves, neither of which is an access to record.
 async def _read_by(gateway: Gateway, reading: Reader, call: str, what: ReadKind) -> None:
     acting = reading.acting
-    person = None if acting is None else acting.bearer.member
-    if person is None or reading.scope is None:
+    if acting is None or reading.scope is None:
         return
-    await reads.record(gateway.connections.pool, reading.scope, Read(call, what, person.id))
+    await reads.record(gateway.connections.pool, reading.scope, Read(call, what, asked_by(acting)))
 
 
 # The worker says the disclosure before the greeting, and the notice only where it records.

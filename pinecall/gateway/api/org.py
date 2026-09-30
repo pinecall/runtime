@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 
 from pinecall.domain.errors import Conflict, DeclarationRefused, NotFound, UpstreamFailed
 from pinecall.domain.person import parse_role
+from pinecall.domain.scope import Scope
 from pinecall.gateway._deps import (
     CallsKey,
     GatewayDep,
@@ -189,7 +190,7 @@ async def erasures(key: TeamKey, gateway: GatewayDep) -> ErasureTrail:
 async def who_read(
     key: TeamKey, gateway: GatewayDep, subject: Annotated[str | None, Query()] = None
 ) -> ReadsResponse:
-    """Who read the org's calls and recordings, newest first; of one call or number when named."""
+    """Who read the org's calls, recordings, seats, exports and memory; of one subject if named."""
     rows = await reads.of_org(gateway.connections.pool, key.org, subject=subject)
     return ReadsResponse(reads=rows)
 
@@ -211,6 +212,8 @@ async def put_policy(body: OrgPolicy, key: TeamKey, gateway: GatewayDep) -> OrgP
 @router.get("/v1/org/export", response_model=None)
 async def export_org(key: TeamKey, gateway: GatewayDep) -> StreamingResponse:
     """The org's data in the key's world as JSON Lines: calls, memories, settings, documents."""
+    export_read = reads.Read(key.org, "export", asked_by(key))
+    await reads.record(gateway.connections.pool, Scope(key.org, key.env), export_read)
     filename = f"pinecall-{key.org}-{key.env}.jsonl"
     return StreamingResponse(
         _one_per_line(export.lines(gateway.connections.pool, key.org, key.env)),

@@ -149,14 +149,25 @@ before the retention run, still holds what was erased: 7 days on the box, 35 in 
 
 ### Who read what
 
-A person's key reading a call's log (`GET /v1/calls/{call}/events`, `/state`) or its recording
-writes one row of the org's access log, once an hour at most for the same reader, call and kind;
-a server's key, a visitor's token and the fleet write none. The operator's reads off the box
-(`pinecall-runtime sessions show|tail|recording`) and its tracebacks (`pinecall-runtime traceback`,
-`GET /v1/ops/traceback`, one row in each org the lookup showed) write rows with `reader:
-"operator"`. A row names the call or the number, never what it said. `GET /v1/org/reads?call=`
-(`team`) answers `{reads: [{subject, what: log|recording|traceback, env, reader, at}]}`, newest
-first, of one call or number when `subject` names it.
+Every read of what a call or a contact left writes one row of the org's access log, once an hour
+at most for the same reader, subject and kind; `reader` is the person's member id, or a server's
+key id (`k_…`):
+
+| what | subject | the doors |
+|---|---|---|
+| `log` · `recording` | the call | `GET /v1/calls/{call}/events`, `/state`, `/recording` |
+| `listen` · `supervise` | the call | a seat handed out, `POST /v1/calls/{call}/listen`, `/supervise` |
+| `export` | the org | `GET /v1/org/export` |
+| `memory` | the contact, the agent, or the org | `GET /v1/contacts/{contact}/memory`, `/v1/agents/{slug}/memory`, `/v1/memory` |
+
+A visitor's token reading its own call and the fleet reading the call it serves write none. The
+operator's reads off the box (`pinecall-runtime sessions show|tail|recording`) and its tracebacks
+(`pinecall-runtime traceback`, `GET /v1/ops/traceback`, one row in each org the lookup showed,
+`what: traceback`, the number as subject) write rows with `reader: "operator"`. A row names what
+was read, never what it said. The row is one statement the read waits on; one that cannot be
+written is said in the gateway's journal and the read is answered all the same.
+`GET /v1/org/reads?subject=` (`team`) answers `{reads: [{subject, what, env, reader, at}]}`,
+newest first, of one subject when named.
 
 An org is erased whole by the operator: `DELETE /v1/ops/orgs/{named}`
 ([operator-api.md](operator-api.md)). The trail row outlives the org.
