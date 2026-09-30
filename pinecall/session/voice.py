@@ -1,6 +1,7 @@
 """A session opened for a spoken call: the pipeline, the turn options, the ears' keyterms."""
 
 from collections.abc import Sequence
+from functools import cache
 from typing import Never
 
 from livekit.agents import (
@@ -12,16 +13,24 @@ from livekit.agents import (
 from livekit.agents.voice import AgentSession, STTContextOptions
 from livekit.agents.voice import text_transforms as transforms
 from livekit.agents.voice.agent_session import DEFAULT_TTS_TEXT_TRANSFORMS
-from livekit.agents.voice.turn import InterruptionOptions, TurnHandlingOptions
+from livekit.agents.voice.turn import InterruptionOptions, TurnDetectionMode, TurnHandlingOptions
+from smart_turn_livekit import SmartTurnDetector
 
 from pinecall.domain.agent import AgentConfig
-from pinecall.providers.build import llm_of, stt_of, tts_of
+from pinecall.providers.build import Running, TurnModel, llm_of, stt_of, tts_of
 from pinecall.providers.credentials import Pipeline
 from pinecall.session import tools
 from pinecall.session._hearing import keyterms, policy_for
 from pinecall.session.call import Call
-from pinecall.session.session import LOCAL_TURN_VERSION, ONE_ANSWER_PER_TOOL, Session
+from pinecall.session.session import ONE_ANSWER_PER_TOOL, Session
 from pinecall.session.tools import VOICE_LOOKUP_MS
+
+# The local end-of-turn model: left unset, livekit may pick the hosted one and send the
+# caller's words to a cloud.
+LOCAL_TURN_VERSION: inference.TurnDetectorVersions = "v1-mini"
+
+# The checkpoint in smart-turn-livekit's registry: upstream's, benchmarked on 23 languages.
+SMART_TURN: TurnModel = "smart-turn-v3"
 
 
 def voice_session(call: Call, stages: Pipeline) -> Session:
@@ -35,7 +44,7 @@ def voice_session(call: Call, stages: Pipeline) -> Session:
         llm=thinking,
         stt=ears,
         tts=voice,
-        turn_handling=_spoken_turns(call.config, ends_the_turn=stages.stt.ends_the_turn),
+        turn_handling=_spoken_turns(call.config, stages.stt),
         # Word timings reach transcription_node only from an aligned voice.
         use_tts_aligned_transcript=True,
         tts_text_transforms=_text_transforms_of(call.config),
@@ -54,6 +63,21 @@ def context_of(config: AgentConfig, ears: stt.STT[Never]) -> NotGivenOr[STTConte
     return {"keyterms": keyterms(config, {})}
 
 
+def end_of_turn(model: TurnModel) -> TurnDetectionMode:
+    """The local model that reads the end of the caller's turn off the audio, no transcript."""
+    if model == SMART_TURN:
+        return smart_turn()
+    return inference.TurnDetector(version=LOCAL_TURN_VERSION)
+
+
+# One Smart Turn per process: its weights load once and its first inference runs when it is made,
+# so only the first call that asks for it pays. Each session streams to it on its own.
+@cache
+def smart_turn() -> SmartTurnDetector:
+    """Smart Turn v3, the row's alternative to livekit's own detector."""
+    return SmartTurnDetector(SMART_TURN)
+
+
 # The parameter replaces livekit's defaults, so they come first and the tenant's words after.
 def _text_transforms_of(config: AgentConfig) -> NotGivenOr[Sequence[transforms.TextTransforms]]:
     """Livekit's own transforms, then the tenant's pronunciations."""
@@ -65,7 +89,7 @@ def _text_transforms_of(config: AgentConfig) -> NotGivenOr[Sequence[transforms.T
 # Interruptions are judged by the local VAD: livekit's adaptive detector streams the caller's
 # audio to its cloud. A false interruption is not resumed: livekit replays the whole sentence.
 # No endpointing here: the agent's own already reaches the ears, and both would wait twice.
-def _spoken_turns(config: AgentConfig, *, ends_the_turn: bool) -> TurnHandlingOptions:
+def _spoken_turns(config: AgentConfig, ears: Running) -> TurnHandlingOptions:
     r"""How the caller takes the floor, from the agent\'s language and its own words."""
     declared = config.turn.min_interruption_words if config.turn else None
     policy = policy_for(config.language, min_words=declared)
@@ -78,9 +102,7 @@ def _spoken_turns(config: AgentConfig, *, ends_the_turn: bool) -> TurnHandlingOp
     return {
         # Ears that end the turn themselves decide it; the local detector stacked on them waits
         # its whole delay after a pause in the middle of a sentence.
-        "turn_detection": "stt"
-        if ends_the_turn
-        else inference.TurnDetector(version=LOCAL_TURN_VERSION),
+        "turn_detection": "stt" if ears.ends_the_turn else end_of_turn(ears.turn_model),
         # A reply started inside a tool's window, on a context without its result, answers its
         # own question.
         "preemptive_generation": {"enabled": False},

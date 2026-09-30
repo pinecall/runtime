@@ -21,7 +21,6 @@ from livekit.agents import (
     UserInputTranscribedEvent,
     UserStateChangedEvent,
     get_job_context,
-    inference,
     llm,
     metrics,
     stt,
@@ -85,11 +84,6 @@ type Built = tuple[llm.LLM[Never] | stt.STT[Never] | tts.TTS[Never], ...]
 
 
 logger = logging.getLogger(__name__)
-
-
-# The local end-of-turn model: left unset, livekit may pick the hosted one and send the
-# caller's words to a cloud.
-LOCAL_TURN_VERSION: inference.TurnDetectorVersions = "v1-mini"
 
 
 # livekit's max_tool_steps: the step after a tool round is forced to answer in words, so the agent

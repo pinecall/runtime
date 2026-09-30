@@ -25,6 +25,10 @@ from pinecall.wire.metrics import LLMModelUsage
 
 type Modality = Literal["llm", "stt", "tts"]
 
+# The two local end-of-turn models, both read off the audio on the worker's CPU: livekit's own
+# (its detector's small version) and Daily's Smart Turn v3 (smart-turn-livekit).
+type TurnModel = Literal["v1-mini", "smart-turn-v3"]
+
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +94,8 @@ class Running:
     hints: tuple[str, ...] = ()
     # The ears end the turn themselves, so the session stacks no detector on top.
     ends_the_turn: bool = False
+    # Which local model reads the end of the turn off the audio, where the ears do not.
+    turn_model: TurnModel = "v1-mini"
     # On the box's key rather than the org's own.
     lent: bool = False
 
@@ -223,7 +229,9 @@ def _built[T](
     given |= {knob: value for knob, value in knobs.items() if knob in accepts}
     given |= _credentials(running.credentials, accepts)
     given |= _first(accepts, _THE_VOICE, running.voice)
-    given |= _first(accepts, _THE_LANGUAGE, primary(running.language))
+    # A row that names the language wins: a vendor may want the full tag the call cuts to its base.
+    if not any(name in running.options for name in _THE_LANGUAGE):
+        given |= _first(accepts, _THE_LANGUAGE, primary(running.language))
     given |= _first(accepts, _THE_HINTS, list(running.hints) or None)
     if running.model is not None:
         given["model"] = running.model

@@ -37,7 +37,7 @@ from pinecall.domain.agent import (
 from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotAvailable
 from pinecall.domain.names import JsonObject
 from pinecall.log.store import Store
-from pinecall.providers.build import Running
+from pinecall.providers.build import Running, TurnModel
 from pinecall.providers.credentials import Pipeline
 from pinecall.session import text
 from pinecall.session._hearing import keyterms
@@ -796,14 +796,19 @@ async def test_the_tenants_words_and_the_goodbye_reach_livekits_own_end_call(box
 
 
 def spoken_call(
-    box: Box, config: AgentConfig, *, ends_the_turn: bool = False, keyterms: bool = False
+    box: Box,
+    config: AgentConfig,
+    *,
+    ends_the_turn: bool = False,
+    keyterms: bool = False,
+    turn_model: TurnModel = "v1-mini",
 ) -> Session:
     assert box.log.call is not None
     call = Call(context_of(box.log.call, "phone"), config, box.platform())
     ears: JsonObject = {"keyterms": True} if keyterms else {}
     stages = Pipeline(
         llm=Running(ACME, "k"),
-        stt=Running(ACME, "k", ends_the_turn=ends_the_turn, options=ears),
+        stt=Running(ACME, "k", ends_the_turn=ends_the_turn, options=ears, turn_model=turn_model),
         tts=Running(ACME, "k"),
     )
     return voice_session(call, stages)
