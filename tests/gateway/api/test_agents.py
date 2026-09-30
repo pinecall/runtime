@@ -1,13 +1,20 @@
 """Tests for what a worker asks about an agent, and what the org holds."""
 
+from pydantic import TypeAdapter
+
+from pinecall.providers import catalog
+from pinecall.providers.catalog import Stage
+from pinecall.providers.credentials import Pipeline
 from tests.conftest import (
     AGENT,
     Knocking,
+    configured,
     issued,
     postgres,
     received,
     sent,
 )
+from tests.fakes.acme import ACME
 from tests.gateway.api.conftest import A_NUMBER, an_app
 
 
@@ -47,6 +54,29 @@ async def test_the_fleet_is_handed_the_stages_with_the_key_each_runs_on(knocking
     assert stages["llm"]["credentials"] == "a key of the box"
     assert stages["tts"]["lent"] is True
     assert without.status_code == 400
+    await socket.close()
+
+
+@postgres
+async def test_the_fleet_is_handed_each_fallback_on_its_key_and_reads_it_back(
+    knocking: Knocking,
+) -> None:
+    socket = await an_app(knocking)
+    row = configured()
+    backed = {
+        **row.defaults,
+        "llm": Stage(vendor=ACME, model="acme-1", fallbacks=(Stage(vendor=ACME, model="acme-2"),)),
+    }
+    await catalog.configure(
+        knocking.gateway.connections.pool, row.model_copy(update={"defaults": backed})
+    )
+    scope = {"org": knocking.org.id, "env": "sandbox", "holder": ""}
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        stages = (await worker.get(f"/v1/agents/{AGENT}/provider-keys", params=scope)).json()
+    read = TypeAdapter(Pipeline).validate_python(stages)
+    (backup,) = read.llm.fallbacks
+    assert (backup.model, backup.credentials, backup.lent) == ("acme-2", "a key of the box", True)
+    assert read.stt.fallbacks == read.tts.fallbacks == ()
     await socket.close()
 
 

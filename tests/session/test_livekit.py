@@ -20,11 +20,15 @@ from pinecall.domain.agent import (
 )
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.log.store import Store
+from pinecall.providers.build import Running, thinking_of
 from pinecall.session import text
-from pinecall.session._livekit import BLOCKS, end_of_utterance
+from pinecall.session._livekit import BLOCKS, end_of_utterance, switch_of, switches_written
+from pinecall.session.call import Writing
 from pinecall.wire.commands import (
     PromptSet,
 )
+from pinecall.wire.frames import Entry
+from pinecall.wire.rest.calls import BatchedEntry
 from tests.conftest import postgres
 from tests.session.conftest import (
     Box,
@@ -177,3 +181,46 @@ def test_the_end_of_utterance_block_carries_its_type_on_the_wire() -> None:
 
 def test_a_user_turn_report_without_delays_is_no_end_of_utterance_block() -> None:
     assert end_of_utterance({"other": 1}, "speech_1") is None
+
+
+async def nothing_sent(entries: list[BatchedEntry], *, after: int) -> list[Entry]:
+    """A log that is never reached: the writer is not opened in these tests."""
+    raise AssertionError((entries, after))
+
+
+async def test_a_default_that_fails_writes_which_vendor_went_down_and_which_serves_now(
+    acme: str,
+) -> None:
+    down = Running(acme, "k1", options={"refusal": "down"})
+    backup = Running(acme, "k2", model="acme-2", options={"replies": [["hola"]]})
+    thinking = thinking_of(Running(acme, "k1", options=down.options, fallbacks=(backup,)))
+    writing = Writing(nothing_sent, "CA_1")
+    switches_written(writing, (thinking,))
+    chat = llm.ChatContext.empty()
+    chat.add_message(role="user", content="hola")
+    async with thinking.chat(chat_ctx=chat) as stream:
+        async for _ in stream:
+            continue
+    entry, _ = writing.queued.get_nowait()
+    assert entry.type == "vendor.switched"
+    assert entry.data == {
+        "stage": "llm",
+        "vendor": acme,
+        "model": "acme-1",
+        "available": False,
+        "serving": acme,
+        "serving_model": "acme-2",
+    }
+
+
+def test_an_event_that_is_not_a_vendor_changing_writes_nothing(acme: str) -> None:
+    backup = Running(acme, "k2", model="acme-2")
+    thinking = thinking_of(Running(acme, "k1", fallbacks=(backup,)))
+    assert isinstance(thinking, llm.FallbackAdapter)
+    assert switch_of("llm", object(), thinking) is None
+
+
+def test_a_stage_with_no_fallback_is_not_listened_to(acme: str) -> None:
+    writing = Writing(nothing_sent, "CA_1")
+    switches_written(writing, (thinking_of(Running(acme, "k1")),))
+    assert writing.queued.empty()

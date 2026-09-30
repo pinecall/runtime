@@ -7,6 +7,7 @@ from pinecall.domain.errors import Conflict, DeclarationRefused, NotAvailable
 from pinecall.postgres.pool import Pool
 from pinecall.providers.catalog import (
     Embedding,
+    Judge,
     Providers,
     Stage,
     StageOptions,
@@ -111,3 +112,70 @@ def test_an_embedder_of_another_width_is_refused_naming_the_column(configured: P
 def test_a_wire_shape_nobody_speaks_is_refused_when_read() -> None:
     with pytest.raises(ValidationError, match="shape"):
         Embedding.model_validate({**EMBEDDING, "shape": "sparse"})
+
+
+def test_a_default_may_name_who_takes_over_and_each_is_checked_as_it_is(
+    configured: Providers,
+) -> None:
+    backed = configured.model_copy(
+        update={
+            "defaults": {
+                **configured.defaults,
+                "llm": Stage(vendor="anthropic", fallbacks=(Stage(vendor="openai"),)),
+            }
+        }
+    )
+    assert checked(backed) == backed
+    ghost = backed.model_copy(
+        update={
+            "defaults": {
+                **configured.defaults,
+                "llm": Stage(vendor="anthropic", fallbacks=(Stage(vendor="deepgram"),)),
+            }
+        }
+    )
+    with pytest.raises(DeclarationRefused, match="deepgram has no llm"):
+        checked(ghost)
+
+
+def test_a_fallback_of_a_fallback_and_one_for_the_judge_are_refused(configured: Providers) -> None:
+    deep = Stage(vendor="openai", fallbacks=(Stage(vendor="groq"),))
+    nested = configured.model_copy(
+        update={
+            "defaults": {
+                **configured.defaults,
+                "llm": Stage(vendor="anthropic", fallbacks=(deep,)),
+            }
+        }
+    )
+    with pytest.raises(DeclarationRefused, match="names no fallbacks of its own"):
+        checked(nested)
+    judged = configured.model_copy(
+        update={
+            "judge": Judge(
+                llm=Stage(vendor="anthropic", fallbacks=(Stage(vendor="openai"),)), ceiling_usd=0.1
+            )
+        }
+    )
+    with pytest.raises(DeclarationRefused, match="the judge runs on one model"):
+        checked(judged)
+
+
+def test_ears_that_take_over_end_the_turn_as_the_default_does(configured: Providers) -> None:
+    # deepgram ends the turn itself on this row; soniox is not told to.
+    mixed = configured.model_copy(
+        update={
+            "defaults": {
+                **configured.defaults,
+                "stt": Stage(vendor="deepgram", fallbacks=(Stage(vendor="soniox"),)),
+            }
+        }
+    )
+    with pytest.raises(DeclarationRefused, match="stt fallback soniox: it leaves the turn open"):
+        checked(mixed)
+    alike = mixed.model_copy(
+        update={
+            "tuning": {**mixed.tuning, "stt/soniox": StageOptions(ends_the_turn=True)},
+        }
+    )
+    assert checked(alike) == alike

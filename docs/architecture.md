@@ -56,13 +56,13 @@ core under `_` names.
 | `log/` | 6 | 2603 | `domain`, `postgres`, `wire` |
 | `postgres/` | 2 | 229 | `domain` |
 | `process/` | 3 | 484 | `domain`, `postgres` |
-| `providers/` | 6 | 1073 | `domain`, `postgres`, `process`, `wire` |
+| `providers/` | 6 | 1196 | `domain`, `postgres`, `process`, `wire` |
 | `retrieval/` | 6 | 2351 | `domain`, `log`, `postgres`, `providers`, `wire` |
 | `runner/` | 2 | 534 | `domain`, `process`, `wire` |
-| `session/` | 12 | 3149 | `domain`, `log`, `providers`, `wire` |
+| `session/` | 12 | 3209 | `domain`, `log`, `providers`, `wire` |
 | `tenancy/` | 27 | 6327 | `domain`, `log`, `postgres`, `process`, `wire` |
-| `wire/` | 18 | 4558 | `domain` |
-| `worker/` | 4 | 968 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
+| `wire/` | 18 | 4570 | `domain` |
+| `worker/` | 4 | 967 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
 
 ## The path of a call
 

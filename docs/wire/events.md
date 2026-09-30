@@ -73,3 +73,4 @@ Every event the gateway writes, one line each, with the page that holds its data
 | `turn.user` | call | no | [events-call.md](events-call.md) | The caller's turn is over and this is what they said. |
 | `user.state` | call | no | [events-call.md](events-call.md) | The caller's state changed, in the session's own words. |
 | `user.transcript` | call | yes | [events-call.md](events-call.md) | Words from the caller as the recognizer hears them. |
+| `vendor.switched` | call | no | [events-call.md](events-call.md) | A stage's vendor failed or came back, and the vendor that serves the stage now. |

@@ -6,7 +6,7 @@ from pinecall.domain.agent import AgentConfig, Model, Voice
 from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotAvailable
 from pinecall.domain.names import JsonObject
 from pinecall.providers.build import Running, Vendor
-from pinecall.providers.catalog import Providers
+from pinecall.providers.catalog import Providers, Stage
 from pinecall.providers.credentials import (
     Keyring,
     Pipeline,
@@ -251,3 +251,77 @@ def test_a_vendor_the_box_holds_but_does_not_lend_this_org_is_bring_your_own() -
         0
     ].availability == ("bring your own")
     assert readiness(installed, Keyring(box={"deepgram": "d"}))[0].availability == "offered"
+
+
+def with_fallbacks(configured: Providers, **fallbacks: tuple[Stage, ...]) -> Providers:
+    """The row with these stages' defaults followed by those fallbacks."""
+    defaults = {
+        modality: stage.model_copy(update={"fallbacks": fallbacks.get(modality, ())})
+        for modality, stage in configured.defaults.items()
+    }
+    return configured.model_copy(update={"defaults": defaults})
+
+
+def test_a_row_without_fallbacks_builds_the_stages_it_built_before(configured: Providers) -> None:
+    stages = pipeline(AGENT, configured, Keyring(box=THE_BOX))
+    assert (stages.llm.fallbacks, stages.stt.fallbacks, stages.tts.fallbacks) == ((), (), ())
+
+
+def test_each_fallback_runs_on_its_own_key_found_as_the_defaults_is(
+    configured: Providers,
+) -> None:
+    row = with_fallbacks(
+        configured,
+        llm=(Stage(vendor="openai", model="gpt-5.4-mini"), Stage(vendor="groq")),
+    )
+    keys = Keyring(own={"openai": "org-o"}, box={**THE_BOX, "groq": "box-g"})
+    llm = pipeline(AGENT, row, keys).llm
+    assert (llm.vendor, llm.credentials) == ("anthropic", "box-a")
+    assert [(item.vendor, item.model, item.credentials, item.lent) for item in llm.fallbacks] == [
+        ("openai", "gpt-5.4-mini", "org-o", False),
+        ("groq", None, "box-g", True),
+    ]
+
+
+def test_a_fallback_this_org_has_no_key_for_is_left_out_and_the_call_still_runs(
+    configured: Providers,
+) -> None:
+    row = with_fallbacks(configured, llm=(Stage(vendor="gladia"), Stage(vendor="openai")))
+    stingy = Keyring(
+        box={**THE_BOX, "openai": "box-o"}, lends=frozenset({"anthropic", "deepgram", "cartesia"})
+    )
+    assert pipeline(AGENT, row, stingy).llm.fallbacks == ()
+
+
+def test_an_agent_that_names_its_own_vendor_runs_it_alone(configured: Providers) -> None:
+    row = with_fallbacks(configured, llm=(Stage(vendor="openai"),))
+    agent = AgentConfig(slug="clinica-norte", llm=Model(provider="groq", model="llama-3.3-70b"))
+    keys = Keyring(own={"groq": "g", "openai": "o"}, box=THE_BOX)
+    assert pipeline(agent, row, keys).llm.fallbacks == ()
+
+
+def test_a_fallback_hears_the_calls_languages_and_speaks_its_own_vendors_voice(
+    configured: Providers,
+) -> None:
+    row = with_fallbacks(
+        configured,
+        stt=(Stage(vendor="soniox"),),
+        tts=(Stage(vendor="elevenlabs"), Stage(vendor="hume")),
+    ).model_copy(update={"voices": {**configured.voices, "elevenlabs/es": "voice-lucia"}})
+    keys = Keyring(box={**THE_BOX, "soniox": "s", "elevenlabs": "e", "hume": "h"})
+    stages = pipeline(AGENT, row, keys)
+    (ears,) = stages.stt.fallbacks
+    assert (ears.language, ears.hints) == ("es", ("es", "en"))
+    assert [(item.vendor, item.voice) for item in stages.tts.fallbacks] == [
+        ("elevenlabs", "voice-lucia"),
+        ("hume", None),
+    ]
+    assert stages.tts.fallbacks[0].model == "eleven_flash_v2_5"
+
+
+def test_the_seal_is_told_of_every_lent_vendor_a_fallback_may_run_on(
+    configured: Providers,
+) -> None:
+    row = with_fallbacks(configured, llm=(Stage(vendor="openai"),), tts=(Stage(vendor="hume"),))
+    keys = Keyring(own={"anthropic": "mine", "hume": "h"}, box={**THE_BOX, "openai": "box-o"})
+    assert pipeline(AGENT, row, keys).lent == ["openai", "deepgram", "cartesia"]
