@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from pinecall.domain.errors import GatewayRefused, PinecallError
+from pinecall.domain.errors import DeclarationRefused, GatewayRefused, PinecallError
 from pinecall.domain.names import Json, JsonObject, parse_env
 from pinecall.domain.org import DEFAULT_ORG, QUOTAS
 from pinecall.domain.person import ROLES, THE_FLEET, THE_RUNNER
@@ -60,6 +60,8 @@ A_FLEET_KEY = "the {env} fleet"
 
 
 A_RUNNER_KEY = "the {env} runner"
+
+NO_GROWTH = "--grow-at-most is at least 1 and --target a share of the seats over 0"
 
 
 def init_group(first: argparse.ArgumentParser) -> None:
@@ -179,6 +181,13 @@ def fleet_group(group: argparse.ArgumentParser) -> None:
     loop.add_argument("--target", type=float, default=Line.target)
     loop.add_argument("--min", type=int, default=Line.at_least)
     loop.add_argument("--max", type=int, default=Line.at_most)
+    loop.add_argument(
+        "--grow-at-most",
+        dest="grow_at_most",
+        type=int,
+        default=Line.grow_at_most,
+        help="the most machines one tick asks for",
+    )
     loop.add_argument("--every", type=float, default=15.0)
     loop.add_argument("--once", action="store_true")
     loop.add_argument("--dry-run", dest="dry_run", action="store_true")
@@ -477,12 +486,15 @@ def fleet_uncordon(client: httpx.Client, args: argparse.Namespace) -> int:
 # restarted resumes where the numbers are.
 def fleet_loop(client: httpx.Client, args: argparse.Namespace) -> int:
     """Every `--every` seconds, one tick: the fleet kept at its target, or a dry run said."""
+    if args.grow_at_most < 1 or args.target <= 0:
+        raise DeclarationRefused(NO_GROWTH)
     cloud = Cloud(Path(args.cloud))
     line = Line(
         target=args.target,
         at_least=args.min,
         at_most=args.max,
         seats_per_worker=args.seats,
+        grow_at_most=args.grow_at_most,
     )
     while True:
         now = time.time()

@@ -83,12 +83,17 @@ fifteen seconds (`fleet/hub.py`, numbers in, decisions out):
 |---|---|
 | a cordoned machine holds no call, or went silent | **delete** it |
 | a machine never dialled in within 10 min, or fell silent for 5 | **delete** it |
-| fewer workers than `--min`, no seat anywhere, or busy over the target | **grow**: `create pinecall-worker-<n>` |
+| fewer workers than `--min`, no seat anywhere, or busy over the target | **grow** by what is missing: `create pinecall-worker-<n>` for each machine |
 | busy would still be under the target **by 0.15** without the quietest, and more than `--min` | **cordon** the quietest |
 
-A machine still booting counts as `--seats` of capacity from the moment it is asked for, so the
-loop asks once and waits, and the slack keeps a grow and a cordon from chasing each other. At most
-one grow or cordon a tick. The loop never cordons or deletes a machine the cloud does not list as
+What is missing is counted in seats: those that bring busy back to the target (`active / target`,
+the target read as the decimal it was typed as), less the seats there are, in whole machines of
+`--seats`; under `--min`, the machines up to it; with no seat at all, one. The larger of these is
+asked for, cut by `--max` and by `--grow-at-most` a tick (1 unless said: the loop as it was, one
+machine a tick). A machine still booting counts as `--seats` of capacity from the moment it is
+asked for, so the loop asks once and waits, and the slack keeps a grow and a cordon from chasing
+each other. Shrinking stays one cordon a tick, and never in a tick that grows or while a machine
+boots. The loop never cordons or deletes a machine the cloud does not list as
 the fleet's: a worker stood up by hand counts and is never let go. `--once --dry-run` prints one
 tick and touches nothing.
 
