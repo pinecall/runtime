@@ -306,6 +306,16 @@ class CreditsExhausted(WireModel):
     limit: int
 
 
+class SpendUnusual(WireModel):
+    """The org's calls cost more today than its own days usually do: said once a day."""
+
+    org: str
+    day: str
+    today_usd: float
+    usual_usd: float
+    multiple: float
+
+
 class Custom(WireModel):
     """A line the app wrote into the log with call.log; the platform never reads it."""
 
@@ -596,6 +606,7 @@ EVENTS: dict[str, type[WireModel]] = {
     "room.opened": RoomOpened,
     "room.sent": RoomSent,
     "state.changed": StateChanged,
+    "spend.unusual": SpendUnusual,
     "supervisor.ended": SupervisorEnded,
     "supervisor.released": SupervisorReleased,
     "supervisor.said": SupervisorSaid,

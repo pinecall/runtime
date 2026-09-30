@@ -23,9 +23,9 @@ from pinecall.providers.catalog import Providers
 from pinecall.providers.credentials import Keyring, thinking
 from pinecall.retrieval import extraction, lookups, memory
 from pinecall.retrieval.extraction import MemoryWrite
-from pinecall.tenancy import admission, consents, disclosure, orgs, policy, vault
+from pinecall.tenancy import admission, consents, disclosure, orgs, policy, spend, vault
 from pinecall.tenancy.judges import StoredJudge, for_call
-from pinecall.wire.events import CallEnded, CallSummary, ErrorEvent, MemoryOps
+from pinecall.wire.events import CallEnded, CallSummary, ErrorEvent, MemoryOps, SpendUnusual
 from pinecall.wire.frames import Entry
 from pinecall.wire.parts import MemoryOp
 from pinecall.wire.rest.calls import SealCallRequest
@@ -68,6 +68,7 @@ async def sealed(
         score = await _scored(serving, served)
         await served.log.append("call.score", score.written())
         await drifted(serving.connections.pool, served.call, entries, score)
+        await watched(serving, served)
         serving.logs.forget(served.call)
         serving.live.close(served.call)
 
@@ -168,6 +169,30 @@ async def drifted(pool: Pool, call: str, entries: Sequence[Entry], score: CallSc
         await drift.fold(pool, call, entries, score)
     except psycopg.Error:
         logger.warning("call %s was not counted into its day's drift", call, exc_info=True)
+
+
+# The org's spend is watched once the summary priced the call: today against its own trailing
+# weeks, said once a day on the agent's log and held up on /metrics for the alert. A check that
+# breaks is logged and the call seals all the same.
+async def watched(serving: Serving, served: Served) -> None:
+    """Say once a day, on the agent's log, that the org spends more today than it usually does."""
+    pool, org = serving.connections.pool, served.scope.org
+    at = serving.logs.store.clock()
+    try:
+        found = await spend.unusual(pool, org, at)
+        serving.counters.spending(org, None if found is None else found.multiple)
+        if found is None or await spend.said_today(pool, org, at):
+            return
+        text = SpendUnusual(
+            org=org,
+            day=found.day,
+            today_usd=found.today_usd,
+            usual_usd=found.usual_usd,
+            multiple=found.multiple,
+        )
+        await serving.logs.agent(served.agent).append("spend.unusual", text.written())
+    except psycopg.Error:
+        logger.warning("call %s: the org's spend was not looked at", served.call, exc_info=True)
 
 
 async def summed_up(pool: Pool, store: Store, log: Log, sealing: SealCallRequest) -> None:

@@ -18,6 +18,7 @@ from pinecall.log.logs import Log, Logs, Subscription, arrival_entry
 from pinecall.log.private import Privacy
 from pinecall.log.reduce import reduce
 from pinecall.process.connections import Connections
+from pinecall.process.metrics import Counters
 from pinecall.retrieval import lookups
 from pinecall.retrieval.embed import Embedder
 from pinecall.retrieval.lookups import OnTheCall
@@ -213,6 +214,8 @@ class Serving:
     embedder: Embedder | None
     # The blocks of prompt this process has kept, so a call's prompt is read back whole.
     prompts: Prompts = field(default_factory=Prompts)
+    # What the process counts, for /metrics: the seal holds up an org's unusual spend there.
+    counters: Counters = field(default_factory=Counters)
 
 
 # A call opened with a key goes to that key's scope; one that rang, to its phone owner, or the line.

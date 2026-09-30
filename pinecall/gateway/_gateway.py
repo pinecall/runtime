@@ -56,4 +56,5 @@ class Gateway:
             live=self.live,
             embedder=self.embedder,
             prompts=self.prompts,
+            counters=self.counters,
         )
