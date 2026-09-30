@@ -25,7 +25,7 @@ def traceback_verb(verb: argparse.ArgumentParser) -> None:
 
 def traced(settings: Settings, args: argparse.Namespace) -> int:
     """Print the number's calls, kept or erased, and its dials, oldest first."""
-    since = _since(args.since)
+    since = day_of(args.since)
     found = asyncio.run(_found(settings, args.number, since))
     for line in lines_of(found):
         sys.stdout.write(f"{line}\n")
@@ -47,6 +47,16 @@ def lines_of(found: Traceback) -> list[str]:
     ]
 
 
+def day_of(day: str | None) -> float | None:
+    """The start of a day given as YYYY-MM-DD, in UTC; None when none was given."""
+    if day is None:
+        return None
+    try:
+        return datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=UTC).timestamp()
+    except ValueError:
+        raise DeclarationRefused(NOT_A_DAY.format(since=day)) from None
+
+
 async def _found(settings: Settings, number: str, since: float | None) -> Traceback:
     pool = await open_pool(settings.database_url)
     try:
@@ -55,15 +65,6 @@ async def _found(settings: Settings, number: str, since: float | None) -> Traceb
         return found
     finally:
         await pool.close()
-
-
-def _since(day: str | None) -> float | None:
-    if day is None:
-        return None
-    try:
-        return datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=UTC).timestamp()
-    except ValueError:
-        raise DeclarationRefused(NOT_A_DAY.format(since=day)) from None
 
 
 def _call_line(call: TracebackCall) -> str:

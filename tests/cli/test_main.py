@@ -57,6 +57,7 @@ def test_the_doctor_says_each_missing_thing_and_exits_one(
     assert [line.split()[1].rstrip(":") for line in data] == [
         "vault",
         "database",
+        "facts",
         "livekit",
         "gateway",
     ]
@@ -186,5 +187,6 @@ async def test_retention_says_what_is_due_then_erases_it_and_says_how_many(
     assert ran[0] == "1 calls erased past their org's days"
     # The call started in 1970 by the store's clock, so its record is past 24 months at once.
     assert ran[1].endswith("dials forgotten past 24 months")
+    assert ran[2] == "0 WhatsApp message ids forgotten past Meta's 7 days of retries"
     assert await asyncio.to_thread(retention_due, settings, argparse.Namespace()) == 0
     assert capsys.readouterr().out == "0 calls past their org's days\n"
