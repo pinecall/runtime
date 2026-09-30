@@ -31,7 +31,8 @@ pinecall-env: production | sandbox      the world a person's key acts in (the sa
 holds their role's scopes and names the world per request, production only with production access,
 read from their row on every request ([people.md](people.md)). `fleet` is the box's own workers':
 at the worker's doors a key holding it resolves by the scope the request names,
-`?org=&env=&holder=`, the scope the call's dispatch named. `pinecall-corner: <member id>` answers an
+`?org=&env=&holder=`, the scope the call's dispatch named; at a call's reading doors (its events,
+its state, its recording) it names none and reads any call of the one world its fleet serves. `pinecall-corner: <member id>` answers an
 HTTP door in a colleague's sandbox scope, for a key that opens `team` and `app`.
 
 **The one exception to the header** is `?token=`, because an `EventSource` cannot set one: only a
