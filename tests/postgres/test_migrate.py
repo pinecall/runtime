@@ -367,3 +367,47 @@ async def test_an_agents_judge_runs_on_every_call_or_simulations_of_an_org_that_
         with pytest.raises(psycopg.errors.ForeignKeyViolation):
             await connection.execute(insert, ("nobody", "every-call"))
     assert await column_of(schema, "agent_judges", "runs_on") == ["simulations"]
+
+
+@postgres
+async def test_a_release_is_numbered_from_one_of_an_app_hosted_in_a_world_that_exists(
+    schema: str,
+) -> None:
+    await apply_migrations(DSN, schema=schema)
+    app = (
+        "insert into hosted_apps (org, env, name, key_fingerprint, sealed_key)"
+        " values (%s, %s, 'support', 'f', 's')"
+    )
+    release = (
+        "insert into hosted_releases (org, env, name, release, source, sha256, bytes)"
+        " values ('default', 'production', %s, %s, 'x', 'h', 1)"
+    )
+    async with await connect(DSN) as connection:
+        await connection.execute(sql.SQL("set search_path to {}").format(sql.Identifier(schema)))
+        await connection.execute(app, ("default", "production"))
+        with pytest.raises(psycopg.errors.CheckViolation):
+            await connection.execute(app, ("default", "staging"))
+        with pytest.raises(psycopg.errors.ForeignKeyViolation):
+            await connection.execute(app, ("nobody", "sandbox"))
+        await connection.execute(release, ("support", 1))
+        with pytest.raises(psycopg.errors.CheckViolation):
+            await connection.execute(release, ("support", 0))
+        with pytest.raises(psycopg.errors.ForeignKeyViolation):
+            await connection.execute(release, ("billing", 1))
+    assert await column_of(schema, "hosted_releases", "release") == ["1"]
+    assert await column_of(schema, "quotas", "hosted_apps") == []
+
+
+@postgres
+async def test_a_hosted_app_starts_with_nothing_live_and_nothing_failed(schema: str) -> None:
+    await apply_migrations(DSN, schema=schema)
+    app = (
+        "insert into hosted_apps (org, env, name, key_fingerprint, sealed_key)"
+        " values ('default', 'production', 'support', 'f', 's')"
+    )
+    async with await connect(DSN) as connection:
+        await connection.execute(sql.SQL("set search_path to {}").format(sql.Identifier(schema)))
+        await connection.execute(app)
+    assert await column_of(schema, "hosted_apps", "live_release") == ["None"]
+    assert await column_of(schema, "hosted_apps", "failed_host") == ["None"]
+    assert await column_of(schema, "hosted_apps", "failed_why") == [""]

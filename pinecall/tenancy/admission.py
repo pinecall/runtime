@@ -29,7 +29,7 @@ ADMISSION = "admission"
 
 QUOTAS = """
 SELECT minutes, messages, agents, concurrent_calls, memory_facts, knowledge_chunks, numbers, seats,
-       llm_tokens, budget_usd, lends
+       llm_tokens, hosted_apps, budget_usd, lends
 FROM quotas WHERE org = %(org)s AND env = %(env)s
 """
 
@@ -37,16 +37,17 @@ FROM quotas WHERE org = %(org)s AND env = %(env)s
 # Replaced whole: a limit left out stops being one.
 SET_QUOTAS = """
 INSERT INTO quotas (org, env, minutes, messages, agents, concurrent_calls, memory_facts,
-                    knowledge_chunks, numbers, seats, llm_tokens, budget_usd, lends)
+                    knowledge_chunks, numbers, seats, llm_tokens, hosted_apps, budget_usd, lends)
 VALUES (%(org)s, %(env)s, %(minutes)s, %(messages)s, %(agents)s, %(concurrent_calls)s,
         %(memory_facts)s, %(knowledge_chunks)s, %(numbers)s, %(seats)s, %(llm_tokens)s,
-        %(budget_usd)s, %(lends)s)
+        %(hosted_apps)s, %(budget_usd)s, %(lends)s)
 ON CONFLICT (org, env) DO UPDATE SET
     minutes = excluded.minutes, messages = excluded.messages, agents = excluded.agents,
     concurrent_calls = excluded.concurrent_calls, memory_facts = excluded.memory_facts,
     knowledge_chunks = excluded.knowledge_chunks, numbers = excluded.numbers,
-    seats = excluded.seats, llm_tokens = excluded.llm_tokens, budget_usd = excluded.budget_usd,
-    lends = excluded.lends, set_at = now()
+    seats = excluded.seats, llm_tokens = excluded.llm_tokens,
+    hosted_apps = excluded.hosted_apps, budget_usd = excluded.budget_usd, lends = excluded.lends,
+    set_at = now()
 """
 
 
@@ -125,6 +126,11 @@ async def admit_memory(pool: Pool, org: str, env: Env, *, kept: int) -> None:
 async def admit_seat(pool: Pool, org: str, env: Env, *, seated: int) -> None:
     """Admit one more person seated in the org."""
     _refuse_past(await quotas_of(pool, org, env), env, "seats", seated)
+
+
+async def admit_hosted_app(pool: Pool, org: str, env: Env, *, hosting: int) -> None:
+    """Admit one more app the box hosts for the org."""
+    _refuse_past(await quotas_of(pool, org, env), env, "hosted_apps", hosting)
 
 
 # Sized up front: a push that would pass the limit is refused whole.
