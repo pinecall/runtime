@@ -1,5 +1,8 @@
 """LiveKit as the suites see it: seats, a room, the SIP and rooms doors of a server, a player."""
 
+import base64
+import hashlib
+import time
 import types
 from collections.abc import Mapping
 from typing import override
@@ -11,6 +14,7 @@ from livekit.agents.voice.background_audio import (
     BackgroundAudioPlayer,
     PlayHandle,
 )
+from livekit.agents.voice.io import AudioOutput, AudioOutputCapabilities
 from livekit.api.agent_dispatch_service import AgentDispatchService
 from livekit.api.room_service import RoomService
 from livekit.api.sip_service import SipService
@@ -55,6 +59,12 @@ from tests.fakes.acme import ACME, AcmeLLM, AcmeStreamedTTS, AcmeSTT, AcmeTTS, s
 
 # Long enough for the JWT livekit signs with it; a secret of nothing.
 A_SECRET = "a secret of thirty-two bytes or more"
+
+
+def signed(body: str, key: str, secret: str = A_SECRET) -> str:
+    """The token livekit sends with a webhook's body: the body's sha256 in a claim, signed."""
+    digest = base64.b64encode(hashlib.sha256(body.encode()).digest()).decode()
+    return api.AccessToken(key, secret).with_sha256(digest).to_jwt()
 
 
 class Seated(rtc.LocalParticipant):
@@ -277,6 +287,8 @@ class Rooms(RoomService):
     requests: list[object]
     # Each standing room and whether an agent is in it.
     existing: dict[str, bool]
+    # The rooms a caller still sits in.
+    people: set[str]
 
     @override
     async def list_rooms(self, list: ListRoomsRequest) -> ListRoomsResponse:
@@ -288,10 +300,12 @@ class Rooms(RoomService):
 
     @override
     async def list_participants(self, list: ListParticipantsRequest) -> ListParticipantsResponse:
-        """An agent in the room, or nobody."""
+        """An agent in the room if the test says so, and its caller if one is left."""
         agent = api.ParticipantInfo(identity="agent", kind=api.ParticipantInfo.Kind.AGENT)
+        caller = api.ParticipantInfo(identity="sip_caller", kind=api.ParticipantInfo.Kind.SIP)
+        seated = [agent] if self.existing.get(list.room) else []
         return ListParticipantsResponse(
-            participants=[agent] if self.existing.get(list.room) else []
+            participants=[*seated, caller] if list.room in self.people else seated
         )
 
     @override
@@ -299,6 +313,7 @@ class Rooms(RoomService):
         """The room goes, whoever was in it."""
         self.requests.append(delete)
         self.existing.pop(delete.room, None)
+        self.people.discard(delete.room)
         return DeleteRoomResponse()
 
     @override
@@ -344,7 +359,7 @@ class Server(api.LiveKitAPI):
             status=SIPTransferStatus.STS_TRANSFER_SUCCESSFUL
         )
         self.rooms = Rooms.__new__(Rooms)
-        self.rooms.requests, self.rooms.existing = [], {}
+        self.rooms.requests, self.rooms.existing, self.rooms.people = [], {}, set()
         self.dispatcher = Dispatcher.__new__(Dispatcher)
         self.dispatcher.made, self.dispatcher.refusal = [], None
 
@@ -386,6 +401,49 @@ class Player(BackgroundAudioPlayer):
         handle = PlayHandle()
         self.handles.append(handle)
         return handle
+
+
+class Speaker(AudioOutput):
+    """The caller's ear: it takes the agent's audio and plays it until the test says, or a cut."""
+
+    def __init__(self) -> None:
+        """An ear that heard nothing."""
+        super().__init__(label="speaker", capabilities=AudioOutputCapabilities(pause=False))
+        self.frames = 0
+        self.heard = 0.0
+        self.playing = False
+        self.cut = 0
+
+    @override
+    async def capture_frame(self, frame: rtc.AudioFrame) -> None:
+        """Keep the frame; the first of a segment starts it playing."""
+        await super().capture_frame(frame)
+        if not self.playing:
+            self.playing = True
+            self.on_playback_started(created_at=time.time())
+        self.frames += 1
+        self.heard += frame.duration
+
+    @override
+    def flush(self) -> None:
+        """The segment is whole; it still plays until `played` or a cut."""
+        super().flush()
+
+    @override
+    def clear_buffer(self) -> None:
+        """The caller cut in: what was playing stops where it was."""
+        if not self.playing:
+            return
+        self.playing = False
+        self.cut += 1
+        self.on_playback_finished(playback_position=self.heard / 2, interrupted=True)
+
+    def played(self) -> None:
+        """The segment played to its end."""
+        if not self.playing:
+            return
+        self.playing = False
+        self.on_playback_finished(playback_position=self.heard, interrupted=False)
 
 
 class Speaking(rtc.RemoteParticipant):

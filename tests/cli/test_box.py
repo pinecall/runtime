@@ -1,12 +1,14 @@
 """Tests for `box up` and `box upgrade`: the steps in order, the names kept, the refusals first."""
 
 import argparse
+import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
 
 from pinecall.cli import _box
-from pinecall.cli._box import box_up, box_upgrade, domains_in, steps_of
+from pinecall.cli._box import box_failover, box_up, box_upgrade, domains_in, steps_of
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.process.settings import Settings
 
@@ -67,3 +69,79 @@ def test_a_backup_key_that_is_no_age_key_and_an_upgrade_with_no_box_are_refused(
         box_upgrade(SETTINGS, argparse.Namespace(package=None))
     with pytest.raises(DeclarationRefused, match="--domains"):
         box_up(SETTINGS, argparse.Namespace(domains=None, backup_key=None, package=None))
+
+
+class Standby:
+    """The container's Postgres as `podman exec … psql` answers it: in recovery until promoted."""
+
+    def __init__(self, *, in_recovery: bool = True, promotes: bool = True) -> None:
+        """A standby, or a primary when printed it is not in recovery."""
+        self.in_recovery = in_recovery
+        self.promotes = promotes
+        self.queries: list[str] = []
+
+    def run(self, argv: Sequence[str], **_: object) -> subprocess.CompletedProcess[str]:
+        """Answer the query the argv ends with."""
+        assert tuple(argv[:3]) == ("podman", "exec", "pinecall-postgres")
+        query = argv[-1]
+        self.queries.append(query)
+        answer = ""
+        if query == _box.IN_RECOVERY:
+            answer = "t" if self.in_recovery else "f"
+        elif query == _box.LAST_REPLAYED:
+            answer = "2026-09-30 14:05:12.3+00"
+        elif query == _box.PROMOTE:
+            self.in_recovery = not self.promotes
+            answer = "t" if self.promotes else "f"
+        return subprocess.CompletedProcess(argv, 0, stdout=f"{answer}\n", stderr="")
+
+
+def on_this_machine(monkeypatch: pytest.MonkeyPatch, postgres: Standby) -> None:
+    """Root on an apt machine whose container answers as the standby does."""
+    monkeypatch.setattr(_box.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(_box.shutil, "which", on_the_path)
+    monkeypatch.setattr(_box.subprocess, "run", postgres.run)
+
+
+def test_a_standby_is_promoted_and_the_operator_told_what_to_repoint(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    postgres = Standby()
+    on_this_machine(monkeypatch, postgres)
+    assert box_failover(SETTINGS, argparse.Namespace()) == 0
+    assert postgres.queries == [
+        _box.IN_RECOVERY,
+        _box.LAST_REPLAYED,
+        _box.PROMOTE,
+        _box.IN_RECOVERY,
+    ]
+    printed = capsys.readouterr().out
+    assert "the last write it replayed was at 2026-09-30 14:05:12.3+00" in printed
+    assert "Nothing else was changed, repointed or deleted" in printed
+    assert "box up --domains <production>,<sandbox>" in printed
+
+
+def test_a_primary_is_never_promoted_and_a_promotion_that_did_not_take_is_said(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = Standby(in_recovery=False)
+    on_this_machine(monkeypatch, primary)
+    with pytest.raises(DeclarationRefused, match="is none"):
+        box_failover(SETTINGS, argparse.Namespace())
+    assert _box.PROMOTE not in primary.queries
+    stuck = Standby(promotes=False)
+    on_this_machine(monkeypatch, stuck)
+    with pytest.raises(DeclarationRefused, match="did not leave recovery"):
+        box_failover(SETTINGS, argparse.Namespace())
+
+
+def test_a_machine_with_no_postgres_container_is_refused_with_podmans_words(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def missing(argv: Sequence[str], **_: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(argv, 125, stdout="", stderr="no such container")
+
+    on_this_machine(monkeypatch, Standby())
+    monkeypatch.setattr(_box.subprocess, "run", missing)
+    with pytest.raises(DeclarationRefused, match="no such container"):
+        box_failover(SETTINGS, argparse.Namespace())

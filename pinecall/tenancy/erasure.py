@@ -1,9 +1,6 @@
 """An erasure: a call's, a contact's or an org's rows and recordings gone, and its trail row."""
 
-import asyncio
-import shutil
 from dataclasses import asdict, dataclass
-from pathlib import Path
 
 from psycopg import AsyncConnection
 from psycopg.rows import DictRow
@@ -12,6 +9,7 @@ from pinecall.domain.errors import Conflict, StoreUnreachable
 from pinecall.domain.names import Env
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool, unbounded
+from pinecall.process.recordings import Recordings
 from pinecall.wire.rest.calls import Erasure, ErasureSubject
 
 # The trigger on call_log lets a DELETE through in this transaction alone (0011_erasure.sql). An
@@ -112,7 +110,9 @@ class _Taking:
     memories: int
 
 
-async def call(pool: Pool, recordings: Path, scope: Scope, call_id: str, *, by: str) -> Erased:
+async def call(
+    pool: Pool, recordings: Recordings, scope: Scope, call_id: str, *, by: str
+) -> Erased:
     """Erase one call: its log, facts, tokens, the memories it taught, and its recording."""
     async with unbounded(pool) as connection:
         await connection.execute(ERASING)
@@ -122,7 +122,7 @@ async def call(pool: Pool, recordings: Path, scope: Scope, call_id: str, *, by: 
 
 
 async def contact(
-    pool: Pool, recordings: Path, scope: Scope, contact_id: str, *, by: str
+    pool: Pool, recordings: Recordings, scope: Scope, contact_id: str, *, by: str
 ) -> Erased:
     """Erase a contact in the world: every call they were on and every fact kept of them."""
     params = {"org": scope.org, "env": scope.env, "contact": contact_id}
@@ -140,7 +140,7 @@ async def contact(
         return await _written(connection, recordings, taking)
 
 
-async def org(pool: Pool, recordings: Path, org_id: str, *, by: str) -> Erased:
+async def org(pool: Pool, recordings: Recordings, org_id: str, *, by: str) -> Erased:
     """Erase an org whole: every log it owns, every recording, then the org and what cascades."""
     async with unbounded(pool) as connection:
         await connection.execute(ERASING)
@@ -169,28 +169,17 @@ async def _logs(
     return (0, 0) if row is None else (int(row["entries"]), int(row["memories"]))
 
 
-# The files go inside the transaction, before its trail is written: a disk that refuses leaves
-# the rows in place and the erasure failed, rather than a trail that says a file is gone.
+# The recordings go inside the transaction, before its trail is written: a disk or a bucket
+# that refuses leaves the rows in place and the erasure failed, not a trail that lies.
 async def _written(
-    connection: AsyncConnection[DictRow], recordings: Path, taking: _Taking
+    connection: AsyncConnection[DictRow], recordings: Recordings, taking: _Taking
 ) -> Erased:
-    removed = await asyncio.to_thread(_removed, recordings, taking.calls)
+    removed = await recordings.erase(taking.org, taking.calls)
     params = {**asdict(taking), "calls": len(taking.calls), "recordings": removed}
     row = await (await connection.execute(TRAIL, params)).fetchone()
     if row is None:
         raise StoreUnreachable(NO_TRAIL.format(subject=taking.subject))
     return Erased(trail=_trail_row(row), calls=tuple(taking.calls))
-
-
-# A recording is a directory named for its call (worker/_recorder.py recording_path).
-def _removed(recordings: Path, calls: list[str]) -> int:
-    removed = 0
-    for call_id in calls:
-        directory = recordings / call_id
-        if directory.is_dir():
-            shutil.rmtree(directory)
-            removed += 1
-    return removed
 
 
 def _trail_row(row: DictRow) -> Erasure:

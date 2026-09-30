@@ -18,6 +18,28 @@ A vendor is a livekit plugin installed on the box; nothing in code lists them. `
 says why). `ready` is the first two. `voices_listed` says whether `GET /v1/voices` lists that
 vendor's voices. `defaults` and `models` are the box's providers row.
 
+## Where the abstraction is, and where it stops
+
+**livekit's `LLM`, `STT` and `TTS` classes are the abstraction; what differs between vendors is
+data.** A vendor is its plugin's class built with the org's key; what it takes is its constructor's
+parameters, read when it is built (the key, the voice and the language each land under whichever
+name the plugin gave them); what it can do is the class's capabilities (streaming, interim
+results, keyterms, an aligned transcript); whether its ears end the turn themselves
+(`ends_the_turn`), which of its classes runs (`builds`) and its options are the providers row's.
+Nothing in code names a vendor, so a fifth vendor is `pip install "livekit-agents[<vendor>]"` and a
+row, and the suite proves it before a call does: every installed vendor is built offline with a key
+alone, and either reports the model and the provider the usage reads and the capabilities the
+session reads, or is refused in our words, never in its own exception.
+
+A knob the org sets that the vendor takes under no name — a turn's `endpointing_ms`,
+`eot_threshold` or `eager_eot_threshold` on ears that have no such parameter, a `voice` on a voice
+that picks none — is **refused where it is set**, `400 soniox's stt takes no eager_eot_threshold`
+on `PUT /v1/agents/{slug}/settings` with a `pipeline` key, instead of being dropped on every call.
+A set a `words` key writes carries those knobs over untouched and is not refused for them, and a
+setting stored before this refusal still runs as it did. The abstraction stops where a vendor's
+behaviour is not a parameter: a stream's timing, how it cuts a sentence, what its confidence
+means. Those are measured per vendor and per day (`GET /v1/insights`, `stages`), not abstracted.
+
 ## The org's own keys
 
 | | |
@@ -30,6 +52,27 @@ No door a person reads answers with a key. The one door that does is the worker'
 `GET /v1/agents/{slug}/provider-keys`, which hands a call's three stages with the credentials each
 runs on, to the fleet's key or the org's own worker. Every row is sealed under `PINECALL_VAULT_KEY`,
 which a gateway does not start without.
+
+## When a vendor fails
+
+The providers row may give each default stage an ordered list of `fallbacks`
+([operator-api.md](operator-api.md)). A call whose agent runs that default stage then runs
+livekit's `FallbackAdapter` over the default and its fallbacks: a vendor that errors or times out
+is marked down, the stage's next request goes to the first one still up, and livekit keeps asking
+the one that failed until it answers again. A stage with no fallbacks is the vendor's own object,
+as before; an agent that names its own vendor runs that vendor alone.
+
+Each fallback runs on its own key, found as the default's is: the org's own, else the box's where
+its `lends` allow. One this org has no key for is left out, and so is, when the call is built, ears
+that do not stream or a voice of another channel count; the call runs on the rest. A fallback voice
+speaks the row's voice for its vendor and the call's language, never the agent's (a voice id is its
+own vendor's). The worker's door, `GET /v1/agents/{slug}/provider-keys`, hands each stage with its
+`fallbacks` beside it; a worker of an earlier release reads the stage and runs the default alone.
+
+Each switch is a `vendor.switched` entry on the call's log (which vendor went down or came back, and
+which serves the stage now), and every metrics block keeps the vendor that served it. Usage is
+counted per vendor and model that answered, so a call is priced at the rates of the vendors that
+actually ran, and a lent fallback's usage is the operator's like any lent stage's.
 
 ## The voices
 

@@ -2,6 +2,8 @@
 
 import argparse
 import json
+from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -24,7 +26,7 @@ from pinecall.cli._load import (
 from pinecall.cli.main import verbs
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.org import Quotas
-from pinecall.fleet.client import gateway_at
+from pinecall.fleet.client import GatewayClient, gateway_at
 from pinecall.process.settings import Settings
 from pinecall.session.call import MOST_A_BATCH
 from pinecall.tenancy.admission import set_quotas
@@ -62,6 +64,11 @@ def plan_of(knocking: Knocking, *, calls: int, minutes: float) -> Plan:
         ramp_s=0.3,
         hold_s=minutes * 60,
     )
+
+
+def knocks_of(knocking: Knocking) -> Callable[[], GatewayClient]:
+    """How a slot of a run knocks: a client of its own on the sandbox fleet's key."""
+    return partial(gateway_at, knocking.url, knocking.fleet["sandbox"])
 
 
 def an_entry(seq: int, kind: str, *, ephemeral: bool = False) -> Entry:
@@ -166,10 +173,8 @@ def test_a_run_needs_every_flag() -> None:
 async def test_a_small_run_leaves_sealed_logs_holding_exactly_what_it_sent(
     knocking: Knocking,
 ) -> None:
-    client = gateway_at(knocking.url, knocking.fleet["sandbox"])
     plan = plan_of(knocking, calls=3, minutes=0.02)
-    tally = await run_load(client, plan)
-    await client.aclose()
+    tally = await run_load(knocks_of(knocking), plan)
     logs = await durable_logs(knocking)
     whole = [step for step in plan.script.steps if not step.ephemeral]
     for call, kept in logs.items():
@@ -195,12 +200,27 @@ async def test_a_small_run_leaves_sealed_logs_holding_exactly_what_it_sent(
 
 
 @postgres
+async def test_each_call_at_once_knocks_on_a_client_of_its_own_closed_at_the_end(
+    knocking: Knocking,
+) -> None:
+    made: list[GatewayClient] = []
+
+    def knock() -> GatewayClient:
+        made.append(gateway_at(knocking.url, knocking.fleet["sandbox"]))
+        return made[-1]
+
+    plan = plan_of(knocking, calls=3, minutes=0.01)
+    tally = await run_load(knock, plan)
+    assert len(made) == plan.calls
+    assert tally.opened >= plan.calls
+    assert all(client.http.is_closed for client in made)
+
+
+@postgres
 async def test_a_call_refused_is_counted_and_the_run_goes_on(knocking: Knocking) -> None:
     pool = knocking.gateway.connections.pool
     await set_quotas(pool, knocking.org.id, "sandbox", Quotas(concurrent_calls=1))
-    client = gateway_at(knocking.url, knocking.fleet["sandbox"])
-    tally = await run_load(client, plan_of(knocking, calls=2, minutes=0.01))
-    await client.aclose()
+    tally = await run_load(knocks_of(knocking), plan_of(knocking, calls=2, minutes=0.01))
     assert tally.refusals["429"] >= 1
     assert tally.opened == tally.sealed >= 1
     assert len(await durable_logs(knocking)) == tally.opened

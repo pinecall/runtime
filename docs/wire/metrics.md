@@ -172,3 +172,14 @@ Every field livekit-agents 1.8 measures, block by block, with its unit and who m
 | `EOTModelUsage` | `provider` | name | yes | the session's usage collector | The provider: livekit. |
 | `EOTModelUsage` | `model` | name | yes | the session's usage collector | The model name. |
 | `EOTModelUsage` | `total_requests` | count | no | the session's usage collector | Inference requests sent to the model. |
+
+## Per day, by vendor
+
+`GET /v1/insights` reads three of the turn's numbers across a day of the scope's calls (the day a
+call started, in UTC), grouped by stage and by the vendor and model the turn's own report names:
+`stt` is `UserTurnMetrics.transcription_delay` under `stt_metadata`, with the average of the turn's
+`transcript_confidence`; `llm` is `AgentTurnMetrics.llm_node_ttft` under `llm_metadata`; `tts` is
+`AgentTurnMetrics.tts_node_ttfb` under `tts_metadata`. Each row has how many turns reported the
+stage, the median and the 95th percentile in seconds, so "the ears are 500 ms slower than
+yesterday" is two rows of two days, and "the ears are wrong" is the confidence falling. The vendor
+is `model_provider` as the plugin reports it, and absent when the report named none.

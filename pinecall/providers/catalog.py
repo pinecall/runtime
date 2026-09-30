@@ -28,13 +28,25 @@ UNSET = (
 )
 
 
+NO_JUDGE_FALLBACK = "the judge runs on one model: fallbacks are for the stages of a call"
+
+NESTED = "{modality} fallback {vendor}: a fallback names no fallbacks of its own"
+
+TURN_ENDED_OTHERWISE = (
+    "stt fallback {vendor}: it {how} and {primary} does the other; the session reads the end "
+    "of the turn one way for the whole call, so every vendor of the stage must end it alike"
+)
+
+
 class Stage(BaseModel):
-    """A vendor and, when not the plugin's own, its model."""
+    """A vendor and, when not the plugin's own, its model; a default names who takes over."""
 
     model_config = ConfigDict(frozen=True)
 
     vendor: str
     model: str | None = None
+    # A default stage's vendors in the order they take over when the one before fails.
+    fallbacks: tuple["Stage", ...] = ()
 
 
 class Rate(BaseModel):
@@ -152,6 +164,8 @@ def checked(written: Providers) -> Providers:
     """The configuration: each vendor installed and doing its stage, the embedder at 1024 wide."""
     for modality, stage in written.defaults.items():
         doing(stage.vendor, modality)
+        for fallback in stage.fallbacks:
+            _a_fallback(written, modality, stage, fallback)
     for key in (*written.models, *written.tuning):
         modality, _, vendor = key.partition("/")
         if modality not in MODALITIES:
@@ -161,9 +175,30 @@ def checked(written: Providers) -> Providers:
         doing(key.partition("/")[0], "tts")
     if written.judge is not None:
         doing(written.judge.llm.vendor, "llm")
+        if written.judge.llm.fallbacks:
+            raise DeclarationRefused(NO_JUDGE_FALLBACK)
     if written.embedding is not None and written.embedding.dimensions != VECTOR_WIDTH:
         raise DeclarationRefused(
             f"the embedder answers {written.embedding.dimensions}-wide vectors; every vector "
             f"column is halfvec({VECTOR_WIDTH}), so it must be asked for {VECTOR_WIDTH}"
         )
     return written
+
+
+# The ears are chosen once for the whole session: a fallback that ends the turn itself where the
+# primary does not (or the reverse) would leave the call with nobody ending the caller's turn.
+def _a_fallback(written: Providers, modality: Modality, primary: Stage, fallback: Stage) -> None:
+    doing(fallback.vendor, modality)
+    if fallback.fallbacks:
+        raise DeclarationRefused(NESTED.format(modality=modality, vendor=fallback.vendor))
+    if modality != "stt" or _ends_the_turn(written, fallback) == _ends_the_turn(written, primary):
+        return
+    how = "ends the turn itself" if _ends_the_turn(written, fallback) else "leaves the turn open"
+    raise DeclarationRefused(
+        TURN_ENDED_OTHERWISE.format(vendor=fallback.vendor, how=how, primary=primary.vendor)
+    )
+
+
+def _ends_the_turn(written: Providers, stage: Stage) -> bool:
+    options = written.tuning.get(f"stt/{stage.vendor}")
+    return options is not None and options.ends_the_turn

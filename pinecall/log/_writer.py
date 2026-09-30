@@ -76,6 +76,14 @@ from unnest(%(logs)s::text[], %(seqs)s::bigint[], %(written)s::bigint[],
 where head.log = moved.log
 """
 
+# The first-of-its-type requests whose log already holds an entry of that type: read under the
+# heads' locks, so a second writer deciding the same end sees the first one's row.
+HELD_TYPES = """
+select distinct wanted.log
+from unnest(%(logs)s::text[], %(types)s::text[]) as wanted(log, type)
+where exists (select 1 from call_log where log = wanted.log and type = wanted.type)
+"""
+
 ROWS_WRITTEN = """
 insert into call_log (call, seq, ts, agent, type, ephemeral, data)
 select kept.call, kept.seq, kept.ts, kept.agent, kept.type, false, kept.data
@@ -84,8 +92,9 @@ from unnest(%(calls)s::text[], %(seqs)s::bigint[], %(stamps)s::float8[], %(agent
      as kept(call, seq, ts, agent, type, data)
 """
 
-# The gateway's own entry, a worker's batch, or a verdict written again on a sealed log.
-type Kind = Literal["entry", "batch", "score"]
+# The gateway's own entry, a worker's batch, a verdict written again on a sealed log, or a durable
+# entry written only when its log is open and holds none of its type.
+type Kind = Literal["entry", "batch", "score", "first"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -237,6 +246,10 @@ class Writer:
         _answered(queued.answer, outcome)
 
 
+# What a first-of-its-type request is answered with when its log did not need it.
+NOT_NEEDED = Batch(entries=[], replayed=False)
+
+
 # Every statement covers the whole group: the heads begun, locked, read and moved at once, the
 # rows written at once, the facts folded at once. The answers are known before the commit and
 # handed out only after it.
@@ -259,7 +272,10 @@ async def _transaction(pool: Pool, group: Sequence[Append]) -> list[Batch | Conf
                 },
             )
         heads = await _heads(connection, [append.log for append in group])
-        outcomes = [_outcome(append, heads.get(append.log)) for append in group]
+        typed = await _held_types(
+            connection, [append for append in group if append.kind == "first"]
+        )
+        outcomes = [_outcome_of(append, heads.get(append.log), typed) for append in group]
         moved = [
             (append, outcome)
             for append, outcome in zip(group, outcomes, strict=True)
@@ -277,6 +293,17 @@ async def _transaction(pool: Pool, group: Sequence[Append]) -> list[Batch | Conf
     ]
 
 
+async def _held_types(connection: Connection, firsts: Sequence[Append]) -> set[str]:
+    if not firsts:
+        return set()
+    wanted = {
+        "logs": [append.log for append in firsts],
+        "types": [append.entries[0].type for append in firsts],
+    }
+    rows = await (await connection.execute(HELD_TYPES, wanted)).fetchall()
+    return {str(row["log"]) for row in rows}
+
+
 def _fed(append: Append) -> bool:
     return any(not item.ephemeral and item.type in FED_TYPES for item in append.entries)
 
@@ -288,6 +315,13 @@ async def _heads(connection: Connection, logs: Sequence[str]) -> dict[str, DictR
 
 # What the head's locked row says of the request: taken under the next seqs, a batch the log took
 # before (answered with the seqs it was given, even after the seal), or refused in a sentence.
+# A first-of-its-type request is not needed on a log never written, sealed, or holding its type.
+def _outcome_of(append: Append, head: DictRow | None, typed: set[str]) -> _Moved | Batch | Conflict:
+    if append.kind == "first" and (append.log in typed or head is None or head["sealed"]):
+        return NOT_NEEDED
+    return _outcome(append, head)
+
+
 def _outcome(append: Append, head: DictRow | None) -> _Moved | Batch | Conflict:
     if head is None and append.kind == "score":
         return Conflict(f"call {append.call} has no log to judge")

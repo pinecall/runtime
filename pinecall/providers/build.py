@@ -6,6 +6,7 @@ import importlib.util
 import inspect
 import logging
 import pkgutil
+import re
 import types
 import typing
 from collections.abc import Callable, Mapping
@@ -18,12 +19,19 @@ from livekit.agents import llm, stt, tts
 from livekit.agents.language import LanguageCode
 from typing_extensions import TypeIs
 
-from pinecall.domain.agent import Turn
+from pinecall.domain.agent import Tuning, Turn
 from pinecall.domain.errors import DeclarationRefused, NotAvailable
 from pinecall.domain.names import Credentials, Json, JsonObject
 from pinecall.wire.metrics import LLMModelUsage
 
 type Modality = Literal["llm", "stt", "tts"]
+
+# A call's stage as it is built: the plugin's object, or livekit's adapter over several.
+type Thinking = llm.LLM[Never] | llm.FallbackAdapter
+
+type Ears = stt.STT[Never] | stt.FallbackAdapter
+
+type Speaking = tts.TTS[Never] | tts.FallbackAdapter
 
 # The two local end-of-turn models, both read off the audio on the worker's CPU: livekit's own
 # (its detector's small version) and Daily's Smart Turn v3 (smart-turn-livekit).
@@ -67,6 +75,20 @@ _THE_LANGUAGE = ("language", "language_code")
 _THE_HINTS = ("language_hint", "language_hints")
 
 
+_NO_SUCH_CLASS = "{vendor} exports no {stage} named {name!r}"
+
+
+_UNTAKEN = (
+    "{vendor}'s {stage} takes no {knobs}, so a call would run without it: leave it out, or pick a "
+    "vendor that takes it"
+)
+
+
+# livekit's adapter wraps ears that do not stream with a VAD the session does not hold, and refuses
+# voices of another channel count: such a fallback is left out and the call runs on the rest.
+LEFT_OUT = "%s is left out of the stage's fallbacks: %s"
+
+
 @dataclass(frozen=True)
 class Vendor:
     """A vendor this process can build: what it does, or why its plugin does not import."""
@@ -98,12 +120,31 @@ class Running:
     turn_model: TurnModel = "v1-mini"
     # On the box's key rather than the org's own.
     lent: bool = False
+    # Who takes over, in order, each on its own key: the stage is livekit's FallbackAdapter.
+    fallbacks: tuple["Running", ...] = ()
 
 
 MODALITIES: tuple[Modality, ...] = ("llm", "stt", "tts")
 
 
 CLASS_OF: dict[Modality, str] = {"llm": "LLM", "stt": "STT", "tts": "TTS"}
+
+
+# The org's own knobs and the names a plugin may take each under; one it takes under none is
+# refused where the org sets it, not dropped on the next call. `stt_of` gives the endpointing to
+# ears that call it `eot_timeout_ms`.
+_KNOB_NAMES: dict[str, tuple[str, ...]] = {
+    "endpointing_ms": ("endpointing_ms", "eot_timeout_ms"),
+    "eot_threshold": ("eot_threshold",),
+    "eager_eot_threshold": ("eager_eot_threshold",),
+    "voice": _THE_VOICE,
+}
+
+
+# A component that failed is named in its error's label: `label='livekit.plugins.deepgram.stt.STT'`.
+_LABELLED = re.compile(
+    rf"label='(?:{re.escape(_PLUGINS)}\.(?P<plugin>\w+)|(?P<inference>{re.escape(_INFERENCE_MODULE)}))\."
+)
 
 
 @cache
@@ -199,12 +240,77 @@ def tts_of(running: Running) -> tts.TTS[Never]:
 
 def stt_of(running: Running, turn: Turn | None) -> stt.STT[Never]:
     """The ears a stage hears with; the agent's turn knobs reach them where they take them."""
+    return _built("stt", _AN_STT, running, _turn_knobs(turn))
+
+
+# A call's three stages: with no fallback, exactly the plugin's object; with some, livekit's
+# FallbackAdapter over the stage and the vendors that take over, in order.
+def thinking_of(running: Running) -> Thinking:
+    """The LLM a call thinks with, over its fallbacks when the stage names any."""
+    primary = llm_of(running)
+    if not running.fallbacks:
+        return primary
+    return llm.FallbackAdapter([primary, *(llm_of(fallback) for fallback in running.fallbacks)])
+
+
+def ears_of(running: Running, turn: Turn | None) -> Ears:
+    """The ears a call hears with, over its fallbacks when the stage names any that stream."""
+    primary = stt_of(running, turn)
+    if not primary.capabilities.streaming:
+        return primary
+    backups: list[stt.STT[Never]] = []
+    for fallback in running.fallbacks:
+        ears = stt_of(fallback, turn)
+        if ears.capabilities.streaming:
+            backups.append(ears)
+        else:
+            logger.warning(LEFT_OUT, ears.label, "it does not stream")
+    return stt.FallbackAdapter([primary, *backups]) if backups else primary
+
+
+# The adapter resamples to the highest rate among them, but mixes no channels.
+def speaking_of(running: Running) -> Speaking:
+    """The voice a call speaks with, over its fallbacks when the stage names any that fit."""
+    primary = tts_of(running)
+    backups: list[tts.TTS[Never]] = []
+    for fallback in running.fallbacks:
+        voice = tts_of(fallback)
+        if voice.num_channels == primary.num_channels:
+            backups.append(voice)
+        else:
+            logger.warning(LEFT_OUT, voice.label, "its channels differ")
+    return tts.FallbackAdapter([primary, *backups]) if backups else primary
+
+
+# Only what the org set: the key, the language and the hints are the runtime's, and a plugin
+# that takes none of them is the operator's to configure in the providers row.
+def refuse_untaken(ears: Running, voice: Running, tuning: Tuning) -> None:
+    """Refuse the org's turn and voice knobs that its ears or its voice take under no name."""
+    turn = tuning.turn or Turn()
+    heard = {
+        "endpointing_ms": turn.endpointing_ms,
+        "eot_threshold": turn.eot_threshold,
+        "eager_eot_threshold": turn.eager_eot_threshold,
+    }
+    _refuse_untaken("stt", ears, [knob for knob, value in heard.items() if value is not None])
+    _refuse_untaken("tts", voice, ["voice"] if tuning.voice is not None else [])
+
+
+def vendor_named_in(text: str) -> str:
+    """The vendor whose plugin a component's error names, "" when it names none."""
+    found = _LABELLED.search(text)
+    if found is None:
+        return ""
+    return INFERENCE if found["inference"] else found["plugin"]
+
+
+def _turn_knobs(turn: Turn | None) -> dict[str, object]:
     knobs: dict[str, object] = {} if turn is None else dataclasses.asdict(turn)
     given = {knob: value for knob, value in knobs.items() if value is not None}
     # The agent's endpointing is the silence that closes a turn: the ears that take it call it so.
     if turn is not None and turn.endpointing_ms is not None:
         given["eot_timeout_ms"] = turn.endpointing_ms
-    return _built("stt", _AN_STT, running, given)
+    return given
 
 
 def _vendor(name: str, module: str) -> Vendor:
@@ -216,13 +322,36 @@ def _vendor(name: str, module: str) -> Vendor:
     return Vendor(name, frozenset(m for m in MODALITIES if hasattr(imported, CLASS_OF[m])))
 
 
+def _refuse_untaken(modality: Modality, running: Running, knobs: list[str]) -> None:
+    if not knobs:
+        return
+    accepts = _parameters(_class_of(modality, running))
+    untaken = [knob for knob in knobs if not any(name in accepts for name in _KNOB_NAMES[knob])]
+    if untaken:
+        raise DeclarationRefused(
+            _UNTAKEN.format(vendor=running.vendor, stage=modality, knobs=", ".join(untaken))
+        )
+
+
+def _class_of(modality: Modality, running: Running) -> type:
+    name = running.builds or CLASS_OF[modality]
+    made: object = getattr(plugin(running.vendor), name, None)
+    if not isinstance(made, type):
+        raise DeclarationRefused(
+            _NO_SUCH_CLASS.format(vendor=running.vendor, stage=CLASS_OF[modality], name=name)
+        )
+    return made
+
+
 def _built[T](
     modality: Modality, base: type[T], running: Running, knobs: Mapping[str, object]
 ) -> T:
-    name = running.builds or CLASS_OF[modality]
-    made: object = getattr(plugin(running.vendor), name, None)
-    if not (isinstance(made, type) and issubclass(made, base)):
-        raise DeclarationRefused(f"{running.vendor} exports no {CLASS_OF[modality]} named {name!r}")
+    named = running.builds or CLASS_OF[modality]
+    made = _class_of(modality, running)
+    if not issubclass(made, base):
+        raise DeclarationRefused(
+            _NO_SUCH_CLASS.format(vendor=running.vendor, stage=CLASS_OF[modality], name=named)
+        )
     constructor: Callable[..., T] = made
     accepts = _parameters(made)
     given: dict[str, object] = {**running.options}
@@ -235,10 +364,12 @@ def _built[T](
     given |= _first(accepts, _THE_HINTS, list(running.hints) or None)
     if running.model is not None:
         given["model"] = running.model
+    # A plugin raises what it likes when it refuses (SpitchError, a missing variable): each is
+    # the vendor refusing its stage, said in its own words.
     try:
         return constructor(**_shaped(made, given))
-    except (TypeError, ValueError) as refused:
-        raise DeclarationRefused(f"{running.vendor} refused its {name}: {refused}") from refused
+    except Exception as refused:
+        raise DeclarationRefused(f"{running.vendor} refused its {named}: {refused}") from refused
 
 
 def _parameters(made: type) -> frozenset[str]:

@@ -134,7 +134,7 @@ What the call was about, how it went, what it consumed and what that cost. Writt
 | `turns` | `integer` | yes | How many turns, both sides together. |
 | `usage` | `ModelUsage[]` | yes | One row per model used, as the session summed them. |
 | `cost` | `Cost` | yes | What the call cost in provider fees, informational, in US dollars, the currency providers price in. |
-| `recording` | `string` | no | Where the recording is, when one was made. |
+| `recording` | `string` | no | Where the recorder wrote the recording, when one was made; `GET /v1/calls/{call}/recording` serves it from wherever it is kept. |
 
 ### `call.transferred`
 
@@ -254,3 +254,15 @@ Words from the caller as the recognizer hears them. Interim while final is false
 | `language` | `string` | no | The language heard, as a BCP 47 tag. |
 | `confidence` | `number` | no | The recognizer's confidence, 0 to 1, when it reports one. |
 
+### `vendor.switched`
+
+A stage's vendor failed or came back; serving is the vendor the stage runs on now. Written only for a stage the providers row gives fallbacks, when livekit's fallback adapter marks one of its vendors down or back up. The vendors are named as livekit's plugins name them, as in the metrics blocks, whose `metadata` also says which vendor served each request.
+
+| field | type | required | meaning |
+|---|---|---|---|
+| `stage` | `"llm" | "stt" | "tts"` | yes | The stage whose vendor changed. |
+| `vendor` | `string` | yes | The vendor that went down or came back. |
+| `model` | `string` | yes | Its model. |
+| `available` | `boolean` | yes | False when it went down, true when it answers again. |
+| `serving` | `string` | yes | The vendor the stage's next request goes to: the first one still up, in the row's order. |
+| `serving_model` | `string` | yes | That vendor's model. |

@@ -164,6 +164,16 @@ class Log:
         await self._published(entry)
         return entry
 
+    # Two writers deciding the same end (a webhook delivered twice) write it once.
+    async def append_first(self, kind: str, data: JsonObject) -> Entry | None:
+        """Write and publish a durable entry unless the log holds one of its type; None then."""
+        if self.call is None:
+            raise DeclarationRefused(f"agent {self.agent}: only a call's log is looked at")
+        entry = await self._store.append_first(self.call, self.agent, kind, data)
+        if entry is not None:
+            await self._published(entry)
+        return entry
+
     # A replayed batch was published when it was first taken: publishing it again would repeat it.
     async def append_many(self, entries: Sequence[BatchedEntry], *, after: int) -> list[Entry]:
         """Write a worker's batch once, then publish and tap each entry in order as append does."""
@@ -271,9 +281,14 @@ class Logs:
         # A log's owner never changes; caching it keeps a store read off the append path.
         self._owners: dict[str, Claimant] = {}
 
+    @property
+    def readers(self) -> int:
+        """How many live readers every log and feed of this process holds."""
+        fanouts = [self.box, *self._feeds.values(), *(log.fanout for log in self._logs.values())]
+        return sum(fanout.readers for fanout in fanouts)
+
     def writing(self, call: str, agent: str) -> Log:
         """Return the call's log for its writer, held until the process forgets the call."""
-        log = self._log(call, agent)
         log = self._log(call, agent)
         log.agent = agent
         if not log.kept_open:

@@ -1,6 +1,7 @@
 """Whose key each stage of a call runs on: the org's own runs anything, the box's what it lends."""
 
 import dataclasses
+import logging
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Literal
@@ -15,6 +16,8 @@ from pinecall.providers.declared import SEPARATOR
 # yours: the org brought its key. offered: the box holds one and lends it to this org. bring your
 # own: installed, and nobody but the org can key it. broken: its plugin does not import.
 type Availability = Literal["yours", "offered", "bring your own", "broken"]
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -38,9 +41,10 @@ class Pipeline:
     # The gateway keeps these with the call's facts: their usage is the operator's to bill.
     @property
     def lent(self) -> list[str]:
-        """The vendors that ran on the box's key, in stage order, once each."""
+        """The vendors the call may run on the box's key, in stage order, once each."""
         stages = (self.llm, self.stt, self.tts)
-        return list(dict.fromkeys(stage.vendor for stage in stages if stage.lent))
+        each = (item for stage in stages for item in (stage, *stage.fallbacks))
+        return list(dict.fromkeys(item.vendor for item in each if item.lent))
 
 
 @dataclass(frozen=True)
@@ -74,15 +78,21 @@ def pipeline(config: AgentConfig, configured: Providers, keys: Keyring) -> Pipel
     tts = stage("tts", config.voice, configured, keys)
     heard = dict.fromkeys(item for item in (language, *configured.hints) if item)
     voice = config.voice.voice_id if config.voice else None
-    return Pipeline(
-        llm=llm,
-        stt=dataclasses.replace(stt, language=language, hints=tuple(heard)),
-        tts=dataclasses.replace(
-            tts,
-            language=language,
-            voice=voice or configured.voices.get(f"{tts.vendor}{SEPARATOR}{language}"),
-        ),
+    ears = (
+        dataclasses.replace(item, language=language, hints=tuple(heard))
+        for item in (stt, *stt.fallbacks)
     )
+    # The agent's voice is its vendor's; a vendor that takes over speaks the row's for the language.
+    voices = (
+        dataclasses.replace(
+            item,
+            language=language,
+            voice=(voice if item is tts else None)
+            or configured.voices.get(f"{item.vendor}{SEPARATOR}{language}"),
+        )
+        for item in (tts, *tts.fallbacks)
+    )
+    return Pipeline(llm=llm, stt=_over(*ears), tts=_over(*voices))
 
 
 # A written call runs this stage alone: a call with no voice is not refused for want of one.
@@ -142,13 +152,30 @@ def parse_lending(entries: Iterable[str]) -> frozenset[str]:
     return frozenset(parsed)
 
 
+# An agent that names its vendor runs it alone; one on the row's default runs the default's
+# fallbacks behind it, each on its own key. A fallback this org cannot key is left out.
 def stage(
     modality: Modality, declared: Model | Voice | None, configured: Providers, keys: Keyring
 ) -> Running:
     """One stage on its key: the vendor declared or the default, with the operator's options."""
+    if declared is not None:
+        return _on_its_key(modality, declared.provider, declared.model or None, configured, keys)
     default = configured.defaults[modality]
-    vendor = default.vendor if declared is None else declared.provider
-    params = default.model if declared is None else (declared.model or None)
+    chosen = _on_its_key(modality, default.vendor, default.model, configured, keys)
+    backups: list[Running] = []
+    for fallback in default.fallbacks:
+        try:
+            backups.append(_on_its_key(modality, fallback.vendor, fallback.model, configured, keys))
+        except (NotAvailable, NotAllowed):
+            logger.info(
+                "%s fallback %s has no key this org may run it on", modality, fallback.vendor
+            )
+    return _over(chosen, *backups)
+
+
+def _on_its_key(
+    modality: Modality, vendor: str, params: str | None, configured: Providers, keys: Keyring
+) -> Running:
     model = params or configured.models.get(f"{modality}{SEPARATOR}{vendor}")
     chosen = running(keys, vendor, model)
     options = configured.tuning.get(f"{modality}{SEPARATOR}{vendor}")
@@ -161,6 +188,10 @@ def stage(
         ends_the_turn=options.ends_the_turn,
         turn_model=options.turn_model,
     )
+
+
+def _over(primary: Running, *fallbacks: Running) -> Running:
+    return dataclasses.replace(primary, fallbacks=fallbacks)
 
 
 def _availability_of(vendor: Vendor, keys: Keyring) -> Availability:

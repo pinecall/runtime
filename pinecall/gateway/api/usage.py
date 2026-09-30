@@ -1,5 +1,6 @@
 """The org's meters: the usage feed, one day's insights, and what the org may use."""
 
+from dataclasses import asdict
 from datetime import UTC, date, datetime
 from typing import Annotated
 
@@ -18,6 +19,7 @@ from pinecall.wire.rest.usage import (
     InsightsBudget,
     InsightsChannels,
     InsightsConversations,
+    InsightsStage,
     Limit,
     Limits,
     UsagePage,
@@ -84,6 +86,7 @@ async def insights(
             InsightsAgent(slug=agent.slug, today=agent.calls, score=agent.score)
             for agent in counted.agents
         ],
+        stages=[InsightsStage.model_validate(asdict(stage)) for stage in counted.stages],
         budget=InsightsBudget(limit_usd=quotas.budget_usd, spent_usd_month=spent),
     )
 

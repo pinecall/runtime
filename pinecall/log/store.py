@@ -128,6 +128,16 @@ class Store:
         [written] = (await self.writer.written(append)).entries
         return written
 
+    # Two writers deciding the same end (a webhook delivered twice) write it once: the writer looks
+    # under the head's lock, in the transaction that would write it.
+    async def append_first(
+        self, call: str, agent: str, kind: str, data: JsonObject
+    ) -> Entry | None:
+        """Write a durable entry unless the call's log holds one of its type or is sealed."""
+        entry = Unnumbered(type=kind, data=data, ephemeral=False, ts=self.clock())
+        written = (await self.writer.written(Append("first", call, call, agent, [entry]))).entries
+        return written[0] if written else None
+
     # One writer, in order: `after` is how many entries the log took from it before this batch.
     async def append_many(
         self, call: str | None, agent: str, entries: Sequence[Unnumbered], *, after: int

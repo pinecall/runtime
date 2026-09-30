@@ -8,9 +8,10 @@ import time
 from collections.abc import Callable
 
 import httpx
+import pytest
 from websockets.asyncio.client import ClientConnection
 
-from pinecall.channels import routes
+from pinecall.channels import routes, whatsapp
 from pinecall.domain.call import Route
 from pinecall.domain.names import Env, JsonObject
 from pinecall.providers import catalog
@@ -245,6 +246,67 @@ async def test_a_turn_past_the_orgs_quota_closes_the_conversation_unanswered(
     await until(lambda: not calls_open(knocking) and not knocking.gateway.threads.answering_now)
     assert graph.sent == []
     await closed(app)
+
+
+@postgres
+async def test_a_message_meta_delivers_again_is_answered_200_and_heard_once(
+    knocking: Knocking, graph: Graph
+) -> None:
+    await catalog.configure(knocking.gateway.connections.pool, configured([["uno"], ["dos"]]))
+    await a_whatsapp_line(knocking)
+    app = await an_app(knocking)
+    assert await written(knocking, "hola", message="wamid.1") == 200
+    await until(lambda: len(graph.sent) == 1)
+    assert await written(knocking, "hola", message="wamid.1") == 200
+    assert await written(knocking, "sigo", message="wamid.2") == 200
+    await until(lambda: len(graph.sent) == 2)
+    (call,) = calls_open(knocking)
+    heard = [
+        item.data["text"]
+        for item in await knocking.gateway.logs.store.whole(call)
+        if item.type == "turn.user"
+    ]
+    assert heard == ["hola", "sigo"]
+    await closed(app)
+
+
+@postgres
+async def test_a_message_kept_for_nobody_is_kept_once_however_often_meta_delivers_it(
+    knocking: Knocking,
+) -> None:
+    await a_whatsapp_line(knocking)
+    assert await written(knocking, "¿hay alguien?") == 200
+    assert await written(knocking, "¿hay alguien?") == 200
+    assert len(knocking.gateway.threads.waiting) == 1
+
+
+@postgres
+async def test_a_message_whose_reading_failed_midway_is_read_when_meta_delivers_it_again(
+    knocking: Knocking, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await a_whatsapp_line(knocking)
+    kept = whatsapp.kept
+
+    async def broken(*_: object) -> whatsapp.Waiting:
+        raise OSError("the log's disk went away")
+
+    monkeypatch.setattr(whatsapp, "kept", broken)
+    assert await written(knocking, "¿hay alguien?") == 500
+    assert knocking.gateway.threads.waiting == []
+    monkeypatch.setattr(whatsapp, "kept", kept)
+    assert await written(knocking, "¿hay alguien?") == 200
+    assert [waiter.inbound.text for waiter in knocking.gateway.threads.waiting] == ["¿hay alguien?"]
+
+
+@postgres
+async def test_a_message_another_delivery_is_still_reading_is_503_so_meta_keeps_it(
+    knocking: Knocking,
+) -> None:
+    await a_whatsapp_line(knocking)
+    pool = knocking.gateway.connections.pool
+    assert await whatsapp.claimed(pool, knocking.org.id, "wamid.1", time.time()) == "new"
+    assert await written(knocking, "¿hay alguien?", message="wamid.1") == 503
+    assert knocking.gateway.threads.waiting == []
 
 
 # ── the desk on a conversation ──

@@ -1,5 +1,6 @@
 """Tests for Meta's side of WhatsApp: the handshake, the signature, a body's messages, a reply."""
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -19,12 +20,12 @@ from pinecall.domain.errors import (
 from pinecall.domain.names import JsonObject
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store
-from pinecall.postgres.pool import Pool
+from pinecall.postgres.pool import Pool, open_pool
 from pinecall.process.connections import vault_of
 from pinecall.tenancy import carriers, orgs, vault
 from pinecall.tenancy.carriers import WhatsappAccount
 from tests.channels.conftest import Line
-from tests.conftest import postgres
+from tests.conftest import DSN, postgres
 from tests.fakes.meta import Graph, outside
 from tests.fakes.twilio import Twilio
 
@@ -235,3 +236,72 @@ async def test_the_orgs_own_meta_token_answers_and_an_org_with_none_answers_on_t
     assert (
         await whatsapp.meta_token_for(pool, line.connections.vault, other.id, "1055") == "the box's"
     )
+
+
+# ── a message read once ──
+
+NOW = 1_800_000_000.0
+
+
+@postgres
+async def test_a_message_claimed_is_reading_until_read_then_seen_for_every_later_delivery(
+    pool: Pool,
+) -> None:
+    org = (await orgs.create(pool, "clinica", "Clinica")).id
+    assert await whatsapp.claimed(pool, org, "wamid.1", NOW) == "new"
+    assert await whatsapp.claimed(pool, org, "wamid.1", NOW + 1) == "reading"
+    await whatsapp.read(pool, org, "wamid.1", NOW + 1)
+    assert await whatsapp.claimed(pool, org, "wamid.1", NOW + 2) == "seen"
+    assert await whatsapp.claimed(pool, org, "wamid.1", NOW + whatsapp.READING_S + 5) == "seen"
+
+
+@postgres
+async def test_one_orgs_message_id_never_shadows_anothers(pool: Pool) -> None:
+    first = (await orgs.create(pool, "clinica", "Clinica")).id
+    second = (await orgs.create(pool, "otra", "Otra")).id
+    assert await whatsapp.claimed(pool, first, "wamid.1", NOW) == "new"
+    assert await whatsapp.claimed(pool, second, "wamid.1", NOW) == "new"
+
+
+@postgres
+async def test_a_claim_released_or_left_unread_past_its_lease_is_read_by_the_next_delivery(
+    pool: Pool,
+) -> None:
+    org = (await orgs.create(pool, "clinica", "Clinica")).id
+    assert await whatsapp.claimed(pool, org, "wamid.1", NOW) == "new"
+    await whatsapp.released(pool, org, "wamid.1")
+    assert await whatsapp.claimed(pool, org, "wamid.1", NOW + 1) == "new"
+    # Nobody reads it or gives it back: the process holding it died.
+    assert await whatsapp.claimed(pool, org, "wamid.1", NOW + whatsapp.READING_S) == "reading"
+    assert await whatsapp.claimed(pool, org, "wamid.1", NOW + whatsapp.READING_S + 2) == "new"
+
+
+@postgres
+async def test_of_two_gateways_delivered_the_same_message_at_once_exactly_one_reads_it(
+    pool: Pool, schema: str
+) -> None:
+    org = (await orgs.create(pool, "clinica", "Clinica")).id
+    other = await open_pool(DSN, schema=schema, max_size=4)
+    try:
+        claims = await asyncio.gather(
+            *(
+                whatsapp.claimed(gateway, org, f"wamid.{number}", NOW)
+                for number in range(20)
+                for gateway in (pool, other)
+            )
+        )
+    finally:
+        await other.close()
+    assert sorted(claims).count("new") == 20
+    assert sorted(claims).count("reading") == 20
+
+
+@postgres
+async def test_the_ids_claimed_past_metas_seven_days_of_retries_are_forgotten(pool: Pool) -> None:
+    org = (await orgs.create(pool, "clinica", "Clinica")).id
+    await whatsapp.claimed(pool, org, "wamid.old", NOW)
+    await whatsapp.claimed(pool, org, "wamid.new", NOW + 60)
+    assert await whatsapp.forget_seen(pool, NOW + whatsapp.SEEN_KEPT_S) == 0
+    assert await whatsapp.forget_seen(pool, NOW + whatsapp.SEEN_KEPT_S + 30) == 1
+    assert await whatsapp.claimed(pool, org, "wamid.new", NOW + 61) == "reading"
+    assert await whatsapp.claimed(pool, org, "wamid.old", NOW + 61) == "new"

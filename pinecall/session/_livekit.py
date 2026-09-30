@@ -1,8 +1,8 @@
-"""What livekit hands the session, read as ours: usage rows, transcripts, blocks, names."""
+"""What livekit hands the session, read as ours: usage, transcripts, blocks, names, switches."""
 
 import contextlib
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Iterable, Mapping
 
 from livekit.agents import (
     NOT_GIVEN,
@@ -11,6 +11,8 @@ from livekit.agents import (
     StopResponse,
     llm,
     metrics,
+    stt,
+    tts,
     utils,
 )
 from livekit.agents.metrics.base import AvatarMetrics
@@ -18,9 +20,14 @@ from livekit.agents.types import TimedString
 from livekit.agents.voice import AgentSession
 from pydantic import BaseModel
 
+from pinecall.providers.build import Modality
+from pinecall.session.call import Writing
 from pinecall.wire import events as wire
 from pinecall.wire import metrics as measured
 from pinecall.wire.frames import WireModel
+
+type Adapter = llm.FallbackAdapter | stt.FallbackAdapter | tts.FallbackAdapter
+
 
 # Errors of the request itself; 408, 429 and 5xx are transient and livekit retries them.
 FOREVER = frozenset({400, 401, 402, 403, 404, 422})
@@ -131,6 +138,42 @@ def end_of_utterance(report: Mapping[str, object], speech: str) -> measured.EOUM
     )
 
 
+# livekit's adapter says when a vendor goes down or comes back (`<stage>_availability_changed`,
+# the vendor under the stage's own name), and names the next to serve. Its emitter is untyped:
+# it is read as an object.
+def switches_written(writing: Writing, built: Iterable[object]) -> None:
+    """Write vendor.switched each time a stage's fallback adapter loses or regains a vendor."""
+    for component in built:
+        match component:
+            case llm.FallbackAdapter():
+                stage: Modality = "llm"
+            case stt.FallbackAdapter():
+                stage = "stt"
+            case tts.FallbackAdapter():
+                stage = "tts"
+            case _:
+                continue
+        listen: object = getattr(component, "on", None)
+        if callable(listen):
+            listen(f"{stage}_availability_changed", _switch(writing, stage, component))
+
+
+def switch_of(stage: Modality, event: object, adapter: Adapter) -> wire.VendorSwitched | None:
+    """The entry for one vendor of a stage lost or back, and the one serving from now."""
+    changed: object = getattr(event, stage, None)
+    available: object = getattr(event, "available", None)
+    if not isinstance(changed, (llm.LLM, stt.STT, tts.TTS)) or not isinstance(available, bool):
+        return None
+    return wire.VendorSwitched(
+        stage=stage,
+        vendor=changed.provider,
+        model=changed.model,
+        available=available,
+        serving=adapter.provider,
+        serving_model=adapter.model,
+    )
+
+
 # livekit's rows carry the wire's names, and livekit adds fields the wire does not know
 # (`input_audio_tokens` on the ears' usage in 1.8.3). The wire refuses an unknown key, and a
 # listener's exception is swallowed by livekit's emitter, so the call would lose its usage in
@@ -141,3 +184,12 @@ def _read_as[T: WireModel](model: type[T], livekits: BaseModel) -> T:
     return model.model_validate(
         {name: dumped[name] for name in model.model_fields if name in dumped}
     )
+
+
+def _switch(writing: Writing, stage: Modality, adapter: Adapter) -> Callable[[object], None]:
+    def written(event: object) -> None:
+        switched = switch_of(stage, event, adapter)
+        if switched is not None:
+            writing.write("vendor.switched", switched)
+
+    return written

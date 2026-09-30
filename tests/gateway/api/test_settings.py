@@ -1,5 +1,9 @@
 """Tests for the settings doors: an agent's tuning and lexicon per scope, and a call's own."""
 
+from pinecall.domain.agent import Tuning, Turn
+from pinecall.domain.scope import Scope
+from pinecall.tenancy import scopes
+from pinecall.tenancy.scopes import Written
 from pinecall.wire.rest.calls import OpenCallRequest
 from tests.conftest import AGENT, Knocking, a_developer, issued, postgres
 from tests.gateway.api.conftest import a_call, an_app
@@ -69,6 +73,50 @@ async def test_a_words_key_sets_the_opening_words_and_is_refused_the_pipeline_by
     assert refused.status_code == 403
     assert "llm, turn: the pipeline's" in refused.json()["detail"]
     assert [row["version"] for row in history.json()["rows"]] == [2, 1]
+
+
+@postgres
+async def test_the_models_deadline_is_kept_as_set_and_is_the_pipelines_to_set(
+    knocking: Knocking,
+) -> None:
+    pool = knocking.gateway.connections.pool
+    words = await issued(pool, knocking.org.id, "sandbox", frozenset({"words"}))
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        kept = await org.put(SETTINGS, json={"config": {"llm_timeout_s": 6.5}})
+        zero = await org.put(SETTINGS, json={"config": {"llm_timeout_s": 0}})
+    async with knocking.http(words) as supervisor:
+        refused = await supervisor.put(SETTINGS, json={"config": {"llm_timeout_s": 3}})
+    assert kept.json()["team"]["config"] == {"llm_timeout_s": 6.5}
+    assert zero.status_code == 400
+    assert "positive number of seconds" in zero.json()["detail"]
+    assert refused.status_code == 403
+    assert "llm_timeout_s: the pipeline's" in refused.json()["detail"]
+
+
+@postgres
+async def test_a_knob_the_vendor_takes_under_no_name_is_refused_where_it_is_set(
+    knocking: Knocking,
+) -> None:
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        eager = await org.put(SETTINGS, json={"config": {"turn": {"eager_eot_threshold": 0.4}}})
+        taken = await org.put(SETTINGS, json={"config": {"turn": {"eot_threshold": 0.8}}})
+    assert eager.status_code == 400
+    assert "acme's stt takes no eager_eot_threshold" in eager.json()["detail"]
+    assert taken.status_code == 200
+
+
+@postgres
+async def test_a_words_key_is_never_refused_a_knob_it_carried_over_untouched(
+    knocking: Knocking,
+) -> None:
+    pool = knocking.gateway.connections.pool
+    stored = Tuning(turn=Turn(eager_eot_threshold=0.4))
+    await scopes.put_tuning(pool, Scope(knocking.org.id, "sandbox"), AGENT, stored, Written("m"))
+    words = await issued(pool, knocking.org.id, "sandbox", frozenset({"words"}))
+    async with knocking.http(words) as supervisor:
+        spoken = await supervisor.put(SETTINGS, json={"config": {"greeting": {"say": "Buenas"}}})
+    assert spoken.status_code == 200, spoken.text
+    assert spoken.json()["team"]["config"]["turn"] == {"eager_eot_threshold": 0.4}
 
 
 @postgres

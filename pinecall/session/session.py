@@ -5,7 +5,6 @@ import contextlib
 import logging
 import time
 from collections.abc import AsyncGenerator
-from typing import Never
 
 from livekit.agents import (
     NOT_GIVEN,
@@ -24,7 +23,6 @@ from livekit.agents import (
     llm,
     metrics,
     stt,
-    tts,
     utils,
 )
 from livekit.agents import ErrorEvent as ComponentFailed
@@ -35,6 +33,7 @@ from livekit.agents.voice.room_io import RoomOptions
 from pinecall.domain.errors import DeclarationRefused, NotAllowed, PinecallError
 from pinecall.domain.names import JsonObject
 from pinecall.log.logs import started_entry
+from pinecall.providers.build import Ears, Speaking, Thinking
 from pinecall.session import _prompt, room, tools
 from pinecall.session._agent import CallAgent
 from pinecall.session._hearing import keyterms
@@ -80,7 +79,7 @@ from pinecall.wire.frames import WireModel
 from pinecall.wire.parts import EndedBy, EndReason, Supervisor, ToolResult
 
 # What a session built and measures: the model, and on a voice call the ears and the voice.
-type Built = tuple[llm.LLM[Never] | stt.STT[Never] | tts.TTS[Never], ...]
+type Built = tuple[Thinking | Ears | Speaking, ...]
 
 
 logger = logging.getLogger(__name__)
@@ -161,7 +160,7 @@ class Session:
         self.built = built
         self.lookups = lookups
         self.blocks = Blocks(self.call.config.prompt, self.call.config.knowledge or "")
-        self.agent = CallAgent(live, self.blocks, lookups, self._declared())
+        self.agent = CallAgent(live, self.blocks, lookups, self._declared(), self._music)
         self.started_at = time.time()
         # Why the call ended, when our code knows: it wins over livekit's close reason.
         self.ended: tuple[EndReason, EndedBy] | None = None

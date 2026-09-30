@@ -18,6 +18,7 @@ pinecall-gateway.service · pinecall-worker@.service · pinecall-overflow@.servi
 pinecall-migrate.service · pinecall-doctor.service · pinecall-fleet-key@.service
 pinecall-retention.service · pinecall-retention.timer   the nightly erasure of calls past their org's days
 pinecall-backup.service · pinecall-backup.timer · backup.sh · backup.age.pub   the nightly encrypted backup
+wal.sh · pinecall-wal.service · pinecall-wal.timer   the WAL archive to the backup bucket, for a restore to any minute
 pinecall-postgres-image.service · hardening.conf · polkit/ · sysusers.d/ · tmpfiles.d/ · journald.conf.d/
 ```
 
@@ -63,3 +64,6 @@ The overflow runs for production only: a full sandbox refuses at the token door.
 - A 5060 rule in `input` fences nothing: a published port is DNAT'd and routed through `forward`.
   The fence is in `raw` prerouting.
 - Redis holds livekit-sip's trunks and rules: its volume is the numbers.
+- `/etc/pinecall/livekit.yaml` is written by `install.sh` (the webhook's key name and the box's
+  name filled in), and livekit-server reads it when it starts: a change takes
+  `systemctl restart pinecall-livekit`, which ends every call in progress.

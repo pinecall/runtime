@@ -2,15 +2,19 @@
 
 from pathlib import Path
 
+import httpx
 import pytest
 from psycopg import errors
 
+from pinecall.domain.errors import UpstreamFailed
 from pinecall.domain.person import KEY_SCOPES
 from pinecall.domain.scope import Scope
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
+from pinecall.process.recordings import Bucket, Disk
 from pinecall.tenancy import erasure
 from tests.conftest import issued, outlasting_a_lock, postgres
+from tests.fakes.bucket import Bucket as Remote
 from tests.log.conftest import AGENT, ACall, logged_call
 from tests.tenancy.conftest import an_org
 
@@ -72,6 +76,34 @@ VALUES (%s, 'production', '', %s, 'm_1', '+1', 1)
 NOTHING_LEFT = {"entries": 0, "heads": 0, "facts": 0, "tokens": 0, "memories": 0}
 
 
+async def test_a_call_erased_in_a_box_with_a_bucket_leaves_no_object_and_is_counted(
+    pool: Pool, store: Store, tmp_path: Path
+) -> None:
+    org = await an_org(pool)
+    call = await logged_call(store, org.id)
+    remote = Remote(objects={f"{org.id}/{call}/audio.ogg": b"OggS", "org_x/CA_x/audio.ogg": b"x"})
+    async with httpx.AsyncClient(transport=remote.transport()) as http:
+        kept = Bucket(tmp_path, remote.name, http)
+        erased = await erasure.call(pool, kept, Scope(org.id), call, by="m_1")
+    assert remote.objects == {"org_x/CA_x/audio.ogg": b"x"}
+    assert erased.trail.recordings == 1
+
+
+async def test_a_bucket_that_refuses_leaves_the_call_whole_and_no_trail(
+    pool: Pool, store: Store, tmp_path: Path
+) -> None:
+    org = await an_org(pool)
+    call = await logged_call(store, org.id)
+    remote = Remote(objects={f"{org.id}/{call}/audio.ogg": b"OggS"}, refusal=503)
+    async with httpx.AsyncClient(transport=remote.transport()) as http:
+        with pytest.raises(UpstreamFailed, match="answered 503 to a delete of"):
+            await erasure.call(
+                pool, Bucket(tmp_path, remote.name, http), Scope(org.id), call, by="m_1"
+            )
+    assert (await left_of(pool, call))["entries"] > 0
+    assert await erasure.trail(pool, org.id) == []
+
+
 async def test_a_call_erased_leaves_no_row_no_recording_and_a_trail_that_counts_them(
     pool: Pool, store: Store, tmp_path: Path
 ) -> None:
@@ -82,7 +114,7 @@ async def test_a_call_erased_leaves_no_row_no_recording_and_a_trail_that_counts_
         await connection.execute(A_ROOM_TICKET, {"call": call, "org": org.id, "agent": AGENT})
     recording = a_recording(tmp_path, call)
 
-    erased = await erasure.call(pool, tmp_path, Scope(org.id), call, by="m_1")
+    erased = await erasure.call(pool, Disk(tmp_path), Scope(org.id), call, by="m_1")
 
     assert await left_of(pool, call) == NOTHING_LEFT
     assert not recording.exists()
@@ -106,7 +138,7 @@ async def test_an_erasure_runs_past_the_pools_statement_timeout(
     a_recording(tmp_path, call)
 
     async def erased() -> erasure.Erased:
-        return await erasure.call(impatient_pool, tmp_path, Scope(org.id), call, by="m_1")
+        return await erasure.call(impatient_pool, Disk(tmp_path), Scope(org.id), call, by="m_1")
 
     await outlasting_a_lock(schema, "call_log", erased)
     assert await left_of(pool, call) == NOTHING_LEFT
@@ -136,7 +168,7 @@ async def test_a_contacts_erasure_takes_their_calls_and_facts_and_spares_another
     await a_fact(pool, org.id, ANA, None)
     await a_fact(pool, org.id, LUIS, luis)
 
-    erased = await erasure.contact(pool, tmp_path, Scope(org.id), ANA, by="k_1")
+    erased = await erasure.contact(pool, Disk(tmp_path), Scope(org.id), ANA, by="k_1")
 
     assert sorted(erased.calls) == sorted(anas)
     assert (erased.trail.what, erased.trail.calls, erased.trail.memories) == ("contact", 2, 2)
@@ -152,7 +184,7 @@ async def test_a_contact_in_the_other_world_is_not_touched(
 ) -> None:
     org = await an_org(pool)
     call = await logged_call(store, org.id, ACall(caller=ANA))
-    erased = await erasure.contact(pool, tmp_path, Scope(org.id, "sandbox"), ANA, by="k_1")
+    erased = await erasure.contact(pool, Disk(tmp_path), Scope(org.id, "sandbox"), ANA, by="k_1")
     assert erased.calls == ()
     assert (await left_of(pool, call))["entries"] > 0
 
@@ -171,7 +203,7 @@ async def test_an_org_erased_takes_every_log_and_its_row_and_its_trail_outlives_
         await connection.execute(A_RUN, (AGENT,))
         await connection.execute(A_READ, (org.id, AGENT))
 
-    erased = await erasure.org(pool, tmp_path, org.id, by="operator")
+    erased = await erasure.org(pool, Disk(tmp_path), org.id, by="operator")
 
     assert erased.calls == (call,)
     assert await left_of(pool, call) == NOTHING_LEFT
@@ -220,7 +252,7 @@ async def test_the_trail_is_the_orgs_alone_newest_first(
     first = await logged_call(store, org.id)
     second = await logged_call(store, org.id)
     theirs = await logged_call(store, other.id)
-    await erasure.call(pool, tmp_path, Scope(org.id), first, by="m_1")
-    await erasure.call(pool, tmp_path, Scope(org.id), second, by="m_1")
-    await erasure.call(pool, tmp_path, Scope(other.id), theirs, by="m_2")
+    await erasure.call(pool, Disk(tmp_path), Scope(org.id), first, by="m_1")
+    await erasure.call(pool, Disk(tmp_path), Scope(org.id), second, by="m_1")
+    await erasure.call(pool, Disk(tmp_path), Scope(other.id), theirs, by="m_2")
     assert [row.subject for row in await erasure.trail(pool, org.id)] == [second, first]

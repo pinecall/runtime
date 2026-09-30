@@ -2,6 +2,7 @@
 
 import dataclasses
 
+from pinecall.domain.names import JsonObject
 from pinecall.evals.checks import (
     DEFAULT_BUDGET,
     Failure,
@@ -12,6 +13,7 @@ from pinecall.evals.checks import (
     rebuild,
     register,
     replay,
+    talk,
 )
 from tests.evals.conftest import (
     BOOK,
@@ -25,6 +27,7 @@ from tests.evals.conftest import (
     tool,
     with_no_gate,
 )
+from tests.wire.golden import golden_entries
 
 IRREVERSIBLE = frozenset({BOOK.name})
 
@@ -139,10 +142,10 @@ def test_an_error_the_session_recovered_from_is_named_and_still_passes() -> None
     assert "seq 2 stt_reconnected" in verdict.detail
 
 
-def test_the_latency_verdict_is_the_median_of_the_turns_against_the_budget() -> None:
+def test_the_latency_verdict_is_the_worst_turn_against_the_budget() -> None:
     verdict = latency(rebuild(confirmed()), DEFAULT_BUDGET)
     assert verdict.status == "held"
-    assert "e2e_latency 1.040s <= 2.000s over 2 turns" in verdict.detail
+    assert "e2e_latency 1.080s <= 2.000s at its worst of 2 turns" in verdict.detail
     assert "llm_node_ttft 0.400s" in verdict.detail
     assert "tts_node_ttfb 0.200s" in verdict.detail
 
@@ -150,7 +153,40 @@ def test_the_latency_verdict_is_the_median_of_the_turns_against_the_budget() -> 
 def test_a_budget_the_call_did_not_keep_fails() -> None:
     verdict = latency(rebuild(confirmed()), {"e2e_latency": 0.5})
     assert verdict.status == "broken"
-    assert verdict.detail == "e2e_latency 1.040s > 0.500s over 2 turns"
+    assert verdict.detail == "e2e_latency 1.080s > 0.500s at its worst of 2 turns"
+
+
+def test_one_long_silence_fails_the_call_even_when_the_median_would_pass() -> None:
+    log = a_log(
+        timed(caller("hola"), 0.0, 1.0),
+        timed(agent("buenas"), 1.5, 2.0),
+        timed(caller("quiero un turno", "sp_2"), 3.0, 4.0),
+        timed(agent("un momento", "sp_2"), 8.0, 9.0),
+        timed(caller("gracias", "sp_3"), 10.0, 11.0),
+        timed(agent("de nada", "sp_3"), 11.5, 12.0),
+    )
+    call = rebuild(log)
+    assert call.latencies["dead_air"] == (0.5, 4.0, 0.5)
+    verdict = latency(call, {"dead_air": 2.0})
+    assert verdict.status == "broken"
+    assert verdict.detail == "dead_air 4.000s > 2.000s at its worst of 3 turns"
+
+
+def test_an_agent_that_talks_over_its_share_fails_and_none_asked_is_skipped() -> None:
+    log = a_log(
+        timed(caller("hola"), 0.0, 1.0),
+        timed(agent("buenas, le cuento todo lo que tenemos esta semana"), 1.5, 10.5),
+    )
+    call = rebuild(log)
+    assert call.latencies["talk_share"] == (0.9,)
+    over = talk(call, {"talk_share": 0.6})
+    assert (over.status, over.detail) == (
+        "broken",
+        "the agent spoke 90% of the talking time, > 60%",
+    )
+    assert talk(call, {"talk_share": 0.95}).status == "held"
+    assert talk(call, DEFAULT_BUDGET).status == "skipped"
+    assert latency(call, {"talk_share": 0.1}).status == "skipped", "a share is never seconds"
 
 
 def test_a_call_whose_turns_measured_nothing_is_skipped() -> None:
@@ -159,16 +195,36 @@ def test_a_call_whose_turns_measured_nothing_is_skipped() -> None:
     assert "e2e_latency" in verdict.detail
 
 
-def test_a_replay_answers_the_four_checks_in_order_on_the_default_budget() -> None:
+def test_a_barge_in_that_took_too_long_to_obey_fails_the_latency_budget() -> None:
+    call = rebuild(golden_entries())
+    assert [round(seconds, 2) for seconds in call.latencies["interruption_delay"]] == [0.33]
+    verdict = latency(call, {"interruption_delay": 0.2})
+    assert verdict.status == "broken"
+    assert verdict.detail.startswith("interruption_delay 0.331s > 0.200s")
+
+
+def test_a_replay_answers_the_five_checks_in_order_on_the_default_budget() -> None:
     verdicts = replay(confirmed(), banned=(), budget={}, irreversible=IRREVERSIBLE)
     assert [(verdict.check, verdict.status) for verdict in verdicts] == [
         ("consent", "held"),
         ("register", "skipped"),
         ("errors", "held"),
         ("latency", "held"),
+        ("talk", "skipped"),
     ]
 
 
 def test_the_rebuilt_call_says_what_the_agent_said_and_whose_it_is() -> None:
     call = rebuild(a_log(caller("hola"), agent("buenas"), result("x", "y", call_id="c")))
     assert (call.call, call.agent, call.said) == ("CA_8f4a2c", "clinica-norte", ("buenas",))
+
+
+def timed(turn: tuple[str, JsonObject], started: float, stopped: float) -> tuple[str, JsonObject]:
+    """A turn with when its speaker started and stopped speaking."""
+    kind, data = turn
+    metrics = data["metrics"]
+    assert isinstance(metrics, dict)
+    return kind, {
+        **data,
+        "metrics": {**metrics, "started_speaking_at": started, "stopped_speaking_at": stopped},
+    }

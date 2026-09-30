@@ -11,6 +11,9 @@ Image=localhost/pinecall/postgres:17-pgvector0.8.6-pgtextsearch1.4.0
 Network=pinecall.network
 PublishPort=127.0.0.1:5432:5432
 Volume=pinecall-postgres.volume:/var/lib/postgresql/data
+# The WAL spool: with archiving on (wal.sh apply, on a box with a bucket), archive_command copies
+# each finished segment here and pinecall-wal.timer ships it off the box. Empty on a box without.
+Volume=/var/lib/pinecall/wal:/var/lib/pinecall/wal:rw
 Environment=POSTGRES_USER=pinecall
 Environment=POSTGRES_DB=pinecall
 EnvironmentFile=%d/media.env

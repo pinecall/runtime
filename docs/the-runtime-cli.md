@@ -10,7 +10,7 @@ writes an agent, nothing there issues a key.
 | group | speaks to |
 |---|---|
 | `gateway` · `worker` · `runner` · `doctor` · `providers` | this machine: its settings, its database, its LiveKit |
-| `migrate` · `sessions` · `memory` · `retention` · `traceback` | Postgres, straight, over `DATABASE_URL` |
+| `migrate` · `sessions` · `memory` · `retention` · `traceback` · `facts` | Postgres, straight, over `DATABASE_URL` |
 | `box up` · `box upgrade` | this machine as root: it made a box from the package itself |
 | `init` · `orgs` · `keys` · `routes` · `fleet` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` and `keys runner` alone are minted on the database, before any gateway answers |
 | `load` | a running gateway's sandbox, over the worker's own call doors with the sandbox fleet's key (`PINECALL_WORKER_KEY`) |
@@ -25,7 +25,7 @@ opens running, one gVisor container each, on a machine that is not the box
 ([../infra/apps/README.md](../infra/apps/README.md)). Every variable they read is
 [the-environment.md](the-environment.md).
 
-## `box up` · `box upgrade`
+## `box up` · `box upgrade` · `box failover`
 
 `sudo uvx --from pinecall pinecall-runtime box up --domains <production>[,<sandbox>]` makes the
 machine it runs on a box, from the files the package carries (`pinecall/infra/`): the system's
@@ -36,7 +36,8 @@ root; the names already point at the machine. `--backup-key age1…` writes
 `/etc/pinecall/backup.age.pub` and turns the nightly backup on; without it there is none.
 `--package` installs a wheel's path or another `pinecall==` instead. `box upgrade` is `box up`
 with the names the box has (`/etc/pinecall/box.env`): run from `uvx --from pinecall@latest`, it
-brings the box to that version. On a box, `/usr/local/bin/pinecall-runtime` runs any verb with the
+brings the box to that version. `box failover`, on the machine `infra/cell/replica.sh` made a replica, promotes its
+Postgres and prints what to repoint; it repoints nothing itself ([a-box-in-production.md](a-box-in-production.md)). On a box, `/usr/local/bin/pinecall-runtime` runs any verb with the
 box's settings and sealed credentials: `sudo pinecall-runtime doctor`, `sudo pinecall-runtime init …`.
 
 ## `init`
@@ -90,13 +91,15 @@ routes rm <number> [--org] · routes seed [--file infra/seed/routes.json]
 
 ```
 fleet list [--fleet <name>] · fleet cordon <worker> · fleet uncordon <worker>
-fleet loop --cloud <script> --seats <n> [--fleet <name>] [--target 0.6] [--min 1] [--max 10] [--every 15] [--once] [--dry-run]
+fleet loop --cloud <script> --seats <n> [--fleet <name>] [--target 0.6] [--min 1] [--max 10]
+           [--grow-at-most 1] [--every 15] [--once] [--dry-run]
 ```
 
 `list` is the roster the gateway hears: each worker, what it holds, its seats, load, standing and
 when it was heard, then each fleet summed. `loop` keeps a fleet at its target ([scaling.md](scaling.md)):
 `--cloud` is a script with three verbs, `create <name>`, `delete <name>`, `list`; `infra/fleet/`
-holds one per cloud. `--once --dry-run` prints one tick's verdict and touches nothing.
+holds one per cloud. A tick grows by the seats missing, at most `--grow-at-most` machines (1 unless
+said), and shrinks by one cordon. `--once --dry-run` prints one tick's verdict and touches nothing.
 
 ## `load`
 
@@ -126,8 +129,9 @@ PINECALL_GATEWAY_URL=https://sandbox.<throwaway box> PINECALL_WORKER_KEY=<its sa
 It runs against **a box made for it** (`box up` on a clean machine), never production's: the
 calls are real calls of the org, logged, counted against its quotas and sealed. The org is one
 made for the run, with its sandbox quotas (`orgs quota --env sandbox`) above the run and its
-hang-up judging off (`PUT /v1/org/judging`), or every seal asks the box's judge model. One
-connection per call is kept open, so `ulimit -n` must be above `--calls`. At the end it prints,
+hang-up judging off (`PUT /v1/org/judging`), or every seal asks the box's judge model. Each call
+at once has a client and a connection of its own, as a worker's job has, so `ulimit -n` must be
+above `--calls`. At the end it prints,
 a line each:
 
 | line | what it is |
@@ -143,14 +147,15 @@ a line each:
 | `logs verified` · `logs found wrong` · `logs unread` | each sealed call's log read back: every durable entry sent, once each, in order, and seqs that rose; `unread` counts the reads refused, by status: today every one (403), since a fleet key does not open `calls`, so only the seqs are checked |
 | `loop lag ms` | the p99 lag of the generator's own event loop; over 50 ms a `warning:` line follows, since a saturated generator measures itself |
 
-## `sessions` · `memory` · `retention` · `traceback` · `migrate` · `providers` · `doctor`
+## `sessions` · `memory` · `retention` · `traceback` · `facts` · `migrate` · `providers` · `doctor`
 
 `sessions list [--agent] [--limit]`, `sessions show <call> [--json]`, `sessions tail [<call>]`,
 `sessions recording <call>`: the log read back off Postgres, every tenant's; each read of a call is a row of its org's access log (`reader: operator`), and so is each org a `traceback` showed. `memory reembed`
 embeds every fact another model wrote under the box's embedder. `retention due` lists the sealed
 calls past their org's `retention_days` (`PUT /v1/org/policy`), oldest first; `retention run`
 erases them, each through the erasure path with `retention` as who asked, 5 000 a run at most,
-then forgets the detail records of erased phone calls, and the dials, older than 24 months;
+then forgets the detail records of erased phone calls, and the dials, older than 24 months, and
+the WhatsApp message ids claimed more than 7 days ago ([whatsapp.md](protocol/whatsapp.md));
 `pinecall-retention.timer` runs it at 04:00 every night. `traceback <number> [--since
 YYYY-MM-DD]` answers a carrier's traceback: every phone call with the number, still kept or erased
 with its record, and every dial to it placed or refused, with the org, the world, the number shown
@@ -161,5 +166,13 @@ runs and whether the box holds its key; `providers seed <file>` writes the provi
 starts from, once: after it, the console edits it at `/v1/ops/providers`. `providers prices
 <file.csv> [--apply]` says what a prices file changes in the row's rates (new, changed, the same,
 and the models only the box holds, which it keeps) and writes nothing until `--apply`; the box
-ships `infra/box/prices.csv`. `doctor` asks each thing the box needs one question, a line
-each, and exits 1 when one is missing; it is the last line of every deploy.
+ships `infra/box/prices.csv`. `facts rebuild [--call <call>] [--org <org id>] [--since
+YYYY-MM-DD]` folds each call's facts row (what the lists, the inbox and the insights read) again
+from its log, every call's when no flag is given, and writes the row where it differs: one call at
+a time, each in a transaction of its own under the lock its appends take, so a live call waits
+milliseconds and nothing holds a long transaction; it prints how many calls it read and how many
+rows it rewrote. `doctor` asks each thing the box needs one question, a line each, and exits 1
+when one is missing; it is the last line of every deploy. Its `facts` line names every log whose
+head gave out fewer seqs than its rows hold, and refolds 20 sealed calls from a random point of
+the call ids, naming each whose stored facts differ and the columns that do: `facts rebuild
+--call` mends one.

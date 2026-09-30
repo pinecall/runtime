@@ -278,6 +278,42 @@ async def test_an_empty_batch_and_one_past_the_most_are_refused(
     assert await store.latest_seq(call) == 0
 
 
+# ── the first of its type ──
+
+
+async def test_an_entry_of_a_type_the_log_lacks_is_written_and_a_second_is_not(
+    store: Store, call: str
+) -> None:
+    await store.append(call, AGENT, "call.started", {}, ephemeral=False)
+    first = await store.append_first(call, AGENT, "call.ended", {"reason": "drained"})
+    assert first is not None
+    assert first.seq == 2
+    assert await store.append_first(call, AGENT, "call.ended", {"reason": "error"}) is None
+    assert [entry.type for entry in await store.since(call)] == ["call.started", "call.ended"]
+
+
+async def test_two_writers_deciding_the_same_end_at_once_write_it_once(
+    store: Store, call: str
+) -> None:
+    await store.append(call, AGENT, "call.started", {}, ephemeral=False)
+    both = await asyncio.gather(
+        *(store.append_first(call, AGENT, "call.ended", {"n": n}) for n in range(4))
+    )
+    assert sum(entry is not None for entry in both) == 1
+    assert [entry.type for entry in await store.since(call)] == ["call.started", "call.ended"]
+
+
+async def test_a_sealed_log_or_one_never_written_takes_no_first_entry(
+    store: Store, call: str
+) -> None:
+    assert await store.append_first(call, AGENT, "call.ended", {}) is None
+    assert await store.latest_seq(call) == 0
+    await store.append(call, AGENT, "call.started", {}, ephemeral=False)
+    await store.seal(call)
+    assert await store.append_first(call, AGENT, "call.ended", {}) is None
+    assert await store.latest_seq(call) == 1
+
+
 # ── sealing ──
 
 

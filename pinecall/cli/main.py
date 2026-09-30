@@ -6,6 +6,7 @@ import logging
 import sys
 import time
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from types import FrameType
 from typing import override
@@ -15,12 +16,14 @@ import httpx
 import uvicorn
 from livekit import api
 
-from pinecall.cli import _box, _load, _operator, _sessions, _traceback
+from pinecall.channels import whatsapp
+from pinecall.cli import _archive, _box, _facts, _load, _operator, _sessions, _traceback
 from pinecall.domain.errors import NotAvailable, PinecallError
 from pinecall.gateway.app import announce_closing, app, embedder_of
 from pinecall.postgres.migrate import apply_migrations, migration_files, migrations_behind
 from pinecall.postgres.pool import open_pool
 from pinecall.process.connections import opened, server_of, vault_of
+from pinecall.process.recordings import recordings_of
 from pinecall.process.settings import Settings, load
 from pinecall.providers import catalog, prices
 from pinecall.providers.build import installed
@@ -178,21 +181,22 @@ def retention_due(settings: Settings, _args: argparse.Namespace) -> int:
 
 
 def retention_run(settings: Settings, _args: argparse.Namespace) -> int:
-    """Erase every sealed call past its org's days, forget old records and dials; how many."""
-    erased, records, dials = asyncio.run(_purged(settings))
+    """Erase every sealed call past its org's days, forget what is kept for a time; how many."""
+    erased, records, dials, seen = asyncio.run(_purged(settings))
     sys.stdout.write(f"{len(erased)} calls erased past their org's days\n")
     sys.stdout.write(f"{records} call records and {dials} dials forgotten past 24 months\n")
+    sys.stdout.write(f"{seen} WhatsApp message ids forgotten past Meta's 7 days of retries\n")
     return 0
 
 
 def doctor(settings: Settings, _args: argparse.Namespace) -> int:
     """Each thing the box needs, a line each; the exit is 1 when one is missing."""
     lines = asyncio.run(_examined(settings))
-    for name, trouble in lines:
+    for name, trouble, state in lines:
         text = "ok" if trouble is None else "NO"
-        why = "" if trouble is None else f": {trouble}"
+        why = f": {trouble}" if trouble is not None else (f": {state}" if state else "")
         sys.stdout.write(f"{text}  {name}{why}\n")
-    return 0 if all(trouble is None for _, trouble in lines) else 1
+    return 0 if all(trouble is None for _, trouble, _ in lines) else 1
 
 
 def verbs() -> argparse.ArgumentParser:
@@ -245,6 +249,7 @@ def verbs() -> argparse.ArgumentParser:
         run=retention_run
     )
     _sessions.sessions_group(under.add_parser("sessions", help="the log, off Postgres"))
+    _facts.facts_group(under.add_parser("facts", help="each call's facts, folded from its log"))
     _traceback.traceback_verb(
         under.add_parser("traceback", help="a number's calls and dials, for a carrier")
     )
@@ -316,23 +321,27 @@ async def _due(settings: Settings) -> list[retention.Due]:
         await pool.close()
 
 
-async def _purged(settings: Settings) -> tuple[list[str], int, int]:
+async def _purged(settings: Settings) -> tuple[list[str], int, int, int]:
     pool = await open_pool(settings.database_url)
     now = time.time()
     try:
-        erased = await retention.purge(pool, Path(settings.recordings_root), now)
+        async with httpx.AsyncClient() as http:
+            erased = await retention.purge(pool, recordings_of(settings, http), now)
         records = await retention.forget_records(pool, now)
-        return erased, records, await retention.forget_dials(pool, now)
+        dials = await retention.forget_dials(pool, now)
+        return erased, records, dials, await whatsapp.forget_seen(pool, now)
     finally:
         await pool.close()
 
 
-async def _examined(settings: Settings) -> list[tuple[str, str | None]]:
+async def _examined(settings: Settings) -> list[tuple[str, str | None, str]]:
     return [
-        ("vault", _vault(settings)),
-        ("database", await _database(settings)),
-        ("livekit", await _livekit(settings)),
-        ("gateway", await _gateway(settings)),
+        ("vault", _vault(settings), ""),
+        ("database", await _database(settings), ""),
+        ("facts", await _facts.examined(settings), ""),
+        ("archive", *await _archived(settings)),
+        ("livekit", await _livekit(settings), ""),
+        ("gateway", await _gateway(settings), ""),
     ]
 
 
@@ -354,6 +363,18 @@ async def _database(settings: Settings) -> str | None:
     finally:
         await pool.close()
     return f"{len(behind)} migrations behind: {', '.join(behind)}" if behind else None
+
+
+async def _archived(settings: Settings) -> tuple[str | None, str]:
+    try:
+        pool = await open_pool(settings.database_url)
+    except PinecallError as refused:
+        return str(refused), ""
+    try:
+        archive = await _archive.archive_of(pool)
+    finally:
+        await pool.close()
+    return _archive.archive_finding(archive, datetime.now(UTC))
 
 
 async def _livekit(settings: Settings) -> str | None:

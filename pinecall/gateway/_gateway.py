@@ -1,7 +1,7 @@
 """The gateway process: its connections and the state it keeps in memory while it serves."""
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pinecall.evals.runs import Runner
 from pinecall.fleet.roster import Roster
@@ -10,6 +10,7 @@ from pinecall.gateway._sockets import Sockets
 from pinecall.gateway._threads import Threads
 from pinecall.log.logs import Logs
 from pinecall.process.connections import Connections
+from pinecall.process.metrics import Counters
 from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy.codes import Codes
 from pinecall.tenancy.mail import Outbox
@@ -38,6 +39,8 @@ class Gateway:
     outbox: Outbox
     # Thirty voice samples a minute per key: they cost vendor time and write no usage row.
     samples: Throttle
+    # What GET /metrics reads: counted on the append path since the process started.
+    counters: Counters = field(default_factory=Counters)
 
     @property
     def serving(self) -> Serving:

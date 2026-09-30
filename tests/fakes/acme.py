@@ -1,5 +1,6 @@
 """The vendor `acme`: a scripted model, and ears and a voice that keep what they were built with."""
 
+import asyncio
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -64,12 +65,13 @@ class AcmeTTS(tts.TTS[Never]):
         silent: bool = False,
         voices: list[dict[str, str]] | None = None,
         refusal: str | None = None,
+        channels: int = 1,
     ) -> None:
-        """Keep the arguments and the audio it will speak."""
+        """Keep the arguments and the audio it will speak, in `channels` channels."""
         super().__init__(
             capabilities=tts.TTSCapabilities(streaming=False),
             sample_rate=A_RATE,
-            num_channels=1,
+            num_channels=channels,
         )
         self.given = {
             "speech_key": speech_key,
@@ -145,11 +147,12 @@ class AcmeSTT(stt.STT[Never]):
         eot_timeout_ms: int | None = None,
         params: AcmeOptions | None = None,
         keyterms: bool = False,
+        streams: bool = True,
     ) -> None:
-        """Keep the arguments; `keyterms` says whether it takes livekit's keyterms."""
+        """Keep the arguments; `keyterms` and `streams` say what livekit may ask of it."""
         super().__init__(
             capabilities=stt.STTCapabilities(
-                streaming=True, interim_results=True, keyterms=keyterms
+                streaming=streams, interim_results=True, keyterms=keyterms
             )
         )
         self.given: dict[str, object] = {
@@ -205,9 +208,11 @@ class AcmeLLM(llm.LLM[Never]):
         model: str = "acme-1",
         temperature: float = 1.0,
         replies: list[list[str | dict[str, object]]] | None = None,
+        refusal: str | None = None,
     ) -> None:
-        """Keep the arguments; `replies` in order, each text pieces and tool calls."""
+        """Keep the arguments; `replies` in order; `refusal` a vendor that never answers."""
         super().__init__()
+        self.refusal = refusal
         self.given: dict[str, object] = {
             "api_key": api_key,
             "model": model,
@@ -217,12 +222,20 @@ class AcmeLLM(llm.LLM[Never]):
             tuple(_part(item) for item in reply) for reply in replies or []
         ]
         self.requests: list[ModelRequest] = []
+        # How long it takes before its first token; a test makes it slow.
+        self.thinks_s = 0.0
 
     @property
     @override
     def model(self) -> str:
         """The model it was built with, as a real plugin names the one it runs."""
         return str(self.given["model"])
+
+    @property
+    @override
+    def provider(self) -> str:
+        """The vendor, as a real plugin names itself."""
+        return ACME
 
     @override
     def chat(
@@ -263,10 +276,15 @@ class _Streamed(llm.LLMStream):
         conn_options: APIConnectOptions,
     ) -> None:
         super().__init__(model, chat_ctx=chat_ctx, tools=tools, conn_options=conn_options)  # pyright: ignore[reportUnknownMemberType]
+        self.scripted = model
         self.reply = reply
+        self.refusing = model.refusal
 
     @override
     async def _run(self) -> None:
+        if self.refusing:
+            raise APIConnectionError(self.refusing)
+        await asyncio.sleep(self.scripted.thinks_s)
         for part in self.reply:
             if isinstance(part, str):
                 delta = llm.ChoiceDelta(role="assistant", content=part)

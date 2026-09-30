@@ -18,12 +18,12 @@ through `_on_metrics_collected` (`:1967`), which stamps `speech_id` on `LLMMetri
 
 > **`AgentSession.on("metrics_collected")` is deprecated in 1.8** — subscribing logs a warning
 > naming `session_usage_updated` and `ChatMessage.metrics` as the replacements
-> (`agent_session.py:725-731`). The event still carries every block. The bridge subscribes to
+> (`agent_session.py:725-731`). The event still carries every block. The session subscribes to
 > the **components** we built in `providers/` instead, which is the same data with no warning,
-> and takes the session's `session_usage_updated` for the rows. Two consequences, both in
-> `worker/bridge/metrics.py`: an emitter's listeners are a **set** (`rtc/event_emitter.py:15`),
-> so ours may run before livekit's own stamps `speech_id` on the block (`:1971`) — the write
-> waits one loop tick; and `EOUMetrics` has no component to hear it on (`:2699`), so it is rebuilt
+> and takes the session's `session_usage_updated` for the rows. Two consequences, in
+> `session/session.py` (`_measured`) and `session/_livekit.py` (`end_of_utterance`): an
+> emitter's listeners are a **set** (`rtc/event_emitter.py:15`), so ours may run before
+> livekit's own stamps `speech_id` on the block (`:1971`) — the write waits one loop tick; and `EOUMetrics` has no component to hear it on (`:2699`), so it is rebuilt
 > from the user turn's own `MetricsReport`, the way livekit builds it (`:2683-2697`).
 
 **The per-turn latencies.** New in 1.8: `ChatMessage.metrics` is a `MetricsReport`
@@ -33,7 +33,7 @@ measure is simply absent. The agent's report is assembled before the message exi
 built by `_init_metrics_from_end_of_turn` (`:4768`), attached at `:2554`, and
 `on_user_turn_completed_delay` is written into that same dict at `:2615`.
 
-**The timing, which is the whole reason the bridge can be simple:** a message reaches
+**The timing, which is the whole reason the session's reading can be simple:** a message reaches
 `conversation_item_added` (`agent_session.py:2065`) with its `metrics` **already complete**.
 The typed blocks arrive earlier — `LLMMetrics` when the stream closes, `TTSMetrics` per
 segment — so in the log `metrics.llm` precedes the `turn.agent` it belongs to, joined by
@@ -108,8 +108,8 @@ and `end_of_turn_delay` ride the `ChatMessage.metrics` report (verdict 14) — t
 `turn.user.metrics` and, rebuilt, as `metrics.eou`. And the call's STT total is not lost by
 dropping the ticks: livekit sums exactly these blocks into `STTModelUsage.audio_duration`
 (`agents/metrics/usage.py:87-101`, summed by `ModelUsageCollector`, `:137`), which `call.summary`
-carries whole and `providers/prices/prices.py` bills from. On the smoke call the 73 ticks summed to the
+carries whole and `providers/prices.py` bills from. On the smoke call the 73 ticks summed to the
 42.48 s the summary row already carried.
 
-What the bridge does with that is `docs/decisions/voice-bridge.md`, "The ticks a streaming STT
-keeps emitting".
+What the session does with them is `session/session.py` `_write_block`: a streaming STT's tick
+with no `acquire_time` is written ephemeral, so the durable log keeps the total and not the ticks.
