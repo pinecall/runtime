@@ -16,6 +16,7 @@ from pinecall.gateway._served import Serving
 from pinecall.gateway._sockets import Registration, Sockets
 from pinecall.gateway._text_calls import open_text, resume_text, tokens_of
 from pinecall.log import queries
+from pinecall.postgres.pool import Pool
 from pinecall.session import text
 from pinecall.session.session import Session
 from pinecall.tenancy import admission
@@ -110,7 +111,7 @@ class Threads:
     # delivery reads it again. A process that dies mid-reading leaves a claim its lease expires.
     async def received(self, inbound: Inbound) -> bool:
         """Read the message once, onto its contact's conversation; False while another reads it."""
-        route = await self._route_of(inbound)
+        route = await _route_of(self.serving.connections.pool, inbound)
         if route is None:
             return True
         pool = self.serving.connections.pool
@@ -126,15 +127,6 @@ class Threads:
             raise
         await whatsapp.read(pool, route.org, inbound.message_id, now)
         return True
-
-    async def _route_of(self, inbound: Inbound) -> Route | None:
-        if inbound.kind != "text" or not inbound.text:
-            logger.warning(NOT_TEXT, inbound.kind or "message", inbound.number)
-            return None
-        route = await routes.at(self.serving.connections.pool, "whatsapp", inbound.number)
-        if route is None:
-            logger.warning(NOBODY_AT, inbound.number, inbound.number)
-        return route
 
     # Returns once the message is queued or kept: Meta sends a slow webhook again.
     async def _heard(self, route: Route, inbound: Inbound) -> None:
@@ -171,7 +163,7 @@ class Threads:
                 await whatsapp.taken(self.serving.logs, waiting, None)
                 continue
             # Claimed and read when it was kept: it is heard, not received again.
-            route = await self._route_of(waiting.inbound)
+            route = await _route_of(self.serving.connections.pool, waiting.inbound)
             if route is not None:
                 await self._heard(route, waiting.inbound)
             opened = self.open.get(_door(registration.scope, waiting.inbound))
@@ -302,3 +294,13 @@ class Threads:
 
 def _door(scope: Scope, inbound: Inbound) -> Door:
     return (scope.org, scope.env, inbound.number, inbound.wa_id)
+
+
+async def _route_of(pool: Pool, inbound: Inbound) -> Route | None:
+    if inbound.kind != "text" or not inbound.text:
+        logger.warning(NOT_TEXT, inbound.kind or "message", inbound.number)
+        return None
+    route = await routes.at(pool, "whatsapp", inbound.number)
+    if route is None:
+        logger.warning(NOBODY_AT, inbound.number, inbound.number)
+    return route
