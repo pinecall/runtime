@@ -82,7 +82,9 @@ async def start_sso(
     check_knock(gateway, f"{client_of(request)} sso/{owner.slug}", TOO_MANY_SIGN_INS)
     provider = await sso.discovered(connections.http, wired.client.issuer)
     redirect_uri = f"{public_url(request, gateway)}{sso.CALLBACK}"
-    begun = sso.handshake(gateway.signins.handshakes, redirect_uri, org=owner.id, pairing=pairing)
+    begun = await sso.handshake(
+        gateway.signins.handshakes, redirect_uri, org=owner.id, pairing=pairing
+    )
     return RedirectResponse(sso.authorization_url(provider, wired.client, begun), FOUND)
 
 
@@ -93,7 +95,7 @@ async def finish_sso(
     state: str, gateway: GatewayDep, code: str | None = None, error: str | None = None
 ) -> RedirectResponse:
     """The code exchanged, the person seated, and 302 to the console with a login code."""
-    begun = gateway.signins.handshakes.spend(state)
+    begun = await gateway.signins.handshakes.spend(state)
     if begun is None:
         raise DeclarationRefused(NO_HANDSHAKE)
     if error is not None:
@@ -104,7 +106,7 @@ async def finish_sso(
         member = await _seated(gateway, begun, code)
     except PinecallError as refusal:
         return _refused(str(refusal))
-    login, _ = gateway.signins.codes.mint(member)
+    login, _ = await gateway.signins.codes.mint(member)
     return RedirectResponse(_landing(begun.pairing, login), FOUND)
 
 

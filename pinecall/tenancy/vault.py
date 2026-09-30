@@ -70,6 +70,7 @@ SEALED_COLUMNS: tuple[SealedColumn, ...] = (
     SealedColumn("call_private", "sealed"),
     SealedColumn("carriers", "ciphertext"),
     SealedColumn("hosted_apps", "sealed_key"),
+    SealedColumn("one_use_words", "sealed"),
     SealedColumn("org_mail", "ciphertext"),
     SealedColumn("org_secrets", "sealed"),
     SealedColumn("org_sso", "ciphertext"),

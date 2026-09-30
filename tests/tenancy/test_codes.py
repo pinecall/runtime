@@ -1,10 +1,13 @@
 """Tests for the codes a caller keys to tie their call to a page."""
 
+import asyncio
+
 import pytest
 
 from pinecall.domain.errors import QuotaExhausted
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store
+from pinecall.process.signal import LocalSignal
 from pinecall.tenancy.codes import CLAIMED, ISSUED, LIVE_PER_AGENT, Codes
 from tests.conftest import postgres
 from tests.tenancy.test_agents import AGENT, agent_log
@@ -76,15 +79,18 @@ async def test_a_page_that_waited_its_while_is_answered_as_the_code_stands(store
 
 
 @postgres
-async def test_a_gateway_that_starts_reads_every_open_code_back_off_the_log(store: Store) -> None:
-    before = Codes(Logs(store))
-    open_one = await before.issue("sandbox", AGENT, 60, "public")
-    taken = await before.issue("sandbox", AGENT, 60, "tenant")
-    await before.claim("sandbox", AGENT, taken.code, "call_1")
-    after = Codes(Logs(store))
-    await after.loaded()
-    reopened = await after.status_of("sandbox", AGENT, open_one.code)
-    still_taken = await after.status_of("sandbox", AGENT, taken.code)
-    assert reopened is not None
-    assert still_taken is not None
-    assert (reopened.claimed, still_taken.claimed, still_taken.log) == (None, "call_1", "tenant")
+async def test_a_code_issued_on_one_gateway_is_claimed_on_another_and_wakes_the_page(
+    store: Store,
+) -> None:
+    signal = LocalSignal()
+    first, second = Codes(Logs(store, signal)), Codes(Logs(store, signal))
+    issued = await first.issue("sandbox", AGENT, 60, "tenant")
+    waiting = asyncio.create_task(first.waited(issued, 5))
+    await asyncio.sleep(0.05)
+    claimed = await second.claim("sandbox", AGENT, issued.code, "call_1")
+    assert claimed is not None
+    woken = await asyncio.wait_for(waiting, 1)
+    assert (woken.claimed, woken.log) == ("call_1", "tenant")
+    still = await second.status_of("sandbox", AGENT, issued.code)
+    assert still is not None
+    assert still.claimed == "call_1"

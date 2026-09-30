@@ -15,6 +15,7 @@ from pinecall.process.connections import keyring_of, vault_of
 from pinecall.tenancy import carriers, hosting, mail, org_secrets, recording_keys, sso
 from pinecall.tenancy.carriers import SipPeer
 from pinecall.tenancy.orgs import create, remove
+from pinecall.tenancy.signin import SignIns
 from pinecall.tenancy.vault import (
     SEALED_COLUMNS,
     box_credentials,
@@ -28,6 +29,7 @@ from pinecall.tenancy.vault import (
     sealed,
     vendors_of,
 )
+from pinecall.tenancy.words import Words
 from tests.conftest import postgres
 
 OLD = Fernet.generate_key().decode()
@@ -73,6 +75,7 @@ async def everything_sealed(pool: Pool, vault: MultiFernet) -> None:
     phone: JsonObject = {"arguments": {"phone": "+34600111222"}}
     await private.kept_aside(Store(pool), vault, "CA_private", [(3, phone)])
     await recording_keys.key_for(pool, vault, org.id, "CA_recorded")
+    await SignIns.kept(Words(pool, vault)).pairings.open("Ana's laptop")
 
 
 async def tokens_by_column(pool: Pool, schema: str) -> dict[str, list[str]]:

@@ -48,6 +48,7 @@ from pinecall.tenancy.mail import Outbox
 from pinecall.tenancy.signin import SignIns, Throttle
 from pinecall.tenancy.throttle import Window
 from pinecall.tenancy.tokens import Signer
+from pinecall.tenancy.words import Words
 from pinecall.wire.frames import Entry
 from tests.fakes.acme import ACME
 from tests.fakes.livekit import A_SECRET, Server, acme_plugin
@@ -383,7 +384,7 @@ async def a_gateway(pool: Pool, logs: Logs, shared: Shared) -> AsyncGenerator[Ga
         closing=asyncio.Event(),
         embedder=None,
         evals=Runner(),
-        signins=SignIns.fresh(store.clock),
+        signins=SignIns.kept(Words(pool, shared.vault, store.clock)),
         outbox=outbox,
         samples=Throttle(store.clock, tries=SAMPLES_A_MINUTE),
         paced=Window(store.clock),

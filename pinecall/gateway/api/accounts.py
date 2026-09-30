@@ -220,7 +220,7 @@ async def switch_org(
 @router.post("/v1/login/codes")
 async def mint_code(key: BearerDep, gateway: GatewayDep) -> MintCodeResponse:
     """A one-use word that gives a browser a key like this one, for five minutes."""
-    code, expires_at = gateway.signins.codes.mint(key.key)
+    code, expires_at = await gateway.signins.codes.mint(key.key)
     return MintCodeResponse(code=code, expires_at=expires_at)
 
 
@@ -241,7 +241,7 @@ async def forget_password(
 @router.post("/v1/login/pairings")
 async def open_pairing(body: OpenPairingRequest, gateway: GatewayDep) -> MintCodeResponse:
     """The word a terminal prints for a browser to approve, and when it dies."""
-    code, expires_at = gateway.signins.pairings.open(body.device)
+    code, expires_at = await gateway.signins.pairings.open(body.device)
     return MintCodeResponse(code=code, expires_at=expires_at)
 
 
@@ -249,7 +249,7 @@ async def open_pairing(body: OpenPairingRequest, gateway: GatewayDep) -> MintCod
 @router.get("/v1/login/pairings/{code}")
 async def pairing_status(code: str, gateway: GatewayDep) -> PairingStatusResponse:
     """Which terminal a browser is about to sign in, and whether it is answered."""
-    waiting = gateway.signins.pairings.asking(code)
+    waiting = await gateway.signins.pairings.asking(code)
     if waiting is None:
         raise NotFound(NO_PAIRING)
     return PairingStatusResponse(
@@ -267,7 +267,7 @@ async def approve_pairing(
     if key.key.subject is None or key.member is None:
         raise NotAllowed(NOT_A_PERSON)
     pairings = gateway.signins.pairings
-    waiting = pairings.asking(code)
+    waiting = await pairings.asking(code)
     if waiting is None:
         raise NotFound(NO_PAIRING)
     if waiting.answered:
@@ -275,7 +275,7 @@ async def approve_pairing(
     signed = await signin.another_key(
         gateway.connections.pool, key.key, key.member, device=waiting.device
     )
-    if not pairings.fill(code, signed.secret, signed.key.org):
+    if not await pairings.fill(code, signed.secret, signed.key.org):
         raise Conflict(ANSWERED)
     return PairingApprovedResponse(device=waiting.device, org=signed.key.org)
 
@@ -286,7 +286,7 @@ async def collect_key(
     code: str, response: Response, gateway: GatewayDep
 ) -> KeyCollectedResponse | EmptyResponse:
     """The terminal's key, once; 202 while nobody has approved."""
-    collected = gateway.signins.pairings.collect(code)
+    collected = await gateway.signins.pairings.collect(code)
     if collected.key is not None:
         return KeyCollectedResponse(key=collected.key)
     if not collected.waiting:

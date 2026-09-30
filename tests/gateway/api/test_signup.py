@@ -11,6 +11,7 @@ from pinecall.domain.person import ROLE_SCOPES
 from pinecall.gateway.app import app
 from pinecall.tenancy import keys, orgs
 from pinecall.tenancy.signin import ATTEMPTS, CODE_TTL_S, TRIES, SignIns
+from pinecall.tenancy.words import Words
 from tests.conftest import Knocking, postgres
 from tests.fakes.mail import Postbox
 from tests.gateway.api.conftest import box_can_mail, delivered, text_of
@@ -40,7 +41,8 @@ def opened(knocking: Knocking, clock: Callable[[], float] | None = None, **updat
         knocking.gateway, connections=replace(knocking.gateway.connections, settings=settings)
     )
     if clock is not None:
-        gateway = replace(gateway, signins=SignIns.fresh(clock))
+        words = Words(gateway.connections.pool, gateway.connections.vault, clock)
+        gateway = replace(gateway, signins=SignIns.kept(words))
     app.state.gateway = gateway
 
 
@@ -161,7 +163,7 @@ async def test_a_box_that_cannot_mail_takes_no_sign_up_and_keeps_nothing(
     assert answer.status_code == 503
     assert "PINECALL_SMTP_URL" in answer.json()["detail"]
     assert info["signup"] is True
-    assert app.state.gateway.signins.signups.renewed(TIENDA["email"]) is None
+    assert await app.state.gateway.signins.signups.renewed(TIENDA["email"]) is None
 
 
 @postgres

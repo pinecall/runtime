@@ -199,7 +199,7 @@ async def drop_sso(pool: Pool, org: str) -> bool:
         return await (await connection.execute(DROP_SSO, {"org": org})).fetchone() is not None
 
 
-def handshake(
+async def handshake(
     states: OneUse[Handshake],
     redirect_uri: str,
     *,
@@ -215,7 +215,7 @@ def handshake(
         redirect_uri=redirect_uri,
         pairing=pairing,
     )
-    states.keep(begun.state, begun)
+    await states.keep(begun.state, begun)
     return begun
 
 
