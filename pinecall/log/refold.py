@@ -18,7 +18,7 @@ A_PAGE = 500
 A_SAMPLE = 20
 
 
-NAMED = 20
+HEADS_EXAMINED = 20
 
 
 CALLS_PAGE = """
@@ -50,13 +50,24 @@ from call_log where log = %(call)s order by seq
 FACTS = "select * from call_facts where call = %(call)s"
 
 
-# Each head is one probe of the log's primary key: a head is never behind a row it numbered.
+# The heads doctor examines: the newest calls by the log's own order (the index of an entry's
+# type and position finds the last call.started without reading the rest), and as many from a
+# random point of the heads' key, round to the start. Each is one probe of the log's primary key:
+# a head is never behind a row it numbered. Every head would be a probe per call on the box.
 HEADS_BEHIND = """
-select head.log
-from call_log_head head
-where head.seq < (select max(entry.seq) from call_log entry where entry.log = head.log)
-order by head.log
-limit %(limit)s
+with newest as (
+    select log from call_log where type = 'call.started' order by position desc limit %(limit)s
+), sampled as (
+    (select log from call_log_head where log >= %(start)s order by log limit %(limit)s)
+    union all
+    (select log from call_log_head where log < %(start)s order by log limit %(limit)s)
+    limit %(limit)s
+), examined as (select log from newest union select log from sampled)
+select examined.log,
+       head.seq < (select max(entry.seq) from call_log entry where entry.log = examined.log)
+           as behind
+from examined join call_log_head head on head.log = examined.log
+order by examined.log
 """
 
 
@@ -89,6 +100,14 @@ class Rebuilt:
 
 
 @dataclass(frozen=True)
+class Heads:
+    """The heads doctor examined, and those among them whose rows are past their head's seq."""
+
+    examined: int
+    behind: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Differs:
     """A call whose stored facts are not what its log folds to, and the columns that differ."""
 
@@ -113,11 +132,12 @@ async def rebuild(pool: Pool, refolding: Refolding, *, page: int = A_PAGE) -> Re
     return Rebuilt(calls=calls, rewritten=rewritten)
 
 
-async def heads_behind(pool: Pool) -> list[str]:
-    """The logs whose head gave out fewer seqs than their rows hold, by name."""
+async def heads_behind(pool: Pool, *, examined: int = HEADS_EXAMINED) -> Heads:
+    """The newest heads and a sample of the rest, and those that gave out fewer seqs than rows."""
+    params = {"limit": examined, "start": f"{A_CALL}{uuid4().hex}"}
     async with pool.connection() as connection:
-        rows = await (await connection.execute(HEADS_BEHIND, {"limit": NAMED})).fetchall()
-    return [str(row["log"]) for row in rows]
+        rows = await (await connection.execute(HEADS_BEHIND, params)).fetchall()
+    return Heads(examined=len(rows), behind=tuple(str(row["log"]) for row in rows if row["behind"]))
 
 
 async def differing(pool: Pool, *, sample: int = A_SAMPLE) -> list[Differs]:

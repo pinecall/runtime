@@ -101,9 +101,9 @@ async def test_doctor_names_a_head_behind_its_rows_and_a_fact_its_log_does_not_f
 ) -> None:
     first = await logged_call(store, org)
     second = await logged_call(store, org)
-    assert await refold.heads_behind(pool) == []
+    assert await refold.heads_behind(pool) == refold.Heads(examined=2, behind=())
     assert await refold.differing(pool) == []
     await ran(pool, HEAD_BACK, first)
     await ran(pool, WRONG, second)
-    assert await refold.heads_behind(pool) == [first]
+    assert await refold.heads_behind(pool) == refold.Heads(examined=2, behind=(first,))
     assert await refold.differing(pool) == [Differs(call=second, columns=("outcome", "e2e"))]

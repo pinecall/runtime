@@ -13,7 +13,7 @@ from pinecall.process.settings import Settings
 
 REBUILT = "{calls} calls refolded, {rewritten} facts rows rewritten\n"
 
-BEHIND = "{logs}: rows past their head's seq"
+BEHIND = "{logs}: rows past their head's seq, of {examined} heads examined"
 
 APART = "facts not what their log folds to, of {sample} sampled: {calls}"
 
@@ -48,8 +48,8 @@ async def examined(settings: Settings) -> str | None:
     finally:
         await pool.close()
     troubles: list[str] = []
-    if behind:
-        troubles.append(BEHIND.format(logs=", ".join(behind)))
+    if behind.behind:
+        troubles.append(BEHIND.format(logs=", ".join(behind.behind), examined=behind.examined))
     if apart:
         calls = ", ".join(f"{item.call} ({', '.join(item.columns)})" for item in apart)
         troubles.append(APART.format(sample=refold.A_SAMPLE, calls=calls))
