@@ -360,3 +360,21 @@ class ErasureTrail(WireModel):
     """GET /v1/org/erasures: the org's erasures, newest first."""
 
     erasures: list[Erasure]
+
+
+class PromptBlockRow(WireModel):
+    """One block of a call's prompt as its log names it, with the words the org kept of it."""
+
+    seq: int
+    name: str
+    hash: str
+    chars: int
+    # Null for a block no gateway kept the words of (a call from before they were kept).
+    text: str | None
+
+
+class CallPromptResponse(WireModel):
+    """GET /v1/calls/{call}/prompt: every block the call was told, in the order it was told."""
+
+    call: str
+    blocks: list[PromptBlockRow]

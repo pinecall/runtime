@@ -85,6 +85,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `POST` | `/v1/calls/{call}/remember` | app · fleet | Write what the call taught into its contact's memory now, as the seal would. |
 | `POST` | `/v1/calls/{call}/reopened` | app · fleet | Serve again a call the gateway forgot. |
 | `POST` | `/v1/calls/{call}/sealed` | app · fleet | Price the call, write its summary and score, and seal its log. |
+| `GET` | `/v1/calls/{call}/prompt` | calls | Every block of prompt the call was told, in order, each with its words when kept. |
 | `GET` | `/v1/calls/{call}/settings` | calls | The exact settings and lexicon a call was built on. |
 | `GET` | `/v1/calls/{call}/state` | calls · fleet | The call's folded state as this reader may see it, and the seq a stream resumes from. |
 | `POST` | `/v1/calls/{call}/supervise` | supervise | A seat that speaks in one live call; its token also sends the verbs. |

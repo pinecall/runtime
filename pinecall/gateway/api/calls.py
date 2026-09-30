@@ -177,6 +177,7 @@ async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) 
     _refuse_unserved(gateway, scope, body, found)
     config, versions = await _tuned(gateway, scope, body.agent, found, context.call)
     await gateway.logs.store.claim(context.call, body.agent, scope.org, Claim(scope, versions))
+    await gateway.prompts.keep(gateway.connections.pool, scope.org, config.knowledge or "")
     owner = None if found is None else found.owner
     served = served_call(gateway.serving, owner, context, config, scope)
     await opened(served.log, context, body.agent)

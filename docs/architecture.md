@@ -17,7 +17,7 @@ surface is the URL.
 | `wire/` | every frame, event, command, part, state, metric and the judges' score (`scores.py`) as pydantic models, one file per family; `rest/` holds the doors' bodies per family (`accounts`, `agents`, `calls`, `evals`, `fleet`, `hosting`, `numbers`, `retrieval`) | `domain` |
 | `postgres/` | the pool and the migration runner, with `migrations/0001_schema.sql` beside it | `domain` |
 | `log/` | a call's log: the store, the facts folded at write (`facts.py`), the queries over them (`queries.py`), the facts folded again from the log (`refold.py`: `facts rebuild` and doctor's check), each day's drift counted at the seal (`drift.py`: the stages' histograms, `_histogram.py`, and the judges' verdicts, by agent and version; `drift rebuild`), the logs open in this process and their live readers (`logs.py`), the reducer, the two read projections | `domain` `wire` `postgres` `process` |
-| `tenancy/` | orgs, people, keys, the tokens the gateway signs, the vault, admission (the quotas an org is born with and counted against), per-scope agent tuning (`scopes.py`) and a version of it on a share of the calls (`canary.py`), the org's carrier accounts (`carriers.py`) and dial policy (the callee's hours, a number's daily count, consent and the do-not-call list among its guards; `consents.py` keeps those facts), erasure (`erasure.py`: a call, a contact or an org deleted through the one path `call_log`'s trigger admits, and its trail), the org's policy (`policy.py`: retention, its calling rules, and what a call says first, in `disclosure.py`) and the nightly retention run (`retention.py`, which also forgets call records past 24 months), a number's traceback (`traceback.py`: its calls kept or erased, and its dials), who read what (`reads.py`: a person's or the operator's read of a call, a recording or a number), the org's world exported as JSON Lines (`export.py`), caller codes, personas, an agent's own judges (`judges.py`), the apps the box hosts for an org with their releases (`hosting.py`), what happens to one while it runs — stopped, its logs, the time it served (`hosted_running.py`) — and the org's secrets (`org_secrets.py`), sign-in (a password, a one-use code, a paired terminal, a sign-up), the org's identity provider, mail and the letters it sends | `domain` `wire` `postgres` `process` `log` |
+| `tenancy/` | orgs, people, keys, the tokens the gateway signs, the vault, admission (the quotas an org is born with and counted against), per-scope agent tuning (`scopes.py`) and a version of it on a share of the calls (`canary.py`), the org's carrier accounts (`carriers.py`) and dial policy (the callee's hours, a number's daily count, consent and the do-not-call list among its guards; `consents.py` keeps those facts), erasure (`erasure.py`: a call, a contact or an org deleted through the one path `call_log`'s trigger admits, and its trail), the org's policy (`policy.py`: retention, its calling rules, and what a call says first, in `disclosure.py`) and the nightly retention run (`retention.py`, which also forgets call records past 24 months), a number's traceback (`traceback.py`: its calls kept or erased, and its dials), who read what (`reads.py`: a person's or the operator's read of a call, a recording or a number), the org's world exported as JSON Lines (`export.py`), caller codes, personas, an agent's own judges (`judges.py`), each distinct block of prompt its calls were told (`prompts.py`), the apps the box hosts for an org with their releases (`hosting.py`), what happens to one while it runs — stopped, its logs, the time it served (`hosted_running.py`) — and the org's secrets (`org_secrets.py`), sign-in (a password, a one-use code, a paired terminal, a sign-up), the org's identity provider, mail and the letters it sends | `domain` `wire` `postgres` `process` `log` |
 | `providers/` | the box's providers configuration: the catalog row in `box_settings`, building a LiveKit plugin by name, the keyring a call runs on (`credentials.py`), prices, voices | `domain` `wire` `postgres` `process` |
 | `session/` | one LiveKit `AgentSession` for voice and text: `session.py`, a voice call's pipeline (`voice.py`: the three stages built, and the end of the caller's turn read off the audio by a local model, livekit's `v1-mini` or Smart Turn v3 as the row says), a written one (`text.py`), the call's live state (`call.py`), the room, hold music (`hold.py`), tools, the widget channel; private: the Agent, livekit's shapes read as ours, the prompt, what the ears are told (`_hearing.py`: the turn policy per language, the keyterms) | `domain` `wire` `providers` `log` `process` |
 | `retrieval/` | the embedder (`embed.py`), knowledge bases with their cutter and goldens (`knowledge.py`), contact memory (`memory.py`), a call's lookups written on its log (`lookups.py`), and what a call taught at hang-up (`extraction.py`); private: the hybrid search over one table (`_search.py`) | `domain` `wire` `postgres` `log` `providers` `process` |
@@ -49,19 +49,19 @@ core under `_` names.
 |---|---|---|---|
 | `channels/` | 7 | 2250 | `domain`, `fleet`, `log`, `postgres`, `process`, `tenancy`, `wire` |
 | `cli/` | 9 | 2185 | `channels`, `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `runner`, `session`, `tenancy`, `wire`, `worker` |
-| `domain/` | 8 | 1175 | — |
+| `domain/` | 8 | 1183 | — |
 | `evals/` | 10 | 2803 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
 | `fleet/` | 5 | 939 | `domain`, `postgres`, `process`, `wire` |
-| `gateway/` | 46 | 10385 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `gateway/` | 47 | 10456 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
 | `log/` | 9 | 3471 | `domain`, `postgres`, `wire` |
 | `postgres/` | 2 | 229 | `domain` |
 | `process/` | 5 | 796 | `domain`, `postgres` |
 | `providers/` | 6 | 1271 | `domain`, `postgres`, `process`, `wire` |
 | `retrieval/` | 6 | 2351 | `domain`, `log`, `postgres`, `providers`, `wire` |
 | `runner/` | 2 | 554 | `domain`, `process`, `wire` |
-| `session/` | 12 | 3258 | `domain`, `log`, `providers`, `wire` |
-| `tenancy/` | 30 | 6967 | `domain`, `log`, `postgres`, `process`, `wire` |
-| `wire/` | 19 | 4793 | `domain` |
+| `session/` | 12 | 3260 | `domain`, `log`, `providers`, `wire` |
+| `tenancy/` | 31 | 7025 | `domain`, `log`, `postgres`, `process`, `wire` |
+| `wire/` | 19 | 4811 | `domain` |
 | `worker/` | 4 | 990 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
 
 ## The path of a call

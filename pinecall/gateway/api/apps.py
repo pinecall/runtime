@@ -35,6 +35,7 @@ from pinecall.wire.commands import (
     CallOptOut,
     DevAnswer,
     Ping,
+    PromptSet,
     command_of,
 )
 from pinecall.wire.events import ErrorEvent, Pong
@@ -158,15 +159,15 @@ class AppSocket:
             case Ping():
                 await self._emitted(command.agent, "pong", Pong(ts=time.time()))
             case DevAnswer():
-                if not self.gateway.live.dev_answered(model):
-                    text = NOBODY_ASKED.format(id=model.id)
-                    await self.refuse(command.agent, "no_session", text, command.written())
+                await self._dev_answered(command, model)
             case ToolResult():
                 await self._answered(command, model)
             case CallClaim() | CallOptOut():
                 await self._on_the_gateway(command, model)
             case CallDial():
                 await self.refuse(command.agent, "no_handler", DIAL, command.written())
+            case PromptSet():
+                await self._prompted(command, model)
             case _:
                 await self._on_the_call(command, model)
 
@@ -237,6 +238,18 @@ class AppSocket:
         if not await claim_code(self.gateway.codes, served, wanted.code, via="agent"):
             text = NO_CODE.format(code=wanted.code, agent=command.agent)
             await self.refuse(command.agent, "no_code", text, command.written())
+
+    async def _dev_answered(self, command: Command, answer: DevAnswer) -> None:
+        if not self.gateway.live.dev_answered(answer):
+            text = NOBODY_ASKED.format(id=answer.id)
+            await self.refuse(command.agent, "no_session", text, command.written())
+
+    # The block's words are kept once under the hash the log will name, before the call hears it.
+    async def _prompted(self, command: Command, wanted: PromptSet) -> None:
+        self._holds(command.agent)
+        pool = self.gateway.connections.pool
+        await self.gateway.serving.prompts.keep(pool, self.scope.org, wanted.text)
+        await self._on_the_call(command, wanted)
 
     # A written call runs here and takes the command at once; a voice call's worker reads it
     # off its command stream and applies it with the same function.

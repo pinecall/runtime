@@ -68,6 +68,7 @@ async def open_text_as(
     await serving.logs.store.claim(
         context.call, registration.slug, scope.org, Claim(scope, setup.versions)
     )
+    await serving.prompts.keep(pool, scope.org, setup.config.knowledge or "")
     served = served_call(serving, registration.owner, context, setup.config, scope)
     return _session(serving, served, setup.model, setup.recalled)
 

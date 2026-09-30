@@ -70,7 +70,7 @@ What memory did for this turn or at hangup: a recall before the reply, a remembe
 
 ### `prompt.changed`
 
-A block of the prompt was rewritten. The text stays out of the log; its hash and length let two states be compared.
+A block of the prompt was rewritten. The text stays out of the log; its hash and length let two states be compared. The org keeps each distinct text once under this hash, and `GET /v1/calls/{call}/prompt` gives a call's prompt back whole ([gateway-api.md](../protocol/gateway-api.md)).
 
 | field | type | required | meaning |
 |---|---|---|---|

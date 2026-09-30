@@ -14,6 +14,7 @@ from pinecall.postgres.pool import Pool
 from pinecall.tenancy import canary, consents, export
 from pinecall.tenancy.canary import Canary, CanarySet
 from pinecall.tenancy.consents import Given
+from pinecall.tenancy.prompts import Prompts
 from pinecall.wire.rest.evals import Expect
 from pinecall.wire.scores import CallScore
 from tests.conftest import postgres
@@ -98,15 +99,19 @@ async def test_the_drift_the_seal_counted_comes_out_as_numbers_by_day(
     assert call not in json.dumps(lines[-2:]), "a day's numbers name no call"
 
 
-async def test_the_orgs_cases_come_out_in_each_worlds_export(pool: Pool, store: Store) -> None:
+async def test_the_orgs_cases_and_prompts_come_out_in_each_worlds_export(
+    pool: Pool, store: Store
+) -> None:
     org = await an_org(pool)
     call = await logged_call(store, org.id)
     golden = dataset.golden_of(await store.whole(call), "hola", Expect())
     await dataset.promoted(pool, golden, "dental-sur", Promoted(org.id, "production", "hola", "m"))
+    await Prompts().keep(pool, org.id, "Sos la recepción.")
     for world in ("production", "sandbox"):
-        case = next(
-            line for line in await exported(pool, org.id, world) if line["kind"] == "eval_case"
-        )
+        lines = await exported(pool, org.id, world)
+        prompt = next(line for line in lines if line["kind"] == "prompt")
+        assert prompt["text"] == "Sos la recepción."
+        case = next(line for line in lines if line["kind"] == "eval_case")
         assert (case["name"], case["source_call"], case["source_env"]) == (
             "hola",
             call,
