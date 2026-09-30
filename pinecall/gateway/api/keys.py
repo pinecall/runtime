@@ -1,10 +1,12 @@
 """The org's keys: listed by fingerprint, a server's token minted, one revoked."""
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter
 
 from pinecall.domain.errors import NotAllowed, NotFound
 from pinecall.domain.names import PRODUCTION, parse_env
-from pinecall.domain.person import SERVER_SCOPES, THE_KEYS
+from pinecall.domain.person import THE_KEYS
 from pinecall.gateway._deps import AppKey, BearerDep, GatewayDep
 from pinecall.tenancy import keys, people
 from pinecall.tenancy.keys import Bearer, ListedKey
@@ -54,8 +56,14 @@ async def create_key(body: CreateKeyRequest, key: AppKey, gateway: GatewayDep) -
         raise NotAllowed(BY_A_PERSON)
     if env == PRODUCTION and not person.opens_production:
         raise NotAllowed(NO_PRODUCTION.format(name=person.name))
+    keys.check_expiry(body.expires_at, datetime.now(UTC))
     issued = keys.Issued(
-        org=key.org, env=env, scopes=SERVER_SCOPES, label=body.label, created_by=person.id
+        org=key.org,
+        env=env,
+        scopes=keys.server_scopes(body.scopes),
+        label=body.label,
+        created_by=person.id,
+        expires_at=body.expires_at,
     )
     minted, secret = await keys.issue(gateway.connections.pool, issued)
     return KeyIssuedResponse.of(minted, secret)
@@ -89,6 +97,7 @@ def key_row(row: ListedKey, names: dict[str, str]) -> KeyRow:
         last_used_at=row.last_used_at,
         revoked_at=row.revoked_at,
         scopes=sorted(row.key.scopes),
+        expires_at=row.key.expires_at,
     )
 
 

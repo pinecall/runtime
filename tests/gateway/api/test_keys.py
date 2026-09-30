@@ -1,5 +1,7 @@
 """Tests for the keys doors: the listing by fingerprint, a server's token, a revoke."""
 
+from datetime import UTC, datetime, timedelta
+
 from pinecall.domain.person import SERVER_SCOPES, Member, Role
 from pinecall.tenancy import keys, people
 from tests.conftest import Knocking, postgres
@@ -115,3 +117,46 @@ async def test_a_person_stops_their_own_and_one_they_made_and_nothing_else(
     assert refused.status_code == 404
     assert stopped.status_code == 200
     assert nobodys.status_code == 404
+
+
+@postgres
+async def test_a_servers_token_may_open_fewer_scopes_and_end_and_an_ended_one_says_so(
+    knocking: Knocking,
+) -> None:
+    _, anas = await a_person(knocking, "ana@clinica.test", "admin")
+    soon = datetime.now(UTC) + timedelta(days=30)
+    async with knocking.http(anas) as console:
+        made = await console.post(
+            KEYS,
+            json={
+                "label": "knowledge pusher",
+                "env": "sandbox",
+                "scopes": ["knowledge"],
+                "expires_at": soon.isoformat(),
+            },
+        )
+        wider = await console.post(
+            KEYS, json={"label": "x", "env": "sandbox", "scopes": ["knowledge", "team"]}
+        )
+        over = await console.post(
+            KEYS,
+            json={"label": "x", "env": "sandbox", "expires_at": "2020-01-01T00:00:00Z"},
+        )
+        listing = await console.get(KEYS)
+    row = next(row for row in listing.json() if row["label"] == "knowledge pusher")
+    assert made.json()["scopes"] == ["knowledge"]
+    assert (row["scopes"], row["expires_at"][:10]) == (["knowledge"], soon.date().isoformat())
+    assert (wider.status_code, over.status_code) == (400, 400)
+    async with knocking.http(made.json()["key"]) as server:
+        refused = await server.get("/v1/sessions")
+    assert "does not open calls: it opens knowledge" in refused.json()["detail"]
+    pool = knocking.gateway.connections.pool
+    async with pool.connection() as connection:
+        await connection.execute(
+            "UPDATE api_keys SET expires_at = now() - interval '1 second' WHERE id = %(id)s",
+            {"id": made.json()["key_id"]},
+        )
+    async with knocking.http(made.json()["key"]) as server:
+        ended = await server.get("/v1/knowledge")
+    assert ended.status_code == 401
+    assert "this key expired at" in ended.json()["detail"]

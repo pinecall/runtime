@@ -156,9 +156,12 @@ a key with `keys` sees every person's too. Never a key:
  "revoked_at": null, "scopes": ["app", "calls", "evals", "knowledge", "talk"]}
 ```
 
-`POST {label, env}` with a person's key that opens `app` makes a server's token for one world,
-`pc_live_` or `pc_test_`, with `app`, `calls`, `talk`, `knowledge` and `evals`, answered once; a
-production token only by somebody with production access. `POST /v1/keys/{fingerprint}/revoke`
+`POST {label, env, scopes?, expires_at?}` with a person's key that opens `app` makes a server's
+token for one world, `pc_live_` or `pc_test_`, answered once; a production token only by somebody
+with production access. It opens `app`, `calls`, `talk`, `knowledge` and `evals`, or, with
+`scopes`, only the ones named of those (`400` for any other, or none). With `expires_at`, a moment
+to come with its offset, it opens nothing from then on and every door answers `401 this key
+expired at …`; without it, it never expires. The listing carries each key's `expires_at`. `POST /v1/keys/{fingerprint}/revoke`
 stops your own key, a token you made, or any with `keys`; anything else, revoked or not the org's
 is one `404`. The row stays.
 
