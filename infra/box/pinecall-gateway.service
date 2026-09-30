@@ -12,6 +12,8 @@ Environment=LIVEKIT_URL=ws://127.0.0.1:7880
 Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
 Environment=PINECALL_RECORDINGS=/var/lib/pinecall/recordings
 EnvironmentFile=/etc/pinecall/box.env
+# The operator's buckets, when there are: PINECALL_RECORDINGS_BUCKET moves recordings there.
+EnvironmentFile=-/etc/pinecall/backup.env
 # Named one by one: a credential absent from the store is simply not set.
 ImportCredential=DATABASE_URL
 ImportCredential=PINECALL_VAULT_KEY

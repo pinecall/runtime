@@ -1,6 +1,5 @@
 """The knowledge and memory doors: bases and their files, a contact's facts, and the goldens."""
 
-import pathlib
 import time
 from datetime import UTC, datetime
 from typing import Annotated
@@ -23,6 +22,7 @@ from pinecall.gateway._deps import (
 )
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._sockets import NO_AGENT
+from pinecall.process.recordings import recordings_of
 from pinecall.providers import catalog
 from pinecall.providers.credentials import thinking
 from pinecall.retrieval import extraction, knowledge, memory
@@ -111,7 +111,7 @@ async def forget_contact(
 @router.delete("/v1/contacts/{contact}")
 async def erase_contact(contact: str, key: TeamKey, where: ScopeDep, box: GatewayDep) -> Erasure:
     """Erase a contact in the world: every call they were on and every fact kept of them."""
-    recordings = pathlib.Path(box.connections.settings.recordings_root)
+    recordings = recordings_of(box.connections.settings, box.connections.http)
     erased = await erasure.contact(
         box.connections.pool, recordings, where, contact, by=asked_by(key)
     )

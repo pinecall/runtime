@@ -49,6 +49,7 @@ from pinecall.gateway.ending.seal import remembered, sealed
 from pinecall.log import queries
 from pinecall.log.readers import Filter, parse_filter, project_entry, project_state
 from pinecall.log.store import DEFAULT_LIMIT, Claim
+from pinecall.process.recordings import recordings_of
 from pinecall.providers import catalog
 from pinecall.providers.catalog import judge_ceiling
 from pinecall.session.call import ToolUse
@@ -377,8 +378,14 @@ async def call_state(call: str, reading: ReaderDep, gateway: GatewayDep) -> Json
     }
 
 
-@router.get("/v1/calls/{call}/recording")
-async def recording(call: str, reading: ReaderDep, gateway: GatewayDep) -> FileResponse:
+# From the bucket once the worker moved it there, else the file the recorder wrote on this disk.
+@router.get("/v1/calls/{call}/recording", response_model=None)
+async def recording(
+    call: str,
+    reading: ReaderDep,
+    gateway: GatewayDep,
+    byte_range: Annotated[str | None, Header(alias="range")] = None,
+) -> FileResponse | StreamingResponse:
     """The call's audio, with byte ranges so a player can seek."""
     await _deps.check_readable(gateway, reading, call)
     await _read_by(gateway, reading, call, "recording")
@@ -394,6 +401,19 @@ async def recording(call: str, reading: ReaderDep, gateway: GatewayDep) -> FileR
     pointer = None if summary is None else summary.data.get("recording")
     if state.seq == 0 or not isinstance(pointer, str) or not pointer:
         raise NotFound(NOT_RECORDED.format(call=call))
+    kept = await queries.scope_of_call(gateway.connections.pool, call)
+    if kept is not None and kept.scope is not None:
+        connections = gateway.connections
+        stored = recordings_of(connections.settings, connections.http)
+        fetched = await stored.fetch(kept.scope.org, call, byte_range)
+        if fetched is not None:
+            headers = {
+                **fetched.headers,
+                "content-disposition": f'attachment; filename="{call}.ogg"',
+            }
+            return StreamingResponse(
+                fetched.body, status_code=fetched.status, headers=headers, media_type="audio/ogg"
+            )
     path = Path(pointer)
     if not await asyncio.to_thread(path.is_file):
         raise NotFound(NOT_HERE.format(call=call, path=pointer))
@@ -409,7 +429,7 @@ async def erase_call(call: str, key: TeamKey, where: ScopeDep, gateway: GatewayD
         raise NotFound(_deps.NO_SUCH_CALL.format(call=call))
     if not kept.sealed:
         raise Conflict(STILL_LIVE.format(call=call))
-    recordings = Path(gateway.connections.settings.recordings_root)
+    recordings = recordings_of(gateway.connections.settings, gateway.connections.http)
     erased = await erasure.call(
         gateway.connections.pool, recordings, kept.scope, call, by=asked_by(key)
     )
