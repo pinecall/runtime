@@ -200,9 +200,11 @@ def run_argv(engine: Engine, launch: Launch, names: Sequence[str]) -> list[str]:
     ]
 
 
-def network_argv(network: str) -> list[str]:
+# The bridge's name is what the fence matches: only the runner's bridges, never another podman
+# network of the machine. A Linux interface name is 15 characters at most.
+def network_argv(network: str, bridge: str) -> list[str]:
     """One app's own network: two apps never share a bridge, so they never reach each other."""
-    return ["podman", "network", "create", "--ignore", network]
+    return ["podman", "network", "create", "--ignore", f"--interface-name={bridge}", network]
 
 
 def listing_argv() -> list[str]:

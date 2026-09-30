@@ -52,6 +52,10 @@ LONGEST_WHY = 2000
 START = ("./node_modules/.bin/pinecall", "start")
 
 
+# What infra/apps/fence.nft matches: the runner's bridges and no other of the machine.
+BRIDGE_PREFIX = "pca"
+
+
 NO_KEY = "PINECALL_RUNNER_KEY: a runner knocks its gateway with its world's runner key"
 
 
@@ -128,7 +132,7 @@ class Runner:
         network = _network(app)
         folder = self.root / app.org / app.name / f"r{app.release}"
         try:
-            await self.ran(podman.network_argv(network))
+            await self.ran(podman.network_argv(network, _bridge(app)))
             if not (folder / "node_modules").is_dir():
                 await self._installed(app, folder, network)
             environment = await self._environment(app)
@@ -244,7 +248,15 @@ def _label(app: WantedApp) -> str:
 
 
 def _network(app: WantedApp) -> str:
-    return "pinecall-" + hashlib.sha256(_label(app).encode()).hexdigest()[:12]
+    return "pinecall-" + _stamp(app)
+
+
+def _bridge(app: WantedApp) -> str:
+    return BRIDGE_PREFIX + _stamp(app)
+
+
+def _stamp(app: WantedApp) -> str:
+    return hashlib.sha256(_label(app).encode()).hexdigest()[:12]
 
 
 def _tail(output: str) -> str:

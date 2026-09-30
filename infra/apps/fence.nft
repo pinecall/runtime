@@ -1,5 +1,6 @@
-# What an org's container may reach: the internet, and nothing of ours. Two hooks on every podman
-# bridge, ahead of netavark's own rules: no private range (the VPC, where the box is), no cloud
+# What an org's container may reach: the internet, and nothing of ours. Two hooks on every bridge
+# the runner makes (named pca…, so another podman network of the machine is never touched), ahead
+# of netavark's own rules: no private range (the VPC, where the box is), no cloud
 # metadata (169.254.169.254 hands out the VM's tokens), no loopback, no mail, no IPv6, and nothing
 # of this machine but DNS. Each app has a network of its own, so reaching another app's container
 # crosses these hooks too. Measured on the spike (internal-docs/DEPLOY.md, D0).
@@ -11,15 +12,15 @@ table inet pinecall_apps {
   }
   chain forward {
     type filter hook forward priority -10; policy accept;
-    iifname "podman*" ct state established,related accept
-    iifname "podman*" ip daddr @denied4 counter drop
-    iifname "podman*" tcp dport 25 counter drop
-    iifname "podman*" meta nfproto ipv6 counter drop
+    iifname "pca*" ct state established,related accept
+    iifname "pca*" ip daddr @denied4 counter drop
+    iifname "pca*" tcp dport 25 counter drop
+    iifname "pca*" meta nfproto ipv6 counter drop
   }
   chain input {
     type filter hook input priority -10; policy accept;
-    iifname "podman*" udp dport 53 accept
-    iifname "podman*" ct state established,related accept
-    iifname "podman*" counter drop
+    iifname "pca*" udp dport 53 accept
+    iifname "pca*" ct state established,related accept
+    iifname "pca*" counter drop
   }
 }
