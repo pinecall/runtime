@@ -132,7 +132,7 @@ SSE frames are `id: <seq>`, `event: <type>`, `data: <the entry>`, a `: ping` eve
 |---|---|
 | `GET /v1/agents/{slug}/calls` | an agent's own log: registrations, declarations, errors |
 | `GET /v1/calls/{call}/state` | the call reduced |
-| `GET /v1/calls/{call}/recording` | the audio, seekable; a written call keeps none |
+| `GET /v1/calls/{call}/recording` | the audio, seekable; a written call keeps none. It is kept sealed ([../security/private-values.md](../security/private-values.md)) and answered as recorded |
 | `GET /v1/agents/{slug}/sessions` · `GET /v1/sessions` | one line per call, filtered, counted and paged, in the reader's scope |
 | `GET /v1/calls/{call}/settings` | the exact settings the call was built on |
 | `GET /v1/calls/{call}/prompt` | the exact prompt the call was told: `{call, blocks: [{seq, name, hash, chars, text}]}`, one per `prompt.changed` in order, each block's words as the org kept them under its hash the first time a gateway met them (a call's knowledge when it opened, an app's `prompt.set`), once per distinct text and never per call; `text` is null for a block nobody kept (a call from before they were kept). A key's read, never a page's token |
@@ -144,9 +144,10 @@ What each reader receives is its projection: [projections.md](projections.md).
 
 The log is append-only: a trigger on `call_log` refuses every `UPDATE`, and every `DELETE` but
 the one path below, which sets `pinecall.erasing` in its own transaction. An erasure deletes, in
-one transaction, the log's entries and head, the call's facts and tokens, the memories the call
-taught, and the call's recording (its directory on the disk, and its object in the recordings
-bucket when the box has one); then it writes one row of the org's trail, `{id, at,
+one transaction, the log's entries and head, the private values sealed beside its entries, the
+call's facts and tokens, the memories the call
+taught, and the call's recording (its directory on the disk, its object in the recordings
+bucket when the box has one, and the key it is sealed under); then it writes one row of the org's trail, `{id, at,
 what, subject, env, asked_by, calls, entries, memories, recordings}`. The dial ledger stays, and a
 phone call leaves its detail record in `call_records` — the numbers, the direction, when it
 started and ended, how it ended; no name, no words, no outcome — for a carrier's traceback, until

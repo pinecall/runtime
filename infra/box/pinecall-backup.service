@@ -7,6 +7,6 @@ Requires=pinecall-postgres.service
 
 [Service]
 Type=oneshot
-# gcloud is a snap: /snap/bin is on a login shell's PATH and not on a unit's.
-Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin
+# The object store's secret, which objects.sh hands rclone; absent, nothing leaves the box.
+ImportCredential=PINECALL_S3_SECRET_ACCESS_KEY
 ExecStart=/opt/pinecall/infra/box/backup.sh

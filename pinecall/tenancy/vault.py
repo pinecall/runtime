@@ -67,12 +67,14 @@ class Resealing:
 # in it, so a column added without its line here fails the suite.
 SEALED_COLUMNS: tuple[SealedColumn, ...] = (
     SealedColumn("box_settings", "ciphertext"),
+    SealedColumn("call_private", "sealed"),
     SealedColumn("carriers", "ciphertext"),
     SealedColumn("hosted_apps", "sealed_key"),
     SealedColumn("org_mail", "ciphertext"),
     SealedColumn("org_secrets", "sealed"),
     SealedColumn("org_sso", "ciphertext"),
     SealedColumn("provider_keys", "ciphertext"),
+    SealedColumn("recording_keys", "sealed"),
 )
 
 

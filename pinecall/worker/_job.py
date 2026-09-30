@@ -144,7 +144,7 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
     # The recorder stops before the summary, which points at its file.
     async def ended(usage: list[ModelUsage], outcome: str) -> None:
         kept = await _kept(
-            ctx.api, recording, audio, partial(stored, settings, route.org, context.call)
+            ctx.api, recording, audio, partial(stored, settings, gateway, route.org, context.call)
         )
         data = SealCallRequest(usage=usage, outcome=outcome, recording=kept, lent=pipeline.lent)
         await gateway.sealed(context.call, data)
@@ -369,14 +369,13 @@ async def _kept(
     server: api.LiveKitAPI,
     recording: str | None,
     audio: Path | None,
-    store: Callable[[Path], Awaitable[None]],
+    store: Callable[[Path], Awaitable[Path]],
 ) -> str | None:
     if recording is None or audio is None:
         return None
     if not await file_written(server, recording, audio):
         return None
-    await store(audio)
-    return str(audio)
+    return str(await store(audio))
 
 
 # The platform wants a claim that answers nothing; the client's says whether a page was waiting.

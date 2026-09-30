@@ -4,18 +4,21 @@ from pathlib import Path
 
 import httpx
 import pytest
+from cryptography.fernet import Fernet
 from psycopg import errors
 
 from pinecall.domain.errors import UpstreamFailed
+from pinecall.domain.names import JsonObject
 from pinecall.domain.person import KEY_SCOPES
 from pinecall.domain.scope import Scope
 from pinecall.evals import dataset
 from pinecall.evals.dataset import Promoted
-from pinecall.log import drift
+from pinecall.log import drift, private
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
+from pinecall.process.connections import vault_of
 from pinecall.process.recordings import Bucket, Disk
-from pinecall.tenancy import canary, erasure
+from pinecall.tenancy import canary, erasure, recording_keys
 from pinecall.tenancy.canary import Canary, CanarySet
 from pinecall.tenancy.prompts import Prompts
 from pinecall.wire.rest.evals import Expect
@@ -48,7 +51,9 @@ SELECT (SELECT count(*) FROM call_log WHERE log = %(call)s) AS entries,
        (SELECT count(*) FROM tokens WHERE call = %(call)s) AS tokens,
        (SELECT count(*) FROM contact_memories WHERE source_call = %(call)s) AS memories,
        (SELECT count(*) FROM drift_calls WHERE call = %(call)s) AS drifted,
-       (SELECT count(*) FROM eval_cases WHERE source_call = %(call)s) AS promoted
+       (SELECT count(*) FROM eval_cases WHERE source_call = %(call)s) AS promoted,
+       (SELECT count(*) FROM call_private WHERE log = %(call)s) AS private,
+       (SELECT count(*) FROM recording_keys WHERE call = %(call)s) AS keys
 """
 
 
@@ -96,6 +101,8 @@ NOTHING_LEFT = {
     "memories": 0,
     "drifted": 0,
     "promoted": 0,
+    "private": 0,
+    "keys": 0,
 }
 
 
@@ -106,7 +113,7 @@ async def test_a_call_erased_in_a_box_with_a_bucket_leaves_no_object_and_is_coun
     call = await logged_call(store, org.id)
     remote = Remote(objects={f"{org.id}/{call}/audio.ogg": b"OggS", "org_x/CA_x/audio.ogg": b"x"})
     async with httpx.AsyncClient(transport=remote.transport()) as http:
-        kept = Bucket(tmp_path, remote.name, http)
+        kept = Bucket(tmp_path, remote.name, remote.store_on(http))
         erased = await erasure.call(pool, kept, Scope(org.id), call, by="m_1")
     assert remote.objects == {"org_x/CA_x/audio.ogg": b"x"}
     assert erased.trail.recordings == 1
@@ -121,7 +128,11 @@ async def test_a_bucket_that_refuses_leaves_the_call_whole_and_no_trail(
     async with httpx.AsyncClient(transport=remote.transport()) as http:
         with pytest.raises(UpstreamFailed, match="answered 503 to a delete of"):
             await erasure.call(
-                pool, Bucket(tmp_path, remote.name, http), Scope(org.id), call, by="m_1"
+                pool,
+                Bucket(tmp_path, remote.name, remote.store_on(http)),
+                Scope(org.id),
+                call,
+                by="m_1",
             )
     assert (await left_of(pool, call))["entries"] > 0
     assert await erasure.trail(pool, org.id) == []
@@ -135,6 +146,10 @@ async def test_a_call_erased_leaves_no_row_no_recording_and_a_trail_that_counts_
     await a_fact(pool, org.id, ANA, call)
     async with pool.connection() as connection:
         await connection.execute(A_ROOM_TICKET, {"call": call, "org": org.id, "agent": AGENT})
+    phone: JsonObject = {"arguments": {"phone": ANA}}
+    vault = vault_of(Fernet.generate_key().decode())
+    await private.kept_aside(store, vault, call, [(3, phone)])
+    await recording_keys.key_for(pool, vault, org.id, call)
     recording = a_recording(tmp_path, call)
     entries = await store.whole(call)
     assert await drift.fold(pool, call, entries, CallScore.model_validate(entries[-1].data))

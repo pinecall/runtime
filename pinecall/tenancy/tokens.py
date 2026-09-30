@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from pinecall.domain.names import Env
 from pinecall.domain.person import RoomScope
-from pinecall.domain.scope import SCOPE_ATTRIBUTE
+from pinecall.domain.scope import SCOPE_ATTRIBUTE, Scope
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy.keys import (
     A_SEAT,
@@ -25,7 +25,6 @@ from pinecall.tenancy.keys import (
     CODE_ATTRIBUTE,
     ENV_ATTRIBUTE,
     JWT_PARTS,
-    KNOWN,
     MINTED,
     NAME_ATTRIBUTE,
     PROJECTION_ATTRIBUTE,
@@ -35,16 +34,26 @@ from pinecall.tenancy.keys import (
 )
 from pinecall.wire.parts import Projection
 
-# The condition makes the spend atomic: of two dispatches racing, one updates the row.
-SPEND = (
-    "UPDATE tokens SET spent_at = now() WHERE call = %(call)s AND spent_at IS NULL RETURNING call"
+# One statement on every open: the update is the spend, atomic (of two dispatches racing, one
+# updates the row), and the join says what the ledger held before it. A token is spent only by the
+# org, the world and the agent it was minted for; one minted before its world was kept (no env) is
+# held to its org and agent.
+SPEND = """
+WITH spent AS (
+    UPDATE tokens SET spent_at = now()
+    WHERE call = %(call)s AND spent_at IS NULL AND org = %(org)s AND agent = %(agent)s
+      AND (env IS NULL OR env = %(env)s)
+    RETURNING call
 )
+SELECT (SELECT count(*) FROM spent) AS spent, tokens.call AS minted, tokens.spent_at
+FROM (SELECT 1) AS probe LEFT JOIN tokens ON tokens.call = %(call)s
+"""
 
 
 IDENTITY_BYTES = 6
 
 
-type Spending = Literal["spent", "already_spent", "never_minted"]
+type Spending = Literal["spent", "already_spent", "never_minted", "minted_elsewhere"]
 
 
 ONE_VISIT_TTL_S = 60
@@ -136,6 +145,7 @@ class MintedToken:
 
     call: str
     org: str
+    env: Env
     agent: str
     scope: RoomScope
     expires_at: float
@@ -329,6 +339,7 @@ async def minted(pool: Pool, token: MintedToken) -> None:
     values = {
         "call": token.call,
         "org": token.org,
+        "env": token.env,
         "agent": token.agent,
         "scope": token.scope,
         "expires_at": token.expires_at,
@@ -337,13 +348,16 @@ async def minted(pool: Pool, token: MintedToken) -> None:
         await connection.execute(MINTED, values)
 
 
-async def spend(pool: Pool, call: str) -> Spending:
-    """Spend the call's token: once, and a second spend is told from a token never minted."""
+async def spend(pool: Pool, call: str, scope: Scope, agent: str) -> Spending:
+    """Spend the call's token in the scope the worker names, once; otherwise say why not."""
+    wanted = {"call": call, "org": scope.org, "env": scope.env, "agent": agent}
     async with pool.connection() as connection:
-        if await (await connection.execute(SPEND, {"call": call})).fetchone() is not None:
-            return "spent"
-        known = await (await connection.execute(KNOWN, {"call": call})).fetchone()
-    return "never_minted" if known is None else "already_spent"
+        row = await (await connection.execute(SPEND, wanted)).fetchone()
+    if row is not None and row["spent"]:
+        return "spent"
+    if row is None or row["minted"] is None:
+        return "never_minted"
+    return "minted_elsewhere" if row["spent_at"] is None else "already_spent"
 
 
 def _unjoinable(signer: Signer, room: str, ttl_s: float, attributes: dict[str, str]) -> str:

@@ -3,11 +3,11 @@
 import os
 from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import dotenv_values
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from pinecall.domain.errors import SettingsRefused
 from pinecall.domain.names import PRODUCTION, SANDBOX, Env
@@ -21,6 +21,12 @@ ENV_FILES = (".env", "runtime/.env")
 A_FLEET_NAME = r"^[a-z0-9][a-z0-9-]{0,62}$"
 
 UNREADABLE_ENV = "cannot read {file}: {why}. A .env that is there is never skipped in silence"
+
+NO_STORE = (
+    "PINECALL_RECORDINGS_BUCKET is a bucket of the object store, which is named by "
+    "PINECALL_S3_ENDPOINT, PINECALL_S3_REGION, PINECALL_S3_ACCESS_KEY_ID and the "
+    "PINECALL_S3_SECRET_ACCESS_KEY credential together; missing: {missing}"
+)
 
 # Spoken by the overflow agent when every worker is full, before hanging up.
 OVERFLOW_SAYS = (
@@ -95,12 +101,36 @@ class Settings(BaseModel):
         alias="PINECALL_RECORDINGS",
         description="Where a kept recording lands, absolute or relative to the working directory.",
     )
-    # Written with the machine's own identity, as the backup bucket is; never the backup's bucket,
-    # whose 35-day lifecycle rule would forget a recording its org keeps longer.
+    # A bucket of the object store below; never the backup's bucket, whose 35-day lifecycle rule
+    # would forget a recording its org keeps longer.
     recordings_bucket: str | None = Field(
         None,
         alias="PINECALL_RECORDINGS_BUCKET",
         description="The bucket a finished recording moves to, under its org. Unset: the disk.",
+    )
+
+    # ── the object store ──
+    # Any S3-compatible endpoint: AWS, Google Cloud Storage by HMAC key, R2, B2, a MinIO.
+    s3_endpoint: str | None = Field(
+        None,
+        alias="PINECALL_S3_ENDPOINT",
+        description="The S3-compatible object store what leaves the disk goes to.",
+    )
+    s3_region: str | None = Field(
+        None,
+        alias="PINECALL_S3_REGION",
+        description="The region the store's signature names: the buckets' own, or `auto`.",
+    )
+    s3_access_key_id: str | None = Field(
+        None,
+        alias="PINECALL_S3_ACCESS_KEY_ID",
+        description="The key the box reads and writes the store with.",
+    )
+    s3_secret_access_key: str | None = Field(
+        None,
+        alias="PINECALL_S3_SECRET_ACCESS_KEY",
+        repr=False,
+        description="The key's secret: a sealed credential on a box, never a file.",
     )
 
     # ── the worker ──
@@ -318,6 +348,20 @@ class Settings(BaseModel):
         except (ZoneInfoNotFoundError, ValueError):
             raise ValueError(f"{zone!r} is not an IANA time zone (Europe/Madrid, UTC)") from None
         return zone
+
+    # Refused where the process starts, not on the first recording a call leaves.
+    @model_validator(mode="after")
+    def _a_recordings_bucket_has_its_store(self) -> Self:
+        named = {
+            "PINECALL_S3_ENDPOINT": self.s3_endpoint,
+            "PINECALL_S3_REGION": self.s3_region,
+            "PINECALL_S3_ACCESS_KEY_ID": self.s3_access_key_id,
+            "PINECALL_S3_SECRET_ACCESS_KEY": self.s3_secret_access_key,
+        }
+        missing = [name for name, value in named.items() if value is None]
+        if self.recordings_bucket is not None and missing:
+            raise ValueError(NO_STORE.format(missing=", ".join(missing)))
+        return self
 
     def world_named(self, host: str | None) -> Env | None:
         """The world a request's Host names, or None where the box does not know the name."""

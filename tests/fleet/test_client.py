@@ -400,3 +400,20 @@ async def test_a_leg_is_told_its_trunk_inline_and_a_refusal_is_the_gateways_sent
         "pbx",
         A_NUMBER,
     )
+
+
+@postgres
+async def test_a_recording_key_is_the_calls_one_and_a_gateway_of_before_gives_none(
+    knocking: Knocking,
+) -> None:
+    client = fleet_client(knocking)
+    context = a_call(knocking)
+    await client.open(OpenCallRequest(agent=AGENT, context=context))
+    first = await client.recording_key(context.call)
+    assert first is not None
+    assert await client.recording_key(context.call) == first
+    await client.aclose()
+    older = httpx.MockTransport(lambda _: httpx.Response(404, json={"detail": "Not Found"}))
+    before = GatewayClient(httpx.AsyncClient(base_url="http://gateway.test", transport=older))
+    assert await before.recording_key(context.call) is None
+    await before.aclose()

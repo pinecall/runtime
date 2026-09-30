@@ -240,3 +240,20 @@ def test_a_box_of_one_name_serves_both_worlds_at_it_and_its_console_is_productio
     unnamed = Settings.model_validate({"LIVEKIT_URL": "ws://127.0.0.1:7880"})
     assert unnamed.world_named("anything.example") is None
     assert unnamed.livekit_url_for("production") == "ws://127.0.0.1:7880"
+
+
+def test_a_recordings_bucket_without_its_whole_store_stops_the_process_naming_what_lacks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PINECALL_RECORDINGS_BUCKET", "acme-recordings")
+    monkeypatch.setenv("PINECALL_S3_ENDPOINT", "https://objects.box.test")
+    monkeypatch.setenv("PINECALL_S3_REGION", "auto")
+    with pytest.raises(
+        SettingsRefused, match="missing: PINECALL_S3_ACCESS_KEY_ID, PINECALL_S3_SEC"
+    ):
+        load()
+    monkeypatch.setenv("PINECALL_S3_ACCESS_KEY_ID", "the-key-id")
+    monkeypatch.setenv("PINECALL_S3_SECRET_ACCESS_KEY", "the-secret-of-this-box")
+    settings = load()
+    assert settings.s3_access_key_id == "the-key-id"
+    assert "the-secret-of-this-box" not in repr(settings)

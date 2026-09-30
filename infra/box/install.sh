@@ -50,6 +50,8 @@ systemd-tmpfiles --create /etc/tmpfiles.d/pinecall.conf
 # age encrypts the nightly backup to a public key whose private half is never on the box: this
 # repository's is Pinecall's own; the package carries none, and `box up --backup-key` writes yours.
 command -v age >/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y -q age
+# rclone copies what leaves the disk to the object store, whichever S3-compatible one it is.
+command -v rclone >/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y -q rclone
 [ -f "$HERE/backup.age.pub" ] && install -m 0644 "$HERE/backup.age.pub" /etc/pinecall/backup.age.pub
 
 install -m 0644 "$HERE/nftables.conf" /etc/nftables.conf
@@ -123,6 +125,7 @@ if [ -f /etc/pinecall/backup.age.pub ]; then
 else
     systemctl disable --now pinecall-backup.timer 2>/dev/null || true
 fi
-# WAL archiving follows /etc/pinecall/backup.env: on with a bucket and a key, off without.
+# WAL archiving follows /etc/pinecall/backup.env: on with a bucket, its object store and a key, off
+# without (objects.sh).
 bash "$HERE/wal.sh" apply
 echo "the box stands at $DOMAINS (production $FIRST, sandbox ${SECOND:-$FIRST})"

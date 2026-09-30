@@ -102,7 +102,7 @@ async def test_a_call_whose_socket_left_waits_parked_for_the_next(wired: Gateway
     context = a_call()
     served_call(wired.serving, "app_1", context, AgentConfig(slug=AGENT), OURS)
     await wired.sockets.release("app_1")
-    assert await handed_on(wired.live, wired.logs.store, wired.sockets, [context.call]) == (0, 1)
+    assert await handed_on(wired.live, wired.sockets, [context.call]) == (0, 1)
     assert wired.live.parked(OURS, AGENT) == [context.call]
 
 
