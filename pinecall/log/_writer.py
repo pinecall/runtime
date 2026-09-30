@@ -1,11 +1,11 @@
-"""The writer: every log's appends gathered for a few milliseconds, written in one transaction."""
+"""The writer: every log's appends written a group per transaction, fed ones in a lane apart."""
 
 import asyncio
 import logging
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, LiteralString
 
 import psycopg
 from psycopg.rows import DictRow
@@ -20,8 +20,7 @@ from pinecall.wire.frames import Entry
 
 logger = logging.getLogger(__name__)
 
-# The longest a request waits for its group to close, and the most entries one group carries.
-GATHER_S = 0.005
+# The most entries one group carries.
 MOST_IN_A_GROUP = 500
 
 # The types read across every log by position: the usage feed, the callbacks, the codes, and
@@ -44,15 +43,6 @@ FEED_ORDER_KEY = 0x9E3_C411_FEED
 
 FEED_ORDER = "select pg_advisory_xact_lock(%(key)s)"
 
-# A head at seq 0 for each log that may begin in this group; the update below moves it as any other.
-HEADS_BEGUN = """
-insert into call_log_head (log, agent, call)
-select begun.log, begun.agent, begun.call
-from unnest(%(logs)s::text[], %(agents)s::text[], %(calls)s::text[]) as begun(log, agent, call)
-order by begun.log
-on conflict (log) do nothing
-"""
-
 # Locked in the order of their names, so two writers never wait on each other's rows in a circle.
 HEADS_LOCKED = """
 select log, seq, sealed, written, written_seq from call_log_head
@@ -61,19 +51,39 @@ order by log
 for update
 """
 
-HEADS_MOVED = """
-update call_log_head as head
-set seq         = moved.seq,
-    written     = moved.written,
-    written_seq = moved.written_seq,
-    agent       = coalesce(head.agent, moved.agent),
-    call        = coalesce(head.call, moved.call),
-    started_at  = coalesce(head.started_at, moved.started_at)
-from unnest(%(logs)s::text[], %(seqs)s::bigint[], %(written)s::bigint[],
-            %(written_seqs)s::bigint[], %(agents)s::text[], %(calls)s::text[],
-            %(stamps)s::float8[])
-     as moved(log, seq, written, written_seq, agent, call, started_at)
-where head.log = moved.log
+# A head at seq 0 for each log that begins in this group, rare beside the ones already there. One
+# another writer made first is locked and read as it is: the update changes nothing of it.
+HEADS_BEGUN = """
+insert into call_log_head as head (log, agent, call)
+select begun.log, begun.agent, begun.call
+from unnest(%(logs)s::text[], %(agents)s::text[], %(calls)s::text[]) as begun(log, agent, call)
+order by begun.log
+on conflict (log) do update set log = head.log
+returning log, seq, sealed, written, written_seq
+"""
+
+# The heads moved and the durable rows written in one statement: two tables, nothing between them
+# to read.
+WRITTEN = """
+with moved as (
+    update call_log_head as head
+    set seq         = moved.seq,
+        written     = moved.written,
+        written_seq = moved.written_seq,
+        agent       = coalesce(head.agent, moved.agent),
+        call        = coalesce(head.call, moved.call),
+        started_at  = coalesce(head.started_at, moved.started_at)
+    from unnest(%(logs)s::text[], %(seqs)s::bigint[], %(written)s::bigint[],
+                %(written_seqs)s::bigint[], %(agents)s::text[], %(heads_calls)s::text[],
+                %(heads_stamps)s::float8[])
+         as moved(log, seq, written, written_seq, agent, call, started_at)
+    where head.log = moved.log
+)
+insert into call_log (call, seq, ts, agent, type, ephemeral, data)
+select kept.call, kept.seq, kept.ts, kept.agent, kept.type, false, kept.data
+from unnest(%(calls)s::text[], %(row_seqs)s::bigint[], %(stamps)s::float8[],
+            %(row_agents)s::text[], %(types)s::text[], %(data)s::jsonb[])
+     as kept(call, seq, ts, agent, type, data)
 """
 
 # The first-of-its-type requests whose log already holds an entry of that type: read under the
@@ -84,13 +94,9 @@ from unnest(%(logs)s::text[], %(types)s::text[]) as wanted(log, type)
 where exists (select 1 from call_log where log = wanted.log and type = wanted.type)
 """
 
-ROWS_WRITTEN = """
-insert into call_log (call, seq, ts, agent, type, ephemeral, data)
-select kept.call, kept.seq, kept.ts, kept.agent, kept.type, false, kept.data
-from unnest(%(calls)s::text[], %(seqs)s::bigint[], %(stamps)s::float8[], %(agents)s::text[],
-            %(types)s::text[], %(data)s::jsonb[])
-     as kept(call, seq, ts, agent, type, data)
-"""
+# A request that writes a fed type goes in the fed lane, which alone takes FEED_ORDER; every other
+# goes in the plain lane, which never waits on it.
+type Lane = Literal["fed", "plain"]
 
 # The gateway's own entry, a worker's batch, a verdict written again on a sealed log, or a durable
 # entry written only when its log is open and holds none of its type.
@@ -129,10 +135,10 @@ class Append:
 
 @dataclass(frozen=True, slots=True)
 class _Queued:
-    """A request waiting for its group, when it came, and where its answer goes."""
+    """A request waiting for its group, its lane, and where its answer goes."""
 
     append: Append
-    at: float
+    lane: Lane
     answer: asyncio.Future[Batch]
 
 
@@ -147,74 +153,70 @@ class _Moved:
 
 
 class Writer:
-    """The appends not yet written, and the task that writes them a group at a time."""
+    """The appends not yet written, in the order they came, and a task per lane writing them."""
 
     def __init__(self, pool: Pool) -> None:
-        """Keep the pool; the task starts with the first request and ends when none is left."""
+        """Keep the pool; a lane's task starts with its first request and ends when none is left."""
         self.pool = pool
         self._queue: deque[_Queued] = deque()
-        self._queued = 0
-        self._arrived = asyncio.Event()
-        self._task: asyncio.Task[None] | None = None
+        # The logs a lane's transaction writes now: the other lane leaves them until it commits.
+        self._writing: set[str] = set()
+        self._tasks: dict[Lane, asyncio.Task[None]] = {}
 
     async def written(self, append: Append) -> Batch:
         """Queue the request; its entries numbered, once the transaction that wrote them commits."""
-        loop = asyncio.get_running_loop()
-        answer: asyncio.Future[Batch] = loop.create_future()
-        self._queue.append(_Queued(append, loop.time(), answer))
-        self._queued += len(append.entries)
-        self._arrived.set()
-        if self._task is None or self._task.done():
-            self._task = asyncio.create_task(self._writing())
+        answer: asyncio.Future[Batch] = asyncio.get_running_loop().create_future()
+        self._queue.append(_Queued(append, "fed" if _fed(append) else "plain", answer))
+        self._started()
         return await answer
 
     async def drained(self) -> None:
         """Return once every request queued so far is written and answered."""
-        while self._task is not None and not self._task.done():
-            await asyncio.shield(self._task)
+        while running := [task for task in self._tasks.values() if not task.done()]:
+            await asyncio.shield(asyncio.gather(*running))
 
-    # One transaction at a time: a log's next group waits for its last one's commit, so its seqs
-    # are given in the order its requests came.
-    async def _writing(self) -> None:
-        while self._queue:
-            await self._gathered()
-            group = self._taken()
-            if group:
-                await self._settled(group)
+    # A lane idle with a request of its own waiting starts: on a request, and whenever a group
+    # ends, since the other lane may have been waiting on its logs.
+    def _started(self) -> None:
+        for lane in LANES:
+            task = self._tasks.get(lane)
+            idle = task is None or task.done()
+            if idle and any(queued.lane == lane for queued in self._queue):
+                self._tasks[lane] = asyncio.create_task(self._lane(lane))
 
-    async def _gathered(self) -> None:
-        loop = asyncio.get_running_loop()
-        closes = self._queue[0].at + GATHER_S
-        while self._queued < MOST_IN_A_GROUP and (left := closes - loop.time()) > 0:
-            self._arrived.clear()
+    # No timer: what arrives while a transaction is out is the next group. A lane ends when it has
+    # nothing it may write; the other lane starts it again when it lets a log go.
+    async def _lane(self, lane: Lane) -> None:
+        while group := self._taken(lane):
+            logs = {queued.append.log for queued in group}
+            self._writing |= logs
             try:
-                async with asyncio.timeout(left):
-                    await self._arrived.wait()
-            except TimeoutError:
-                return
+                await self._settled(group)
+            finally:
+                self._writing -= logs
+                self._started()
 
-    # A log is in a group once: its later requests, and every one past the group's size, wait for
-    # the next group in the order they came. A request its caller gave up on is not written.
-    def _taken(self) -> list[_Queued]:
+    # A log is in a group once, and never while the other lane writes it or holds an earlier request
+    # of it: its later requests, and every one past the group's size, wait in the order they came.
+    # A request its caller gave up on is not written.
+    def _taken(self, lane: Lane) -> list[_Queued]:
         group: list[_Queued] = []
         later: deque[_Queued] = deque()
-        logs: set[str] = set()
+        logs = set(self._writing)
         size = 0
         while self._queue:
             queued = self._queue.popleft()
-            entries = len(queued.append.entries)
             if queued.answer.done():
-                self._queued -= entries
                 continue
+            entries = len(queued.append.entries)
             fits = not group or size + entries <= MOST_IN_A_GROUP
-            if queued.append.log not in logs and fits:
+            if queued.lane == lane and queued.append.log not in logs and fits:
                 group.append(queued)
                 size += entries
             else:
                 later.append(queued)
             logs.add(queued.append.log)
         self._queue = later
-        self._queued -= size
         return group
 
     # A member whose own entries break the transaction (a constraint, bytes Postgres refuses) would
@@ -246,6 +248,9 @@ class Writer:
         _answered(queued.answer, outcome)
 
 
+LANES: tuple[Lane, ...] = ("fed", "plain")
+
+
 # What a first-of-its-type request is answered with when its log did not need it.
 NOT_NEEDED = Batch(entries=[], replayed=False)
 
@@ -262,16 +267,10 @@ async def _transaction(pool: Pool, group: Sequence[Append]) -> list[Batch | Conf
     async with pool.connection() as connection, connection.transaction():
         if any(_fed(append) for append in group):
             await connection.execute(FEED_ORDER, {"key": FEED_ORDER_KEY})
-        if begun:
-            await connection.execute(
-                HEADS_BEGUN,
-                {
-                    "logs": [append.log for append in begun],
-                    "agents": [append.agent for append in begun],
-                    "calls": [append.call for append in begun],
-                },
-            )
-        heads = await _heads(connection, [append.log for append in group])
+        heads = await _heads(connection, HEADS_LOCKED, {"logs": [append.log for append in group]})
+        missing = [append for append in begun if append.log not in heads]
+        if missing:
+            heads |= await _heads(connection, HEADS_BEGUN, _begun(missing))
         typed = await _held_types(
             connection, [append for append in group if append.kind == "first"]
         )
@@ -283,8 +282,8 @@ async def _transaction(pool: Pool, group: Sequence[Append]) -> list[Batch | Conf
         ]
         numbered = [_numbered(append, first=outcome.first) for append, outcome in moved]
         entries = [entry for batch in numbered for entry in batch]
-        await _heads_moved(connection, moved)
-        await _rows_written(connection, entries)
+        if moved:
+            await connection.execute(WRITTEN, {**_heads_moved(moved), **_rows(entries)})
         await record(connection, entries)
     taken = iter(numbered)
     return [
@@ -308,13 +307,21 @@ def _fed(append: Append) -> bool:
     return any(not item.ephemeral and item.type in FED_TYPES for item in append.entries)
 
 
-async def _heads(connection: Connection, logs: Sequence[str]) -> dict[str, DictRow]:
-    rows = await (await connection.execute(HEADS_LOCKED, {"logs": list(logs)})).fetchall()
+async def _heads(
+    connection: Connection, statement: LiteralString, params: Mapping[str, object]
+) -> dict[str, DictRow]:
+    rows = await (await connection.execute(statement, params)).fetchall()
     return {str(row["log"]): row for row in rows}
 
 
-# What the head's locked row says of the request: taken under the next seqs, a batch the log took
-# before (answered with the seqs it was given, even after the seal), or refused in a sentence.
+def _begun(missing: Sequence[Append]) -> dict[str, object]:
+    return {
+        "logs": [append.log for append in missing],
+        "agents": [append.agent for append in missing],
+        "calls": [append.call for append in missing],
+    }
+
+
 # A first-of-its-type request is not needed on a log never written, sealed, or holding its type.
 def _outcome_of(append: Append, head: DictRow | None, typed: set[str]) -> _Moved | Batch | Conflict:
     if append.kind == "first" and (append.log in typed or head is None or head["sealed"]):
@@ -374,40 +381,30 @@ def _numbered(append: Append, *, first: int) -> list[Entry]:
 
 
 # A verdict on a sealed log names nothing of the log: it only takes the next seq.
-async def _heads_moved(connection: Connection, moved: Sequence[tuple[Append, _Moved]]) -> None:
-    if not moved:
-        return
-    await connection.execute(
-        HEADS_MOVED,
-        {
-            "logs": [append.log for append, _ in moved],
-            "seqs": [outcome.seq for _, outcome in moved],
-            "written": [outcome.written for _, outcome in moved],
-            "written_seqs": [outcome.written_seq for _, outcome in moved],
-            "agents": [None if append.kind == "score" else append.agent for append, _ in moved],
-            "calls": [None if append.kind == "score" else append.call for append, _ in moved],
-            "stamps": [
-                None if append.kind == "score" else append.entries[0].ts for append, _ in moved
-            ],
-        },
-    )
+def _heads_moved(moved: Sequence[tuple[Append, _Moved]]) -> dict[str, object]:
+    return {
+        "logs": [append.log for append, _ in moved],
+        "seqs": [outcome.seq for _, outcome in moved],
+        "written": [outcome.written for _, outcome in moved],
+        "written_seqs": [outcome.written_seq for _, outcome in moved],
+        "agents": [None if append.kind == "score" else append.agent for append, _ in moved],
+        "heads_calls": [None if append.kind == "score" else append.call for append, _ in moved],
+        "heads_stamps": [
+            None if append.kind == "score" else append.entries[0].ts for append, _ in moved
+        ],
+    }
 
 
-async def _rows_written(connection: Connection, entries: Sequence[Entry]) -> None:
+def _rows(entries: Sequence[Entry]) -> dict[str, object]:
     kept = [entry for entry in entries if not entry.ephemeral]
-    if not kept:
-        return
-    await connection.execute(
-        ROWS_WRITTEN,
-        {
-            "calls": [entry.call for entry in kept],
-            "seqs": [entry.seq for entry in kept],
-            "stamps": [entry.ts for entry in kept],
-            "agents": [entry.agent for entry in kept],
-            "types": [entry.type for entry in kept],
-            "data": [Jsonb(entry.data) for entry in kept],
-        },
-    )
+    return {
+        "calls": [entry.call for entry in kept],
+        "row_seqs": [entry.seq for entry in kept],
+        "stamps": [entry.ts for entry in kept],
+        "row_agents": [entry.agent for entry in kept],
+        "types": [entry.type for entry in kept],
+        "data": [Jsonb(entry.data) for entry in kept],
+    }
 
 
 # A caller that gave up has a cancelled future: its entries were written all the same.
