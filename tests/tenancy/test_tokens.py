@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from livekit.api import AccessToken, TokenVerifier
 
 from pinecall.domain.person import Key
+from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy.keys import Issued, issue, person_key, verify
 from pinecall.tenancy.people import Change, invite, make_operator, update
@@ -168,13 +169,46 @@ def test_a_seat_names_the_person_the_key_was_minted_for() -> None:
 @postgres
 async def test_a_token_is_spent_once_and_the_ledger_remembers_it_was(pool: Pool) -> None:
     org = await org_with_keys(pool)
-    await minted(pool, MintedToken("call_1", org.id, "recepcion", "talk", in_a_minute()))
-    assert await spend(pool, "call_1") == "spent"
-    assert await spend(pool, "call_1") == "already_spent"
+    await minted(
+        pool, MintedToken("call_1", org.id, "production", "recepcion", "talk", in_a_minute())
+    )
+    assert await spend(pool, "call_1", Scope(org.id), "recepcion") == "spent"
+    assert await spend(pool, "call_1", Scope(org.id), "recepcion") == "already_spent"
 
 
 @postgres
 async def test_a_call_nobody_minted_a_token_for_is_told_apart_from_a_spent_one(
     pool: Pool,
 ) -> None:
-    assert await spend(pool, "call_nobody") == "never_minted"
+    assert await spend(pool, "call_nobody", Scope("org_1"), "recepcion") == "never_minted"
+
+
+@postgres
+async def test_a_token_is_spent_only_by_the_org_world_and_agent_it_was_minted_for(
+    pool: Pool,
+) -> None:
+    org = await org_with_keys(pool)
+    await minted(pool, MintedToken("call_1", org.id, "sandbox", "recepcion", "talk", in_a_minute()))
+    sandbox = Scope(org.id, "sandbox")
+    for scope, agent in (
+        (Scope("org_other", "sandbox"), "recepcion"),
+        (Scope(org.id, "production"), "recepcion"),
+        (sandbox, "ventas"),
+    ):
+        assert await spend(pool, "call_1", scope, agent) == "minted_elsewhere"
+    assert await spend(pool, "call_1", sandbox, "recepcion") == "spent"
+
+
+@postgres
+async def test_a_token_minted_before_its_world_was_kept_is_held_to_its_org_and_agent(
+    pool: Pool,
+) -> None:
+    org = await org_with_keys(pool)
+    async with pool.connection() as connection:
+        await connection.execute(
+            "INSERT INTO tokens (call, org, agent, scope, expires_at) "
+            "VALUES ('call_1', %(org)s, 'recepcion', 'talk', now() + interval '1 minute')",
+            {"org": org.id},
+        )
+    assert await spend(pool, "call_1", Scope("org_other"), "recepcion") == "minted_elsewhere"
+    assert await spend(pool, "call_1", Scope(org.id, "sandbox"), "recepcion") == "spent"

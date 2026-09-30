@@ -201,12 +201,9 @@ JWT_PARTS = 3
 
 
 MINTED = """
-INSERT INTO tokens (call, org, agent, scope, expires_at)
-VALUES (%(call)s, %(org)s, %(agent)s, %(scope)s, to_timestamp(%(expires_at)s))
+INSERT INTO tokens (call, org, env, agent, scope, expires_at)
+VALUES (%(call)s, %(org)s, %(env)s, %(agent)s, %(scope)s, to_timestamp(%(expires_at)s))
 """
-
-
-KNOWN = "SELECT 1 FROM tokens WHERE call = %(call)s"
 
 
 # Valid for one call: the browser's scopes, and the one that sends verbs.
