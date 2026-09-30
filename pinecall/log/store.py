@@ -153,6 +153,13 @@ class Store:
         written = (await self.writer.written(Append("first", call, call, agent, [entry]))).entries
         return written[0] if written else None
 
+    # Of two gateways answering one tool call (the app's answer, a timeout) the first stands.
+    async def append_answer(self, call: str, agent: str, data: JsonObject) -> Entry | None:
+        """Write a tool.result unless the log never asked its call id or answered it; None then."""
+        entry = Unnumbered(type="tool.result", data=data, ephemeral=False, ts=self.clock())
+        written = (await self.writer.written(Append("answer", call, call, agent, [entry]))).entries
+        return written[0] if written else None
+
     # One writer, in order: `after` is how many entries the log took from it before this batch.
     async def append_many(
         self, call: str | None, agent: str, entries: Sequence[Unnumbered], *, after: int

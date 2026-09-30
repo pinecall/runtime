@@ -1,5 +1,6 @@
 """The app socket a tenant's process holds, and the org's list of connected apps."""
 
+import asyncio
 import dataclasses
 import logging
 import time
@@ -10,6 +11,7 @@ from pydantic import ValidationError
 from pinecall.domain.errors import (
     DeclarationRefused,
     NotAllowed,
+    NotAvailable,
     NotFound,
     PinecallError,
     QuotaExhausted,
@@ -21,9 +23,18 @@ from pinecall.gateway._call_setup import exhausted, tuned
 from pinecall.gateway._deps import Acting, AppKey, CallsKey, GatewayDep, ScopeDep
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import Served, claim_code, handed_on, parked_calls_of
-from pinecall.gateway._sockets import NOT_REGISTERED, Process, Registration, new_socket_id
+from pinecall.gateway._sockets import (
+    NOT_REGISTERED,
+    Process,
+    Registration,
+    SocketId,
+    new_socket_id,
+)
+from pinecall.gateway.calls.known import known_here
+from pinecall.gateway.calls.pump import BOUND_CHANNEL, Bound
 from pinecall.providers import catalog
 from pinecall.session.call import changed_by, with_app_fields
+from pinecall.session.tools import unanswered
 from pinecall.tenancy import admission, consents, keys
 from pinecall.tenancy.consents import Given
 from pinecall.wire.commands import (
@@ -100,6 +111,10 @@ SEARCHES_WITH_NOTHING = (
 
 
 NO_SUCH_APP = "no app {app} is connected here that this key may stop"
+
+
+# How long a socket waits for the signal before listening again for the calls bound to it.
+BOUND_RETRY_S = 1.0
 
 
 class AppSocket:
@@ -218,9 +233,11 @@ class AppSocket:
         entry = await sockets.drained(self.id, self.scope.env, slug, handed=handed, parked=parked)
         await self.send(entry)
 
+    # The worker may have asked another gateway: the answer is written on the call's log here,
+    # once per call id, and whoever waits reads it there.
     async def _answered(self, command: Command, result: ToolResult) -> None:
         served = None if command.call is None else self.gateway.live.calls.get(command.call)
-        if served is not None and served.agent == command.agent and served.tools.answered(result):
+        if served is not None and served.agent == command.agent and await _written(served, result):
             return
         text = NOBODY_WAITING.format(call_id=result.call_id, call=command.call)
         await self.refuse(command.agent, "no_session", text, command.written())
@@ -316,11 +333,14 @@ async def apps_socket(websocket: WebSocket) -> None:
         ),
         socket.send,
     )
+    bound = asyncio.create_task(_bound_here(gateway, socket.id))
     try:
         await socket.serve()
     except WebSocketDisconnect:
         logger.info("app %s went away", socket.id)
     finally:
+        bound.cancel()
+        await asyncio.gather(bound, return_exceptions=True)
         # Calls outlive their socket: parked, then handed to another holder or the next app.
         gateway.live.disconnect(socket.id)
         calls = gateway.live.bound_to(socket.id)
@@ -407,3 +427,35 @@ async def _opted_out(gateway: Gateway, served: Served, agent: str, wanted: CallO
         call=served.call,
     )
     await consents.give(gateway.connections.pool, served.scope, served.context.caller, given)
+
+
+async def _written(served: Served, result: ToolResult) -> bool:
+    """Hand the answer to the round trip waiting here, else write it once on the call's log."""
+    return served.tools.answered(result) or await served.log.answer(result.written()) is not None
+
+
+# Another gateway opened a call for an agent this socket holds, or handed it one: the call is
+# served here and pumped down this socket, from the seq that gateway said.
+async def _bound_here(gateway: Gateway, app: SocketId) -> None:
+    signal = gateway.connections.signal
+    while True:
+        try:
+            listening = await signal.subscribe(BOUND_CHANNEL.format(app=app))
+        except NotAvailable:
+            await asyncio.sleep(BOUND_RETRY_S)
+            continue
+        try:
+            async for data in listening:
+                await _taken_here(gateway, app, Bound.model_validate_json(data))
+        finally:
+            listening.close()
+        await asyncio.sleep(BOUND_RETRY_S)
+
+
+async def _taken_here(gateway: Gateway, app: SocketId, bound: Bound) -> None:
+    served = await known_here(gateway.serving, bound.call)
+    if served is None or app not in gateway.live.sockets or bound.call in gateway.live.pumps:
+        return
+    gateway.live.attach(bound.call, app)
+    then = unanswered(await served.log.whole()) if bound.after else []
+    gateway.live.pumped(bound.call, after=bound.after, then=then)

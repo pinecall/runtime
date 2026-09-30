@@ -94,13 +94,25 @@ from unnest(%(logs)s::text[], %(types)s::text[]) as wanted(log, type)
 where exists (select 1 from call_log where log = wanted.log and type = wanted.type)
 """
 
+# The answers of a tool call not needed: the log never asked that call id, or already holds its
+# answer (the app's, or the timeout another gateway wrote). Read under the heads' locks, so of two
+# gateways answering one call id the second sees the first's row.
+UNANSWERABLE = """
+select wanted.log
+from unnest(%(logs)s::text[], %(ids)s::text[]) as wanted(log, call_id)
+where not exists (select 1 from call_log where log = wanted.log and type = 'tool.call'
+                    and data ->> 'call_id' = wanted.call_id)
+   or exists (select 1 from call_log where log = wanted.log and type = 'tool.result'
+                and data ->> 'call_id' = wanted.call_id)
+"""
+
 # A request that writes a fed type goes in the fed lane, which alone takes FEED_ORDER; every other
 # goes in the plain lane, which never waits on it.
 type Lane = Literal["fed", "plain"]
 
 # The gateway's own entry, a worker's batch, a verdict written again on a sealed log, or a durable
 # entry written only when its log is open and holds none of its type.
-type Kind = Literal["entry", "batch", "score", "first"]
+type Kind = Literal["entry", "batch", "score", "first", "answer"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -274,6 +286,9 @@ async def _transaction(pool: Pool, group: Sequence[Append]) -> list[Batch | Conf
         typed = await _held_types(
             connection, [append for append in group if append.kind == "first"]
         )
+        typed |= await _unanswerable(
+            connection, [append for append in group if append.kind == "answer"]
+        )
         outcomes = [_outcome_of(append, heads.get(append.log), typed) for append in group]
         moved = [
             (append, outcome)
@@ -303,6 +318,17 @@ async def _held_types(connection: Connection, firsts: Sequence[Append]) -> set[s
     return {str(row["log"]) for row in rows}
 
 
+async def _unanswerable(connection: Connection, answers: Sequence[Append]) -> set[str]:
+    if not answers:
+        return set()
+    wanted = {
+        "logs": [append.log for append in answers],
+        "ids": [str(append.entries[0].data.get("call_id")) for append in answers],
+    }
+    rows = await (await connection.execute(UNANSWERABLE, wanted)).fetchall()
+    return {str(row["log"]) for row in rows}
+
+
 def _fed(append: Append) -> bool:
     return any(not item.ephemeral and item.type in FED_TYPES for item in append.entries)
 
@@ -322,9 +348,11 @@ def _begun(missing: Sequence[Append]) -> dict[str, object]:
     }
 
 
-# A first-of-its-type request is not needed on a log never written, sealed, or holding its type.
+# A first-of-its-type request is not needed on a log never written, sealed, or holding its type;
+# an answer, on one that never asked its call id or holds its answer already.
 def _outcome_of(append: Append, head: DictRow | None, typed: set[str]) -> _Moved | Batch | Conflict:
-    if append.kind == "first" and (append.log in typed or head is None or head["sealed"]):
+    guarded = append.kind in {"first", "answer"}
+    if guarded and (append.log in typed or head is None or head["sealed"]):
         return NOT_NEEDED
     return _outcome(append, head)
 

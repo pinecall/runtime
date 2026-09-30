@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from functools import partial
@@ -13,17 +13,19 @@ from pinecall.domain.call import CallContext
 from pinecall.domain.names import CHANNELS_WITH_A_NUMBER, Env, JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.gateway._sockets import Process, Registration, SocketId, Sockets, orgs_own
+from pinecall.gateway.calls.pump import Bound, Send, pumped, told_bound
 from pinecall.log import queries
-from pinecall.log.logs import Log, Logs, Subscription, arrival_entry
+from pinecall.log.logs import Log, Logs, arrival_entry
 from pinecall.log.private import Privacy
 from pinecall.log.reduce import reduce
 from pinecall.process.connections import Connections
 from pinecall.process.metrics import Counters
+from pinecall.process.signal import LocalSignal, Signal
 from pinecall.retrieval import lookups
 from pinecall.retrieval.embed import Embedder
 from pinecall.retrieval.lookups import OnTheCall
 from pinecall.session.session import Session
-from pinecall.session.tools import ToolCalls
+from pinecall.session.tools import ToolCalls, unanswered
 from pinecall.tenancy import admission
 from pinecall.tenancy.codes import Codes
 from pinecall.tenancy.prompts import Prompts
@@ -35,9 +37,6 @@ from pinecall.wire.events import (
 )
 from pinecall.wire.frames import Command, Entry
 from pinecall.wire.rest.calls import LookupRequest
-
-type Send = Callable[[Entry], Awaitable[None]]
-
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +60,6 @@ class Served:
     scope: Scope
     app: SocketId | None
     log: Log
-    entries: Subscription
     # A None ends the worker's command stream.
     commands: asyncio.Queue[Command | None]
     context: CallContext
@@ -85,16 +83,18 @@ class Served:
 class ServedCalls:
     """The open app sockets and the calls served to them."""
 
-    def __init__(self) -> None:
-        """Nothing open."""
+    def __init__(self, signal: Signal | None = None) -> None:
+        """Nothing open; bindings to other gateways' sockets told on the signal."""
+        self.signal = signal or LocalSignal()
         self.sockets: dict[SocketId, Send] = {}
         self.processes: dict[SocketId, Process] = {}
         self.calls: dict[str, Served] = {}
         # The calls first seen here, by when a door last asked for one: let go once idle.
         self.seen: dict[str, float] = {}
         self.pending_answers: dict[str, asyncio.Future[DevAnswer]] = {}
-        # asyncio keeps weak references to tasks: the pumps are held here.
-        self.pumps: set[asyncio.Task[None]] = set()
+        # Each bound call's pump to its socket, by call: held here, since asyncio keeps weak
+        # references to tasks, and cancelled when the call moves or ends.
+        self.pumps: dict[str, asyncio.Task[None]] = {}
 
     def connect(self, process: Process, send: Send) -> None:
         """An app socket opened."""
@@ -149,19 +149,33 @@ class ServedCalls:
         if served.call in self.calls:
             return
         self.calls[served.call] = served
-        self._feed(served)
+        self.pumped(served.call, after=0)
 
-    # Synchronous, so two sockets taking one parked call cannot both have it.
+    # Synchronous, so two sockets taking one parked call cannot both have it. The new socket's pump
+    # starts once call.attached is written (`attach`), from it.
     def attach(self, call: str, app: SocketId | None) -> Served | None:
         """Move the call to this socket (None parks it); None when nothing moved."""
         served = self.calls.get(call)
         if served is None or served.app == app:
             return None
-        served.entries.close()
-        moved = replace(served, app=app, entries=served.log.fanout.subscribe())
+        self._stopped(call)
+        moved = replace(served, app=app)
         self.calls[call] = moved
-        self._feed(moved)
         return moved
+
+    # What any gateway writes to the call reaches its socket here, in seq order, from `after`;
+    # `then` goes down right after the first entry (the tools still waiting, after call.attached).
+    def pumped(self, call: str, *, after: int, then: Sequence[Entry] = ()) -> None:
+        """Start sending the call's entries to its socket, if the socket is open here."""
+        served = self.calls.get(call)
+        if served is None or served.app is None:
+            return
+        send = self.sockets.get(served.app)
+        if send is None:
+            told_bound(self.signal, served.app, Bound(call=call, after=after))
+            return
+        self._stopped(call)
+        self.pumps[call] = asyncio.ensure_future(pumped(served.log, after, send, then))
 
     def bound_to(self, app: SocketId) -> list[str]:
         """The calls this socket serves."""
@@ -196,8 +210,10 @@ class ServedCalls:
     # A call first seen here is a cache of what was kept: let go when idle, and read again later.
     def idle(self, now: float) -> None:
         """Let go of the calls first seen here that no door asked for in FIRST_SEEN_IDLE_S."""
-        for call in [call for call, at in self.seen.items() if now - at > FIRST_SEEN_IDLE_S]:
-            self.close(call)
+        idle = [call for call, at in self.seen.items() if now - at > FIRST_SEEN_IDLE_S]
+        for call in idle:
+            if call not in self.pumps:
+                self.close(call)
 
     def commanded(self, call: str | None, agent: str, command: Command) -> bool:
         """Queue an app's command for the worker running the call; False when it is not here."""
@@ -213,17 +229,13 @@ class ServedCalls:
         served = self.calls.pop(call, None)
         if served is None:
             return
-        served.entries.close()
+        self._stopped(call)
         served.commands.put_nowait(None)
 
-    def _feed(self, served: Served) -> None:
-        send = None if served.app is None else self.sockets.get(served.app)
-        if send is None:
-            served.entries.close()
-            return
-        pump = asyncio.ensure_future(_pumped(served.log, served.entries, send))
-        self.pumps.add(pump)
-        pump.add_done_callback(self.pumps.discard)
+    def _stopped(self, call: str) -> None:
+        pump = self.pumps.pop(call, None)
+        if pump is not None:
+            pump.cancel()
 
 
 @dataclass(frozen=True)
@@ -266,14 +278,14 @@ def served_call(
         scope=scope,
         app=owner,
         log=log,
-        entries=log.fanout.subscribe(),
         commands=asyncio.Queue(),
         context=context,
         config=config,
         tools=ToolCalls(
             config,
-            log.append,
+            log,
             partial(queries.tool_answered, serving.connections.pool, context.call),
+            partial(queries.tool_called, serving.connections.pool, context.call),
         ),
     )
     serving.live.serve(served)
@@ -324,6 +336,8 @@ async def attach(live: ServedCalls, call: str, app: SocketId) -> Entry | None:
     entries = await served.log.whole()
     started = next((entry for entry in entries if entry.type == STARTED), None)
     if started is None:
+        # Not started yet: the socket hears it from what comes next.
+        live.pumped(call, after=entries[-1].seq if entries else 0)
         return None
     claimed = next(
         (str(entry.data["code"]) for entry in reversed(entries) if entry.type == CLAIMED), None
@@ -336,9 +350,9 @@ async def attach(live: ServedCalls, call: str, app: SocketId) -> Entry | None:
         claimed=claimed,
     )
     entry = await served.log.append("call.attached", data.written())
-    # On the same queue, after call.attached, so the result lands on the call id still awaited.
-    for waiting in served.tools.pending():
-        served.entries.offer(waiting)
+    # After call.attached, so the result lands on the call id still awaited: read off the log, since
+    # the worker may have asked them of another gateway.
+    live.pumped(call, after=entry.seq - 1, then=unanswered(entries))
     return entry
 
 
@@ -379,13 +393,3 @@ async def claim_code(
 def now_of(serving: Serving) -> datetime:
     """This moment by the store's clock, the one every entry of a call is stamped with."""
     return datetime.fromtimestamp(serving.logs.store.clock(), UTC)
-
-
-# The app runs the call's tools and holds its state: it is sent them as they were written.
-async def _pumped(log: Log, entries: Subscription, send: Send) -> None:
-    try:
-        async for entry in entries:
-            await send(log.opened(entry))
-    except (OSError, RuntimeError):
-        logger.warning("an app socket stopped taking its call's entries", exc_info=True)
-        entries.close()

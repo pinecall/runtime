@@ -355,10 +355,16 @@ async def a_gateway(pool: Pool, logs: Logs, shared: Shared) -> AsyncGenerator[Ga
     server = Server()
     settings = settings_of()
     http = httpx.AsyncClient(transport=shared.outside)
-    sockets, live = Sockets(logs), ServedCalls()
+    sockets, live = Sockets(logs), ServedCalls(shared.signal)
     await sockets.start()
     connections = Connections(
-        settings=settings, pool=pool, writing=pool, vault=shared.vault, http=http, server=server
+        settings=settings,
+        pool=pool,
+        writing=pool,
+        vault=shared.vault,
+        http=http,
+        server=server,
+        signal=shared.signal,
     )
     serving = Serving(connections=connections, logs=logs, live=live, embedder=None)
     threads = Threads(serving, sockets)

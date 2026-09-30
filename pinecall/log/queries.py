@@ -30,13 +30,22 @@ from pinecall.log.facts import (
     facts_of,
 )
 from pinecall.log.reduce import METERED_TYPES, UsageRow, usage_row
-from pinecall.log.store import Store
+from pinecall.log.store import Store, entry_of
 from pinecall.postgres.pool import Pool
+from pinecall.wire.frames import Entry
 from pinecall.wire.parts import ToolResult
 
 TOOL_ANSWERED = """
 select data from call_log
 where log = %(log)s and type = 'tool.result' and data->>'call_id' = %(call_id)s
+order by seq
+limit 1
+"""
+
+# A tool call id the log asked already: a retry that reached another gateway waits for its answer.
+TOOL_CALLED = """
+select call, seq, ts, agent, type, ephemeral, data from call_log
+where log = %(log)s and type = 'tool.call' and data->>'call_id' = %(call_id)s
 order by seq
 limit 1
 """
@@ -223,6 +232,14 @@ async def tool_answered(pool: Pool, call: str, call_id: str) -> ToolResult | Non
     async with pool.connection() as connection:
         row = await (await connection.execute(TOOL_ANSWERED, wanted)).fetchone()
     return None if row is None else ToolResult.model_validate(row["data"])
+
+
+async def tool_called(pool: Pool, call: str, call_id: str) -> Entry | None:
+    """The `tool.call` entry the call's log holds for this tool call id, or None."""
+    wanted = {"log": call, "call_id": call_id}
+    async with pool.connection() as connection:
+        row = await (await connection.execute(TOOL_CALLED, wanted)).fetchone()
+    return None if row is None else entry_of(row)
 
 
 async def facts_of_calls(pool: Pool, calls: Sequence[str]) -> dict[str, CallFacts]:

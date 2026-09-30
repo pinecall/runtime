@@ -272,7 +272,7 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
     stack.push_async_callback(logs.close)
     codes = Codes(logs)
     await codes.loaded()
-    sockets, live = Sockets(logs), ServedCalls()
+    sockets, live = Sockets(logs), ServedCalls(connections.signal)
     await sockets.start()
     stack.push_async_callback(sockets.close)
     embedder = await embedder_of(connections)

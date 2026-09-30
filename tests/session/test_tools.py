@@ -21,6 +21,7 @@ from pinecall.session.tools import (
     RECALL,
     SEARCH,
     Answered,
+    Called,
     Lookups,
     ToolCalls,
     as_livekit_tools,
@@ -40,6 +41,11 @@ BOOK = ToolSpec("book", "Book a table.", {"type": "object", "properties": {}}, t
 def _answered_in(store: Store, call: str) -> Answered:
     """What the call's own log answered each tool call id, as the gateway reads it."""
     return partial(queries.tool_answered, store.pool, call)
+
+
+def _called_in(store: Store, call: str) -> Called:
+    """What the call's own log asked for each tool call id, as the gateway reads it."""
+    return partial(queries.tool_called, store.pool, call)
 
 
 # The tap runs inside the append; the round trip then waits for its answer before this wakes.
@@ -171,7 +177,10 @@ async def test_a_tool_asked_twice_by_call_id_is_written_once_and_answered_once(
     box: Box, store: Store, call: str
 ) -> None:
     calls = ToolCalls(
-        AgentConfig(slug="a", tools=(BOOK,)), box.log.append, _answered_in(store, call)
+        AgentConfig(slug="a", tools=(BOOK,)),
+        box.log,
+        _answered_in(store, call),
+        _called_in(store, call),
     )
     use = ToolUse("t1", "book", {"day": "lunes"})
     out = went_out(box.log)
@@ -191,7 +200,10 @@ async def test_a_tool_asked_again_after_it_finished_is_answered_from_the_log_and
     box: Box, store: Store, call: str
 ) -> None:
     calls = ToolCalls(
-        AgentConfig(slug="a", tools=(BOOK,)), box.log.append, _answered_in(store, call)
+        AgentConfig(slug="a", tools=(BOOK,)),
+        box.log,
+        _answered_in(store, call),
+        _called_in(store, call),
     )
     use = ToolUse("t1", "book", {"day": "lunes"})
     out = went_out(box.log)
@@ -201,7 +213,10 @@ async def test_a_tool_asked_again_after_it_finished_is_answered_from_the_log_and
     assert (await first).output == "booked"
     again = await calls.ran(use, "speech_1")
     taken_up = ToolCalls(
-        AgentConfig(slug="a", tools=(BOOK,)), box.log.append, _answered_in(store, call)
+        AgentConfig(slug="a", tools=(BOOK,)),
+        box.log,
+        _answered_in(store, call),
+        _called_in(store, call),
     )
     after_a_restart = await taken_up.ran(use, "speech_1")
     assert again == after_a_restart == await first
@@ -215,7 +230,10 @@ async def test_the_tools_still_waiting_are_the_entries_that_went_out_in_order(
 ) -> None:
     slow = ToolSpec("book", "Book.", {"type": "object"}, timeout_s=5)
     calls = ToolCalls(
-        AgentConfig(slug="a", tools=(slow,)), box.log.append, _answered_in(store, call)
+        AgentConfig(slug="a", tools=(slow,)),
+        box.log,
+        _answered_in(store, call),
+        _called_in(store, call),
     )
     first, both = went_out(box.log, 1), went_out(box.log, 2)
     running = [asyncio.create_task(calls.ran(ToolUse("t1", "book", {}), None))]
@@ -232,7 +250,10 @@ async def test_a_tool_that_does_not_answer_in_time_is_an_error_the_model_recover
     box: Box, store: Store, call: str
 ) -> None:
     calls = ToolCalls(
-        AgentConfig(slug="a", tools=(BOOK,)), box.log.append, _answered_in(store, call)
+        AgentConfig(slug="a", tools=(BOOK,)),
+        box.log,
+        _answered_in(store, call),
+        _called_in(store, call),
     )
     result = await calls.ran(ToolUse("t1", "book", {}), None)
     assert result.error == "book did not answer within 0.1s"
@@ -245,7 +266,10 @@ async def test_a_cancelled_wait_is_cancelled_and_never_a_lapsed_result(
 ) -> None:
     slow = ToolSpec("book", "Book.", {"type": "object"}, timeout_s=5)
     calls = ToolCalls(
-        AgentConfig(slug="a", tools=(slow,)), box.log.append, _answered_in(store, call)
+        AgentConfig(slug="a", tools=(slow,)),
+        box.log,
+        _answered_in(store, call),
+        _called_in(store, call),
     )
     out = went_out(box.log)
     asking = asyncio.create_task(calls.ran(ToolUse("t1", "book", {}), None))
