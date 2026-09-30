@@ -161,7 +161,7 @@ class Session:
         self.built = built
         self.lookups = lookups
         self.blocks = Blocks(self.call.config.prompt, self.call.config.knowledge or "")
-        self.agent = CallAgent(live, self.blocks, lookups, self._declared())
+        self.agent = CallAgent(live, self.blocks, lookups, self._declared(), self._music)
         self.started_at = time.time()
         # Why the call ended, when our code knows: it wins over livekit's close reason.
         self.ended: tuple[EndReason, EndedBy] | None = None

@@ -18,7 +18,7 @@ from livekit.agents import llm, stt, tts
 from livekit.agents.language import LanguageCode
 from typing_extensions import TypeIs
 
-from pinecall.domain.agent import Turn
+from pinecall.domain.agent import Tuning, Turn
 from pinecall.domain.errors import DeclarationRefused, NotAvailable
 from pinecall.domain.names import Credentials, Json, JsonObject
 from pinecall.wire.metrics import LLMModelUsage
@@ -67,6 +67,15 @@ _THE_LANGUAGE = ("language", "language_code")
 _THE_HINTS = ("language_hint", "language_hints")
 
 
+_NO_SUCH_CLASS = "{vendor} exports no {stage} named {name!r}"
+
+
+_UNTAKEN = (
+    "{vendor}'s {stage} takes no {knobs}, so a call would run without it: leave it out, or pick a "
+    "vendor that takes it"
+)
+
+
 @dataclass(frozen=True)
 class Vendor:
     """A vendor this process can build: what it does, or why its plugin does not import."""
@@ -104,6 +113,17 @@ MODALITIES: tuple[Modality, ...] = ("llm", "stt", "tts")
 
 
 CLASS_OF: dict[Modality, str] = {"llm": "LLM", "stt": "STT", "tts": "TTS"}
+
+
+# The org's own knobs and the names a plugin may take each under; one it takes under none is
+# refused where the org sets it, not dropped on the next call. `stt_of` gives the endpointing to
+# ears that call it `eot_timeout_ms`.
+_KNOB_NAMES: dict[str, tuple[str, ...]] = {
+    "endpointing_ms": ("endpointing_ms", "eot_timeout_ms"),
+    "eot_threshold": ("eot_threshold",),
+    "eager_eot_threshold": ("eager_eot_threshold",),
+    "voice": _THE_VOICE,
+}
 
 
 @cache
@@ -207,6 +227,20 @@ def stt_of(running: Running, turn: Turn | None) -> stt.STT[Never]:
     return _built("stt", _AN_STT, running, given)
 
 
+# Only what the org set: the key, the language and the hints are the runtime's, and a plugin
+# that takes none of them is the operator's to configure in the providers row.
+def refuse_untaken(ears: Running, voice: Running, tuning: Tuning) -> None:
+    """Refuse the org's turn and voice knobs that its ears or its voice take under no name."""
+    turn = tuning.turn or Turn()
+    heard = {
+        "endpointing_ms": turn.endpointing_ms,
+        "eot_threshold": turn.eot_threshold,
+        "eager_eot_threshold": turn.eager_eot_threshold,
+    }
+    _refuse_untaken("stt", ears, [knob for knob, value in heard.items() if value is not None])
+    _refuse_untaken("tts", voice, ["voice"] if tuning.voice is not None else [])
+
+
 def _vendor(name: str, module: str) -> Vendor:
     try:
         imported = importlib.import_module(module)
@@ -216,13 +250,36 @@ def _vendor(name: str, module: str) -> Vendor:
     return Vendor(name, frozenset(m for m in MODALITIES if hasattr(imported, CLASS_OF[m])))
 
 
+def _refuse_untaken(modality: Modality, running: Running, knobs: list[str]) -> None:
+    if not knobs:
+        return
+    accepts = _parameters(_class_of(modality, running))
+    untaken = [knob for knob in knobs if not any(name in accepts for name in _KNOB_NAMES[knob])]
+    if untaken:
+        raise DeclarationRefused(
+            _UNTAKEN.format(vendor=running.vendor, stage=modality, knobs=", ".join(untaken))
+        )
+
+
+def _class_of(modality: Modality, running: Running) -> type:
+    name = running.builds or CLASS_OF[modality]
+    made: object = getattr(plugin(running.vendor), name, None)
+    if not isinstance(made, type):
+        raise DeclarationRefused(
+            _NO_SUCH_CLASS.format(vendor=running.vendor, stage=CLASS_OF[modality], name=name)
+        )
+    return made
+
+
 def _built[T](
     modality: Modality, base: type[T], running: Running, knobs: Mapping[str, object]
 ) -> T:
-    name = running.builds or CLASS_OF[modality]
-    made: object = getattr(plugin(running.vendor), name, None)
-    if not (isinstance(made, type) and issubclass(made, base)):
-        raise DeclarationRefused(f"{running.vendor} exports no {CLASS_OF[modality]} named {name!r}")
+    named = running.builds or CLASS_OF[modality]
+    made = _class_of(modality, running)
+    if not issubclass(made, base):
+        raise DeclarationRefused(
+            _NO_SUCH_CLASS.format(vendor=running.vendor, stage=CLASS_OF[modality], name=named)
+        )
     constructor: Callable[..., T] = made
     accepts = _parameters(made)
     given: dict[str, object] = {**running.options}
@@ -235,10 +292,12 @@ def _built[T](
     given |= _first(accepts, _THE_HINTS, list(running.hints) or None)
     if running.model is not None:
         given["model"] = running.model
+    # A plugin raises what it likes when it refuses (SpitchError, a missing variable): each is
+    # the vendor refusing its stage, said in its own words.
     try:
         return constructor(**_shaped(made, given))
-    except (TypeError, ValueError) as refused:
-        raise DeclarationRefused(f"{running.vendor} refused its {name}: {refused}") from refused
+    except Exception as refused:
+        raise DeclarationRefused(f"{running.vendor} refused its {named}: {refused}") from refused
 
 
 def _parameters(made: type) -> frozenset[str]:

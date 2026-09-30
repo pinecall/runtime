@@ -25,7 +25,10 @@ Each stage is the vendor a call **would** be built with: the agent's settings, e
 row's default for that modality. Nothing is built to answer. `providers` are the rows
 `GET /v1/providers` answers this org ([provider-keys.md](provider-keys.md)); `defaults` and `models`
 are the providers row's. `medians` pools every turn of the agent's last twenty calls, livekit's own
-field names, the median and not the mean; a measure nobody took has no row. `unavailable_reasons`
+field names, the median and not the mean; a measure nobody took has no row. Two rows are the
+runtime's: `dead_air`, the silence between the caller stopping and the agent starting, and
+`talk_share`, the agent's part of each call's talking, whose `seconds` is a fraction 0 to 1 and
+whose `turns` counts calls ([evals.md](evals.md)). `unavailable_reasons`
 names a stage with no key to run on, in the refusal's own words, so a screen says so before a line
 goes dead. When no app holds the agent the stages come from a bare declaration and the settings.
 
@@ -34,8 +37,10 @@ next call; this door reads.
 
 ## The hold melody — `GET` · `PUT /v1/agents/{slug}/pipeline/hold-audio`
 
-What a caller hears while a tool runs: the box's melody, silence, or a clip the org uploaded. One
-choice per agent per world, whoever holds it.
+What a caller hears while a tool runs or the model has not said its first word: the box's melody,
+silence, or a clip the org uploaded. It starts after 2.5 s of the agent being quiet, so a tool or a
+model that answers inside that plays nothing, and stops at the answer. One choice per agent per
+world, whoever holds it.
 
 ```json
 { "played": "custom", "name": "espera.mp3", "seconds": 41.2, "sha256": "9f2c…" }

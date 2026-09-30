@@ -11,7 +11,7 @@ runtime's default.
 **Two kinds of key open them.** A key that opens `pipeline` (a developer's, an admin's) may set
 everything. A key that opens `words` alone (a supervisor's, a manager's) may set the opening's
 words, what is remembered and the agent's lexicon, and is refused the vendors, the models, the cut of
-a turn, the bases, the recording and the duration **by name**: `403 llm, turn: the pipeline's, and
+a turn, the model's deadline, the bases, the recording and the duration **by name**: `403 llm, turn: the pipeline's, and
 this key opens words alone`. Its set carries those fields over untouched from what stands.
 
 **Three scopes.** In the sandbox a person's key has a scope of its own: what they set is theirs
@@ -53,8 +53,11 @@ Each scope's **own** newest, or null when that scope set nothing; never the fall
 `tts`, `tts_model`, `stt`, `llm` (the three model knobs take `vendor/model`, a vendor alone to keep
 its own default model, or a model alone on whichever vendor is in use), `greeting` (`{say}` or
 `{reply}`), `hangup {when}`, `turn {min_interruption_words, endpointing_ms, eot_threshold,
-eager_eot_threshold}`, `memory {remember, forget}`, `record`, `max_duration_s` (voice calls; `0` is
-no limit), `knowledge` (Markdown read whole into the static block of every call) and `bases
+eager_eot_threshold, min_interruption_ms}` (the last is how long the caller must speak over the
+agent before it stops; unset, livekit's own half second), `memory {remember, forget}`, `record`, `max_duration_s` (voice calls; `0` is
+no limit), `llm_timeout_s` (how long a turn waits for the model's first word, livekit's retries
+included; past it the turn ends unanswered and the call's log says `error {code: llm_timeout}`;
+unset, there is no deadline of ours), `knowledge` (Markdown read whole into the static block of every call) and `bases
 [{base, mode, k, min_score}]`.
 
 ## `PUT /v1/agents/{slug}/settings` — `pipeline` or `words`
@@ -65,8 +68,9 @@ no limit), `knowledge` (Markdown read whole into the static block of every call)
 
 The **whole** set for this scope. It is checked as a call would be built from it: the declaration
 when an app holds the agent, a bare one otherwise, its lexicon in the scope, and the vendors on the
-org's keys, so a vendor this build has no plugin for, a blank knob or an opening with both verbs is
-`400` in its own sentence, and a vendor the box does not lend this org is refused here and not on
+org's keys, so a vendor this build has no plugin for, a blank knob, an opening with both verbs or a turn or
+voice knob the vendor takes under no name ([provider-keys.md](provider-keys.md)) is `400` in its
+own sentence, and a vendor the box does not lend this org is refused here and not on
 the next call. `409` when the scope is not at `if_version`. Answers the `GET` shape.
 
 ## `GET …/settings/history?team=&limit=` · `GET …/settings/diff?against=team|production` · `POST …/settings/rollback {version, team}`
