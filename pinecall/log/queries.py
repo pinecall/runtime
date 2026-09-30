@@ -22,7 +22,6 @@ from pinecall.log.facts import (
     FOUND_PAGE,
     PERSONA_RUNS_COUNT,
     PERSONA_RUNS_PAGE,
-    SPENT_BETWEEN,
     THREADS,
     UNSEALED_SPOKEN,
     UNSEALED_WRITTEN,
@@ -292,14 +291,6 @@ async def counted_day(pool: Pool, scope: Scope, start: float) -> Day:
         total=int(counted["total"]),
         live=int(counted["live"]),
     )
-
-
-async def spent_between(pool: Pool, org: str, start: float, end: float) -> float:
-    """Return what the org's calls started in [start, end) cost, every env and holder counted."""
-    params = {"org": org, "start": start, "end": end}
-    async with pool.connection() as connection:
-        row = await (await connection.execute(SPENT_BETWEEN, params)).fetchone()
-    return 0.0 if row is None else float(row["spent"])
 
 
 async def threads(pool: Pool, inbox: Inbox, *, after: str | None, limit: int) -> InboxPage:

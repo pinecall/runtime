@@ -12,7 +12,7 @@ from pinecall.gateway._deps import ActingDep, CallsKey, GatewayDep, ScopeDep, Us
 from pinecall.log import queries
 from pinecall.log.reduce import Usage, UsageRow, totals_by_org
 from pinecall.log.store import DEFAULT_LIMIT
-from pinecall.tenancy import admission, people
+from pinecall.tenancy import admission, people, usage
 from pinecall.wire.rest.usage import (
     Insights,
     InsightsAgent,
@@ -32,9 +32,6 @@ router = APIRouter()
 
 # An org carries no timezone, so a day is cut in UTC and the answer says so.
 TIMEZONE = "UTC"
-
-
-DECEMBER = 12
 
 
 # The cursor is the store's position of the last row read: a billing consumer resumes from it
@@ -65,8 +62,7 @@ async def insights(
     pool = gateway.connections.pool
     counted_on = day or datetime.now(UTC).date()
     counted = await queries.counted_day(pool, scope, _opening(counted_on))
-    month, next_month = _month_of(counted_on)
-    spent = await queries.spent_between(pool, key.org, _opening(month), _opening(next_month))
+    spent = await usage.spent_in(pool, key.org, counted_on)
     quotas = await admission.quotas_of(pool, key.org, key.env)
     return Insights(
         day=counted_on.isoformat(),
@@ -97,7 +93,7 @@ async def limits(key: ActingDep, gateway: GatewayDep) -> Limits:
     """Each quota of the key's world as {limit, used}, the lends, and where to buy more."""
     pool, org, env = gateway.connections.pool, key.org, key.env
     quotas = await admission.quotas_of(pool, org, env)
-    used = await admission.used(pool, org, env)
+    used = await usage.used(pool, org, env)
     return Limits(
         minutes=Limit(limit=quotas.minutes, used=used.minutes),
         messages=Limit(limit=quotas.messages, used=used.messages),
@@ -151,10 +147,3 @@ def _lends(quotas: Quotas) -> list[str] | None:
 
 def _opening(day: date) -> float:
     return datetime(day.year, day.month, day.day, tzinfo=UTC).timestamp()
-
-
-def _month_of(day: date) -> tuple[date, date]:
-    first = day.replace(day=1)
-    if first.month == DECEMBER:
-        return first, first.replace(year=first.year + 1, month=1)
-    return first, first.replace(month=first.month + 1)

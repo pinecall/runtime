@@ -397,14 +397,6 @@ order by sample.stage, sample.vendor, sample.model
 """).format(day=_ITS_DAY)
 
 
-# A budget is the org's: every env and holder is summed.
-SPENT_BETWEEN = sql.SQL("""
-select coalesce(sum(f.cost_usd), 0) as spent
-from call_log_head head join call_facts f on f.call = head.log
-where head.org = %(org)s and head.call is not null and {day}
-""").format(day=_ITS_DAY)
-
-
 PERSONA_RUNS_COUNT = sql.SQL("select count(*) as total ") + _THE_PERSONAS_RUNS
 
 
