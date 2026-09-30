@@ -8,6 +8,8 @@ apps/       the machine that runs the orgs' hosted apps, one gVisor container ea
 box/        the box: cloud-init, install.sh, release.sh, the systemd units, the Quadlet containers
             of the media plane (LiveKit, SIP, egress, Redis, Postgres), Caddy, nftables. Its page:
             box/README.md; the walk from a VM to a call: docs/a-box-in-production.md
+cell/       a second machine holding a streaming replica of the box's Postgres, and the box's side of
+            it; `pinecall-runtime box failover` promotes it. Its page: cell/README.md
 fleet/      the clouds a fleet grows on: one script each, three verbs (create, delete, list).
             Its page: fleet/README.md; the loop that drives them: docs/scaling.md
 models/     the open stack: three model servers for one NVIDIA GPU (compose.yaml) and the providers

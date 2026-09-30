@@ -43,6 +43,40 @@ NO_BOX = "no box here yet ({env} is missing): `box up --domains …` makes one"
 
 NO_BACKUPS = "off — `box up --backup-key age1…` turns them on (the private key stays with you)"
 
+NOT_A_STANDBY = (
+    "box failover promotes a standby, and the Postgres here is none (it is a primary already): "
+    "run it on the machine infra/cell/replica.sh made a replica"
+)
+
+NO_POSTGRES = "no Postgres answers in the container pinecall-postgres on this machine: {why}"
+
+NOT_PROMOTED = (
+    "Postgres did not leave recovery within {seconds} s: `podman logs pinecall-postgres` says why"
+)
+
+# pg_promote's own wait: a standby that replayed what it received opens in a second or two.
+PROMOTED_WITHIN_S = 60
+
+PSQL = ("podman", "exec", "pinecall-postgres", "psql", "-U", "pinecall", "-d", "pinecall", "-Atc")
+
+IN_RECOVERY = "SELECT pg_is_in_recovery()"
+
+LAST_REPLAYED = "SELECT coalesce(pg_last_xact_replay_timestamp()::text, 'no write replayed yet')"
+
+PROMOTED = """
+this machine's Postgres is the primary now; the last write it replayed was at {replayed}.
+Nothing else was changed, repointed or deleted. To serve from it:
+  1. keep the old box from coming back as a second primary: on it, if it answers,
+       sudo systemctl disable --now pinecall-gateway 'pinecall-worker@*' 'pinecall-overflow@*' \\
+         pinecall-postgres
+  2. point the box's names, production's and the sandbox's, at this machine, and any carrier
+     trunk that reaches the old box by its address
+  3. copy the old box's /etc/pinecall/backup.env and /etc/pinecall/backup.age.pub here, if it
+     had them
+  4. sudo uvx --from pinecall=={version} pinecall-runtime box up --domains <production>,<sandbox>
+  5. sudo pinecall-runtime doctor
+"""
+
 NEXT = """
 the box is up at https://{first}
   sudo pinecall-runtime init --org <slug> --email <you> --person "<name>"   the first org and person
@@ -65,6 +99,8 @@ INFRA = OPT / "infra"
 
 BIN = OPT / "bin"
 
+PROMOTE = f"SELECT pg_promote(true, {PROMOTED_WITHIN_S})"
+
 
 def box_group(group: argparse.ArgumentParser) -> None:
     """`box up` and `box upgrade`."""
@@ -77,6 +113,8 @@ def box_group(group: argparse.ArgumentParser) -> None:
     upgrade = verbs.add_parser("upgrade", help="this box brought to this version, its names kept")
     upgrade.add_argument("--package", default=None, help="install this instead of pinecall==<this>")
     upgrade.set_defaults(run=box_upgrade)
+    failover = verbs.add_parser("failover", help="promote the replica on this machine to primary")
+    failover.set_defaults(run=box_failover)
 
 
 def box_up(_settings: Settings, args: argparse.Namespace) -> int:
@@ -97,6 +135,19 @@ def box_upgrade(_settings: Settings, args: argparse.Namespace) -> int:
     if not domains:
         raise DeclarationRefused(NO_BOX.format(env=BOX_ENV))
     return _made(domains, None, args.package or f"pinecall=={version('pinecall')}")
+
+
+def box_failover(_settings: Settings, _args: argparse.Namespace) -> int:
+    """Promote the standby on this machine and say what to repoint; it repoints nothing itself."""
+    _refuse_elsewhere("failover")
+    if _answer_of(IN_RECOVERY) != "t":
+        raise DeclarationRefused(NOT_A_STANDBY)
+    replayed = _answer_of(LAST_REPLAYED)
+    _answer_of(PROMOTE)
+    if _answer_of(IN_RECOVERY) != "f":
+        raise DeclarationRefused(NOT_PROMOTED.format(seconds=PROMOTED_WITHIN_S))
+    sys.stdout.write(PROMOTED.format(replayed=replayed, version=version("pinecall")))
+    return 0
 
 
 def steps_of(domains: str, package: str, infra: Path, uv: Path) -> list[Step]:
@@ -166,3 +217,15 @@ def _refuse_elsewhere(verb: str) -> None:
         raise DeclarationRefused(NOT_ROOT.format(verb=verb))
     if shutil.which("apt-get") is None:
         raise DeclarationRefused(NOT_APT.format(verb=verb))
+
+
+def _answer_of(query: str) -> str:
+    done = subprocess.run(
+        (*PSQL, query),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if done.returncode != 0:
+        raise DeclarationRefused(NO_POSTGRES.format(why=done.stderr.strip() or done.returncode))
+    return done.stdout.strip()
