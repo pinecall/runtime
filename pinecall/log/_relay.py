@@ -2,21 +2,26 @@
 
 import asyncio
 import json
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict
 
 from pinecall.domain.errors import NotAvailable
-from pinecall.log.store import Store
+from pinecall.log.store import Store, log_name
 from pinecall.process.signal import Listening, Signal
 from pinecall.wire.frames import Entry
 
-logger = logging.getLogger(__name__)
-
-# Each log has a channel of its own: a gateway hears only the logs something local reads.
+# Each log has a channel of its own, so a gateway hears only the logs something local reads;
+# an org's feed in a world has one, and the box's floor one, followed without a sequencer: a
+# feed spans calls and is live-only, each entry carrying its log and seq for a reader that
+# needs a call's order.
+LOG_PREFIX = "log:"
+FEED_PREFIX = "feed:"
 CHANNEL = "log:{name}"
+FEED_CHANNEL = "feed:{org}:{env}"
+BOX_CHANNEL = "box"
 
 # A durable entry over this many bytes travels as its address, and the hearer reads it back.
 STUB_OVER_BYTES = 64 * 1024
@@ -27,9 +32,8 @@ STUB_OVER_BYTES = 64 * 1024
 FILL_AFTER_S = 0.1
 POLL_S = 1.0
 
+# Both are told the channel: a log's (`log:{name}`), an org feed's, or the box's.
 type Delivered = Callable[[str, Entry], None]
-
-
 type Dropped = Callable[[str], None]
 
 
@@ -41,19 +45,24 @@ class Stored(BaseModel):
 
 
 class Travelled(BaseModel):
-    """What a message on a log's channel carries: an entry whole, or the address of a big one."""
+    """What a message on a channel carries: an entry whole, or the address of a big one."""
 
     model_config = ConfigDict(extra="forbid")
 
+    # The relay that wrote it: its own delivery was local, so it skips it when heard back.
+    sender: str
     entry: Entry | None = None
     stored: Stored | None = None
 
 
 @dataclass
 class Following:
-    """One log this process follows: its readers, the last seq delivered, what arrived early."""
+    """One channel this process follows: its readers, the last seq delivered, what came early."""
 
+    # The channel.
     name: str
+    # A log is delivered in seq order; a feed as it comes.
+    ordered: bool = True
     readers: int = 1
     last: int = 0
     held: dict[int, Entry] = field(default_factory=dict[int, Entry])
@@ -76,6 +85,8 @@ class Relay:
         """Hand each entry to `delivered`; tell `dropped` when a log's readers must resume."""
         self.store = store
         self.signal = signal
+        # Several relays may share one in-process signal: each skips only what it sent itself.
+        self.id = uuid4().hex
         self._delivered = delivered
         self._dropped = dropped
         self._following: dict[str, Following] = {}
@@ -85,11 +96,11 @@ class Relay:
         """How many logs this process follows now."""
         return len(self._following)
 
-    async def follow(self, name: str) -> None:
-        """Follow the log for one more reader; returns once what is published next is heard."""
+    async def follow(self, name: str, *, ordered: bool = True) -> None:
+        """Follow the channel for one more reader; returns once what is published next is heard."""
         following = self._following.get(name)
         if following is None:
-            following = self._following[name] = Following(name)
+            following = self._following[name] = Following(name, ordered=ordered)
             following.task = asyncio.create_task(self._run(following))
         else:
             following.readers += 1
@@ -104,12 +115,12 @@ class Relay:
         if following.readers <= 0:
             self._let_go(following)
 
-    def local(self, name: str, entry: Entry) -> None:
+    def local(self, channel: str, entry: Entry) -> None:
         """An entry this process wrote: told to every gateway, and delivered here in its turn."""
-        self.signal.publish(CHANNEL.format(name=name), encoded(name, entry))
-        following = self._following.get(name)
-        if following is None or not following.ready.is_set():
-            self._delivered(name, entry)
+        self.signal.publish(channel, encoded(entry, self.id))
+        following = self._following.get(channel)
+        if following is None or not following.ordered or not following.ready.is_set():
+            self._delivered(channel, entry)
         else:
             self._sequenced(following, entry)
 
@@ -123,10 +134,11 @@ class Relay:
 
     async def _run(self, following: Following) -> None:
         try:
-            listening = await self.signal.subscribe(CHANNEL.format(name=following.name))
+            listening = await self.signal.subscribe(following.name)
         except NotAvailable:
             listening = None
-        following.last = await self.store.latest_seq(following.name)
+        if following.ordered:
+            following.last = await self.store.latest_seq(following.name.removeprefix(LOG_PREFIX))
         following.listening = listening
         following.ready.set()
         if following.closed:
@@ -141,29 +153,41 @@ class Relay:
         if not following.closed:
             self._dropped(following.name)
 
-    # The signal is down: durable entries are read off the store each second, until it is back,
-    # when the readers are told to resume so the channel is followed again.
+    # The signal is down: a log's durable entries are read off the store each second (a feed
+    # spans calls and cannot be, so its readers hear this process alone), until it is back, when
+    # the readers are told to resume so the channel is followed again.
     async def _polled(self, following: Following) -> None:
         while not following.closed:
             await asyncio.sleep(POLL_S)
             if following.closed:
                 return
-            for entry in await self.store.since(following.name, after=following.last):
-                if entry.seq > following.last:
-                    self._handed(following, entry)
+            if following.ordered:
+                for entry in await self.store.since(
+                    following.name.removeprefix(LOG_PREFIX), after=following.last
+                ):
+                    if entry.seq > following.last:
+                        self._handed(following, entry)
             if self.signal.up:
                 self._dropped(following.name)
                 return
 
     async def _heard(self, following: Following, data: bytes) -> None:
         travelled = Travelled.model_validate_json(data)
+        if travelled.sender == self.id:
+            return
         if travelled.entry is not None:
-            self._sequenced(following, travelled.entry)
+            self._taken(following, travelled.entry)
         elif travelled.stored is not None:
             seq = travelled.stored.seq
-            found = await self.store.since(following.name, after=seq - 1, limit=1)
+            found = await self.store.since(travelled.stored.log, after=seq - 1, limit=1)
             if found and found[0].seq == seq:
-                self._sequenced(following, found[0])
+                self._taken(following, found[0])
+
+    def _taken(self, following: Following, entry: Entry) -> None:
+        if following.ordered:
+            self._sequenced(following, entry)
+        elif not following.closed:
+            self._delivered(following.name, entry)
 
     def _sequenced(self, following: Following, entry: Entry) -> None:
         if following.closed or entry.seq <= following.last:
@@ -186,7 +210,8 @@ class Relay:
                 return
             highest = max(following.held)
             wanted = highest - following.last
-            for entry in await self.store.since(following.name, after=following.last, limit=wanted):
+            name = following.name.removeprefix(LOG_PREFIX)
+            for entry in await self.store.since(name, after=following.last, limit=wanted):
                 if following.last < entry.seq <= highest:
                     following.held.setdefault(entry.seq, entry)
             for seq in sorted(seq for seq in following.held if seq <= highest):
@@ -213,10 +238,12 @@ class Relay:
             following.task.cancel()
 
 
-def encoded(name: str, entry: Entry) -> bytes:
+# A big entry's address names its own log, which a feed's channel does not.
+def encoded(entry: Entry, sender: str) -> bytes:
     """The message an entry travels as: itself, or its address when it is big and durable."""
-    whole = json.dumps({"entry": entry.written()}, separators=(",", ":")).encode()
+    whole = json.dumps({"sender": sender, "entry": entry.written()}, separators=(",", ":"))
     if len(whole) > STUB_OVER_BYTES and not entry.ephemeral:
-        stub = {"stored": {"log": name, "seq": entry.seq}}
+        log = log_name(entry.call, entry.agent)
+        stub = {"sender": sender, "stored": {"log": log, "seq": entry.seq}}
         return json.dumps(stub, separators=(",", ":")).encode()
-    return whole
+    return whole.encode()

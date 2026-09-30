@@ -461,7 +461,7 @@ async def stream_org_events(reading: ReaderDep, gateway: GatewayDep) -> Streamin
     """The org's calls and agents changing, as they change."""
     if reading.acting is None:
         raise NotAllowed(_deps.NOT_YOURS)
-    feed = gateway.logs.feed(reading.acting.org, reading.acting.env).subscribe()
+    feed = await gateway.logs.feed_reader(reading.acting.org, reading.acting.env)
     return streamed(_projected(feed, reading, None, ends=False), gateway.closing)
 
 
