@@ -143,7 +143,8 @@ def sandboxed(engine: Engine) -> list[str]:
 
 
 # The lockfile says the package manager; without one, npm resolves what package.json names.
-def install_argv(engine: Engine, folder: Path, network: str) -> list[str]:
+# pnpm's binary and its store land in HOME: a folder on disk the runner deletes after, not tmpfs.
+def install_argv(engine: Engine, folder: Path, network: str, scratch: Path) -> list[str]:
     """Install the release's dependencies inside the sandbox, into its own folder."""
     if (folder / "pnpm-lock.yaml").is_file():
         install = "corepack pnpm install --frozen-lockfile --prod"
@@ -160,8 +161,9 @@ def install_argv(engine: Engine, folder: Path, network: str) -> list[str]:
         f"--memory={INSTALL_MEMORY}",
         f"--memory-swap={INSTALL_MEMORY}",
         f"--pids-limit={PIDS}",
-        "--env=HOME=/tmp",
+        "--env=HOME=/scratch",
         f"--tmpfs={TMP}",
+        f"--volume={scratch}:/scratch:U",
         f"--volume={folder}:/app:U",
         "--workdir=/app",
         engine.image,

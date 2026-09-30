@@ -43,7 +43,7 @@ class Podman:
         if verb == "run" and "--rm" in argv:
             if self.install_fails:
                 return Done(1, "npm ERR! 404 not found")
-            folder = next(part for part in argv if part.startswith("--volume=")).split("=")[1]
+            folder = next(part for part in argv if part.endswith(":/app:U")).split("=")[1]
             (Path(folder.split(":")[0]) / "node_modules").mkdir()
             return Done(0, "added 60 packages")
         if verb == "run":
