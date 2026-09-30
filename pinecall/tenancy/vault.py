@@ -2,8 +2,11 @@
 
 import json
 import logging
+from collections.abc import Sequence
+from dataclasses import dataclass
 
-from cryptography.fernet import InvalidToken, MultiFernet
+from cryptography.fernet import Fernet, InvalidToken, MultiFernet
+from psycopg import sql
 from psycopg.types.json import Jsonb
 
 from pinecall.domain.names import Credentials, Json
@@ -29,6 +32,48 @@ INSERT INTO box_settings (name, value, ciphertext) VALUES (%(name)s, %(value)s, 
 ON CONFLICT (name) DO UPDATE SET ciphertext = excluded.ciphertext, set_at = now()
 """
 DROP_BOX = "DELETE FROM box_settings WHERE name = %(name)s RETURNING name"
+
+
+# A row's ctid names it for one statement, and the value it still holds guards the write: a row
+# the gateway wrote meanwhile was written under the first key already, and is left as it is.
+TOKENS = "SELECT ctid::text AS row, {column} AS token FROM {table} WHERE {column} IS NOT NULL"
+RESEAL = "UPDATE {table} SET {column} = %(new)s WHERE ctid = %(row)s::tid AND {column} = %(old)s"
+
+
+@dataclass(frozen=True)
+class SealedColumn:
+    """A column a secret is kept sealed in, by its table."""
+
+    table: str
+    column: str
+
+    @property
+    def named(self) -> str:
+        """The column as a person reads it: table.column."""
+        return f"{self.table}.{self.column}"
+
+
+@dataclass(frozen=True)
+class Resealing:
+    """One column after a pass: re-sealed now, already under the first key, opened by no key."""
+
+    column: SealedColumn
+    resealed: int = 0
+    current: int = 0
+    unopened: int = 0
+
+
+# Every column of the schema a secret is sealed in. A test walks the schema and every Fernet token
+# in it, so a column added without its line here fails the suite.
+SEALED_COLUMNS: tuple[SealedColumn, ...] = (
+    SealedColumn("box_settings", "ciphertext"),
+    SealedColumn("carriers", "ciphertext"),
+    SealedColumn("hosted_apps", "sealed_key"),
+    SealedColumn("org_mail", "ciphertext"),
+    SealedColumn("org_secrets", "sealed"),
+    SealedColumn("org_sso", "ciphertext"),
+    SealedColumn("provider_keys", "ciphertext"),
+)
 
 
 def sealed(vault: MultiFernet, secret: Json) -> str:
@@ -104,6 +149,47 @@ async def drop_box_credentials(pool: Pool, vendor: str) -> bool:
     async with pool.connection() as connection:
         dropped = await connection.execute(DROP_BOX, {"name": f"{BOX_CREDENTIALS}{vendor}"})
         return await dropped.fetchone() is not None
+
+
+# Row by row, each its own statement: a pass cut short keeps what it did, and the next pass
+# finds those rows under the first key and leaves them. The first key must be first everywhere
+# (the gateway restarted on the new list) before the old one is taken out.
+async def resealed(pool: Pool, keyring: Sequence[Fernet]) -> list[Resealing]:
+    """Seal every sealed value of the schema under the keyring's first key, and count each."""
+    return [await _resealed_column(pool, keyring, column) for column in SEALED_COLUMNS]
+
+
+async def _resealed_column(
+    pool: Pool, keyring: Sequence[Fernet], column: SealedColumn
+) -> Resealing:
+    names = {"table": sql.Identifier(column.table), "column": sql.Identifier(column.column)}
+    ring, first = MultiFernet(keyring), keyring[0]
+    async with pool.connection() as connection:
+        rows = await (await connection.execute(sql.SQL(TOKENS).format(**names))).fetchall()
+    resealed = current = unopened = 0
+    for row in rows:
+        token = str(row["token"]).encode()
+        if _opens(first, token):
+            current += 1
+            continue
+        try:
+            new = ring.rotate(token).decode()
+        except InvalidToken:
+            unopened += 1
+            continue
+        values = {"new": new, "row": row["row"], "old": row["token"]}
+        async with pool.connection() as connection:
+            written = await connection.execute(sql.SQL(RESEAL).format(**names), values)
+        resealed += written.rowcount
+    return Resealing(column, resealed=resealed, current=current, unopened=unopened)
+
+
+def _opens(key: Fernet, token: bytes) -> bool:
+    try:
+        key.decrypt(token)
+    except InvalidToken:
+        return False
+    return True
 
 
 def _opened_rows(vault: MultiFernet, rows: list[tuple[str, str]]) -> dict[str, Credentials]:

@@ -43,6 +43,7 @@ from pinecall.providers.catalog import Providers
 from pinecall.providers.credentials import Keyring, thinking
 from pinecall.providers.declared import model_of
 from pinecall.tenancy import judges, personas, tokens
+from pinecall.tenancy.keys import check_agent
 from pinecall.wire.events import CallScore
 from pinecall.wire.parts import ModelConfig
 from pinecall.wire.rest.evals import (
@@ -155,6 +156,7 @@ async def run_suite(
     body: RunSuiteRequest, key: EvalsKey, scope: ScopeDep, gateway: GatewayDep
 ) -> EvalRunResponse:
     """Every golden under every model through the app that holds the agent, judged and stored."""
+    check_agent(key.bearer, body.agent)
     registration = gateway.sockets.serving(scope, body.agent, body.app)
     if registration is None:
         raise NotFound(NO_AGENT.format(slug=body.agent))
@@ -272,6 +274,7 @@ async def place_voice_call(
     body: PlaceVoiceCallRequest, key: EvalsKey, scope: ScopeDep, gateway: GatewayDep
 ) -> PlaceVoiceCallResponse:
     """Dispatch the agent into a room, play the persona as a spoken caller, and hang up."""
+    check_agent(key.bearer, body.agent)
     pool = gateway.connections.pool
     persona = body.persona
     if persona.name and await personas.persona(pool, key.org, body.agent, persona.name) is None:

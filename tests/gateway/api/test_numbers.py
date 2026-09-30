@@ -4,6 +4,8 @@ import pytest
 
 from pinecall.domain.names import JsonObject
 from pinecall.domain.person import THE_FLEET, KeyScope
+from pinecall.domain.scope import Scope
+from pinecall.log.store import Claim
 from pinecall.tenancy import vault
 from tests.conftest import AGENT, BOX_DOMAIN, Knocking, issued, postgres, received_until, sent
 from tests.fakes.livekit import Server
@@ -205,6 +207,9 @@ async def test_the_worker_is_told_the_legs_trunk_inline_after_the_guards(
 ) -> None:
     scopes: frozenset[KeyScope] = frozenset({THE_FLEET})
     fleet = await issued(dialling.gateway.connections.pool, "default", "production", scopes)
+    # The leg is asked for a call the worker opened: its head names the org and the world.
+    opened = Claim(Scope(dialling.org.id, "production"))
+    await dialling.gateway.logs.store.claim("call_1", AGENT, dialling.org.id, opened)
     params = {"to": "+34910000000", "call": "call_1", "org": dialling.org.id, "env": "production"}
     async with dialling.http(fleet) as worker:
         leg = await worker.get(f"/v1/agents/{AGENT}/outbound-trunk", params=params)

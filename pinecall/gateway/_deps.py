@@ -1,6 +1,7 @@
 """What a request is: the gateway it reaches, the key, its world and scope, a reader."""
 
 import asyncio
+import math
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -17,16 +18,17 @@ from pinecall.domain.errors import (
     NotFound,
     NotSignedIn,
     QuotaExhausted,
+    Throttled,
     TooManyRequests,
 )
 from pinecall.domain.names import PRODUCTION, Env, parse_env
-from pinecall.domain.person import HOLDING, THE_FLEET, THE_TEAM, KeyScope
+from pinecall.domain.person import HOLDING, THE_FLEET, THE_RUNNER, THE_TEAM, KeyScope
 from pinecall.domain.scope import Scope
 from pinecall.gateway._call_setup import exhausted
 from pinecall.gateway._gateway import Gateway
 from pinecall.log import queries
 from pinecall.retrieval.embed import Embedder
-from pinecall.tenancy import admission, keys, people, tokens
+from pinecall.tenancy import admission, keys, people, throttle, tokens
 from pinecall.tenancy.keys import Bearer
 from pinecall.tenancy.tokens import PROJECTION_OF, Visit
 from pinecall.wire.frames import Entry, WireModel
@@ -76,6 +78,23 @@ NO_SUCH_CALL = "no call {call} in this key's org and world"
 
 
 NOT_YOURS = "this token reads another call"
+
+
+NEVER_OPENED = "no call {call} was opened: the fleet's key reads and acts for a call once it is"
+
+
+# How a family of doors is named: the scopes it opens, as the page of doors writes them.
+FAMILY = " · "
+
+
+# The platform's own keys are never paced: its workers and its runner.
+UNPACED: frozenset[KeyScope] = frozenset({THE_FLEET, THE_RUNNER})
+
+
+PACED = (
+    "this org sent its {family} doors {limit} requests this minute, in {env}: "
+    "try again in {seconds} s"
+)
 
 
 NOBODY_ISSUED = (
@@ -277,11 +296,15 @@ def ephemeral_entry(slug: str, event: WireModel, *, kind: str = "error") -> Entr
 
 
 # FastAPI calls these: one per scope, each recorded so a test walks every door for exactly one.
-def opening(*scopes: KeyScope) -> Callable[[Acting], Awaitable[Acting]]:
+def opening(*scopes: KeyScope) -> Callable[[HTTPConnection, Acting, Gateway], Awaitable[Acting]]:
     """A dependency that lets through a key that opens one of the scopes."""
+    family = FAMILY.join(sorted(scopes))
 
-    async def opened(key: ActingDep) -> Acting:
+    async def opened(connection: HTTPConnection, key: ActingDep, gateway: GatewayDep) -> Acting:
         keys.check_opens(key.bearer, *scopes)
+        _check_agent_named(connection, key.bearer)
+        if THE_FLEET not in scopes:
+            await _paced(gateway, key, family)
         return key
 
     SCOPES_OF[opened] = frozenset(scopes)
@@ -352,73 +375,122 @@ async def scope(
         looking_at = await people.find(gateway.connections.pool, key.org, survey)
         if looking_at is None:
             raise NotAllowed(keys.NOT_A_COLLEAGUE)
-    return keys.scope_of(key.bearer, key.env, looking_at=looking_at, dispatched=named)
+    called = await _called(gateway, connection) if THE_FLEET in key.bearer.key.scopes else None
+    return keys.scope_of(
+        key.bearer, key.env, looking_at=looking_at, dispatched=named, called=called
+    )
 
 
 ScopeDep = Annotated[Scope, Depends(scope)]
 
 
 # ?token= only for a token of ours: EventSource sets no header, and a key in a URL would leak.
-async def reader(
-    connection: HTTPConnection,
-    gateway: GatewayDep,
-    named: DispatchedDep,
-    token: Annotated[str | None, Query()] = None,
-) -> Reader:
-    """A key that opens the calls, or a token of one call; 401 for anything else."""
-    data = bearer_of(connection.headers) or token
-    if data is None:
-        raise NotSignedIn(READ_WITH_A_KEY)
-    if tokens.is_a_jwt(data):
-        visit = tokens.read(gateway.signer, data)
-        if visit is None:
+# A worker reads the call it serves with the fleet's key and names no scope to do it, since the
+# call's head row says whose it is: only a call's own reading doors (its events, its state, its
+# recording) let that key in.
+def reading(*opens: KeyScope) -> Callable[..., Awaitable[Reader]]:
+    """A dependency that lets through a key that opens one of the scopes, or a call's token."""
+
+    async def read(
+        connection: HTTPConnection,
+        gateway: GatewayDep,
+        named: DispatchedDep,
+        token: Annotated[str | None, Query()] = None,
+    ) -> Reader:
+        data = bearer_of(connection.headers) or token
+        if data is None:
             raise NotSignedIn(READ_WITH_A_KEY)
-        return Reader(visit=visit)
-    verified = None if data == token else await keys.verify(gateway.connections.pool, data)
-    if verified is None:
-        raise NotSignedIn(READ_WITH_A_KEY)
-    key = Acting(bearer=verified, env=world_of_request(connection, verified, gateway))
-    keys.check_opens(verified, "calls", THE_FLEET)
-    # A worker reads the call it serves and names no scope to do it: the fleet's key has none.
-    if THE_FLEET in verified.key.scopes:
-        return Reader(acting=key)
-    return Reader(acting=key, scope=await scope(connection, key, gateway, named))
+        if tokens.is_a_jwt(data):
+            visit = tokens.read(gateway.signer, data)
+            if visit is None:
+                raise NotSignedIn(READ_WITH_A_KEY)
+            return Reader(visit=visit)
+        verified = None if data == token else await keys.verify(gateway.connections.pool, data)
+        if verified is None:
+            raise NotSignedIn(READ_WITH_A_KEY)
+        key = Acting(bearer=verified, env=world_of_request(connection, verified, gateway))
+        keys.check_opens(verified, *opens)
+        _check_agent_named(connection, verified)
+        await _paced(gateway, key, "calls")
+        if THE_FLEET in verified.key.scopes:
+            return Reader(acting=key)
+        return Reader(acting=key, scope=await scope(connection, key, gateway, named))
+
+    SCOPES_OF[read] = frozenset(opens)
+    return read
 
 
-ReaderDep = Annotated[Reader, Depends(reader)]
+ReaderDep = Annotated[Reader, Depends(reading("calls"))]
 
 
-SCOPES_OF[reader] = frozenset({"calls", THE_FLEET})
-
-
-def is_the_fleet(reading: Reader) -> bool:
-    """Whether the reader is a fleet's key, which reads every call it serves."""
-    return reading.acting is not None and THE_FLEET in reading.acting.bearer.key.scopes
+CallReaderDep = Annotated[Reader, Depends(reading("calls", THE_FLEET))]
 
 
 # A key reads a call of its org in its world; a token, its own call alone. A call nobody wrote
-# yet is empty, not another org's: a client that minted the id tails it before the room opens.
+# yet is empty to a key, not another org's: a client that minted the id tails it before the room
+# opens. The fleet's key reads only a call that was opened, of the world it serves.
 async def check_readable(gateway: Gateway, reading: Reader, call: str) -> AgentConfig | None:
     """Refuse a reader the call is not theirs; the declaration of its agent, when held."""
     if reading.visit is not None and reading.visit.call != call:
         raise NotAllowed(NOT_YOURS)
     kept = await queries.scope_of_call(gateway.connections.pool, call)
+    fleet = reading.acting is not None and THE_FLEET in reading.acting.bearer.key.scopes
+    if fleet and (kept is None or kept.scope is None):
+        raise NotFound(NEVER_OPENED.format(call=call))
     if kept is None:
         return None
     if not _sees(reading, kept.scope):
         raise NotFound(NO_SUCH_CALL.format(call=call))
+    if reading.acting is not None:
+        keys.check_agent(reading.acting.bearer, kept.agent)
     return gateway.sockets.declared(kept.agent)
 
 
 # The org's own calls and the reader's own scope; a token is checked by its call, the fleet's
-# key reads every call of the world it serves and none of the other.
+# key reads the calls of the world it serves and none of the other.
 def _sees(reading: Reader, owner: Scope | None) -> bool:
     if reading.visit is not None:
         return True
-    if reading.acting is not None and is_the_fleet(reading):
-        return owner is None or owner.env == reading.acting.env
+    if reading.acting is not None and THE_FLEET in reading.acting.bearer.key.scopes:
+        return owner is not None and owner.env == reading.acting.env
     reader = reading.scope
     if reader is None or owner is None:
         return False
     same = reader.org == owner.org and reader.env == owner.env
     return same and owner.holder in ("", reader.holder)
+
+
+# A worker's request that names a call, in its path or as ?call=, acts in that call's scope as its
+# head row keeps it; a call nobody opened yet is refused rather than trusted.
+async def _called(gateway: Gateway, connection: HTTPConnection) -> Scope | None:
+    call = connection.path_params.get("call") or connection.query_params.get("call")
+    if not call:
+        return None
+    kept = await queries.scope_of_call(gateway.connections.pool, call)
+    if kept is None or kept.scope is None:
+        raise NotFound(NEVER_OPENED.format(call=call))
+    return kept.scope
+
+
+# The agent a door names in its path or its query; a body's agent is checked by its door.
+def _check_agent_named(connection: HTTPConnection, bearer: Bearer) -> None:
+    for slug in (connection.path_params.get("slug"), connection.query_params.get("agent")):
+        if slug:
+            keys.check_agent(bearer, slug)
+
+
+# One count per org, world and family: a noisy tenant waits, and nobody else does. A live call's
+# own doors are never paced: admission already bounds them, and a worker reads a 4xx as final.
+async def _paced(gateway: Gateway, key: Acting, family: str) -> None:
+    bearer = key.bearer
+    if bearer.key.scopes & UNPACED or (bearer.member is not None and bearer.member.operator):
+        return
+    name = f"{key.org}/{key.env}/{family}"
+    wait = await gateway.paced.counted(name, throttle.REQUESTS_A_MINUTE)
+    if wait is None:
+        return
+    seconds = max(1, math.ceil(wait))
+    raise Throttled(
+        PACED.format(family=family, limit=throttle.REQUESTS_A_MINUTE, env=key.env, seconds=seconds),
+        retry_after_s=seconds,
+    )

@@ -6,7 +6,7 @@ import pytest
 from starlette.requests import HTTPConnection, Request
 
 from pinecall.domain.errors import NotAllowed, TooManyRequests
-from pinecall.domain.person import HOLDING, Key
+from pinecall.domain.person import HOLDING, KEY_SCOPES, Key
 from pinecall.domain.scope import Scope
 from pinecall.gateway._deps import (
     SCOPES_OF,
@@ -20,10 +20,13 @@ from pinecall.gateway._deps import (
     world_of_request,
 )
 from pinecall.gateway._gateway import Gateway
+from pinecall.tenancy import orgs, people, throttle
 from pinecall.tenancy.keys import Bearer
 from pinecall.tenancy.signin import TRIES
 from pinecall.tenancy.tokens import Visit
-from tests.conftest import postgres
+from pinecall.wire.rest.calls import OpenCallRequest
+from tests.conftest import AGENT, Knocking, a_developer, issued, postgres
+from tests.gateway.api.conftest import a_call, an_app, bound_to
 
 
 def a_request(
@@ -124,3 +127,76 @@ def test_a_socket_at_the_sandboxs_name_acts_in_the_sandbox_and_may_not_ask_for_p
     assert world_of_request(socket(), server, both) == "sandbox"
     with pytest.raises(NotAllowed, match="this name is the sandbox's"):
         world_of_request(socket((b"pinecall-env", b"production")), server, both)
+
+
+# The path's agent, the query's, and a call's by its head: each refused past the member's list.
+@postgres
+async def test_a_member_bound_to_other_agents_is_refused_the_ones_a_door_names(
+    knocking: Knocking,
+) -> None:
+    socket = await an_app(knocking)
+    context = a_call(knocking)
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+    elsewhere = await bound_to(knocking, "bo@clinica.test", frozenset({"ventas"}))
+    everyone = await bound_to(knocking, "cy@clinica.test", frozenset())
+    ours = await bound_to(knocking, "di@clinica.test", frozenset({AGENT}))
+    paths = (
+        f"/v1/agents/{AGENT}/settings",
+        f"/v1/sessions?agent={AGENT}",
+        f"/v1/calls/{context.call}/state",
+    )
+    answers: dict[str, list[int]] = {}
+    for name, key in (("elsewhere", elsewhere), ("everyone", everyone), ("ours", ours)):
+        async with knocking.http(key) as person:
+            answers[name] = [(await person.get(path)).status_code for path in paths]
+    assert answers == {"elsewhere": [403] * 3, "everyone": [200] * 3, "ours": [200] * 3}
+    await socket.close()
+
+
+# One count per org, world and family; the platform's own keys and an operator are never paced.
+@postgres
+async def test_an_org_past_its_minute_is_told_when_to_come_back_and_nobody_else_waits(
+    knocking: Knocking, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(throttle, "REQUESTS_A_MINUTE", 2)
+    stranger = await orgs.create(knocking.gateway.connections.pool, "otra", "Otra")
+    theirs = await issued(knocking.gateway.connections.pool, stranger.id, "sandbox", KEY_SCOPES)
+    async with knocking.http(knocking.app["sandbox"]) as tenant:
+        let_in = [(await tenant.get("/v1/sessions")).status_code for _ in range(2)]
+        paced = await tenant.get("/v1/sessions")
+        other_family = await tenant.get("/v1/knowledge")
+    async with knocking.http(knocking.app["production"]) as production_key:
+        production = await production_key.get("/v1/sessions")
+    async with knocking.http(theirs) as other:
+        other_org = await other.get("/v1/sessions")
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        beats = [
+            (await worker.get("/v1/fleet/standing", params={"fleet": "pinecall-sandbox"}))
+            for _ in range(3)
+        ]
+    assert let_in == [200, 200]
+    assert paced.status_code == 429
+    assert 1 <= int(paced.headers["retry-after"]) <= 60
+    assert (
+        "this org sent its calls doors 2 requests this minute, in sandbox"
+        in (paced.json()["detail"])
+    )
+    assert (other_family.status_code, other_org.status_code, production.status_code) == (
+        200,
+        200,
+        200,
+    )
+    assert [beat.status_code for beat in beats] == [200, 200, 200]
+
+
+@postgres
+async def test_an_operator_is_never_paced(
+    knocking: Knocking, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(throttle, "REQUESTS_A_MINUTE", 1)
+    member, key = await a_developer(knocking, "op@box.test")
+    await people.make_operator(knocking.gateway.connections.pool, knocking.org.id, member, on=True)
+    async with knocking.http(key) as operator:
+        answers = [(await operator.get("/v1/sessions")).status_code for _ in range(3)]
+    assert answers == [200, 200, 200]

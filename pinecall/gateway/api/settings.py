@@ -18,7 +18,7 @@ from pinecall.log import queries
 from pinecall.providers import build, catalog, credentials
 from pinecall.providers.credentials import Pipeline
 from pinecall.providers.declared import apply_tuning
-from pinecall.tenancy import scopes
+from pinecall.tenancy import keys, scopes
 from pinecall.tenancy.scopes import TUNING, Written
 from pinecall.wire.parts import Pronunciation
 from pinecall.wire.rest.settings import (
@@ -160,6 +160,7 @@ async def call_settings(call: str, key: CallsKey, gateway: GatewayDep) -> CallSe
     kept = await queries.scope_of_call(pool, call)
     if kept is None or kept.scope is None or kept.scope.org != key.org:
         raise NotFound(NO_SUCH_CALL.format(call=call))
+    keys.check_agent(key.bearer, kept.agent)
     versions = kept.versions
     config = (
         None
