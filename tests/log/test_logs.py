@@ -135,6 +135,21 @@ async def test_every_live_reader_hears_the_entry_the_store_already_has(
 
 
 @postgres
+async def test_a_first_entry_reaches_the_readers_once_and_an_agents_log_takes_none(
+    store: Store, call: str
+) -> None:
+    log = Log(store, call, AGENT)
+    await log.append("call.started", {})
+    reader = log.fanout.subscribe()
+    written = await log.append_first("call.ended", {"reason": "drained"})
+    assert written is not None
+    assert await log.append_first("call.ended", {"reason": "drained"}) is None
+    assert (await anext(reader)).seq == written.seq
+    with pytest.raises(DeclarationRefused, match="only a call's log"):
+        await Log(store, None, AGENT).append_first("call.ended", {})
+
+
+@postgres
 async def test_a_tap_runs_on_every_append_before_append_returns(store: Store, call: str) -> None:
     heard: list[str] = []
 
@@ -499,3 +514,15 @@ def test_the_start_carries_the_persona_and_its_rules_for_the_judges() -> None:
         "a slot on friday",
         "production",
     )
+
+
+@postgres
+async def test_the_readers_held_are_every_log_and_feed_subscriber(store: Store, call: str) -> None:
+    logs = Logs(store)
+    assert logs.readers == 0
+    call_reader = logs.reading(call).fanout.subscribe()
+    logs.feed("org_1", "production").subscribe()
+    logs.box.subscribe()
+    assert logs.readers == 3
+    call_reader.close()
+    assert logs.readers == 2

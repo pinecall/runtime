@@ -29,6 +29,7 @@ def apply_tuning(
         max_duration_s=(
             declared.max_duration_s if tuning.max_duration_s is None else tuning.max_duration_s
         ),
+        llm_timeout_s=tuning.llm_timeout_s,
         knowledge=tuning.knowledge,
         bases=tuning.bases or (),
         says=dict(lexicon.said),

@@ -1,0 +1,26 @@
+# The box's Postgres as a streaming standby on a second machine (replica.sh join): the box's
+# image, volume and container name, so once promoted (`pinecall-runtime box failover`) the box's
+# own unit of the same name, installed by `box up`, takes the same database over.
+[Unit]
+Description=Pinecall: postgres, the box's standby
+Requires=pinecall-postgres-image.service
+After=pinecall-postgres-image.service
+
+[Container]
+ContainerName=pinecall-postgres
+Image=localhost/pinecall/postgres:17-pgvector0.8.6-pgtextsearch1.4.0
+PublishPort=127.0.0.1:5432:5432
+Volume=pinecall-postgres.volume:/var/lib/postgresql/data
+# The WAL spool the box's archive_command names: a standby archives nothing, a promoted one does.
+Volume=/var/lib/pinecall/wal:/var/lib/pinecall/wal:rw
+HealthCmd=pg_isready -U pinecall -d pinecall
+HealthInterval=5s
+HealthRetries=12
+HealthStartPeriod=10s
+
+[Service]
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

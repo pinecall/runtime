@@ -29,8 +29,17 @@ a system user's does not) leaves the account listed with no number, said in the 
 
 `POST` is a delivery. The signature (`X-Hub-Signature-256: sha256=<HMAC-SHA256 of the raw
 body>`) is checked on the bytes as they came, before anything reads them: `403` when it does not
-match. Past it every answer is `200 {received: n}`, because Meta disables a webhook that keeps
+match. Past it the answer is `200 {received: n}`, because Meta disables a webhook that keeps
 failing: a receipt, an image, a number nobody routed are a line in the log and nothing else.
+
+Meta delivers a message again when it thinks it unanswered, for up to 7 days, and each message is
+read once. Its id is claimed per org (`whatsapp_seen`) before it is read, and the claim is the
+insert itself, so of two deliveries at once, to one gateway or two, one reads it; a later delivery
+of a message read is `200` and dropped. A message is read once it is on its conversation's queue
+or kept for nobody (below). A reading that fails gives the claim back and the delivery is `500`,
+so Meta's next one reads it; a delivery that arrives while another is still reading it is `503`,
+so Meta keeps it until that reading is done; a claim a process died holding is read again by the
+first delivery ten minutes after it. The nightly retention run forgets the ids past 7 days.
 
 ## A conversation
 

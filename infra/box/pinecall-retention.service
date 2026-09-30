@@ -11,6 +11,8 @@ Group=pinecall
 WorkingDirectory=/opt/pinecall
 Environment=PINECALL_RECORDINGS=/var/lib/pinecall/recordings
 EnvironmentFile=/etc/pinecall/box.env
+# The operator's buckets, when there are: PINECALL_RECORDINGS_BUCKET moves recordings there.
+EnvironmentFile=-/etc/pinecall/backup.env
 ImportCredential=DATABASE_URL
 ReadWritePaths=/var/lib/pinecall/recordings
 ExecStart=/opt/pinecall/venv/bin/pinecall-runtime retention run

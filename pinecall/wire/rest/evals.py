@@ -170,7 +170,7 @@ class CheckVerdict(WireModel):
 
 
 class ReplayCallResponse(WireModel):
-    """POST /v1/evals/replay/{call}, the answer: the four checks and whether none broke."""
+    """POST /v1/evals/replay/{call}, the answer: the five checks and whether none broke."""
 
     call: str
     agent: str

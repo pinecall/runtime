@@ -2,12 +2,18 @@
 
 Every door of the gateway, method and path, the scope a key must open for it, and what it does in
 one line. `—` is a door that reads any key as who it is, or none (a sign-in page, Meta's webhook,
-a page's token); `operator` is the box's own key or an operator's ([operator-api.md](operator-api.md)).
+LiveKit's, a page's token); `operator` is the box's own key or an operator's ([operator-api.md](operator-api.md));
+`loopback` is a door the box's own machine alone may knock, with no key.
 The pages that say each family whole: [gateway-api.md](gateway-api.md).
+
+The page and the gateway agree both ways: every row is a route, and every route is a row but
+what is not a door of the contract, the console's pages (`GET /{path}`, at every path no door
+took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v1/redoc`).
 
 | method | path | scope | what |
 |---|---|---|---|
 | `GET` | `/.well-known/pinecall` | — | What this gateway is and how it signs people in, before anybody holds a key. |
+| `GET` | `/metrics` | loopback | What the gateway counted and holds, as Prometheus text; refused to anything that came through Caddy. |
 | `GET` | `/v1/agents` | calls | The org's held agents in the world: one row per slug, one per scope for a team reader. |
 | `GET` | `/v1/agents/{slug}/calls` | calls · fleet | An agent's own log: its registrations, its declarations, its errors. It never ends. |
 | `GET` | `/v1/agents/{slug}/config` | app · calls · fleet | The agent as the scope runs it: its declaration under the scope's settings. |
@@ -127,6 +133,7 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `DELETE` | `/v1/line/from` | app | Stop sending this person's phones to their scope, and say which were forgotten. |
 | `PUT` | `/v1/line/from` | app | Send rings from this phone to the key's person's own scope. |
 | `GET` | `/v1/line/numbers` | app | The production numbers a developer's phone can dial, and the phones that are theirs. |
+| `POST` | `/v1/livekit/webhook` | — | A room event LiveKit signed with the box's key: an agent lost mid-call has its caller told once and its call ended as `drained`. |
 | `POST` | `/v1/login` | — | A key for a person and a device, from a password, or from a one-use code. |
 | `POST` | `/v1/login/codes` | — | A one-use word that gives a browser a key like this one, for five minutes. |
 | `GET` | `/v1/login/google` | — | Box-wide "Continue with Google", which this version does not have. |
@@ -155,12 +162,16 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `POST` | `/v1/numbers/buy` | numbers | Buy a number on the box's account and hook it, counted against the world's stock. |
 | `DELETE` | `/v1/numbers/{number}` | numbers | Let the number go: its route and its admission; the account keeps it. |
 | `PUT` | `/v1/numbers/{number}/env` | numbers | Move the number into the other world: its row and the two rules. |
+| `GET` | `/v1/ops/admission` | operator | What a newborn org is given in each world; nothing limited on a box that never said. |
+| `PUT` | `/v1/ops/admission` | operator | What a newborn org is given, replaced whole. |
 | `GET` | `/v1/ops/brand` | operator | What the box's letters and sign-in page are called and painted with. |
 | `PUT` | `/v1/ops/brand` | operator | The brand changed field by field: one left out stays, an empty one goes to the default. |
 | `GET` | `/v1/ops/events` | operator | Every org's floor at once, each frame saying whose. |
 | `GET` | `/v1/ops/fleet` | operator | Every worker heard from, of both fleets, and each fleet summed over the ones up. |
 | `DELETE` | `/v1/ops/fleet/{worker}/cordon` | operator | Take a worker's cordon back, when it has not left yet. |
 | `POST` | `/v1/ops/fleet/{worker}/cordon` | operator | Cordon a worker of a fleet; the fleet is found by the worker's name when not named. |
+| `GET` | `/v1/ops/fleets` | operator | The fleet of workers each world's calls are dispatched to. |
+| `PUT` | `/v1/ops/fleets` | operator | The fleet of each world, replaced whole; the next dispatch reads it. |
 | `POST` | `/v1/ops/keys/{fingerprint}/revoke` | operator | One key stops opening anything from the next request on. |
 | `DELETE` | `/v1/ops/mail` | operator | Forget the stored mailbox, back to the environment's; 404 when none was stored. |
 | `GET` | `/v1/ops/mail` | operator | The mailbox the box posts through, where it came from, and how its last letter went. |
@@ -184,6 +195,11 @@ The pages that say each family whole: [gateway-api.md](gateway-api.md).
 | `PUT` | `/v1/ops/orgs/{named}/quotas` | operator | The org's limits in one world, replaced whole; they bite the next call and register. |
 | `GET` | `/v1/ops/orgs/{named}/sso` | operator | Which provider the org signs in with, never its secret. |
 | `PUT` | `/v1/ops/orgs/{named}/sso/required` | operator | Whether a password may still open the org beside its provider. |
+| `GET` | `/v1/ops/provider-keys` | operator | The vendors the box holds a key for, never the key. |
+| `DELETE` | `/v1/ops/provider-keys/{vendor}` | operator | The box stops offering the vendor on its key; 404 when it held none. |
+| `PUT` | `/v1/ops/provider-keys/{vendor}` | operator | The box's own credentials for a vendor; orgs it lends to run on them from the next call. |
+| `GET` | `/v1/ops/providers` | operator | The providers row: defaults, models, voices, tuning, rates, the judge, the embedder. |
+| `PUT` | `/v1/ops/providers` | operator | The providers row replaced whole; a vendor not installed or not doing its stage refused. |
 | `GET` | `/v1/ops/routes` | operator | Every number the org answers at in the world, oldest first. |
 | `POST` | `/v1/ops/routes` | operator | A number answered by this org's agent, in this world, on this channel. |
 | `DELETE` | `/v1/ops/routes/{number}` | operator | The org's route at the number forgotten; 404 for a number nobody typed. |

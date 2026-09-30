@@ -102,6 +102,18 @@ async def test_what_it_takes_to_cut_the_agent_off_is_the_agents_own_else_two_wor
 
 
 @postgres
+async def test_how_long_the_caller_must_speak_over_the_agent_is_the_agents_else_livekits(
+    box: Box,
+) -> None:
+    declared = spoken_call(
+        box, AgentConfig(slug="clinica-norte", turn=Turn(min_interruption_ms=900))
+    )
+    inherited = spoken_call(box, NOBODY)
+    assert declared.live.options.interruption.get("min_duration") == 0.9
+    assert inherited.live.options.interruption.get("min_duration") == 0.5, "livekit's own"
+
+
+@postgres
 async def test_the_tenants_own_pronunciations_are_said_after_livekits_filters(box: Box) -> None:
     session = spoken_call(box, AgentConfig(slug="clinica-norte", says={"GSA": "ge ese a"}))
     transforms = list(session.live.options.tts_text_transforms or [])

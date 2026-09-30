@@ -64,7 +64,7 @@ PINECALL_SANDBOX_DOMAIN=$SECOND
 PINECALL_DOMAINS=${DOMAINS//,/, }
 LIVEKIT_PUBLIC_URL=wss://$FIRST
 ENV
-install -m 0644 "$HERE"/livekit.yaml "$HERE"/sip.yaml "$HERE"/egress.yaml /etc/pinecall/
+install -m 0644 "$HERE"/sip.yaml "$HERE"/egress.yaml /etc/pinecall/
 install -m 0644 "$HERE"/fleets/*.env /etc/pinecall/fleets/
 
 # The box's secrets, drawn here once and never printed; a re-run keeps what exists.
@@ -76,9 +76,18 @@ if [ ! -f "$STORE/LIVEKIT_API_KEY" ]; then
     printf '%s' "$secret" | sealed LIVEKIT_API_SECRET
     printf 'LIVEKIT_KEYS=%s: %s\nLIVEKIT_API_KEY=%s\nLIVEKIT_API_SECRET=%s\nPOSTGRES_PASSWORD=%s\n' \
         "$key" "$secret" "$key" "$secret" "$password" | sealed media.env
-    printf 'postgresql://pinecall:%s@127.0.0.1:5432/pinecall' "$password" | sealed DATABASE_URL
+    # Kept when it is there already: a replica promoted here brought the database it opens.
+    [ -f "$STORE/DATABASE_URL" ] ||
+        printf 'postgresql://pinecall:%s@127.0.0.1:5432/pinecall' "$password" | sealed DATABASE_URL
     unset key secret password
 fi
+# LiveKit signs its webhook with the box's key, by name; the name is no secret (every token
+# says it), and livekit-server reads this file when it starts.
+livekit_key="$(systemd-creds decrypt --name=LIVEKIT_API_KEY "$STORE/LIVEKIT_API_KEY" -)"
+sed -e "s|@LIVEKIT_API_KEY@|$livekit_key|" -e "s|@PINECALL_DOMAIN@|$FIRST|" "$HERE/livekit.yaml" \
+    > /etc/pinecall/livekit.yaml
+chmod 0644 /etc/pinecall/livekit.yaml
+unset livekit_key
 # A Fernet key is 32 bytes, url-safe base64.
 [ -f "$STORE/PINECALL_VAULT_KEY" ] || openssl rand -base64 32 | tr -d '\n' | tr '+/' '-_' | sealed PINECALL_VAULT_KEY
 [ -f "$STORE/PINECALL_OPS_KEY" ] || printf 'pc_ops_%s' "$(openssl rand -hex 24)" | sealed PINECALL_OPS_KEY
@@ -114,4 +123,6 @@ if [ -f /etc/pinecall/backup.age.pub ]; then
 else
     systemctl disable --now pinecall-backup.timer 2>/dev/null || true
 fi
+# WAL archiving follows /etc/pinecall/backup.env: on with a bucket and a key, off without.
+bash "$HERE/wal.sh" apply
 echo "the box stands at $DOMAINS (production $FIRST, sandbox ${SECOND:-$FIRST})"
