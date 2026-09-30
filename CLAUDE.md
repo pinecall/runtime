@@ -43,7 +43,7 @@ session for voice and text) · `channels` (telephony, WhatsApp, rooms) · `evals
 Empty `__init__.py`; no pass-through function; the import graph is a list of edges; nothing
 written twice; `TREE.md` is the set of files; tests mirror the source one to one; no suppression
 (`noqa`, `type: ignore`) outside `tests/rules/allowed.py`; ruff, pyright strict, deptry; every
-door of v1 answers (or is in `GONE` with its reason); no secret-shaped string; every task has an
+door `docs/protocol/every-door.md` names is a route; no secret-shaped string; every task has an
 owner; no module over 700 lines; no literary names (`said`, `held`, `one`…); a module reads top
 to bottom; the gateway's private modules within budget; `docs/architecture.md` carries today's
 measures; `docs/wire/` describes every field.
