@@ -39,6 +39,15 @@ from pinecall.wire.commands import (
 )
 from pinecall.wire.frames import WireModel
 from pinecall.wire.parts import ParticipantKind, TrackKind, TrackSource, TransferMode
+from pinecall.wire.room import (
+    ParticipantJoined,
+    ParticipantLeft,
+    ParticipantSpeaking,
+    RoomOpened,
+    RoomSent,
+    TrackPublished,
+    TrackUnpublished,
+)
 
 # A code the caller keyed, claimed with the gateway, which decides whether it is one.
 type ClaimCode = Callable[[str], Awaitable[None]]
@@ -283,7 +292,7 @@ class CallRoom:
         )
         if await self._completed("room.send", sent):
             self.call.writing.write(
-                "room.sent", wire.RoomSent(topic=wanted.topic, to=wanted.to, bytes=len(packed))
+                "room.sent", RoomSent(topic=wanted.topic, to=wanted.to, bytes=len(packed))
             )
 
     # livekit mutes in place and says nothing, so the verb writes track.unpublished itself.
@@ -309,7 +318,7 @@ class CallRoom:
         if await self._completed(
             "participant.mute", self.server.room.mute_published_track(request)
         ):
-            unpublished = wire.TrackUnpublished(
+            unpublished = TrackUnpublished(
                 identity=wanted.identity, kind="audio", source="microphone"
             )
             self.call.writing.write("track.unpublished", unpublished)
@@ -399,7 +408,7 @@ class CallRoom:
     # room.sid is awaited, so the opening runs as a task: room.opened, the agent's seat, then the
     # seats taken before the agent arrived and their tracks.
     async def _opened(self) -> None:
-        opened = wire.RoomOpened(
+        opened = RoomOpened(
             name=self.room.name, sid=await self.room.sid, channel=self.call.context.channel
         )
         await self.call.writing.write("room.opened", opened)
@@ -412,7 +421,7 @@ class CallRoom:
     def _joined(self, seat: rtc.Participant) -> None:
         attributes: dict[str, str] = dict(seat.attributes)
         data: JsonObject = dict(attributes)
-        joined = wire.ParticipantJoined(
+        joined = ParticipantJoined(
             identity=seat.identity,
             kind=self._kind_of(seat, attributes),
             name=seat.name or None,
@@ -424,7 +433,7 @@ class CallRoom:
         reason = seat.disconnect_reason
         text = "unknown" if reason is None else rtc.DisconnectReason.Name(reason).lower()
         self.call.writing.write(
-            "participant.left", wire.ParticipantLeft(identity=seat.identity, reason=text)
+            "participant.left", ParticipantLeft(identity=seat.identity, reason=text)
         )
         self.speaking.discard(seat.identity)
 
@@ -443,15 +452,13 @@ class CallRoom:
     def _published(self, publication: rtc.TrackPublication, seat: rtc.Participant) -> None:
         track = _track_of(publication)
         if track is not None:
-            published = wire.TrackPublished(identity=seat.identity, kind=track[0], source=track[1])
+            published = TrackPublished(identity=seat.identity, kind=track[0], source=track[1])
             self.call.writing.write("track.published", published)
 
     def _unpublished(self, publication: rtc.TrackPublication, seat: rtc.Participant) -> None:
         track = _track_of(publication)
         if track is not None:
-            unpublished = wire.TrackUnpublished(
-                identity=seat.identity, kind=track[0], source=track[1]
-            )
+            unpublished = TrackUnpublished(identity=seat.identity, kind=track[0], source=track[1])
             self.call.writing.write("track.unpublished", unpublished)
 
     # Written on the change, never on every tick.
@@ -459,11 +466,11 @@ class CallRoom:
         now = {speaker.identity for speaker in speakers}
         for identity in sorted(now - self.speaking):
             self.call.writing.write(
-                "participant.speaking", wire.ParticipantSpeaking(identity=identity, speaking=True)
+                "participant.speaking", ParticipantSpeaking(identity=identity, speaking=True)
             )
         for identity in sorted(self.speaking - now):
             self.call.writing.write(
-                "participant.speaking", wire.ParticipantSpeaking(identity=identity, speaking=False)
+                "participant.speaking", ParticipantSpeaking(identity=identity, speaking=False)
             )
         self.speaking = now
 

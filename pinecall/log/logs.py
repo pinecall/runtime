@@ -395,9 +395,12 @@ def arrival_entry(
     return "call.ringing", ringing.written()
 
 
-def started_entry(context: CallContext, door: str, at: float) -> JsonObject:
-    """Return the call.started entry, written once media is up."""
+def started_entry(
+    context: CallContext, door: str, at: float, worker: str | None = None
+) -> JsonObject:
+    """Return the call.started entry, written once media is up, naming the worker that runs it."""
     from_, to = _two_ends(context, door)
+    ran_by: JsonObject = {} if worker is None else {"worker": worker}
     started = CallStarted.read(
         {
             "channel": context.channel,
@@ -412,6 +415,7 @@ def started_entry(context: CallContext, door: str, at: float) -> JsonObject:
             "caller": None,
             "started_at": at,
             "env": context.env,
+            **ran_by,
         },
         "call.started",
     )

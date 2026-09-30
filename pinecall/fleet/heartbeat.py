@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import socket
 from collections.abc import Callable
 from dataclasses import fields
 
@@ -10,6 +11,7 @@ from livekit.agents.worker import ServerOptions
 
 from pinecall.domain.errors import DeclarationRefused, GatewayRefused
 from pinecall.fleet.client import GatewayClient
+from pinecall.fleet.measures import LastMinute
 from pinecall.fleet.roster import HEARTBEAT_S, REFUSED_AT
 from pinecall.process.settings import Settings
 from pinecall.wire.rest.fleet import HeartbeatRequest
@@ -68,20 +70,22 @@ class Heartbeats:
     """The worker's report to its gateway every five seconds, and a cordon's way out."""
 
     def __init__(
-        self, server: AgentServer, gateway: GatewayClient, settings: Settings, name: str
+        self, server: AgentServer, gateway: GatewayClient, settings: Settings, minute: LastMinute
     ) -> None:
         """Not beating yet; `leave` is set when the worker must go."""
         self.server = server
         self.gateway = gateway
         self.fleet = settings.fleet
         self.max_jobs = settings.max_jobs
-        self.name = name
+        self.name = worker_name_of(settings)
+        self.minute = minute
         self.cordoned = False
         self.leave = asyncio.Event()
 
     def beat(self) -> HeartbeatRequest:
-        """What this worker holds now."""
+        """What this worker holds now, and what its calls did in the last minute."""
         load_of = self.server.load_fnc
+        last = self.minute.of(asyncio.get_running_loop().time())
         return HeartbeatRequest(
             fleet=self.fleet,
             worker=self.name,
@@ -89,6 +93,11 @@ class Heartbeats:
             max_jobs=self.max_jobs,
             load=load_of(self.server) if isinstance(load_of, Load) else 0.0,
             draining=self.server.draining,
+            ended=last.ended,
+            failed=last.failed,
+            errors=last.errors,
+            turns=last.turns,
+            first_audio_p95_s=last.first_audio_p95_s,
         )
 
     # A gateway away is said and waited out: the worker keeps its calls meanwhile.
@@ -106,6 +115,12 @@ class Heartbeats:
                     self.leave.set()
                     return
             await asyncio.sleep(HEARTBEAT_S)
+
+
+# The job's process names its call's worker as the heartbeat does: the same settings, the same host.
+def worker_name_of(settings: Settings) -> str:
+    """What the worker is called in its heartbeats and its calls: its setting, or the short host."""
+    return settings.worker_name or socket.gethostname().split(".")[0]
 
 
 # livekit's own CPU average, read off its options' default rather than its private class.

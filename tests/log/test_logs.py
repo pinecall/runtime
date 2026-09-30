@@ -506,6 +506,13 @@ def test_a_placed_call_dials_from_the_door_and_says_who_placed_it() -> None:
     )
 
 
+def test_the_start_names_the_worker_that_runs_the_call_and_a_written_one_none() -> None:
+    assert started_entry(context("in"), "+34955111222", 1.0, "pinecall-worker-3")["worker"] == (
+        "pinecall-worker-3"
+    )
+    assert "worker" not in started_entry(context("in"), "+34955111222", 1.0)
+
+
 def test_the_start_carries_the_persona_and_its_rules_for_the_judges() -> None:
     started = started_entry(context("in"), "+34955111222", at=12.5)
     assert (started["started_at"], started["persona"], started["accepts_when"], started["env"]) == (
