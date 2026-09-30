@@ -201,10 +201,19 @@ def run_argv(engine: Engine, launch: Launch, names: Sequence[str]) -> list[str]:
 
 
 # The bridge's name is what the fence matches: only the runner's bridges, never another podman
-# network of the machine. A Linux interface name is 15 characters at most.
+# network of the machine. A Linux interface name is 15 characters at most. No DNS of podman's: it
+# answers on the host, which the fence closes, so a container asks the public resolvers itself.
 def network_argv(network: str, bridge: str) -> list[str]:
     """One app's own network: two apps never share a bridge, so they never reach each other."""
-    return ["podman", "network", "create", "--ignore", f"--interface-name={bridge}", network]
+    return [
+        "podman",
+        "network",
+        "create",
+        "--ignore",
+        "--disable-dns",
+        f"--interface-name={bridge}",
+        network,
+    ]
 
 
 def listing_argv() -> list[str]:
