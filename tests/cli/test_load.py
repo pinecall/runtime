@@ -26,6 +26,7 @@ from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.org import Quotas
 from pinecall.fleet.client import gateway_at
 from pinecall.process.settings import Settings
+from pinecall.session.call import MOST_A_BATCH
 from pinecall.tenancy.admission import set_quotas
 from pinecall.wire.frames import Entry
 from tests.conftest import AGENT, Knocking, postgres
@@ -103,7 +104,7 @@ def test_the_script_keeps_the_logs_order_and_never_steps_back_in_time() -> None:
         entry.type for entry in worker if entry.type != "call.ended"
     ]
     assert script.ending.type == "call.ended"
-    assert script.ending.data == next(e.data for e in worker if e.type == "call.ended")
+    assert script.ending.event.written() == next(e.data for e in worker if e.type == "call.ended")
 
 
 def test_a_script_with_no_call_ended_is_given_one_at_its_last_moment() -> None:
@@ -111,7 +112,7 @@ def test_a_script_with_no_call_ended_is_given_one_at_its_last_moment() -> None:
     script = script_of(entries)
     assert script.ending.type == "call.ended"
     assert script.ending.at_s == pytest.approx(entries[-1].ts - entries[0].ts)
-    assert script.ending.data["ended_by"] == "caller"
+    assert script.ending.event.written()["ended_by"] == "caller"
 
 
 def test_the_ramp_starts_the_calls_evenly_and_all_at_once_with_none() -> None:
@@ -174,8 +175,9 @@ async def test_a_small_run_leaves_sealed_logs_holding_exactly_what_it_sent(
     for call, kept in logs.items():
         assert await knocking.gateway.logs.store.sealed(call)
         replayed = [(entry.type, entry.data) for entry in kept]
-        prefix = [(step.type, step.data) for step in whole[: len(replayed) - 1]]
-        assert replayed == [*prefix, (plan.script.ending.type, plan.script.ending.data)]
+        prefix = [(step.type, step.event.written()) for step in whole[: len(replayed) - 1]]
+        ending = (plan.script.ending.type, plan.script.ending.event.written())
+        assert replayed == [*prefix, ending]
     assert tally.opened == tally.sealed == len(logs) >= plan.calls
     assert any(len(kept) == len(whole) + 1 for kept in logs.values())
     assert tally.durable == sum(len(kept) for kept in logs.values())
@@ -184,9 +186,12 @@ async def test_a_small_run_leaves_sealed_logs_holding_exactly_what_it_sent(
     assert tally.refusals == {}
     assert tally.wrong == 0
     assert tally.verified + sum(tally.unread.values()) == tally.sealed
+    assert sum(tally.batches) == tally.sent == len(tally.append_ms)
+    assert max(tally.batches) <= MOST_A_BATCH
     lines = report_of(tally, plan.hold_s)
     assert "refusals: none" in lines
     assert f"calls opened: {tally.opened}" in lines
+    assert any(line.startswith("entries per batch: p50 ") for line in lines)
 
 
 @postgres

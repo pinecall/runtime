@@ -296,6 +296,11 @@ class Store:
         head = await self._head(log)
         return 0 if head is None else int(head["seq"])
 
+    async def written(self, log: str) -> int:
+        """Return how many entries the log took from its writer's batches; 0 for none."""
+        head = await self._head(log)
+        return 0 if head is None else int(head["written"])
+
     async def sealed(self, log: str) -> bool:
         """Return whether the log is sealed."""
         head = await self._head(log)

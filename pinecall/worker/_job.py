@@ -46,7 +46,12 @@ from pinecall.wire.events import CallEnded, ErrorEvent, ToolCall
 from pinecall.wire.frames import Command, Entry
 from pinecall.wire.metrics import ModelUsage
 from pinecall.wire.parts import EndReason, PlatformTool, ToolResult
-from pinecall.wire.rest.calls import OpenCallRequest, OpenCallResponse, SealCallRequest
+from pinecall.wire.rest.calls import (
+    BatchedEntry,
+    OpenCallRequest,
+    OpenCallResponse,
+    SealCallRequest,
+)
 from pinecall.wire.state import State
 from pinecall.worker._recorder import file_written, record_room, recording_path
 
@@ -338,8 +343,8 @@ def _recorded(config: AgentConfig, settings: Settings, call: str, *, typed: bool
 
 
 def _platform(gateway: GatewayClient, call: str, config: AgentConfig, seal: Seal) -> Platform:
-    async def append(kind: str, data: JsonObject, *, ephemeral: bool | None = None) -> Entry:
-        return await gateway.append(call, kind, data, ephemeral=ephemeral)
+    async def append_many(entries: list[BatchedEntry], *, after: int) -> list[Entry]:
+        return await gateway.append_many(call, entries, after=after)
 
     async def tool(use: ToolUse, speech: str | None) -> ToolResult:
         spec = config.tools_by_name.get(use.name)
@@ -354,7 +359,7 @@ def _platform(gateway: GatewayClient, call: str, config: AgentConfig, seal: Seal
     ) -> JsonObject:
         return await gateway.lookup(call, tool_name, arguments, speech)
 
-    return Platform(append=append, tool=tool, lookup=lookup, seal=seal)
+    return Platform(append_many=append_many, tool=tool, lookup=lookup, seal=seal)
 
 
 async def _kept(server: api.LiveKitAPI, recording: str | None, audio: Path | None) -> str | None:
