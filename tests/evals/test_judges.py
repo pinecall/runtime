@@ -456,6 +456,8 @@ async def test_at_hang_up_with_no_model_the_code_judges_answer_and_the_model_one
     assert score.judge_calls == 0
     grounded_row = next(judgment for judgment in score.judges if judgment.name == "grounded")
     assert grounded_row.reason.startswith("no judge: ")
+    assert score.judged_by is not None
+    assert (score.judged_by.provider, score.judged_by.model) == (None, None)
 
 
 async def test_at_hang_up_the_model_is_asked_counted_and_priced(acme: str) -> None:
@@ -471,6 +473,12 @@ async def test_at_hang_up_the_model_is_asked_counted_and_priced(acme: str) -> No
     assert score.judge_calls == 1
     assert score.judge_cost_usd is not None
     assert score.judge_cost_usd > 0
+    assert score.judged_by is not None
+    assert (score.judged_by.provider, score.judged_by.model) == (acme, "acme-1")
+    again = await at_hangup(
+        log, THE_CLINIC, Panel(), JudgeModel(judge, 0.01), configured=with_a_judge(replies)
+    )
+    assert again.judged_by == score.judged_by
 
 
 async def test_a_model_judge_asked_past_the_ceiling_is_skipped_and_the_ones_before_it_stand(
