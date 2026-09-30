@@ -2,7 +2,8 @@
 # the runner makes (named pca…, so another podman network of the machine is never touched), ahead
 # of netavark's own rules: no private range (the VPC, where the box is), no cloud
 # metadata (169.254.169.254 hands out the VM's tokens), no loopback, no mail, no IPv6, and nothing
-# of this machine: the app networks carry no DNS of podman's, the containers ask public resolvers. Each app has a network of its own, so reaching another app's container
+# of this machine: the app networks carry no DNS of podman's, the containers ask public resolvers.
+# Each app has a network of its own, so reaching another app's container
 # crosses these hooks too. Measured on the spike (internal-docs/DEPLOY.md, D0).
 table inet pinecall_apps {
   set denied4 {
