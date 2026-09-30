@@ -97,7 +97,7 @@ class Runner:
 
     async def reconcile(self, wanted: RunnerHeartbeatResponse, now: float) -> None:
         """Make the containers what the gateway wants: start, report, stop what is not wanted."""
-        containers = await self._containers()
+        containers = await self._containers(wanted.world)
         by_name = {container.name: container for container in containers}
         keep: set[str] = set()
         for app in wanted.apps:
@@ -122,8 +122,8 @@ class Runner:
             if container.name not in keep:
                 await self._stopped(container.name)
 
-    async def _containers(self) -> list[Container]:
-        done = await self.ran(podman.listing_argv())
+    async def _containers(self, world: Env) -> list[Container]:
+        done = await self.ran(podman.listing_argv(world))
         if done.returncode != 0:
             raise UpstreamFailed(f"podman ps: {done.output.strip()}")
         return podman.containers_in(done.output)
@@ -141,7 +141,12 @@ class Runner:
             return
         command = [*START, "--prod"] if world == PRODUCTION else list(START)
         launch = Launch(
-            app=_label(app), host=app.host, network=network, folder=folder, command=command
+            world=world,
+            app=_label(app),
+            host=app.host,
+            network=network,
+            folder=folder,
+            command=command,
         )
         argv = podman.run_argv(self.engine, launch, sorted(environment))
         done = await self.ran(argv, env=environment)

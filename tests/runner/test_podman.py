@@ -10,6 +10,7 @@ from pinecall.runner._podman import (
     Launch,
     containers_in,
     install_argv,
+    listing_argv,
     network_argv,
     ran,
     run_argv,
@@ -20,6 +21,7 @@ ENGINE = Engine(image="docker.io/library/node:24-slim", runtime="runsc")
 
 def launch(folder: Path) -> Launch:
     return Launch(
+        world="production",
         app="org_1/support",
         host="support-r1-abcdef12",
         network="pinecall-net",
@@ -103,3 +105,8 @@ def test_an_apps_network_is_on_a_bridge_the_fence_knows_by_its_name() -> None:
     assert "--interface-name=pca0123456789ab" in argv
     assert "--disable-dns" in argv
     assert len("pca0123456789ab") <= 15
+
+
+def test_a_runner_lists_and_labels_only_its_own_worlds_containers(tmp_path: Path) -> None:
+    assert "--label=pinecall.world=production" in run_argv(ENGINE, launch(tmp_path), [])
+    assert "--filter=label=pinecall.world=sandbox" in listing_argv("sandbox")

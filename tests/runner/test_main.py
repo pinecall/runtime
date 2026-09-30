@@ -35,9 +35,11 @@ class Podman:
         self.asked.append(list(argv))
         verb = argv[1]
         if verb == "ps":
+            world = next(part for part in argv if "pinecall.world=" in part).split("=")[-1]
             rows = [
                 {"Names": [name], "Labels": {APP_LABEL: row["app"]}, "State": row["state"]}
                 for name, row in self.containers.items()
+                if row["world"] == world
             ]
             return Done(0, json.dumps(rows))
         if verb == "run" and "--rm" in argv:
@@ -49,7 +51,12 @@ class Podman:
         if verb == "run":
             name = next(part for part in argv if part.startswith("--name=")).split("=")[1]
             app = next(part for part in argv if part.startswith(f"--label={APP_LABEL}="))
-            self.containers[name] = {"app": app.split("=", 2)[2], "state": "running"}
+            world = next(part for part in argv if "pinecall.world=" in part).split("=")[-1]
+            self.containers[name] = {
+                "app": app.split("=", 2)[2],
+                "state": "running",
+                "world": world,
+            }
             self.environments.append(dict(env or {}))
             return Done(0, "a1b2c3")
         if verb == "rm":
@@ -129,7 +136,11 @@ async def test_a_release_is_installed_and_started_in_production_with_its_environ
     await tick(world)
     [(host, row)] = world.podman.containers.items()
     assert host.startswith("support-r1-")
-    assert row == {"app": f"{world.knocking.org.id}/support", "state": "running"}
+    assert row == {
+        "app": f"{world.knocking.org.id}/support",
+        "state": "running",
+        "world": "production",
+    }
     installs = [argv for argv in world.podman.asked if argv[1] == "run" and "--rm" in argv]
     [started] = [argv for argv in world.podman.asked if argv[1] == "run" and "--rm" not in argv]
     assert len(installs) == 1
@@ -211,3 +222,21 @@ async def test_an_app_dropped_has_its_container_stopped(world: World) -> None:
     await tick(world)
     assert world.podman.stopped() == [host]
     assert world.podman.containers == {}
+
+
+# Found on the first machine with two: the sandbox's runner stopped production's apps.
+@postgres
+async def test_a_runner_of_another_world_on_the_same_podman_leaves_this_worlds_apps_alone(
+    world: World,
+) -> None:
+    await upload(world)
+    await tick(world)
+    [host] = world.podman.containers
+    pool = world.knocking.gateway.connections.pool
+    key = await issued(pool, "default", "sandbox", frozenset({THE_RUNNER}))
+    headers = {"Authorization": f"Bearer {key}"}
+    async with httpx.AsyncClient(base_url=world.knocking.url, headers=headers) as gateway:
+        sandbox = Runner(engine=ENGINE, root=world.runner.root, gateway=gateway, ran=world.podman)
+        await sandbox.reconcile(await sandbox.beat("apps-1"), 1000.0)
+    assert list(world.podman.containers) == [host]
+    assert world.podman.stopped() == []
