@@ -9,7 +9,7 @@ from pinecall.domain.errors import Conflict, DeclarationRefused, NotAvailable
 from pinecall.domain.names import Json, JsonObject
 from pinecall.postgres.pool import Pool
 from pinecall.process import box_settings
-from pinecall.providers.build import MODALITIES, Modality, doing
+from pinecall.providers.build import MODALITIES, Modality, TurnModel, doing
 
 ROW = "providers"
 
@@ -64,6 +64,8 @@ class StageOptions(BaseModel):
     options: JsonObject = Field(default_factory=dict[str, Json])
     # The ears end the turn themselves, so the session stacks no detector on top.
     ends_the_turn: bool = False
+    # Where they do not, which local model reads the end of the turn off the audio.
+    turn_model: TurnModel = "v1-mini"
 
 
 class Judge(BaseModel):

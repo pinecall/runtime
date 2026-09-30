@@ -81,6 +81,15 @@ async def test_ears_that_end_the_turn_decide_it_and_others_get_the_local_detecto
 
 
 @postgres
+async def test_the_row_may_read_the_turn_with_smart_turn_whose_weights_load_once(box: Box) -> None:
+    first = spoken_call(box, NOBODY, turn_model="smart-turn-v3")
+    detector = first.live.options.turn_handling.get("turn_detection")
+    assert type(detector).__name__ == "SmartTurnDetector"
+    again = spoken_call(box, NOBODY, turn_model="smart-turn-v3")
+    assert again.live.options.turn_handling.get("turn_detection") is detector
+
+
+@postgres
 async def test_what_it_takes_to_cut_the_agent_off_is_the_agents_own_else_two_words(
     box: Box,
 ) -> None:

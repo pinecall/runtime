@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3 — Open models on the row (unreleased)
+
+- The providers row may name the language a vendor's ears are told (`tuning."stt/<vendor>".options.language_code`),
+  and it wins over the call's base code: NVIDIA's streaming ASR takes `es-US`, not `es`.
+- How a spoken turn ends is the ears' `tuning` too: `turn_model` picks the local model that reads
+  the end of the caller's turn off the audio, `v1-mini` (livekit's, the default) or `smart-turn-v3`
+  (Daily's Smart Turn v3, a new dependency, 8 MB of ONNX on the worker's CPU).
+
 ## 0.1.2 — A box from the package itself
 
 - `pinecall-runtime box up --domains …` makes the machine it runs on a box, with no checkout: the

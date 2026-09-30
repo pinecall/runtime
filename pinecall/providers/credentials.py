@@ -159,6 +159,7 @@ def stage(
         builds=options.builds,
         options=dict(options.options),
         ends_the_turn=options.ends_the_turn,
+        turn_model=options.turn_model,
     )
 
 

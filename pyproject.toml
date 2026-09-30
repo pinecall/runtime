@@ -21,6 +21,9 @@ classifiers = [
 dependencies = [
   # The text session is livekit's AgentSession with no audio: the library and its two llm plugins.
   "livekit-agents[anthropic,openai]>=1.8.3,<2",
+  # Smart Turn v3, the row's alternative to livekit's own end-of-turn model: 8 MB of ONNX read
+  # off the caller's audio on the worker's CPU, no transcript.
+  "smart-turn-livekit[livekit]>=0.4,<1",
   # Room tokens are livekit's AccessToken; the id_token of an identity provider is read with PyJWT.
   "livekit-api>=1.2,<2",
   # A livekit client's room configuration is parsed with protobuf's own reader.

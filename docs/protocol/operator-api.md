@@ -25,6 +25,11 @@ Four rows of `box_settings`, each read and written whole, the console's box scre
   judging one call may spend on it (`judge.ceiling_usd`: a model judge past it is `skipped`), the
   embedder. A vendor not installed, or not doing the stage it is named for, is `400` where it is
   written. No vendor is listed in code: every livekit plugin installed is one.
+  How a spoken turn ends is the ears' `tuning` too, `"stt/<vendor>": {ends_the_turn, turn_model}`:
+  ears with `ends_the_turn` close the turn themselves; the others get a local model that reads it
+  off the caller's audio on the worker's CPU, no transcript: `turn_model` `v1-mini` (livekit's own,
+  the default) or `smart-turn-v3` (Daily's Smart Turn v3, 23 languages; its 8 MB of weights come
+  from Hugging Face on the first call that asks for it).
 - `GET /v1/ops/provider-keys`, `PUT` · `DELETE /v1/ops/provider-keys/{vendor} {key | credentials}`:
   the box's own vendor keys, sealed and never read back. Offering a vendor is holding its key; an
   org runs on it where its `lends` allow.
