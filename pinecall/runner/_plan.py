@@ -116,7 +116,7 @@ def _of_one(
         keep.discard(app.host)
     elif wanted is None:
         steps.append(Start(app))
-    elif not wanted.is_running:
+    elif wanted.has_exited:
         steps.append(_exited(app, wanted, crashes, now))
     elif app.registered and app.live_host != app.host:
         steps.append(WentLive(app))
@@ -125,7 +125,7 @@ def _of_one(
     if app.registered and not app.failed:
         keep = {app.host}
     before = by_name.get(app.live_host or "")
-    if before is not None and before.name != app.host and not before.is_running:
+    if before is not None and before.name != app.host and before.has_exited:
         if before.name in keep and _may_run_again(before, crashes, now):
             steps.append(Revive(app, before))
         else:
