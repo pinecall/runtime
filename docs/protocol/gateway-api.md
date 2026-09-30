@@ -134,6 +134,10 @@ the nightly run forgets it, and every dial, 24 months on. The night's backup, ta
 before the retention run, still holds what was erased: 7 days on the box, 35 in the bucket
 (`a-box-in-production.md` §Backups), which an answer to a data subject says.
 
+A sealed log is the database's word too, not only the gateway's: `call_log` refuses an entry on a
+sealed log but its `call.score` (a judge scores a call again after its seal), and `call_log_head`
+refuses opening a sealed log again. An erasure deletes, so neither stands in its way.
+
 | door | |
 |---|---|
 | `DELETE /v1/calls/{call}` | one ended call (`team`); `409` while it runs, `404` for a call the key does not read |
