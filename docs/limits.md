@@ -18,7 +18,9 @@ rebuild` folds the table again from the summaries in the log.
 What the sandbox spent never closes production, except through the budget: dollars are the same
 in both worlds.
 
-- **A call** is refused past `concurrent_calls`, `minutes`, `messages` or `llm_tokens`. One that
+- **A call** is refused past `concurrent_calls`, `minutes`, `messages` or `llm_tokens`. The calls
+  at once are the box's: every gateway counts its own and says them each second, so two gateways
+  opening at the same moment may go past the limit by what they opened that second. One that
   is let in is told how many seconds are left of the minutes, and ends there.
 - **A budget** (`budget_usd`, whole dollars a calendar month) refuses a new call once what the
   org's calls in both worlds cost this month, as the summaries priced them, reaches it
