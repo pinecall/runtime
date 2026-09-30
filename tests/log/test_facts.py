@@ -15,15 +15,33 @@ from pinecall.log.queries import (
     unsealed_spoken,
     unsealed_written,
 )
-from pinecall.log.store import Claim, Store
+from pinecall.log.store import Claim, Store, Unnumbered
 from pinecall.postgres.pool import Pool
 from tests.conftest import postgres
 from tests.log.conftest import AGENT, ACall, entry, judgment, logged_call
+from tests.wire.golden import golden_entries
 
 pytestmark = postgres
 
 
 LENT_OF = "select lent from call_facts where call = %(call)s"
+
+# What a reader's stream carries and no writer writes.
+MARKERS = frozenset({"log.gap", "log.caught_up"})
+
+# What the gateway writes on a call's log itself; the rest of the golden is the worker's.
+GATEWAYS = frozenset(
+    {
+        "call.ringing",
+        "call.started",
+        "tool.call",
+        "tool.result",
+        "memory.ops",
+        "docs.sources",
+        "call.summary",
+        "call.score",
+    }
+)
 
 
 # ── the fold, pure ──
@@ -180,6 +198,36 @@ async def test_the_vendors_lent_to_a_call_are_kept_with_its_facts_and_replaced_w
     assert row is not None
     assert row["lent"] == ["cartesia"]
     assert call in await facts_of_calls(pool, [call])
+
+
+async def test_a_batch_folds_to_the_row_its_entries_fold_to_one_by_one(
+    store: Store, org: str
+) -> None:
+    one_by_one, batched = f"CA_{org}_single", f"CA_{org}_batched"
+    for call in (one_by_one, batched):
+        await store.claim(call, AGENT, org, Claim(Scope(org)))
+    pending: list[Unnumbered] = []
+    taken = 0
+    for item in golden_entries():
+        if item.type in MARKERS:
+            continue
+        single = await store.append(
+            one_by_one, item.agent, item.type, item.data, ephemeral=item.ephemeral
+        )
+        if item.type not in GATEWAYS:
+            # The batch carries the times the single path was stamped with.
+            pending.append(
+                Unnumbered(type=item.type, data=item.data, ephemeral=item.ephemeral, ts=single.ts)
+            )
+            continue
+        if pending:
+            await store.append_many(batched, item.agent, pending, after=taken)
+            taken, pending = taken + len(pending), []
+        await store.append(batched, item.agent, item.type, item.data, ephemeral=item.ephemeral)
+    rows = await facts_of_calls(store.pool, [one_by_one, batched])
+    assert rows[one_by_one].ended_at is not None
+    assert rows[one_by_one].heard_at
+    assert replace(rows[batched], call=one_by_one) == rows[one_by_one]
 
 
 # ── the scope ──

@@ -65,6 +65,8 @@ from pinecall.wire.frames import Command, Entry
 from pinecall.wire.parts import ToolResult
 from pinecall.wire.rest.agents import JudgingSettings
 from pinecall.wire.rest.calls import (
+    AppendEntriesRequest,
+    AppendEntriesResponse,
     AppendEntryRequest,
     CallList,
     CallRow,
@@ -215,6 +217,20 @@ async def append_entry(
     _orgs_call(gateway, key, call)
     served = _orgs_call(gateway, key, call)
     return await served.log.append(body.type, body.data, ephemeral=body.ephemeral)
+
+
+# Taken whole or refused whole; the answer to a retry of the last batch is the seqs it was given.
+@router.post("/v1/calls/{call}/entries")
+async def append_entries(
+    call: str, body: AppendEntriesRequest, key: WorkerKey, gateway: GatewayDep
+) -> AppendEntriesResponse:
+    """Write a worker's batch of a call this gateway serves, once and in order."""
+    for item in body.entries:
+        if item.type not in EVENTS:
+            raise DeclarationRefused(UNKNOWN_EVENT.format(kind=item.type))
+    served = _orgs_call(gateway, key, call)
+    entries = await served.log.append_many(body.entries, after=body.after)
+    return AppendEntriesResponse(entries=entries)
 
 
 @router.post("/v1/calls/{call}/sealed", status_code=204)

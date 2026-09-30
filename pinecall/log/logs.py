@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from typing import Self
 
 from pinecall.domain.call import CallContext
@@ -10,7 +10,7 @@ from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import ENVS, Env, JsonObject
 from pinecall.log.readers import EVERYTHING, Filter
 from pinecall.log.reduce import reduce
-from pinecall.log.store import Claimant, Store, log_name
+from pinecall.log.store import Claimant, Store, Unnumbered, log_name
 from pinecall.wire.events import (
     EPHEMERAL_EVENTS,
     TERMINAL_EVENT,
@@ -20,6 +20,7 @@ from pinecall.wire.events import (
 )
 from pinecall.wire.frames import Entry
 from pinecall.wire.parts import Route
+from pinecall.wire.rest.calls import BatchedEntry
 from pinecall.wire.state import State
 
 # Runs inline on every append, before append returns: for work that is part of the write.
@@ -160,12 +161,29 @@ class Log:
         entry = await self._store.append(
             self.call, self.agent, kind, data or {}, ephemeral=forgettable
         )
-        self.fanout.publish(entry)
-        for tap in list(self._taps):
-            await tap(entry)
-        if kind == TERMINAL_EVENT and self.call is not None:
-            await self.seal()
+        await self._published(entry)
         return entry
+
+    # A replayed batch was published when it was first taken: publishing it again would repeat it.
+    async def append_many(self, entries: Sequence[BatchedEntry], *, after: int) -> list[Entry]:
+        """Write a worker's batch once, then publish and tap each entry in order as append does."""
+        unnumbered = [
+            Unnumbered(
+                type=item.type,
+                data=item.data,
+                ephemeral=item.type in EPHEMERAL_EVENTS
+                if item.ephemeral is None
+                else item.ephemeral,
+                ts=item.ts,
+            )
+            for item in entries
+        ]
+        batch = await self._store.append_many(self.call, self.agent, unnumbered, after=after)
+        if batch.replayed:
+            return batch.entries
+        for entry in batch.entries:
+            await self._published(entry)
+        return batch.entries
 
     async def seal(self) -> None:
         """Seal the call's log in the store and end every live reader."""
@@ -221,6 +239,13 @@ class Log:
                 to_seq, "log.gap", {"from_seq": cursor + 1, "to_seq": to_seq, "snapshot": snapshot}
             )
             cursor = to_seq
+
+    async def _published(self, entry: Entry) -> None:
+        self.fanout.publish(entry)
+        for tap in list(self._taps):
+            await tap(entry)
+        if entry.type == TERMINAL_EVENT and self.call is not None:
+            await self.seal()
 
     def _marker(self, seq: int, kind: str, data: JsonObject) -> Entry:
         return Entry(

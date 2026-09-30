@@ -70,6 +70,20 @@ log only if the agent declared the name in its `events` with that source among t
 app's handler may then move the state, and `state.changed` says so with a `cause` of kind `event`.
 `agent.reply` makes the model speak to it. The page is `events-room.md`.
 
+## Writing a log
+
+A worker writes its call's entries in batches, `POST /v1/calls/{id}/entries`, and the answer is
+`{entries}`: each entry as the log numbered it, in the order it was sent. The body:
+
+| field | meaning |
+|---|---|
+| `after` | how many entries the log had taken from this worker on this call before this batch, from 0 |
+| `entries` | 1 to 256 entries, each `{type, data, ephemeral?, ts}`: the protocol's own `type`, its `data`, `ephemeral` when the writer overrules the wire's default, and `ts`, the worker's clock when the event happened. The log keeps that `ts`, clamped to the gateway's clock and never earlier than the entry before it in the batch |
+
+The batch is taken whole or refused whole. Sent again with the same `after`, it is answered with
+the seqs and stamps it was given and nothing is written twice. `POST /v1/calls/{id}/events` takes one entry
+the same way and counts nothing.
+
 ## Reading a log
 
 Six endpoints, and two of them are the same URL twice — `Accept` decides:
