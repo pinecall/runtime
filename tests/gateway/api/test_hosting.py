@@ -183,3 +183,55 @@ async def test_a_secret_dropped_is_gone_and_a_name_nobody_set_is_a_404(knocking:
         again = await http.delete("/v1/secrets/CRM_TOKEN")
     assert (dropped.status_code, dropped.json()) == (200, {"secrets": []})
     assert again.status_code == 404
+
+
+@postgres
+async def test_a_stopped_app_says_so_and_starts_again(knocking: Knocking) -> None:
+    await uploaded(knocking)
+    async with knocking.http(knocking.app["production"]) as http:
+        stopped = await http.post("/v1/hosted/support/stop")
+        [listed] = (await http.get("/v1/hosted")).json()["apps"]
+        started = await http.post("/v1/hosted/support/start")
+        [again] = (await http.get("/v1/hosted")).json()["apps"]
+        nobody = await http.post("/v1/hosted/nobody/stop")
+    assert (stopped.status_code, started.status_code, nobody.status_code) == (204, 204, 404)
+    assert (listed["stopped"], again["stopped"]) == (True, False)
+
+
+@postgres
+async def test_a_rollback_keeps_an_earlier_releases_sources_as_the_next(knocking: Knocking) -> None:
+    await uploaded(knocking)
+    async with knocking.http(knocking.app["production"]) as http:
+        await http.post(RELEASES, content=tarball({"package.json": b'{"v": 2}'}))
+        rolled = await http.post("/v1/hosted/support/rollback", json={"release": 1})
+        source = await http.get(f"{RELEASES}/3/source")
+        nobody = await http.post("/v1/hosted/support/rollback", json={"release": 9})
+    assert rolled.status_code == 200, rolled.text
+    assert (rolled.json()["release"], rolled.json()["note"]) == (3, "rollback to release 1")
+    assert source.content == PROJECT
+    assert nobody.status_code == 404
+
+
+@postgres
+async def test_logs_asked_for_come_back_empty_until_the_runner_sends_them(
+    knocking: Knocking,
+) -> None:
+    await uploaded(knocking)
+    async with knocking.http(knocking.app["production"]) as http:
+        first = await http.get("/v1/hosted/support/logs")
+        nobody = await http.get("/v1/hosted/nobody/logs")
+    assert first.json() == {"name": "support", "host": None, "lines": "", "at": None}
+    assert nobody.status_code == 404
+
+
+@postgres
+async def test_the_time_served_is_one_month_and_a_month_that_is_not_one_is_refused(
+    knocking: Knocking,
+) -> None:
+    async with knocking.http(knocking.app["production"]) as http:
+        september = await http.get("/v1/hosted/usage", params={"month": "2026-09"})
+        december = await http.get("/v1/hosted/usage", params={"month": "2026-12"})
+        wrong = await http.get("/v1/hosted/usage", params={"month": "september"})
+    assert september.json() == {"since": "2026-09-01", "until": "2026-10-01", "rows": []}
+    assert (december.json()["since"], december.json()["until"]) == ("2026-12-01", "2027-01-01")
+    assert wrong.status_code == 400

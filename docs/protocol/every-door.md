@@ -112,9 +112,14 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/fleet/standing` | fleet | A fleet's workers summed; the overflow opens when it is full. |
 | `GET` | `/v1/hosted` | app | The apps the box hosts for the org in this world, by name. |
 | `DELETE` | `/v1/hosted/{name}` | app | Stop hosting the app: its releases go, and its token is revoked. |
+| `GET` | `/v1/hosted/usage` | app | The time the org's apps served here per UTC day, in one month: this one by default. |
+| `GET` | `/v1/hosted/{name}/logs` | app | The last lines of the app's process, and the runner told to send them again. |
 | `GET` | `/v1/hosted/{name}/releases` | app | The app's releases, newest first. |
 | `POST` | `/v1/hosted/{name}/releases` | app | The project's sources as the app's next release. |
 | `GET` | `/v1/hosted/{name}/releases/{release}/source` | app | The tarball one release was uploaded as. |
+| `POST` | `/v1/hosted/{name}/rollback` | app | An earlier release's sources kept again as the app's next release. |
+| `POST` | `/v1/hosted/{name}/start` | app | Run a stopped app again, its newest release. |
+| `POST` | `/v1/hosted/{name}/stop` | app | Stop running the app: its process drains, and its releases and token stay. |
 | `GET` | `/v1/insights` | calls | One day of the key's world and scope at a glance, and the month's spend. |
 | `POST` | `/v1/invitations/{token}` | — | Choose a password: the member is active, and here is their first key. |
 | `GET` | `/v1/keys` | — | The org's keys this key may see, oldest first, the revoked ones too; never a key. |
@@ -166,6 +171,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `PUT` | `/v1/ops/admission` | operator | What a newborn org is given, replaced whole. |
 | `GET` | `/v1/ops/brand` | operator | What the box's letters and sign-in page are called and painted with. |
 | `PUT` | `/v1/ops/brand` | operator | The brand changed field by field: one left out stays, an empty one goes to the default. |
+| `GET` | `/v1/ops/hosted-usage` | operator | The time every org's apps served, both worlds, per UTC day, one month: what bills them. |
 | `GET` | `/v1/ops/events` | operator | Every org's floor at once, each frame saying whose. |
 | `GET` | `/v1/ops/fleet` | operator | Every worker heard from, of both fleets, and each fleet summed over the ones up. |
 | `DELETE` | `/v1/ops/fleet/{worker}/cordon` | operator | Take a worker's cordon back, when it has not left yet. |

@@ -172,7 +172,7 @@ heard, what the model said and how long each stage took.
 |---|---|---|
 | `could not select device driver "nvidia"` | the toolkit is not configured for Docker | step 1's `nvidia-ctk runtime configure`, then restart Docker |
 | the ears answer `404` for the model | the model is not downloaded yet | `docker compose ps -a`: wait for `whisper-model` to exit (0), or `docker compose up whisper-model` |
-| the agent is heard but answers late on the first turn only | Whisper loads on its first request | expected; the next turns are warm |
+| the first turn of a call waits ~7 s | Whisper was not on the GPU: Speaches unloads an idle model | the compose keeps it (`WHISPER__TTL=-1`) and `whisper-model` loads it at start; a Speaches of your own needs both |
 | the first answer after a while takes ~20 s | the model was unloaded | the compose keeps it loaded (`OLLAMA_KEEP_ALIVE=-1`); an Ollama of your own needs the same |
 | `nvidia-smi` shows Gemma partly on the CPU | not enough GPU memory beside the ears | keep Ollama's context at 8192 (the compose does) and nothing else on the card |
 | `providers seed`: already configured | the box has a row | edit it in the console's Box screens |

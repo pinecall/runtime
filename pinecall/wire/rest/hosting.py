@@ -18,6 +18,8 @@ class HostedAppRow(WireModel):
     live_release: int | None
     # Why the newest release did not build or start, null when it did or is still on its way.
     failed_why: str | None
+    # A person stopped it: nothing runs, and its releases and token stay.
+    stopped: bool
     created_by: str
     created_at: float
 
@@ -44,6 +46,40 @@ class ReleaseList(WireModel):
     """GET /v1/hosted/{name}/releases: the app's releases, newest first."""
 
     releases: list[ReleaseRow]
+
+
+class RollbackRequest(WireModel):
+    """POST /v1/hosted/{name}/rollback: which release's sources go again, as the next release."""
+
+    release: int = Field(ge=1)
+
+
+class AppLogsResponse(WireModel):
+    """GET /v1/hosted/{name}/logs: the last lines the runner read, and which process, and when."""
+
+    name: str
+    host: str | None
+    lines: str
+    # Null before the runner has sent any: asking is what makes it send them.
+    at: float | None
+
+
+class ServedRow(WireModel):
+    """The time one app served on one UTC day."""
+
+    org: str
+    env: Env
+    name: str
+    day: str
+    seconds: float
+
+
+class ServedPage(WireModel):
+    """GET /v1/hosted/usage and GET /v1/ops/hosted-usage: the time apps served, per day."""
+
+    since: str
+    until: str
+    rows: list[ServedRow]
 
 
 class PutSecretRequest(WireModel):
@@ -79,11 +115,21 @@ class RunnerReport(WireModel):
     why: str = Field(default="", max_length=2000)
 
 
+class AppLogs(WireModel):
+    """The last lines of one app's process, as the runner read them from its container."""
+
+    org: str
+    name: str
+    host: str
+    lines: str = Field(max_length=256 * 1024)
+
+
 class RunnerHeartbeatRequest(WireModel):
     """POST /v1/runner/heartbeat: the runner's name, and what changed since its last."""
 
     runner: str
     reports: list[RunnerReport] = Field(default_factory=list[RunnerReport])
+    logs: list[AppLogs] = Field(default_factory=list[AppLogs])
 
 
 class WantedApp(WireModel):
@@ -98,6 +144,8 @@ class WantedApp(WireModel):
     registered: bool
     # Whether this host was already reported failed: the runner leaves it alone.
     failed: bool
+    # Whether a person asked for its logs lately: the runner sends them with its next beat.
+    logs_wanted: bool = False
 
 
 class RunnerHeartbeatResponse(WireModel):

@@ -212,3 +212,13 @@ console and the widget inside; `docs/from-zero.md` walks a box to its first call
   stops the release it replaced only then; one that does not install, exits or never registers is
   reported failed with its last lines, and the one before keeps serving. `PINECALL_RUNNER_KEY`,
   `PINECALL_RUNNER_ROOT`, `PINECALL_RUNNER_IMAGE`, `PINECALL_RUNNER_RUNTIME`.
+- Each runner sees only its world's containers (`pinecall.world`), so two share a machine; an app's
+  network is DNS-less and on a bridge of the runner's own (`pca…`), the only one the fence matches;
+  the install's HOME is a scratch folder on disk. Found putting northwind and clinica-norte on the
+  first apps machine. From a terminal: `pinecall deploy` and `pinecall secrets` (pinecall 0.9.10).
+- A hosted app stopped and started (`POST /v1/hosted/{name}/stop`·`start`: its process drains, its
+  releases and token stay), rolled back on the gateway (`POST …/rollback {release}`), and its logs
+  read (`GET …/logs`: the runner sends its container's last 300 lines on the beat after they are
+  asked for). The time each app served is counted per UTC day while a process of the org runs under
+  one of its hosts: `GET /v1/hosted/usage`, and every org's at `GET /v1/ops/hosted-usage`, for a
+  billing layer. Migration 0021.
