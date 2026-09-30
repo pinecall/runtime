@@ -94,8 +94,7 @@ answer and is never retried.
 
 | what | retried how | why | file |
 |---|---|---|---|
-| a batch of a call's entries | without limit, the same batch after the same `after` | the head counts what it took, so a retry is answered with the seqs it was given; an entry dropped is a hole in the log | `fleet/client.py` `append_many`, `log/store.py` |
-| one entry (`call.ended`, `error`, the overflow's transcript the job writes itself) | without limit | a hole in the log is worse than a repeat, and this door is not written once: an answer lost after the write writes the entry again | `fleet/client.py` `append` |
+| a batch of a call's entries, every one a worker writes (the session's, a refused command's `error`, the `call.ended` of a leg nobody answered, the overflow's sentence and end, the told job's sentence) | without limit, the same batch after the same `after` | a call has one writer from its open to its seal, and the head counts what it took, so a retry is answered with the seqs it was given; an entry dropped is a hole in the log. The told job's writer follows on from the count its dispatch carries | `fleet/client.py` `append_many`, `session/call.py` `Writing`, `worker/_job.py` `writer_of`, `log/store.py` |
 | a tool call | while the gateway is away, up to the tool's `timeout_s` (30 s unless declared) plus 5 s | the gateway runs one round trip per call id and a retry joins the one still running; one already finished is not remembered, and runs again | `fleet/client.py` `tool`, `session/tools.py` `ToolCalls` |
 | the seal | within 30 s | a call is sealed once: a second knock waits for the first; a seal that broke after its summary goes on from the score | `fleet/client.py` `sealed`, `gateway/ending/seal.py` |
 | a call nothing sealed | every 60 s: a spoken call silent 5 min with no agent in its room, a written one this gateway no longer serves quiet 5 min (2 h on WhatsApp) | a worker that dies writes no `call.ended` | `gateway/ending/reaper.py` |

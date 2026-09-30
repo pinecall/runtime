@@ -149,16 +149,6 @@ class GatewayClient:
         self.opened[opening.context.call] = opening
         return OpenCallResponse.model_validate(data)
 
-    # Retried without a limit: an entry dropped is a hole in the log.
-    async def append(
-        self, call: str, kind: str, data: JsonObject, *, ephemeral: bool | None = None
-    ) -> Entry:
-        """Write one entry; the gateway numbers it."""
-        payload: JsonObject = {"type": kind, "data": data, "ephemeral": ephemeral}
-        path = f"/v1/calls/{call}/events"
-        answer = await again(lambda: self._on_the_call(call, "POST", path, payload), None, path)
-        return Entry.model_validate(answer)
-
     # Retried without a limit, the same batch after the same count: the log answers a batch it
     # already took with the seqs it gave it, so an answer lost never writes an entry twice.
     async def append_many(

@@ -1,7 +1,6 @@
 """One job, one call: whose it is, what it runs on, the room it runs in, and its end."""
 
 import asyncio
-import contextlib
 import logging
 import os
 import tempfile
@@ -36,9 +35,9 @@ from pinecall.fleet.client import GatewayClient, again
 from pinecall.process.settings import Settings
 from pinecall.providers.credentials import Pipeline
 from pinecall.session import room
-from pinecall.session.call import Call, Platform, Seal, ToolUse
+from pinecall.session.call import Call, Platform, Seal, ToolUse, Writing
 from pinecall.session.hold import HoldMusic
-from pinecall.session.session import Session
+from pinecall.session.session import SEAL_S, Session
 from pinecall.session.text import text_session
 from pinecall.session.voice import voice_session
 from pinecall.session.widget import Reading, Widget
@@ -288,6 +287,40 @@ def opening_of(opened: OpenCallResponse, *, recorded: bool) -> str | None:
     return " ".join(item for item in (opened.disclosure, notice) if item) or None
 
 
+# A call has one writer from its open to its seal: a job that ends a call no session runs writes
+# through one too, following on from whatever the log took from the writer before it.
+def writer_of(gateway: GatewayClient, call: str, *, after: int = 0) -> Writing:
+    """The call's writer on the gateway's batch door, sending."""
+    writing = Writing(partial(gateway.append_many, call), call, after=after)
+    writing.open()
+    return writing
+
+
+async def ended_and_sealed(
+    gateway: GatewayClient, writing: Writing, ended: CallEnded, outcome: str
+) -> None:
+    """End a call no session ran: its `call.ended` written once, what is queued sent, the seal."""
+    writing.write("call.ended", ended)
+    await writing.close(SEAL_S)
+    await gateway.sealed(writing.call, SealCallRequest(usage=[], outcome=outcome))
+
+
+# The refusal is the call's own entry, written by its writer like any other.
+async def applied(session: Session, command: Command) -> None:
+    """Apply one of the app's commands; a refusal is an `error` entry on the call."""
+    try:
+        await session.apply(command_of(command))
+    except PinecallError as refused:
+        text = ErrorEvent(
+            code="refused",
+            message=str(refused),
+            command=command.type,
+            id=command.id,
+            recoverable=True,
+        )
+        session.call.writing.write("error", text)
+
+
 def _of_agent(agent: str, dispatch: Dispatch, arrival: Arrival, routes: list[Route]) -> Route:
     if dispatch.diverted_from is not None and arrival.number and dispatch.org and dispatch.env:
         return Route(
@@ -416,8 +449,7 @@ async def _answered(
         reason = end_reason_of(refused)
         logger.warning("the far end did not answer: %s", reason)
         ended = CallEnded(reason=reason, ended_by="platform", ended_at=time.time(), duration_s=0.0)
-        await gateway.append(context.call, "call.ended", ended.written())
-        await gateway.sealed(context.call, SealCallRequest(usage=[], outcome=reason))
+        await ended_and_sealed(gateway, writer_of(gateway, context.call), ended, reason)
         ctx.shutdown(reason=reason)
         return False
     return True
@@ -513,21 +545,6 @@ def _widget(gateway: GatewayClient, call: Call, where: rtc.Room) -> Widget:
 async def _commands(gateway: GatewayClient, session: Session, call: str) -> None:
     async def listened() -> None:
         async for command in gateway.commands(call):
-            await _applied(gateway, session, call, command)
+            await applied(session, command)
 
     await again(listened, None, f"the commands of {call}")
-
-
-async def _applied(gateway: GatewayClient, session: Session, call: str, command: Command) -> None:
-    try:
-        await session.apply(command_of(command))
-    except PinecallError as refused:
-        text = ErrorEvent(
-            code="refused",
-            message=str(refused),
-            command=command.type,
-            id=command.id,
-            recoverable=True,
-        )
-        with contextlib.suppress(GatewayRefused):
-            await gateway.append(call, "error", text.written())

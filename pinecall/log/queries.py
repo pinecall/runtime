@@ -203,6 +203,7 @@ async def scope_of_call(pool: Pool, call: str) -> CallScope | None:
         versions=Versions(config=row["config_version"], lexicon=row["lexicon_version"]),
         sealed=row["sealed"],
         started_at=row["started_at"],
+        written=row["written"],
     )
 
 

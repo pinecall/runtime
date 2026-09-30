@@ -16,6 +16,7 @@ from pinecall.channels.telephony import numbers
 from pinecall.channels.telephony.numbers import NumberImport
 from pinecall.domain.call import CallContext, Route, new_call_id
 from pinecall.domain.errors import GatewayRefused
+from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.fleet.client import GatewayClient, again, away, gateway_at, server_sent, waits
 from pinecall.providers.credentials import Pipeline
@@ -75,7 +76,10 @@ async def test_a_call_opened_writes_and_seals_through_the_client(knocking: Knock
     client = fleet_client(knocking)
     context = a_call(knocking)
     opened = await client.open(OpenCallRequest(agent=AGENT, context=context))
-    written = await client.append(context.call, "custom", {"name": "x", "data": {}})
+    writing = writing_on(client, context.call)
+    writing.open()
+    written = await writing.write("custom", custom("x"))
+    await writing.close(5)
     await client.sealed(context.call, SealCallRequest(usage=[], outcome="done"))
     assert opened.seconds_left is None
     assert written.seq == 2
@@ -108,20 +112,6 @@ async def test_a_seal_slower_than_a_request_is_waited_for_and_never_asked_twice(
     await client.aclose()
 
 
-@postgres
-async def test_a_gateway_that_forgot_the_call_is_told_it_again_and_the_entry_lands(
-    knocking: Knocking,
-) -> None:
-    client = fleet_client(knocking)
-    context = a_call(knocking)
-    await client.open(OpenCallRequest(agent=AGENT, context=context))
-    knocking.gateway.live.close(context.call)
-    knocking.gateway.logs.forget(context.call)
-    written = await client.append(context.call, "custom", {"name": "x", "data": {}})
-    assert written.seq == 2
-    await client.aclose()
-
-
 @dataclass
 class LosingTheFirstBatchAnswer:
     """The real transport, but the answer to the first batch is lost after the gateway took it."""
@@ -138,6 +128,15 @@ class LosingTheFirstBatchAnswer:
         await answer.aclose()
         self.lost += 1
         raise httpx.ReadError("the answer was lost on the way back", request=request)
+
+
+def losing_client(knocking: Knocking, losing: LosingTheFirstBatchAnswer) -> GatewayClient:
+    """The sandbox fleet's client on a transport that loses the first batch's answer."""
+    headers = {"Authorization": f"Bearer {knocking.fleet['sandbox']}"}
+    transport = httpx.MockTransport(losing.handled)
+    return GatewayClient(
+        httpx.AsyncClient(base_url=knocking.url, headers=headers, transport=transport)
+    )
 
 
 def writing_on(client: GatewayClient, call: str) -> Writing:
@@ -179,10 +178,7 @@ async def test_a_batch_whose_answer_was_lost_is_sent_again_and_lands_once(
     knocking: Knocking,
 ) -> None:
     losing = LosingTheFirstBatchAnswer()
-    headers = {"Authorization": f"Bearer {knocking.fleet['sandbox']}"}
-    transport = httpx.MockTransport(losing.handled)
-    http = httpx.AsyncClient(base_url=knocking.url, headers=headers, transport=transport)
-    client = GatewayClient(http)
+    client = losing_client(knocking, losing)
     context = a_call(knocking)
     await client.open(OpenCallRequest(agent=AGENT, context=context))
     writing = writing_on(client, context.call)
@@ -277,16 +273,22 @@ async def test_every_request_a_worker_makes_passes_with_the_fleets_key(
     assert (await client.hold_audio(AGENT, scope)).played == "default"
     assert (await client.rings_for(AGENT, knocking.org.id, "+59899000001")).holder is None
     await client.open(OpenCallRequest(agent=AGENT, context=context))
-    await client.append(context.call, "custom", {"name": "x", "data": {}})
+    writing = writing_on(client, context.call)
+    writing.open()
+    await writing.write("custom", custom("x"))
+    await writing.close(5)
+    # The one-entry door the worker before this release writes through.
+    single: JsonObject = {"type": "custom", "data": {"name": "y", "data": {}}}
+    assert (await client.http.post(f"/v1/calls/{context.call}/events", json=single)).is_success
     state = await client.state(context.call)
     since = [entry.type async for entry in client.since(context.call, 0)]
     wanted = CallbackRequest(agent=AGENT, channel="phone", number="+59899000002", call=context.call)
     await client.callback(wanted)
     await client.sealed(context.call, SealCallRequest(usage=[], outcome="done"))
     tail = [entry.type async for entry in client.tail(context.call, 0)]
-    assert state["last_seq"] == 2
-    assert since == ["call.ringing", "custom"]
-    assert tail[:2] == ["call.ringing", "custom"]
+    assert state["last_seq"] == 3
+    assert since == ["call.ringing", "custom", "custom"]
+    assert tail[:3] == ["call.ringing", "custom", "custom"]
     assert tail[-1] == "call.score"
     with pytest.raises(GatewayRefused, match="plays no clip") as refused:
         await client.hold_clip(AGENT, scope)

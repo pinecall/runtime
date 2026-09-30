@@ -44,10 +44,14 @@ The gateway's own entries take seqs and are not counted.
 The worker writes its call's entries through this door and no other: what is queued goes as one
 batch, and a batch retried goes again unchanged, after the same count, so a retry can no longer
 write an entry twice. A `409` refuses the whole batch and the call goes on with the next. The
-entries a worker writes outside its session (the overflow's sentence and its `call.ended`, a
-command the session refused, the `call.ended` of a leg nobody answered) still take the one-entry
-door, which counts nothing. A written call's session batches too, straight to its log; taken up
-after a restart, it goes on from the count its log's head keeps.
+entries a worker writes outside its session take the same writer: a command the session refused
+is an `error` on the session's own, and the `call.ended` of a leg nobody answered and the
+overflow's sentence and `call.ended` go through one the job opens with the call. The job sent into
+a room whose worker died writes the sentence through a writer that follows on from the dead
+worker's: the dispatch carries the count the log's head kept (`entries_written`). The one-entry
+door, `POST /v1/calls/{call}/events`, still answers for a worker of an older release, and counts
+nothing. A written call's session batches too, straight to its log; taken up after a restart, it
+goes on from the count its log's head keeps.
 
 ## A written call
 

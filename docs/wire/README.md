@@ -82,7 +82,8 @@ A worker writes its call's entries in batches, `POST /v1/calls/{id}/entries`, an
 
 The batch is taken whole or refused whole. Sent again with the same `after`, it is answered with
 the seqs and stamps it was given and nothing is written twice. `POST /v1/calls/{id}/events` takes one entry
-the same way and counts nothing.
+the same way and counts nothing: it is the door of a worker of an older release, which retried it
+and could write an entry twice.
 
 ## Reading a log
 

@@ -1,6 +1,7 @@
 """Tests for a call whose worker went away: told once, a call back offered, ended as drained."""
 
 import asyncio
+import time
 
 import pytest
 from livekit import api
@@ -17,7 +18,7 @@ from pinecall.gateway.ending.reaper import reaped
 from pinecall.gateway.ending.seal import sealed
 from pinecall.gateway.ending.stranded import stranded
 from pinecall.log.store import Claim
-from pinecall.wire.rest.calls import SealCallRequest
+from pinecall.wire.rest.calls import BatchedEntry, SealCallRequest
 from tests.conftest import postgres
 from tests.fakes.livekit import Server
 from tests.gateway.conftest import AGENT, OURS, a_call, a_start
@@ -82,6 +83,23 @@ async def test_a_lost_agent_ends_the_call_drained_offers_a_call_back_and_sends_t
         "org_a",
         "sandbox",
     )
+    assert carried.entries_written == 0
+    await server.aclose()
+
+
+# The told job's writer follows on from what the dead worker's took: the head's count.
+@postgres
+async def test_the_fleet_is_told_how_many_entries_the_dead_workers_writer_sent(
+    wired: Gateway,
+) -> None:
+    context = a_call(channel="phone")
+    served = await a_live_call(wired, context)
+    entry = BatchedEntry(type="custom", data={"name": "x", "data": {}}, ts=time.time())
+    await served.log.append_many([entry, entry], after=0)
+    server = a_caller_alone(context)
+    assert await stranded(wired.serving, server, left(context.call)) == context.call
+    (sent,) = server.dispatcher.made
+    assert read_dispatch(sent.metadata).entries_written == 2
     await server.aclose()
 
 

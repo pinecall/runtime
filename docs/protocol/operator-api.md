@@ -137,7 +137,8 @@ connection was lost (`SIGNAL_CLOSE`, `CONNECTION_TIMEOUT`, `STATE_MISMATCH`, `JO
 person and no agent. The gateway then writes `call.ended {reason: "drained", ended_by: "platform"}`
 once (the head row locked: a second delivery finds it written and does nothing), writes
 `callback.requested` on the agent's log for a phone call, and dispatches the call's world's fleet
-into the room with `worker_gone: true`. That job says `PINECALL_OVERFLOW_SAYS`, deletes the room
+into the room with `worker_gone: true` and `entries_written`, how many entries the log took from
+the dead worker's writer, where the job's own writer follows on. That job says `PINECALL_OVERFLOW_SAYS`, deletes the room
 and seals the call. A worker that ends a call, drains or hands a ring to the sandbox leaves with
 `CLIENT_INITIATED`, and a deleted room says `ROOM_DELETED`: neither is acted on.
 
