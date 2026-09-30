@@ -114,6 +114,12 @@ def _measures_of(gateway: Gateway, now: float) -> str:
                 ],
             ),
             family(
+                "pinecall_spend_unusual",
+                "How many times its usual day an org's calls cost today, while they do.",
+                "gauge",
+                [({"org": org}, multiple) for org, multiple in sorted(counted.unusual.items())],
+            ),
+            family(
                 "pinecall_worker_state",
                 "How the roster counts each worker: accepting, failing, full, draining, cordoned.",
                 "gauge",

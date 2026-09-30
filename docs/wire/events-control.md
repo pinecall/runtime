@@ -189,6 +189,18 @@ The answer to ping. Ephemeral: it proves the socket is alive and says nothing el
 |---|---|---|---|
 | `ts` | `number` | yes | The gateway's clock when it answered, unix seconds. |
 
+### `spend.unusual`
+
+The org's calls cost more today than its own days usually do. Written at the seal of the call that crossed the line, on that call's agent's log, once a day for the org; `/metrics` holds the same up as `pinecall_spend_unusual{org}` while it lasts, for the alert. Today is unusual once it costs three times the org's usual day, the mean of its trailing four weeks (both worlds, every holder, off the calls' summaries); a usual day under a dollar is never judged, so a new org is never flagged.
+
+| field | type | required | meaning |
+|---|---|---|---|
+| `org` | `string` | yes | The org whose calls cost it. |
+| `day` | `string` | yes | The UTC day, `YYYY-MM-DD`. |
+| `today_usd` | `number` | yes | What the org's calls that started today cost so far. |
+| `usual_usd` | `number` | yes | What one of its days usually costs: the trailing four weeks' mean. |
+| `multiple` | `number` | yes | How many times the usual day today is. |
+
 ### `supervisor.ended`
 
 A supervisor hung up the call. call.ended follows with reason supervisor_ended.

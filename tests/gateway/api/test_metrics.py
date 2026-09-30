@@ -72,6 +72,17 @@ async def test_the_appends_are_timed_counted_and_a_vendors_failures_named(
 
 
 @postgres
+async def test_an_orgs_unusual_spend_stands_on_metrics_while_it_lasts(knocking: Knocking) -> None:
+    knocking.gateway.counters.spending("org_a", 3.5)
+    async with httpx.AsyncClient(base_url=knocking.url) as scraper:
+        flagged = (await scraper.get("/metrics")).text
+        knocking.gateway.counters.spending("org_a", None)
+        usual = (await scraper.get("/metrics")).text
+    assert 'pinecall_spend_unusual{org="org_a"} 3.5' in flagged
+    assert "pinecall_spend_unusual{" not in usual
+
+
+@postgres
 async def test_a_request_that_came_through_the_proxy_is_refused(knocking: Knocking) -> None:
     async with httpx.AsyncClient(base_url=knocking.url) as outside:
         forwarded = await outside.get("/metrics", headers={"x-forwarded-for": "203.0.113.9"})

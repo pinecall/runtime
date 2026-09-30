@@ -50,6 +50,8 @@ class Counters:
         # By vendor: when a call was handed it first for a stage, and when a call saw it fail.
         self.handed: dict[str, deque[float]] = {}
         self.failures: dict[str, deque[tuple[float, str]]] = {}
+        # By org: how many times its usual day today's spend is, while it is unusual.
+        self.unusual: dict[str, float] = {}
 
     def appended_in(self, seconds: float, entries: int) -> None:
         """One append at the door: how long it took and how many entries it wrote."""
@@ -68,6 +70,13 @@ class Counters:
         """A call's stages were resolved with these vendors first, each counted once."""
         for vendor in set(vendors):
             self.handed.setdefault(vendor, deque(maxlen=MOST_KEPT)).append(at)
+
+    def spending(self, org: str, multiple: float | None) -> None:
+        """What the last seal found of the org's spend: unusual by this much, or None, usual."""
+        if multiple is None:
+            self.unusual.pop(org, None)
+        else:
+            self.unusual[org] = multiple
 
     def failing(self, at: float) -> frozenset[str]:
         """The vendors over their error line in the window up to now."""

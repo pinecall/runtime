@@ -93,6 +93,12 @@ ships priced: the number is the operator's. Each call's facts keep its cost by s
 ears, voice, phone legs, the platform), and `GET /v1/insights` says per agent what a day cost by
 stage and per minute.
 
+An org that spends strangely is said so: at each seal the org's spend today is held against its
+own usual day, the mean of its trailing four weeks in both worlds, and once it is three times
+that (and the usual day is at least a dollar) `spend.unusual {org, day, today_usd, usual_usd,
+multiple}` is written on the agent's log, once a day, and `pinecall_spend_unusual{org}` stands
+on `/metrics` while it lasts, for the alert.
+
 ## 4. Where your orgs pay
 
 `PINECALL_BILLING_URL` is answered to every org in `GET /v1/limits`: the page where it buys more.
