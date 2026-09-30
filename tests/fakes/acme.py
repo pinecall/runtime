@@ -1,5 +1,6 @@
 """The vendor `acme`: a scripted model, and ears and a voice that keep what they were built with."""
 
+import asyncio
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -217,6 +218,8 @@ class AcmeLLM(llm.LLM[Never]):
             tuple(_part(item) for item in reply) for reply in replies or []
         ]
         self.requests: list[ModelRequest] = []
+        # How long it takes before its first token; a test makes it slow.
+        self.thinks_s = 0.0
 
     @property
     @override
@@ -263,10 +266,12 @@ class _Streamed(llm.LLMStream):
         conn_options: APIConnectOptions,
     ) -> None:
         super().__init__(model, chat_ctx=chat_ctx, tools=tools, conn_options=conn_options)  # pyright: ignore[reportUnknownMemberType]
+        self.scripted = model
         self.reply = reply
 
     @override
     async def _run(self) -> None:
+        await asyncio.sleep(self.scripted.thinks_s)
         for part in self.reply:
             if isinstance(part, str):
                 delta = llm.ChoiceDelta(role="assistant", content=part)

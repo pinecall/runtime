@@ -161,6 +161,14 @@ def test_a_limit_outside_it_is_refused_in_words_that_say_the_range(seconds: int)
         Tuning(max_duration_s=seconds)
 
 
+def test_no_deadline_for_the_model_is_the_default_and_a_deadline_is_positive_seconds() -> None:
+    assert (AgentConfig("clinica-norte").llm_timeout_s, Tuning().llm_timeout_s) == (None, None)
+    assert Tuning(llm_timeout_s=4.5).llm_timeout_s == 4.5
+    for seconds in (0, -1.0):
+        with pytest.raises(DeclarationRefused, match="positive number of seconds"):
+            Tuning(llm_timeout_s=seconds)
+
+
 def test_an_irreversible_tool_needs_a_confirm_template() -> None:
     with pytest.raises(DeclarationRefused, match="confirm template"):
         ToolSpec("book_slot", "Books a slot.", A_DAY_AND_A_TIME, side_effect="irreversible")

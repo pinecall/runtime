@@ -247,6 +247,8 @@ class Tuning:
     record: bool | None = None
     # Voice calls only; 0 is no limit, None is the runtime default.
     max_duration_s: int | None = None
+    # How long a turn waits for the model's first token; None waits as long as livekit retries.
+    llm_timeout_s: float | None = None
     # Markdown placed whole in the static knowledge block; editable with the `words` scope.
     knowledge: str | None = None
     # An empty tuple means "none" and overrides the layer below; None means unset.
@@ -266,6 +268,8 @@ class Tuning:
                 raise DeclarationRefused(BLANK.format(field=name))
         if self.max_duration_s is not None:
             _check_call_limit(self.max_duration_s)
+        if self.llm_timeout_s is not None and self.llm_timeout_s <= 0:
+            raise DeclarationRefused("llm_timeout_s is a positive number of seconds")
 
 
 @dataclass(frozen=True)
@@ -344,6 +348,8 @@ class AgentConfig:
     hangup: Hangup | None = None
     record: bool = True
     max_duration_s: int = LONGEST_VOICE_CALL_S
+    # None: no deadline of ours, so livekit's own retries decide how long a turn waits.
+    llm_timeout_s: float | None = None
     tools: tuple[ToolSpec, ...] = ()
     state_fields: Mapping[str, Visibility] = field(default_factory=dict[str, Visibility])
     # Side-panel title only; the console fetches its contents from the app, so tenant data
