@@ -18,6 +18,11 @@ PROTOCOLS_AND_CASTS: tuple[Allowed, ...] = ()
 # Rule 9: noqa, type: ignore, pyright: ignore, pragma: no cover.
 SUPPRESSIONS: tuple[Allowed, ...] = (
     Allowed(
+        "pinecall/session/voice.py",
+        "pyright: " + "ignore",
+        "smart-turn-livekit ships no py.typed; its SmartTurnDetector is typed inline",
+    ),
+    Allowed(
         "tests/fakes/livekit.py",
         "pyright: " + "ignore",
         "livekit's ParticipantInfo stub types `kind` as its enum and refuses the wire's int",
