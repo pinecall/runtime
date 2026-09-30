@@ -110,8 +110,8 @@ async def test_what_arrives_out_of_turn_or_never_is_delivered_in_order_off_the_s
         await store.append(call, AGENT, "custom", note(n), ephemeral=False) for n in range(1, 5)
     ]
     channel = CHANNEL.format(name=call)
-    signal.publish(channel, encoded(call, written[2]))
-    signal.publish(channel, encoded(call, written[0]))
+    signal.publish(channel, encoded(written[2], "another-gateway"))
+    signal.publish(channel, encoded(written[0], "another-gateway"))
     assert (await next_of(stream)).seq == 1
     heard = [await next_of(stream) for _ in range(2)]
     assert [entry.seq for entry in heard] == [2, 3]
@@ -119,7 +119,7 @@ async def test_what_arrives_out_of_turn_or_never_is_delivered_in_order_off_the_s
     lost = await store.append(call, AGENT, "custom", note(5), ephemeral=True)
     sixth = await store.append(call, AGENT, "custom", note(6), ephemeral=False)
     assert (lost.seq, sixth.seq) == (5, 6)
-    signal.publish(channel, encoded(call, sixth))
+    signal.publish(channel, encoded(sixth, "another-gateway"))
     heard = [await next_of(stream) for _ in range(2)]
     assert [entry.seq for entry in heard] == [4, 6]
     await logs.close()
@@ -133,7 +133,8 @@ async def test_a_big_entry_travels_as_its_address_and_is_heard_whole(
     assert (await next_of(stream)).type == "log.caught_up"
     big: JsonObject = {"name": "document", "data": {"text": "x" * (STUB_OVER_BYTES + 1)}}
     entry = await here.writing(call, AGENT).append("custom", big)
-    assert json.loads(encoded(call, entry)) == {"stored": {"log": call, "seq": entry.seq}}
+    stub = {"sender": "x", "stored": {"log": call, "seq": entry.seq}}
+    assert json.loads(encoded(entry, "x")) == stub
     heard = await next_of(stream)
     assert (heard.seq, heard.data) == (entry.seq, big)
 
@@ -187,3 +188,26 @@ async def test_with_the_signal_down_a_reader_is_fed_off_the_store(store: Store, 
 
 def test_the_fill_waits_less_than_a_turn_of_a_call() -> None:
     assert FILL_AFTER_S < 1.0 < POLL_S + 1
+
+
+# An org's feed and the box's floor hear a call opened on another gateway, as it happens.
+async def test_a_feed_and_the_box_on_one_gateway_hear_what_another_wrote(
+    two: tuple[Logs, Logs], store: Store, call: str
+) -> None:
+    here, there = two
+    await store.claim(call, AGENT, "org_a")
+    feed = await there.feed_reader("org_a", "production")
+    box = await there.box_reader()
+    ringing: JsonObject = {
+        "channel": "phone",
+        "from": "+34600111222",
+        "to": "+34900000000",
+        "route": {"channel": "phone", "number": "+34900000000"},
+        "caller": None,
+    }
+    await here.writing(call, AGENT).append("call.ringing", ringing)
+    assert (await asyncio.wait_for(anext(feed), A_WHILE_S)).call == call
+    assert (await asyncio.wait_for(anext(box), A_WHILE_S)).call == call
+    feed.close()
+    box.close()
+    assert there.relay.followed == 0

@@ -257,7 +257,7 @@ async def put_brand(body: PutBrandRequest, gateway: GatewayDep) -> BrandRow:
 @router.get("/v1/ops/events", response_model=None)
 async def stream_box_events(gateway: GatewayDep) -> StreamingResponse:
     """Every org's floor at once, each frame saying whose."""
-    return streamed(_owned(gateway, gateway.logs.box.subscribe()), gateway.closing)
+    return streamed(_owned(gateway, await gateway.logs.box_reader()), gateway.closing)
 
 
 @router.get("/v1/ops/usage", response_model=None)

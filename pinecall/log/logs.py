@@ -7,9 +7,9 @@ from typing import Self
 
 from pinecall.domain.call import CallContext
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.names import ENVS, Env, JsonObject
+from pinecall.domain.names import ENVS, Env, JsonObject, parse_env
 from pinecall.log import private
-from pinecall.log._relay import Relay
+from pinecall.log._relay import BOX_CHANNEL, CHANNEL, FEED_CHANNEL, FEED_PREFIX, LOG_PREFIX, Relay
 from pinecall.log.private import Privacy
 from pinecall.log.readers import EVERYTHING, Filter
 from pinecall.log.reduce import reduce
@@ -269,7 +269,7 @@ class Log:
         """A live reader that hears what any gateway writes to this log, from now on."""
         if self._relay is None:
             return self.fanout.subscribe(only)
-        await self._relay.follow(self.name)
+        await self._relay.follow(CHANNEL.format(name=self.name))
         return self.fanout.subscribe(only, after=self._unfollowed)
 
     async def stream(self, *, after: int = 0, only: Filter = EVERYTHING) -> AsyncIterator[Entry]:
@@ -329,13 +329,13 @@ class Log:
 
     def _unfollowed(self) -> None:
         if self._relay is not None:
-            self._relay.unfollow(self.name)
+            self._relay.unfollow(CHANNEL.format(name=self.name))
 
     async def _published(self, entry: Entry) -> None:
         if self._relay is None:
             self.fanout.publish(entry)
         else:
-            self._relay.local(self.name, entry)
+            self._relay.local(CHANNEL.format(name=self.name), entry)
         for tap in list(self._taps):
             await tap(entry)
         if entry.type == TERMINAL_EVENT and self.call is not None:
@@ -417,6 +417,18 @@ class Logs:
             feed = self._feeds[(org, env)] = Fanout()
         return feed
 
+    # Followed before it is subscribed, as a log's stream is: what any gateway writes from now on.
+    async def feed_reader(self, org: str, env: Env) -> Subscription:
+        """A reader of the org's feed in that world, hearing every gateway."""
+        channel = FEED_CHANNEL.format(org=org, env=env)
+        await self.relay.follow(channel, ordered=False)
+        return self.feed(org, env).subscribe(after=lambda: self.relay.unfollow(channel))
+
+    async def box_reader(self) -> Subscription:
+        """A reader of every org's floor, hearing every gateway."""
+        await self.relay.follow(BOX_CHANNEL, ordered=False)
+        return self.box.subscribe(after=lambda: self.relay.unfollow(BOX_CHANNEL))
+
     # Only a found owner is cached: a log nobody claimed yet may be claimed later.
     async def claimant_of(self, entry: Entry) -> Claimant | None:
         """Return whose the entry's log is and in which world, asked of the store once per log."""
@@ -435,21 +447,32 @@ class Logs:
             log = self._logs[name] = Log(self.store, call, agent, self.relay)
         return log
 
-    # What the relay hands on, this process's own appends included: the log's readers hear it,
-    # and the terminal entry ends them, sealed here or on another gateway.
-    def _delivered(self, name: str, entry: Entry) -> None:
-        log = self._logs.get(name)
-        if log is None:
+    # What the relay hands on, this process's own appends included: a log's readers hear it, and
+    # the terminal entry ends them, sealed here or on another gateway; a feed's hear it as it came.
+    def _delivered(self, channel: str, entry: Entry) -> None:
+        fanout = self._fanout_of(channel)
+        if fanout is None:
             return
-        log.fanout.publish(entry)
-        if entry.type == TERMINAL_EVENT and log.call is not None:
-            log.sealed = True
-            log.fanout.close()
+        fanout.publish(entry)
+        log = self._logs.get(log_name(entry.call, entry.agent))
+        if entry.type == TERMINAL_EVENT and log is not None and fanout is log.fanout:
+            log.sealed = log.call is not None
+            if log.sealed:
+                fanout.close()
 
-    def _dropped(self, name: str) -> None:
-        log = self._logs.get(name)
-        if log is not None:
-            log.fanout.drop()
+    def _dropped(self, channel: str) -> None:
+        fanout = self._fanout_of(channel)
+        if fanout is not None:
+            fanout.drop()
+
+    def _fanout_of(self, channel: str) -> Fanout | None:
+        if channel == BOX_CHANNEL:
+            return self.box
+        if channel.startswith(FEED_PREFIX):
+            org, _, env = channel.removeprefix(FEED_PREFIX).rpartition(":")
+            return self._feeds.get((org, parse_env(env)))
+        log = self._logs.get(channel.removeprefix(LOG_PREFIX))
+        return None if log is None else log.fanout
 
     # An agent's own entries serve both worlds, so they reach the org's feed in each.
     async def _fed(self, entry: Entry) -> None:
@@ -458,12 +481,10 @@ class Logs:
         claimant = await self.claimant_of(entry)
         if claimant is None:
             return
-        self.box.publish(entry)
+        self.relay.local(BOX_CHANNEL, entry)
         worlds = ENVS if claimant.env is None else (claimant.env,)
         for env in worlds:
-            feed = self._feeds.get((claimant.org, env))
-            if feed is not None:
-                feed.publish(entry)
+            self.relay.local(FEED_CHANNEL.format(org=claimant.org, env=env), entry)
 
     # On every read, so readers asking for arbitrary names cannot grow the tables without bound.
     def _prune(self, *, but: str = "") -> None:
