@@ -126,8 +126,9 @@ PINECALL_GATEWAY_URL=https://sandbox.<throwaway box> PINECALL_WORKER_KEY=<its sa
 It runs against **a box made for it** (`box up` on a clean machine), never production's: the
 calls are real calls of the org, logged, counted against its quotas and sealed. The org is one
 made for the run, with its sandbox quotas (`orgs quota --env sandbox`) above the run and its
-hang-up judging off (`PUT /v1/org/judging`), or every seal asks the box's judge model. One
-connection per call is kept open, so `ulimit -n` must be above `--calls`. At the end it prints,
+hang-up judging off (`PUT /v1/org/judging`), or every seal asks the box's judge model. Each call
+at once has a client and a connection of its own, as a worker's job has, so `ulimit -n` must be
+above `--calls`. At the end it prints,
 a line each:
 
 | line | what it is |
