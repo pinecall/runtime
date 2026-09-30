@@ -74,3 +74,22 @@ cannot check, and the reader is owed them in one place.
 The first deprecation sets the pattern: the field or command keeps a `deprecated` class
 attribute naming the version it goes and its replacement, and a rule refuses one past its
 version. Until then, nothing on the wire is deprecated.
+
+## A migration
+
+A deploy restarts the gateway, the workers and the migration at different moments, and rolling
+back is installing the wheel before: so a migration never breaks the release before it. A change
+of shape goes in three steps, each its own release: **expand** (add the new table or column, one
+the old release need not write: nullable, or with a default), **release** (the code that reads
+and writes the new shape and stops reading the old), **contract** (drop what nothing reads).
+
+Rule 22 reads every migration after the ones applied when it was written. One that drops a table
+or a column, renames either, adds a `NOT NULL` column with no default, or sets `NOT NULL` on a
+column, is refused unless it carries, for each thing it contracts, the line
+
+```
+-- pinecall:contracts <table>[.<column>] unread since <version>
+```
+
+naming the release that stopped reading it, which is out already (no later than the version
+`pyproject.toml` says).
