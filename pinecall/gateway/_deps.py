@@ -173,9 +173,9 @@ def client_of(request: Request) -> str:
     return request.client.host if request.client is not None else "unknown"
 
 
-def check_knock(gateway: Gateway, name: str, refusal: str) -> None:
+async def check_knock(gateway: Gateway, name: str, refusal: str) -> None:
     """Count a knock of the name; TooManyRequests with the refusal past five in a minute."""
-    if not gateway.signins.throttle.allowed(name):
+    if not await gateway.signins.throttle.allowed(name):
         raise TooManyRequests(refusal)
 
 

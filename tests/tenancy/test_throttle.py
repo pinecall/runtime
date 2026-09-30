@@ -1,6 +1,9 @@
 """Tests for the minute's count of requests per name: the limit, the wait, the minute that turns."""
 
-from pinecall.tenancy.throttle import SWEEP_AT, Window
+import asyncio
+
+from pinecall.process.signal import LocalSignal
+from pinecall.tenancy.throttle import PACED_CHANNEL, SAID_FROM, SWEEP_AT, Window
 
 
 class Clock:
@@ -33,3 +36,26 @@ async def test_the_names_of_minutes_gone_are_dropped_once_there_are_many() -> No
     clock.now = 60.0
     await window.counted("org_now", 10)
     assert list(window.counts) == ["org_now"]
+
+
+# A name busy on one gateway is said to the other within a second, and the wall is the sum.
+async def test_a_names_requests_on_two_gateways_are_summed_against_its_limit() -> None:
+    clock, signal = Clock(600.0), LocalSignal()
+    here, there = Window(clock, signal), Window(clock, signal)
+    here.shared.every_s = there.shared.every_s = 0.01
+    await here.start()
+    await there.start()
+    shares = await signal.subscribe(PACED_CHANNEL)
+    for _ in range(SAID_FROM):
+        assert await here.counted("org_1/sandbox/calls", SAID_FROM + 5) is None
+    async with asyncio.timeout(2):
+        while not any(heard.share.counts for heard in there.shared.theirs.values()):
+            await anext(shares)
+            await asyncio.sleep(0)
+    shares.close()
+    assert [await there.counted("org_1/sandbox/calls", SAID_FROM + 5) for _ in range(5)] == [
+        None
+    ] * 5
+    assert await there.counted("org_1/sandbox/calls", SAID_FROM + 5) == 60.0
+    await here.close()
+    await there.close()

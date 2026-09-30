@@ -30,7 +30,6 @@ from pinecall.tenancy.people import (
     update,
     vouched,
 )
-from pinecall.tenancy.signin import Throttle
 from tests.conftest import postgres
 
 ANA = Invitee(email=" Ana@Clinica.test ", name="Ana García", role="developer")
@@ -300,17 +299,6 @@ async def test_a_password_under_the_floor_is_refused_before_it_is_hashed() -> No
 
 async def test_the_floor_is_the_boxs_and_zero_is_no_rule_at_all() -> None:
     assert (await hash_password("", 0)).startswith("$argon2id$")
-
-
-def test_a_sweep_keeps_every_name_still_within_its_window() -> None:
-    now = [100.0]
-    throttle = Throttle(clock=lambda: now[0])
-    for name in range(1023):
-        throttle.allowed(f"n{name}")
-    now[0] += 30
-    throttle.allowed("late")
-    throttle.allowed("later")
-    assert len(throttle.knocks) == 1025
 
 
 def test_the_fingerprint_is_the_secrets_sha256_and_nothing_of_the_secret_survives_it() -> None:

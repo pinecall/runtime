@@ -142,7 +142,7 @@ async def voice_sample(
     body: VoiceSampleRequest, key: PipelineKey, scope: ScopeDep, gateway: GatewayDep
 ) -> Response:
     """The line said by that vendor's voice, over the path a call speaks on."""
-    if not gateway.samples.allowed(key.bearer.key.key_id):
+    if not await gateway.samples.allowed(key.bearer.key.key_id):
         raise TooManyRequests(TOO_MANY.format(count=gateway.samples.tries))
     pool = gateway.connections.pool
     configured = await catalog.providers(pool)

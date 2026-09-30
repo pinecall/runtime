@@ -79,7 +79,7 @@ async def start_sso(
     )
     if owner is None or wired is None:
         raise NotFound(NO_SSO_HERE.format(org=org))
-    check_knock(gateway, f"{client_of(request)} sso/{owner.slug}", TOO_MANY_SIGN_INS)
+    await check_knock(gateway, f"{client_of(request)} sso/{owner.slug}", TOO_MANY_SIGN_INS)
     provider = await sso.discovered(connections.http, wired.client.issuer)
     redirect_uri = f"{public_url(request, gateway)}{sso.CALLBACK}"
     begun = await sso.handshake(
@@ -118,7 +118,9 @@ async def discover_sso(
     """The orgs whose provider signs in this address's domain, oldest first."""
     connections = gateway.connections
     email = body.email.strip().lower()
-    check_knock(gateway, f"{client_of(request)} sso/{email}", signin.TOO_MANY.format(email=email))
+    await check_knock(
+        gateway, f"{client_of(request)} sso/{email}", signin.TOO_MANY.format(email=email)
+    )
     domain = email.rpartition("@")[2]
     if not A_DOMAIN.match(domain):
         return DiscoverSsoResponse(orgs=[])

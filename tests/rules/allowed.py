@@ -153,6 +153,11 @@ TASK_OWNERS: tuple[Allowed, ...] = (
         "its future is done",
     ),
     Allowed(
+        "pinecall/evals/runs.py",
+        "create_task",
+        "the lease's renewal is cancelled and awaited when the run's alone() ends",
+    ),
+    Allowed(
         "pinecall/process/shared.py",
         "create_task",
         "the listener and the beat are cancelled and awaited in Shared.close()",
