@@ -13,7 +13,7 @@ from pinecall.domain.errors import Conflict, DeclarationRefused
 from pinecall.domain.names import Env, JsonObject, parse_env
 from pinecall.domain.scope import Scope
 from pinecall.log.facts import record
-from pinecall.log.reduce import Metered
+from pinecall.log.reduce import METERED_TYPES, Metered
 from pinecall.postgres.pool import Pool
 from pinecall.wire.frames import Entry
 
@@ -129,6 +129,28 @@ with moved as (update call_log_head set org = %(org)s where agent = %(agent)s re
 select count(*) as moved from moved
 """
 
+# The types read across every log by position: the usage feed, the callbacks, the codes, and
+# WhatsApp's queue. A position is given at insert, not at commit, so a transaction that writes one
+# of these takes FEED_ORDER first and holds it to its commit: their positions come in commit order,
+# and a reader whose cursor passed one has seen every one before it.
+FED_TYPES = frozenset(
+    {
+        *METERED_TYPES,
+        "code.issued",
+        "code.claimed",
+        "callback.requested",
+        "message.waiting",
+        "message.taken",
+    }
+)
+
+# Outside the 32 bits of hashtext, which keys the runtime's other advisory locks.
+FEED_ORDER_KEY = 0x9E3_C411_FEED
+
+FEED_ORDER = "select pg_advisory_xact_lock(%(key)s)"
+
+NOT_FED = "{types}: only the fed types are read across every log (log/store.py FED_TYPES)"
+
 # Served by call_log_metered (type, position).
 ACROSS = """
 select entry.position, head.org, entry.call, entry.seq, entry.ts, entry.agent, entry.type,
@@ -213,6 +235,8 @@ class Store:
         )
         written = {**entry.written(), "log": log_name(call, agent), "data": Jsonb(data)}
         async with self.pool.connection() as connection, connection.transaction():
+            if not ephemeral and kind in FED_TYPES:
+                await connection.execute(FEED_ORDER, {"key": FEED_ORDER_KEY})
             row = await (await connection.execute(APPEND, written)).fetchone()
             if row is None:
                 raise Conflict(f"call {call} has ended: {kind} cannot be appended")
@@ -245,6 +269,8 @@ class Store:
             "data": [Jsonb(entries[place - 1].data) for place in durable],
         }
         async with self.pool.connection() as connection, connection.transaction():
+            if any(entries[place - 1].type in FED_TYPES for place in durable):
+                await connection.execute(FEED_ORDER, {"key": FEED_ORDER_KEY})
             row = await (await connection.execute(APPEND_MANY, moved)).fetchone()
             if row is None:
                 head = await (await connection.execute(HEAD, {"log": log})).fetchone()
@@ -268,6 +294,7 @@ class Store:
         )
         written = {"log": call, "agent": agent, "ts": entry.ts, "data": Jsonb(data)}
         async with self.pool.connection() as connection, connection.transaction():
+            await connection.execute(FEED_ORDER, {"key": FEED_ORDER_KEY})
             row = await (await connection.execute(RESCORED, written)).fetchone()
             if row is None:
                 raise Conflict(f"call {call} has no log to judge")
@@ -359,7 +386,10 @@ class Store:
     async def across(
         self, types: Sequence[str], *, after: int = 0, limit: int = DEFAULT_LIMIT
     ) -> list[Metered]:
-        """Return one page of the metered entries of every log, by position, with their owners."""
+        """Return one page of the fed entries of every log, by position, with their owners."""
+        unfed = sorted(set(types) - FED_TYPES)
+        if unfed:
+            raise DeclarationRefused(NOT_FED.format(types=", ".join(unfed)))
         params = {"types": list(types), "after": after, "limit": limit}
         async with self.pool.connection() as connection:
             rows = await (await connection.execute(ACROSS, params)).fetchall()
