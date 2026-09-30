@@ -6,6 +6,7 @@ import logging
 import sys
 import time
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from types import FrameType
 from typing import override
@@ -15,7 +16,7 @@ import httpx
 import uvicorn
 from livekit import api
 
-from pinecall.cli import _box, _load, _operator, _sessions, _traceback
+from pinecall.cli import _archive, _box, _load, _operator, _sessions, _traceback
 from pinecall.domain.errors import NotAvailable, PinecallError
 from pinecall.gateway.app import announce_closing, app, embedder_of
 from pinecall.postgres.migrate import apply_migrations, migration_files, migrations_behind
@@ -188,11 +189,11 @@ def retention_run(settings: Settings, _args: argparse.Namespace) -> int:
 def doctor(settings: Settings, _args: argparse.Namespace) -> int:
     """Each thing the box needs, a line each; the exit is 1 when one is missing."""
     lines = asyncio.run(_examined(settings))
-    for name, trouble in lines:
+    for name, trouble, state in lines:
         text = "ok" if trouble is None else "NO"
-        why = "" if trouble is None else f": {trouble}"
+        why = f": {trouble}" if trouble is not None else (f": {state}" if state else "")
         sys.stdout.write(f"{text}  {name}{why}\n")
-    return 0 if all(trouble is None for _, trouble in lines) else 1
+    return 0 if all(trouble is None for _, trouble, _ in lines) else 1
 
 
 def verbs() -> argparse.ArgumentParser:
@@ -327,12 +328,13 @@ async def _purged(settings: Settings) -> tuple[list[str], int, int]:
         await pool.close()
 
 
-async def _examined(settings: Settings) -> list[tuple[str, str | None]]:
+async def _examined(settings: Settings) -> list[tuple[str, str | None, str]]:
     return [
-        ("vault", _vault(settings)),
-        ("database", await _database(settings)),
-        ("livekit", await _livekit(settings)),
-        ("gateway", await _gateway(settings)),
+        ("vault", _vault(settings), ""),
+        ("database", await _database(settings), ""),
+        ("archive", *await _archived(settings)),
+        ("livekit", await _livekit(settings), ""),
+        ("gateway", await _gateway(settings), ""),
     ]
 
 
@@ -354,6 +356,18 @@ async def _database(settings: Settings) -> str | None:
     finally:
         await pool.close()
     return f"{len(behind)} migrations behind: {', '.join(behind)}" if behind else None
+
+
+async def _archived(settings: Settings) -> tuple[str | None, str]:
+    try:
+        pool = await open_pool(settings.database_url)
+    except PinecallError as refused:
+        return str(refused), ""
+    try:
+        archive = await _archive.archive_of(pool)
+    finally:
+        await pool.close()
+    return _archive.archive_finding(archive, datetime.now(UTC))
 
 
 async def _livekit(settings: Settings) -> str | None:

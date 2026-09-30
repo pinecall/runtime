@@ -57,6 +57,7 @@ def test_the_doctor_says_each_missing_thing_and_exits_one(
     assert [line.split()[1].rstrip(":") for line in data] == [
         "vault",
         "database",
+        "archive",
         "livekit",
         "gateway",
     ]
