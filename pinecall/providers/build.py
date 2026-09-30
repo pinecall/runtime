@@ -6,6 +6,7 @@ import importlib.util
 import inspect
 import logging
 import pkgutil
+import re
 import types
 import typing
 from collections.abc import Callable, Mapping
@@ -104,6 +105,12 @@ MODALITIES: tuple[Modality, ...] = ("llm", "stt", "tts")
 
 
 CLASS_OF: dict[Modality, str] = {"llm": "LLM", "stt": "STT", "tts": "TTS"}
+
+
+# A component that failed is named in its error's label: `label='livekit.plugins.deepgram.stt.STT'`.
+_LABELLED = re.compile(
+    rf"label='(?:{re.escape(_PLUGINS)}\.(?P<plugin>\w+)|(?P<inference>{re.escape(_INFERENCE_MODULE)}))\."
+)
 
 
 @cache
@@ -205,6 +212,14 @@ def stt_of(running: Running, turn: Turn | None) -> stt.STT[Never]:
     if turn is not None and turn.endpointing_ms is not None:
         given["eot_timeout_ms"] = turn.endpointing_ms
     return _built("stt", _AN_STT, running, given)
+
+
+def vendor_named_in(text: str) -> str:
+    """The vendor whose plugin a component's error names, "" when it names none."""
+    found = _LABELLED.search(text)
+    if found is None:
+        return ""
+    return INFERENCE if found["inference"] else found["plugin"]
 
 
 def _vendor(name: str, module: str) -> Vendor:

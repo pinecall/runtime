@@ -51,6 +51,7 @@ from pinecall.log.readers import Filter, parse_filter, project_entry, project_st
 from pinecall.log.store import DEFAULT_LIMIT, Claim
 from pinecall.process.recordings import recordings_of
 from pinecall.providers import catalog
+from pinecall.providers.build import vendor_named_in
 from pinecall.providers.catalog import judge_ceiling
 from pinecall.session.call import ToolUse
 from pinecall.tenancy import disclosure, erasure, keys, orgs, policy, reads, tokens
@@ -99,6 +100,9 @@ SEALED = "call {call!r} is over: nothing more can be written to it"
 
 
 SPENT = "token_spent"
+
+
+ERROR = "error"
 
 
 ALREADY_SPENT = "call {call} was opened by its token already: a token opens one call, once"
@@ -217,7 +221,10 @@ async def append_entry(
         raise DeclarationRefused(UNKNOWN_EVENT.format(kind=body.type))
     _orgs_call(gateway, key, call)
     served = _orgs_call(gateway, key, call)
-    return await served.log.append(body.type, body.data, ephemeral=body.ephemeral)
+    began = time.perf_counter()
+    entry = await served.log.append(body.type, body.data, ephemeral=body.ephemeral)
+    _counted(gateway, time.perf_counter() - began, [entry])
+    return entry
 
 
 # Taken whole or refused whole; the answer to a retry of the last batch is the seqs it was given.
@@ -230,7 +237,9 @@ async def append_entries(
         if item.type not in EVENTS:
             raise DeclarationRefused(UNKNOWN_EVENT.format(kind=item.type))
     served = _orgs_call(gateway, key, call)
+    began = time.perf_counter()
     entries = await served.log.append_many(body.entries, after=body.after)
+    _counted(gateway, time.perf_counter() - began, entries)
     return AppendEntriesResponse(entries=entries)
 
 
@@ -639,3 +648,14 @@ def _seq_of(header: str | None) -> int:
 def _sees_to_erase(where: Scope, owner: Scope) -> bool:
     same = where.org == owner.org and where.env == owner.env
     return same and owner.holder in ("", where.holder)
+
+
+# What /metrics reads: the append's time at the door, and each vendor's failures as they come in.
+def _counted(gateway: Gateway, seconds: float, entries: list[Entry]) -> None:
+    counters = gateway.counters
+    counters.appended_in(seconds, len(entries))
+    for entry in entries:
+        if entry.type == ERROR:
+            code, message = entry.data.get("code"), entry.data.get("message")
+            text = message if isinstance(message, str) else ""
+            counters.failed(code if isinstance(code, str) else "", vendor_named_in(text))
