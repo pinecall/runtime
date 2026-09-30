@@ -6,21 +6,26 @@ DOMAINS  ?= box.pinecall.io,sandbox.pinecall.io
 TUNNEL   ?= 15432
 WHEEL    ?= $(shell git rev-parse --short HEAD)$(shell git diff --quiet HEAD || echo -dirty)
 
-# The laptop's Postgres, for the suites only: in colima, on tmpfs, thrown away with the container.
+# The laptop's Postgres and Redis, for the suites only: in colima, on tmpfs, thrown away with
+# their containers. The Redis is the box's image, with nothing kept.
 DB_IMAGE  = pinecall/postgres:17-pgvector0.8.6-pgtextsearch1.4.0
 DB_NAME   = pinecall-test-postgres
 DB_PORT  ?= 55432
 LOCAL_DSN = postgresql://pinecall:pinecall@127.0.0.1:$(DB_PORT)/pinecall
+REDIS_IMAGE = docker.io/library/redis:8.10.2-alpine
+REDIS_NAME  = pinecall-test-redis
+REDIS_PORT ?= 56379
+LOCAL_REDIS = redis://127.0.0.1:$(REDIS_PORT)/1
 T        ?= tests
 
 check:            ## the rules and every suite that needs no database, on every core
 	uv run pytest -q -n auto
 
-test: db          ## every suite (or T=tests/log), on the local Postgres, on every core
-	DATABASE_URL=$(LOCAL_DSN) uv run pytest -q -n auto $(T)
+test: db          ## every suite (or T=tests/log), on the local Postgres and Redis, on every core
+	DATABASE_URL=$(LOCAL_DSN) PINECALL_REDIS_URL=$(LOCAL_REDIS) uv run pytest -q -n auto $(T)
 
 # Durability is off: a test database that loses its last second on a crash loses nothing.
-db:               ## the local Postgres: colima up, the image built once, the container running
+db:               ## the local Postgres and Redis: colima up, the image built once, both running
 	@colima status >/dev/null 2>&1 || colima start
 	@docker image inspect $(DB_IMAGE) >/dev/null 2>&1 || docker build -t $(DB_IMAGE) infra/postgres
 	@docker inspect -f '{{.State.Running}}' $(DB_NAME) 2>/dev/null | grep -q true || { \
@@ -29,6 +34,11 @@ db:               ## the local Postgres: colima up, the image built once, the co
 	    -e POSTGRES_USER=pinecall -e POSTGRES_PASSWORD=pinecall -e POSTGRES_DB=pinecall $(DB_IMAGE) \
 	    -c fsync=off -c synchronous_commit=off -c full_page_writes=off >/dev/null; }
 	@until docker exec $(DB_NAME) pg_isready -U pinecall -d pinecall >/dev/null 2>&1; do sleep 1; done
+	@docker inspect -f '{{.State.Running}}' $(REDIS_NAME) 2>/dev/null | grep -q true || { \
+	  docker rm -f $(REDIS_NAME) >/dev/null 2>&1; \
+	  docker run -d --name $(REDIS_NAME) -p 127.0.0.1:$(REDIS_PORT):6379 --tmpfs /data $(REDIS_IMAGE) \
+	    redis-server --save '' --appendonly no >/dev/null; }
+	@until docker exec $(REDIS_NAME) redis-cli ping >/dev/null 2>&1; do sleep 1; done
 
 hooks:            ## the pre-commit hook: `make check`
 	git config core.hooksPath .githooks

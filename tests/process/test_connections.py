@@ -6,6 +6,7 @@ from cryptography.fernet import Fernet
 from pinecall.domain.errors import NotAvailable, SettingsRefused
 from pinecall.process.connections import keyring_of, opened, server_of, vault_of
 from pinecall.process.settings import Settings
+from pinecall.process.signal import LocalSignal
 from tests.conftest import DSN, postgres, settings_of
 
 
@@ -48,4 +49,6 @@ async def test_the_connections_open_on_the_settings_and_close_after() -> None:
     )
     async with opened(settings) as connections, connections.pool.connection() as connection:
         assert (await (await connection.execute("select 1")).fetchone()) is not None
+        # No PINECALL_REDIS_URL: the gateway is alone, and its signal stays in the process.
+        assert isinstance(connections.signal, LocalSignal)
     assert connections.pool.closed

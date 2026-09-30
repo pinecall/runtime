@@ -24,6 +24,7 @@ unit's)* is written per worker unit, never in the box's `box.env`.
 | `LIVEKIT_URL` · `LIVEKIT_API_KEY` · `LIVEKIT_API_SECRET` | the media plane both processes talk to. The secret also signs call tokens |
 | `LIVEKIT_PUBLIC_URL` | the URL a browser is told to join, when it differs |
 | `DATABASE_URL` | Postgres 17 with pgvector and pg_textsearch: the one stateful service. One database for both worlds |
+| `PINECALL_REDIS_URL` | the Redis the gateways tell each other what just happened on (`redis://host:port/db`): what a call just wrote, who holds what. Lossy by design and never a record: a reader that misses a message resumes from Postgres. Unset, the gateway is alone on its box and keeps all of it in its own memory, as it always has; set and not answering, the gateway starts and serves all the same, and says so in its log. On a box it is LiveKit's Redis, database 1 (`infra/box/pinecall-gateway.service`) |
 | `PINECALL_WORKER_KEY` | the key the worker knocks with. On a box the fleet's; on a laptop an org's own key, and the worker serves that org |
 | `PINECALL_RUNNER_KEY` · `PINECALL_RUNNER_ROOT` · `PINECALL_RUNNER_IMAGE` · `PINECALL_RUNNER_RUNTIME` | the runner's: the key of its world (`keys runner`), where it unpacks each release (`/var/lib/pinecall/runner`), the image every hosted app runs in (`docker.io/library/node:24-slim`), and the OCI runtime (`runsc`, gVisor; `crun` only for code you wrote yourself). It reads `PINECALL_GATEWAY_URL` for the box it serves: that world's public address, since it never runs on the box ([../infra/apps/README.md](../infra/apps/README.md)) |
 | `PINECALL_OPS_KEY` | the box's own key to `/v1/ops/*`. Unset, only a person the box made an operator opens those doors |
@@ -94,7 +95,8 @@ of it is read from code.
 A checkout and `uv sync` is the whole of it for writing the runtime: `make check` runs the rules and
 every suite that needs no database; `make test` starts a Postgres of its own in colima (`make db`:
 the image of `infra/postgres/`, the box's Postgres 17 with pgvector and pg_textsearch, on tmpfs,
-durability off) and gives every test a schema of its own. `make test-box` runs the same suites on
+durability off) and the box's Redis beside it (nothing kept), and gives every test a schema of its
+own and a prefix of its own on the Redis. `make test-box` runs the same suites on
 the box's database through an ssh tunnel, the DSN never printed. Nothing runs LiveKit locally: a
 call is tried against a box.
 
