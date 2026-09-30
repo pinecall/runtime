@@ -7,7 +7,7 @@ import pytest
 from pinecall.domain.agent import AgentConfig
 from pinecall.domain.scope import Scope
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import attach, handed_on, served_call
+from pinecall.gateway._served import attach, handed_on, opened, served_call
 from pinecall.gateway._sockets import Sockets
 from pinecall.gateway.api import calls
 from pinecall.gateway.ending.reaper import let_go
@@ -282,3 +282,43 @@ async def test_a_call_that_kept_no_opening_is_filled_in_by_the_workers_reopen(
     kept = await openings.opening_of(knocking.gateway.connections.pool, context.call)
     assert kept is not None
     assert kept.context == context
+
+
+# Two knocks of one seal on two gateways at once: the lease lets one seal, the other waits for it.
+@postgres
+async def test_a_seal_asked_of_two_gateways_at_once_is_done_once(
+    knocking: Knocking, knocking_two: Knocking
+) -> None:
+    context = a_widget_call(knocking)
+    opening = OpenCallRequest(agent=THE_KNOCKED_AGENT, context=context).written()
+    seal = SealCallRequest(usage=[], outcome="booked").written()
+    path = f"/v1/calls/{context.call}"
+    async with (
+        knocking.http(knocking.fleet["sandbox"]) as first,
+        knocking_two.http(knocking.fleet["sandbox"]) as second,
+    ):
+        assert (await first.post("/v1/calls", json=opening)).is_success
+        await first.post(f"{path}/events", json={"type": "call.ended", "data": ENDED})
+        answers = await asyncio.gather(
+            first.post(f"{path}/sealed", json=seal), second.post(f"{path}/sealed", json=seal)
+        )
+    assert [answer.status_code for answer in answers] == [204, 204]
+    kinds = [entry.type for entry in await knocking.gateway.logs.store.whole(context.call)]
+    assert (kinds.count("call.summary"), kinds.count("call.score")) == (1, 1)
+    for gateway in (knocking.gateway, knocking_two.gateway):
+        assert context.call not in gateway.live.calls
+
+
+@postgres
+async def test_a_seal_that_broke_gives_its_lease_back_for_the_next_knock(wired: Gateway) -> None:
+    context = a_call()
+    served = served_call(wired.serving, None, context, AgentConfig(slug=AGENT), OURS)
+    await opened(served.log, context, AGENT)
+    store = wired.logs.store
+    assert await store.lease_seal(context.call, 60)
+    assert not await store.lease_seal(context.call, 60)
+    await store.release_seal(context.call)
+    assert await store.lease_seal(context.call, 60)
+    await store.seal(context.call)
+    await store.release_seal(context.call)
+    assert not await store.lease_seal(context.call, 60)

@@ -7,7 +7,7 @@ from collections.abc import Sequence
 import psycopg
 
 from pinecall.domain.agent import AgentConfig, Model
-from pinecall.domain.errors import PinecallError, QuotaExhausted
+from pinecall.domain.errors import NotAvailable, PinecallError, QuotaExhausted
 from pinecall.evals import judges
 from pinecall.evals.compliance import Compliance, Panel
 from pinecall.gateway._call_setup import exhausted, keys_of
@@ -51,10 +51,21 @@ REMEMBER_FAILED = "the call was not written into memory: {why}"
 # What a hang-up waits for the one model call that writes memory, unless the settings say.
 REMEMBER_BUDGET_S = 8.0
 
+# How long one gateway holds the right to seal a call (memory, judges and all fit well inside),
+# and how often a knock that found it taken looks whether the call was sealed.
+LEASED_S = 120.0
+LOOKED_AGAIN_S = 0.5
+
+SEALED_ELSEWHERE = (
+    "call {call} is being sealed by another gateway, which has not finished: ask again"
+)
+
 
 # One end for every call: a worker's, a written one's, and one the reaper finishes. A call is
 # sealed once: a second knock waits for the first and finds the call gone, and a seal that broke
-# after its summary goes on from the score, so no call is remembered or billed twice.
+# after its summary goes on from the score, so no call is remembered or billed twice. Across
+# gateways the head's lease does what the lock does here: a knock that finds it taken waits for
+# the log to say sealed.
 async def sealed(
     serving: Serving, served: Served, sealing: SealCallRequest, *, lent: Sequence[str] = ()
 ) -> None:
@@ -62,11 +73,19 @@ async def sealed(
     async with served.sealing:
         if served.call not in serving.live.calls:
             return
-        entries = await serving.logs.store.whole(served.call)
-        if all(entry.type != "call.summary" for entry in entries):
-            await _priced(serving, served, sealing, lent)
-        score = await _scored(serving, served)
-        await served.log.append("call.score", score.written())
+        store = serving.logs.store
+        if not await store.lease_seal(served.call, LEASED_S):
+            await _sealed_elsewhere(serving, served)
+            return
+        try:
+            entries = await store.whole(served.call)
+            if all(entry.type != "call.summary" for entry in entries):
+                await _priced(serving, served, sealing, lent)
+            score = await _scored(serving, served)
+            await served.log.append("call.score", score.written())
+        except BaseException:
+            await store.release_seal(served.call)
+            raise
         await drifted(serving.connections.pool, served.call, entries, score)
         await watched(serving, served)
         serving.logs.forget(served.call)
@@ -237,3 +256,15 @@ async def _scored(serving: Serving, served: Served) -> CallScore:
     own = await for_call(pool, served.scope.org, served.agent)
     org_facts = await compliance_of(pool, served.scope.org, served.call, served.config)
     return await judged_call(serving.connections, entries, served.config, own, org_facts)
+
+
+async def _sealed_elsewhere(serving: Serving, served: Served) -> None:
+    store = serving.logs.store
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + LEASED_S
+    while not await store.sealed(served.call):
+        if loop.time() > deadline:
+            raise NotAvailable(SEALED_ELSEWHERE.format(call=served.call))
+        await asyncio.sleep(LOOKED_AGAIN_S)
+    serving.logs.forget(served.call)
+    serving.live.close(served.call)

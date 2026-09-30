@@ -9,7 +9,7 @@ from livekit import api
 from pinecall.channels.rooms import room_closed, rooms_with_an_agent
 from pinecall.domain.errors import Conflict, NotAvailable
 from pinecall.gateway._served import Serving
-from pinecall.gateway.ending.seal import summed_up
+from pinecall.gateway.ending.seal import LEASED_S, summed_up
 from pinecall.log import queries
 from pinecall.wire.events import CallEnded
 from pinecall.wire.parts import EndReason
@@ -99,6 +99,8 @@ async def let_go(serving: Serving) -> list[str]:
 # Duration ends at the last entry, not now: reaping late bills no extra minutes.
 async def _finished(serving: Serving, orphan: queries.Unsealed, reason: EndReason) -> bool:
     store = serving.logs.store
+    if not await store.lease_seal(orphan.call, LEASED_S):
+        return False
     log = serving.logs.writing(orphan.call, orphan.agent)
     written_types = {item.type for item in await store.whole(orphan.call)}
     try:
