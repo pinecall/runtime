@@ -21,6 +21,7 @@ from pinecall.wire.events import (
     event_of,
 )
 from pinecall.wire.frames import Entry, WireModel
+from pinecall.wire.parts import PLATFORM, Cost
 from pinecall.wire.room import RoomOpened
 from pinecall.wire.scores import CallScore
 
@@ -70,6 +71,11 @@ COLUMNS = (
     "end_reason",
     "outcome",
     "cost_usd",
+    "cost_llm_usd",
+    "cost_stt_usd",
+    "cost_tts_usd",
+    "cost_phone_usd",
+    "cost_platform_usd",
     "judged",
     "held",
     "passed",
@@ -85,6 +91,19 @@ COLUMNS = (
 
 
 ARRAYS = frozenset({"e2e", "heard_at"})
+
+# What a summary's cost is folded by: a row's unit says its stage, and the box's own rows
+# (PLATFORM) are the platform's, whatever their unit.
+STAGES = ("llm", "stt", "tts", "phone", "platform")
+STAGE_OF_UNIT = {
+    "input_tokens": "llm",
+    "cached_input_tokens": "llm",
+    "cache_creation_tokens": "llm",
+    "output_tokens": "llm",
+    "characters": "tts",
+    "audio_seconds": "stt",
+    "minutes": "phone",
+}
 
 
 # In the order of the calls, as the heads are locked: two writers never wait in a circle.
@@ -261,6 +280,11 @@ class CallFacts:
     end_reason: str | None = None
     outcome: str | None = None
     cost_usd: float | None = None
+    cost_llm_usd: float | None = None
+    cost_stt_usd: float | None = None
+    cost_tts_usd: float | None = None
+    cost_phone_usd: float | None = None
+    cost_platform_usd: float | None = None
     judged: int | None = None
     held: int | None = None
     passed: bool | None = None
@@ -360,7 +384,12 @@ where head.org = %(org)s and head.env = %(env)s and head.holder = %(holder)s
 
 DAY_BY_AGENT = sql.SQL("""
 select head.agent as slug, count(*) as calls,
-       avg(f.held::double precision / f.judged) filter (where f.judged > 0) as score
+       avg(f.held::double precision / f.judged) filter (where f.judged > 0) as score,
+       coalesce(sum(f.cost_llm_usd), 0) as llm, coalesce(sum(f.cost_stt_usd), 0) as stt,
+       coalesce(sum(f.cost_tts_usd), 0) as tts, coalesce(sum(f.cost_phone_usd), 0) as phone,
+       coalesce(sum(f.cost_platform_usd), 0) as platform,
+       coalesce(sum(f.ended_at - head.started_at) filter (where f.ended_at is not null), 0) / 60
+           as minutes
 from call_log_head head left join call_facts f on f.call = head.log
 where head.org = %(org)s and head.env = %(env)s and head.holder = %(holder)s
   and head.call is not null and {day}
@@ -484,7 +513,16 @@ def _over(facts: CallFacts, over: CallEnded | CallSummary) -> CallFacts:
         outcome=over.outcome,
         cost_usd=over.cost.usd,
         end_reason=facts.end_reason or over.reason,
+        **_cost_by_stage(over.cost),
     )
+
+
+def _cost_by_stage(cost: Cost) -> dict[str, float]:
+    summed: dict[str, float] = dict.fromkeys(STAGES, 0.0)
+    for row in cost.rows:
+        stage = "platform" if row.provider == PLATFORM else STAGE_OF_UNIT[row.unit]
+        summed[stage] += row.usd
+    return {f"cost_{stage}_usd": round(usd, 6) for stage, usd in summed.items()}
 
 
 # A verdict replaces the one before it whole.

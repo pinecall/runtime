@@ -48,6 +48,19 @@ def test_a_model_is_priced_by_the_longest_prefix_that_matches_it() -> None:
     assert rate_of(rates, "gpt-5") is None
 
 
+def test_the_boxs_own_compute_is_priced_by_the_second_once_the_operator_priced_it(
+    configured: Providers,
+) -> None:
+    assert cost([], configured, seconds=90).rows == []
+    priced = configured.model_copy(
+        update={"rates": {**configured.rates, "pinecall-compute": Rate(minutes=0.02)}}
+    )
+    (row,) = cost([], priced, seconds=90).rows
+    assert (row.provider, row.model, row.unit) == ("pinecall", "pinecall-compute", "minutes")
+    assert (row.quantity, row.usd) == (1.5, 0.03)
+    assert cost([], priced, seconds=0).rows == []
+
+
 def test_nothing_used_costs_nothing_and_lists_nothing(configured: Providers) -> None:
     priced = cost([], configured)
     assert (priced.usd, priced.rows, priced.unpriced) == (0.0, [], [])

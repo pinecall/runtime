@@ -86,6 +86,13 @@ They are list prices: a plan or a contract that pays less is an edit of the file
 its address (a `sip` carrier account) is priced by rows named `sip-inbound/…` and
 `sip-outbound/…` the operator writes.
 
+The box's own compute is a row of the same file, `pinecall,pinecall-compute,minutes,<usd>`: a
+call's seconds on the worker, every one counted, priced beside the vendors' rows on each call
+(`provider: "pinecall"`), so a plan priced under what a call costs to run is visible. Nothing
+ships priced: the number is the operator's. Each call's facts keep its cost by stage (model,
+ears, voice, phone legs, the platform), and `GET /v1/insights` says per agent what a day cost by
+stage and per minute.
+
 ## 4. Where your orgs pay
 
 `PINECALL_BILLING_URL` is answered to every org in `GET /v1/limits`: the page where it buys more.

@@ -74,6 +74,10 @@ type ThreadKind = Literal["in", "out", "call"]
 type WidgetTheme = Literal["auto", "light", "dark"]
 
 
+# The provider of the box's own rows (its compute): what the platform cost, beside the vendors'.
+PLATFORM = "pinecall"
+
+
 class PromptBlockSpec(WireModel):
     """One named block of the prompt and the region it lives in."""
 
@@ -189,7 +193,7 @@ class UnpricedRow(WireModel):
 
 
 class Cost(WireModel):
-    """What the call cost in provider fees, informational, in US dollars, as providers price."""
+    """What the call cost in provider fees and, priced, the box's own compute; US dollars."""
 
     usd: float
     rows: list[CostRow]
