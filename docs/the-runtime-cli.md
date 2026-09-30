@@ -13,6 +13,7 @@ writes an agent, nothing there issues a key.
 | `migrate` · `sessions` · `memory` · `retention` · `traceback` | Postgres, straight, over `DATABASE_URL` |
 | `box up` · `box upgrade` | this machine as root: it made a box from the package itself |
 | `init` · `orgs` · `keys` · `routes` · `fleet` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` alone is minted on the database, before any gateway answers |
+| `load` | a running gateway's sandbox, over the worker's own call doors with the sandbox fleet's key (`PINECALL_WORKER_KEY`) |
 
 ## `gateway` · `worker start` · `worker overflow`
 
@@ -91,6 +92,49 @@ fleet loop --cloud <script> --seats <n> [--fleet <name>] [--target 0.6] [--min 1
 when it was heard, then each fleet summed. `loop` keeps a fleet at its target ([scaling.md](scaling.md)):
 `--cloud` is a script with three verbs, `create <name>`, `delete <name>`, `list`; `infra/fleet/`
 holds one per cloud. `--once --dry-run` prints one tick's verdict and touches nothing.
+
+## `load`
+
+```
+pinecall-runtime load --org <id> --agent <slug> --script <call-log.json> --calls <n> --ramp <seconds> --minutes <m>
+```
+
+Synthetic calls held against the gateway at `PINECALL_GATEWAY_URL` exactly as workers hold them,
+so the control plane is measured without LiveKit, audio or a vendor. Each call knocks the doors a
+worker knocks, through the worker's own client: it opens a call in the **sandbox** world (there is
+no other), writes the script's entries a worker writes at the script's own gaps, one request in
+flight at a time, then its `call.ended`, and seals it; the entries the gateway writes itself
+(`call.ringing`, `call.attached`, `tool.call`, `tool.result`, `call.summary`, `call.score`, memory
+and sources) are left out, and so are tool round-trips, which need an app socket. A call that
+ends before the run does is followed by a fresh one, so the number held stays at the top; a
+refusal ends that call only, and its slot opens another a second later. `--script` is a call's
+log as JSON, the shape of `tests/wire/golden/call-log.json` (125 entries over 53.5 s); `--calls`
+is how many at once at the top, reached linearly over `--ramp` seconds and held `--minutes`.
+
+```
+PINECALL_GATEWAY_URL=https://sandbox.<throwaway box> PINECALL_WORKER_KEY=<its sandbox fleet key> \
+  pinecall-runtime load --org org_load --agent load --script tests/wire/golden/call-log.json \
+  --calls 500 --ramp 60 --minutes 5
+```
+
+It runs against **a box made for it** (`box up` on a clean machine), never production's: the
+calls are real calls of the org, logged, counted against its quotas and sealed. The org is one
+made for the run, with its sandbox quotas (`orgs quota --env sandbox`) above the run and its
+hang-up judging off (`PUT /v1/org/judging`), or every seal asks the box's judge model. One
+connection per call is kept open, so `ulimit -n` must be above `--calls`. At the end it prints,
+a line each:
+
+| line | what it is |
+|---|---|
+| `calls opened` · `calls sealed` | calls the gateway opened, and those sealed after their `call.ended` |
+| `calls open at the end` | calls still writing past the run's end and a grace of 60 s, cut |
+| `most held at once` | the most calls open together |
+| `entries sent` | appends the gateway answered, and how many of them it keeps (durable) |
+| `entries a second at the top` | appends answered between the end of the ramp and the end of the run, per second |
+| `append ms` · `seal ms` | the time one append or one seal took, as the worker waits it, p50/p95/p99 and p50/p99 |
+| `refusals` | the calls a refusal ended, by the status the gateway answered (`unreachable` for none) |
+| `logs verified` · `logs found wrong` · `logs unread` | each sealed call's log read back: every durable entry sent, once each, in order, and seqs that rose; `unread` counts the reads refused, by status: today every one (403), since a fleet key does not open `calls`, so only the seqs are checked |
+| `loop lag ms` | the p99 lag of the generator's own event loop; over 50 ms a `warning:` line follows, since a saturated generator measures itself |
 
 ## `sessions` · `memory` · `retention` · `traceback` · `migrate` · `providers` · `doctor`
 
