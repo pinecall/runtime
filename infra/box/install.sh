@@ -111,7 +111,7 @@ for slot in a b; do
     install -D -m 0644 "$HERE/pinecall-worker-slot.conf" \
         "/etc/systemd/system/pinecall-worker-$slot@.service.d/slot.conf"
 done
-for unit in pinecall-gateway pinecall-worker@ pinecall-worker-a@ pinecall-worker-b@ \
+for unit in pinecall-gateway@ pinecall-worker@ pinecall-worker-a@ pinecall-worker-b@ \
     pinecall-overflow@ pinecall-migrate pinecall-retention; do
     install -d "/etc/systemd/system/$unit.service.d"
     install -m 0644 "$HERE/hardening.conf" "/etc/systemd/system/$unit.service.d/hardening.conf"
@@ -127,8 +127,19 @@ systemctl start pinecall-redis pinecall-livekit pinecall-sip pinecall-egress pin
 systemctl restart caddy
 # Started by the first deploy, which brings the code they run. The one worker per world of a box
 # installed before the two is left running, not enabled: the next release drains it.
-systemctl disable pinecall-worker@production pinecall-worker@sandbox 2>/dev/null || true
-systemctl enable pinecall-migrate pinecall-gateway pinecall-worker-a@production \
+systemctl disable pinecall-worker@production pinecall-worker@sandbox pinecall-gateway 2>/dev/null || true
+rm -f /etc/systemd/system/pinecall-gateway.service
+# The second gateway only once Redis answers on loopback: two gateways that cannot tell each other
+# what they did would each serve alone. A box whose Redis was started before it was published there
+# gets it after `systemctl restart pinecall-redis`, in a window (it restarts LiveKit, SIP, egress).
+if podman exec pinecall-redis redis-cli ping >/dev/null 2>&1 \
+    && timeout 2 bash -c '</dev/tcp/127.0.0.1/6379' 2>/dev/null; then
+    systemctl enable pinecall-gateway@8081
+else
+    echo "Redis does not answer on 127.0.0.1:6379: one gateway until pinecall-redis is restarted"
+fi
+systemctl enable pinecall-migrate pinecall-gateway@8080 \
+    pinecall-worker-a@production \
     pinecall-worker-b@production pinecall-worker-a@sandbox pinecall-worker-b@sandbox \
     pinecall-overflow@production
 systemctl enable --now pinecall-retention.timer

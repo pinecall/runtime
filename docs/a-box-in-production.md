@@ -175,7 +175,7 @@ PINECALL_BACKUP_BUCKET=acme-pinecall-backups              # backups and the WAL 
 PINECALL_RECORDINGS_BUCKET=acme-pinecall-recordings       # recordings, when they leave the disk
 # then the secret, on stdin, and the units that read the file:
 #   sudo /opt/pinecall/infra/box/install.sh secret PINECALL_S3_SECRET_ACCESS_KEY
-#   sudo systemctl restart pinecall-gateway 'pinecall-worker@*'; sudo /opt/pinecall/infra/box/wal.sh apply
+#   sudo systemctl restart 'pinecall-gateway@*' 'pinecall-worker@*'; sudo /opt/pinecall/infra/box/wal.sh apply
 ```
 
 | store | `PINECALL_S3_ENDPOINT` | `PINECALL_S3_REGION` | the key |
@@ -270,7 +270,7 @@ it. `<stamp>` is the newest night before the target minute (`sudo bash -c '. /op
 
 ```sh
 # 1. Nothing writes while the database goes back; the database as it stands is kept aside.
-sudo systemctl stop pinecall-gateway 'pinecall-worker*@*' 'pinecall-overflow@*' pinecall-wal.timer
+sudo systemctl stop 'pinecall-gateway@*' 'pinecall-worker*@*' 'pinecall-overflow@*' pinecall-wal.timer
 sudo systemctl stop pinecall-postgres
 sudo podman volume export pinecall-postgres -o /var/lib/pinecall/before-restore.tar
 # 2. That night's base backup, every segment since, and the settings that stop at the target
@@ -295,7 +295,7 @@ for name in restore_command recovery_target_time recovery_target_action; do
   sudo podman exec pinecall-postgres psql -U pinecall -d pinecall -c "ALTER SYSTEM RESET $name"
 done
 sudo rm -rf /var/lib/pinecall/wal/restore
-sudo systemctl start pinecall-wal.timer pinecall-gateway pinecall-worker-a@production \
+sudo systemctl start pinecall-wal.timer 'pinecall-gateway@*' pinecall-worker-a@production \
   pinecall-worker-b@production pinecall-worker-a@sandbox pinecall-worker-b@sandbox \
   pinecall-overflow@production pinecall-doctor
 ```
@@ -359,6 +359,22 @@ when the gateway starts. Afterwards this machine is the box, and a new replica j
 
 **Drilled: not yet.**
 
+### Two gateways
+
+The box runs its gateway twice, `pinecall-gateway@8080` and `pinecall-gateway@8081`, each a
+process of its own; any serves any door of any call, and they tell each other what they did
+through LiveKit's Redis, database 1 (`PINECALL_REDIS_URL`). Caddy sends every request to either:
+the box's own workers knock at `127.0.0.1:8088`, a site of Caddy's on loopback, and name the call
+in `Pinecall-Call`, which Caddy hashes so a call's requests stay on one gateway while it lives. A
+release restarts `@8081`, waits for it to answer, then `@8080`: Caddy steps over the one
+restarting, trying the other, so no request of a call is lost.
+
+The second instance is enabled by `install.sh` only once Redis answers on `127.0.0.1:6379`: two
+gateways that cannot tell each other what they did would each serve alone. A box whose Redis was
+started before it was published on loopback gets it after `sudo systemctl restart pinecall-redis`,
+which restarts LiveKit, SIP and egress with it, so every call in progress ends: in a window. Then
+`sudo systemctl enable --now pinecall-gateway@8081`.
+
 ## 5. What the box runs
 
 From the console's box screens, or the operator's doors with the ops key
@@ -403,7 +419,7 @@ fleets, and `pinecall-runtime fleet loop` grows and shrinks them through a cloud
 ## When it does not come up
 
 - The journal first, whole: `make logs` from a checkout, or on the box
-  `journalctl -u pinecall-gateway -u 'pinecall-worker*@*' -u pinecall-migrate --since today`. The
+  `journalctl -u 'pinecall-gateway@*' -u 'pinecall-worker*@*' -u pinecall-migrate --since today`. The
   sentence that stopped a unit is in it.
 - `box up` stops at the first step that fails and names it (`→ the box installed`); fix what it
   said and run it again: every step is safe to repeat.

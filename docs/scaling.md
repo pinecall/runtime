@@ -10,9 +10,17 @@ the clouds a fleet grows on are [../infra/fleet/README.md](../infra/fleet/README
 
 | plane | what it is | grows with |
 |---|---|---|
-| control | the gateway: logs, keys, routes, quotas, the roster | requests, never calls |
+| control | the gateways: logs, keys, routes, quotas, the roster; any serves any door of any call, telling the others what it did on Redis | requests, never calls: another gateway behind the balancer |
 | media | LiveKit rooms, SIP, WebRTC | one per region, beside the callers |
 | workers | the conversations: the ears, the model, the voice | calls |
+
+The control plane is as many gateways as the requests need. Each keeps in memory only a cache of
+what Postgres holds and what is bound to a connection it holds (an app socket, a stream, a written
+call's session, a WhatsApp thread); everything else is in Postgres, or said on the signal each
+second (who holds which agent, the roster, an org's calls at once). A call's requests go to one
+gateway while it lives, by the `Pinecall-Call` header the balancer hashes, so a second gateway
+costs a call nothing; any other gateway answers them the same when that one is gone. The box runs
+two ([a-box-in-production.md](a-box-in-production.md), "Two gateways").
 
 ## A fleet per world
 

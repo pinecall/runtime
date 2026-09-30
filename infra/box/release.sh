@@ -18,9 +18,22 @@ UV=/opt/pinecall/bin/uv
 [ -x /opt/pinecall/venv/bin/python ] || "$UV" venv --python /usr/bin/python3.12 /opt/pinecall/venv
 "$UV" pip install --quiet --python /opt/pinecall/venv/bin/python --reinstall-package pinecall "$installed"
 systemctl restart pinecall-migrate
-systemctl restart pinecall-gateway
-for _ in $(seq 60); do curl -fs -o /dev/null http://127.0.0.1:8080/ && break; sleep 1; done
-curl -fsS -o /dev/null http://127.0.0.1:8080/ || { echo "the gateway did not answer in 60 s" >&2; exit 1; }
+# Two gateways, replaced one at a time: Caddy sends everything to the other while one restarts.
+answering() {
+    for _ in $(seq 60); do curl -fs -o /dev/null "http://127.0.0.1:$1/" && return 0; sleep 1; done
+    echo "the gateway on $1 did not answer in 60 s" >&2
+    return 1
+}
+if systemctl is-enabled --quiet pinecall-gateway@8081; then
+    systemctl restart pinecall-gateway@8081
+    answering 8081
+fi
+# A box installed with one gateway: it goes once the second answers, and the first takes its port.
+if systemctl is-active --quiet pinecall-gateway; then
+    systemctl stop pinecall-gateway
+fi
+systemctl restart pinecall-gateway@8080
+answering 8080
 # Two workers per world, replaced one at a time: the second while the first takes the calls, then
 # the first once the second is back. `restart` of a Type=notify unit returns when the new process is
 # registered with LiveKit and heard by the gateway, after the old one drained (up to ten minutes).

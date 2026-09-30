@@ -63,7 +63,7 @@ release:
 	ssh $(BOX) 'WHEEL=$(WHEEL) bash -s' < infra/box/release.sh
 
 logs:             ## the journal of the runtime's units since the gateway last started, whole
-	ssh $(BOX) 'journalctl -u pinecall-gateway -u "pinecall-worker*@*" -u "pinecall-overflow@*" -u pinecall-migrate --no-pager -o cat --since "$$(systemctl show -p ActiveEnterTimestamp --value pinecall-gateway)"'
+	ssh $(BOX) 'journalctl -u "pinecall-gateway@*" -u "pinecall-worker*@*" -u "pinecall-overflow@*" -u pinecall-migrate --no-pager -o cat --since "$$(systemctl show -p ActiveEnterTimestamp --value pinecall-gateway)"'
 
 ssh:
 	ssh $(BOX)

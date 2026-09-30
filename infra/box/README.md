@@ -12,10 +12,12 @@ pinecall-runtime       /usr/local/bin/pinecall-runtime: the operator's verbs wit
 containers/            redis · livekit · sip · egress · postgres (Quadlet)
 livekit.yaml sip.yaml egress.yaml
 nftables.conf          5060 from the carrier alone; 22, 80, 443, WebRTC for anyone
-caddy/Caddyfile        TLS for PINECALL_DOMAINS; LiveKit's paths to the SFU, the rest to the gateway
+caddy/Caddyfile        TLS for PINECALL_DOMAINS; LiveKit's paths to the SFU, the rest to the two gateways
+                       (a call's requests on one while it lives), and 127.0.0.1:8088 for the box's workers
 fleets/<world>.env     PINECALL_FLEET and the worker's health port, per world
 fleets/<world>-<a|b>.env   each of the box's two workers of a world: its health port, its warm processes
-pinecall-gateway.service · pinecall-worker@.service · pinecall-overflow@.service
+pinecall-gateway@.service   the gateway on a port: @8080 always, @8081 once Redis answers on loopback
+pinecall-worker@.service · pinecall-overflow@.service
 pinecall-worker-slot.conf  the drop-in that makes the worker template the box's a@ and b@
 pinecall-migrate.service · pinecall-doctor.service · pinecall-fleet-key@.service
 pinecall-retention.service · pinecall-retention.timer   the nightly erasure of calls past their org's days

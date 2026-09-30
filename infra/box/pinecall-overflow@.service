@@ -2,15 +2,16 @@
 # says one sentence, records a callback and hangs up.
 [Unit]
 Description=Pinecall overflow, fleet %i
-Wants=network-online.target pinecall-gateway.service pinecall-fleet-key@%i.service
-After=network-online.target pinecall-livekit.service pinecall-gateway.service pinecall-fleet-key@%i.service
+Wants=network-online.target pinecall-gateway@8080.service pinecall-fleet-key@%i.service
+After=network-online.target pinecall-livekit.service pinecall-gateway@8080.service pinecall-fleet-key@%i.service
 
 [Service]
 User=pinecall
 Group=pinecall
 WorkingDirectory=/opt/pinecall
 Environment=LIVEKIT_URL=ws://127.0.0.1:7880
-Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
+# Both gateways, through Caddy's loopback site: a release restarting one never stops a call.
+Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8088
 EnvironmentFile=/etc/pinecall/box.env
 EnvironmentFile=/etc/pinecall/fleets/%i.env
 LoadCredentialEncrypted=PINECALL_WORKER_KEY:/etc/pinecall/fleets/%i.credstore/PINECALL_WORKER_KEY
