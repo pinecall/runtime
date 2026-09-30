@@ -9,6 +9,8 @@ from functools import partial
 
 import httpx
 import pytest
+from opentelemetry import context as otel_context
+from opentelemetry import trace
 from pydantic import TypeAdapter
 from websockets.asyncio.client import ClientConnection
 
@@ -18,7 +20,7 @@ from pinecall.domain.call import CallContext, Route, new_call_id
 from pinecall.domain.errors import GatewayRefused
 from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
-from pinecall.fleet.client import GatewayClient, again, away, gateway_at, server_sent, waits
+from pinecall.fleet.client import GatewayClient, again, away, gateway_at, server_sent, traced, waits
 from pinecall.providers.credentials import Pipeline
 from pinecall.session.call import Writing
 from pinecall.tenancy import carriers
@@ -419,3 +421,21 @@ async def test_a_recording_key_is_the_calls_one_and_a_gateway_of_before_gives_no
     before = GatewayClient(httpx.AsyncClient(base_url="http://gateway.test", transport=older))
     assert await before.recording_key(context.call) is None
     await before.aclose()
+
+
+# A request carries the worker's current span as traceparent, and nothing when nothing traces.
+def test_the_workers_trace_rides_its_requests_to_the_gateway() -> None:
+    assert traced() == {}
+    context = trace.set_span_in_context(
+        trace.NonRecordingSpan(
+            trace.SpanContext(
+                trace_id=0x1234, span_id=0x5678, is_remote=False, trace_flags=trace.TraceFlags(1)
+            )
+        )
+    )
+    token = otel_context.attach(context)
+    try:
+        carried = traced()
+    finally:
+        otel_context.detach(token)
+    assert carried == {"traceparent": f"00-{0x1234:032x}-{0x5678:016x}-01"}

@@ -11,7 +11,7 @@ from livekit.agents import APIError, llm
 from livekit.agents.evals import Judge, JudgmentResult, Verdict
 from livekit.agents.llm import ChatContext, ChatItem, ChatMessage, FunctionCall, FunctionCallOutput
 
-from pinecall.domain.agent import AgentConfig, AgentJudge
+from pinecall.domain.agent import AgentConfig, AgentJudge, block_hash
 from pinecall.domain.errors import PinecallError, UpstreamFailed
 from pinecall.domain.names import JsonObject
 from pinecall.evals import compliance
@@ -366,7 +366,20 @@ async def at_hangup(
         scored["not_judged"] = NOTHING_ANSWERED if model is not None else unjudged
     if any(member.spent for member in panel):
         scored["judge_cost_usd"] = _priced(panel, running, configured)
+    if judged:
+        scored["judged_by"] = judged_by_of(judged, running)
     return CallScore.model_validate(scored)
+
+
+# The panel's questions in its order: the same questions hash the same, whatever the call said.
+def judged_by_of(judged: Sequence[Judgment], running: Running | None) -> JsonObject:
+    """The judge model and one hash of every question asked, as call.score carries them."""
+    questions = "\n".join(f"{judgment.name}\n{judgment.criteria}" for judgment in judged)
+    return {
+        "provider": None if running is None else running.vendor,
+        "model": None if running is None else running.model,
+        "criteria": block_hash(questions),
+    }
 
 
 # Priced by the names the operator configured, which the rates are keyed by.

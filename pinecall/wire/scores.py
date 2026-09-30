@@ -21,6 +21,15 @@ class Judgment(WireModel):
     evidence: JudgmentEvidence
 
 
+class JudgedBy(WireModel):
+    """Who gave a score: the judge model, and one hash of every question the panel asked."""
+
+    # None: the panel was settled by code alone, no model asked.
+    provider: str | None
+    model: str | None
+    criteria: str
+
+
 class CallScore(WireModel):
     """The last entry of a call: what the judges said about it at hang-up, one row per judge."""
 
@@ -30,3 +39,6 @@ class CallScore(WireModel):
     panel: list[str] | None = None
     judge_calls: int
     judge_cost_usd: float | None = None
+    # Absent on a score written before 10.6, or with nothing judged: drift tells a worse agent from
+    # a changed judge by it.
+    judged_by: JudgedBy | None = None

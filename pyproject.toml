@@ -40,6 +40,7 @@ dependencies = [
   "starlette>=1.7,<2",
   "uvicorn[standard]>=0.54,<1",
   # A worker's spans, where PINECALL_OTLP_ENDPOINT says.
+  "opentelemetry-api>=1.44,<2",
   "opentelemetry-sdk>=1.44,<2",
   "opentelemetry-exporter-otlp-proto-http>=1.44,<2",
   "psycopg[binary]>=3.2,<4",

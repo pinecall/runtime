@@ -16,6 +16,7 @@ from collections.abc import (
 )
 
 import httpx
+from opentelemetry import propagate
 from pydantic import TypeAdapter
 
 from pinecall.domain.agent import AgentConfig
@@ -303,7 +304,12 @@ class GatewayClient:
     ) -> httpx.Response:
         try:
             answer = await self.http.request(
-                method, path, json=data, timeout=wait_s or TIMEOUT_S, params=params or None
+                method,
+                path,
+                json=data,
+                timeout=wait_s or TIMEOUT_S,
+                params=params or None,
+                headers=traced(),
             )
         except httpx.HTTPError as unreachable:
             raise GatewayRefused(f"{method} {path}: {unreachable}") from unreachable
@@ -404,6 +410,15 @@ async def again[T](attempt: Callable[[], Awaitable[T]], within_s: float | None, 
             if tries % SAID_EVERY == 0:
                 logger.warning("%s: the gateway is still away after %d tries", what, tries)
             await asyncio.sleep(pause)
+
+
+# The worker's current span rides each request as W3C traceparent, so the gateway's handling of an
+# append joins the turn's trace; with no tracer set (no PINECALL_OTLP_ENDPOINT) nothing is added.
+def traced() -> dict[str, str]:
+    """The headers that carry the current trace to the gateway; none when nothing traces."""
+    carried: dict[str, str] = {}
+    propagate.inject(carried)
+    return carried
 
 
 def _scope_headers(scope: Scope | None) -> dict[str, str]:
