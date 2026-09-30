@@ -21,6 +21,16 @@ systemctl restart pinecall-migrate
 systemctl restart pinecall-gateway
 for _ in $(seq 60); do curl -fs -o /dev/null http://127.0.0.1:8080/ && break; sleep 1; done
 curl -fsS -o /dev/null http://127.0.0.1:8080/ || { echo "the gateway did not answer in 60 s" >&2; exit 1; }
-systemctl restart pinecall-worker@production pinecall-worker@sandbox pinecall-overflow@production
+# Two workers per world, replaced one at a time: the second while the first takes the calls, then
+# the first once the second is back. `restart` of a Type=notify unit returns when the new process is
+# registered with LiveKit and heard by the gateway, after the old one drained (up to ten minutes).
+systemctl restart pinecall-worker-b@production pinecall-worker-b@sandbox
+# A box installed with one worker per world: that one drains now that the second takes the calls.
+for world in production sandbox; do
+    if systemctl is-active --quiet "pinecall-worker@$world"; then
+        systemctl stop "pinecall-worker@$world"
+    fi
+done
+systemctl restart pinecall-worker-a@production pinecall-worker-a@sandbox pinecall-overflow@production
 systemctl start pinecall-doctor
 echo "released ${WHEEL:-$PACKAGE}"

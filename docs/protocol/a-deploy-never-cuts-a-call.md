@@ -56,6 +56,18 @@ door, `POST /v1/calls/{call}/events`, still answers for a worker of an older rel
 nothing. A written call's session batches too, straight to its log; taken up after a restart, it
 goes on from the count its log's head keeps.
 
+## A release of the workers
+
+A worker told to stop takes no new call, finishes the ones it holds (up to ten minutes) and
+leaves; nothing moves a call from one worker to another. So a release keeps a fleet open by never
+stopping its last worker: the box runs two per world, `pinecall-worker-a@` and `-b@`, and
+`release.sh` restarts every `b@`, then every `a@`. Each unit is `Type=notify`: `systemctl restart`
+returns once the old process drained and the new one is registered with LiveKit and heard by the
+gateway, and only then is the other stopped. While one drains the other takes every new call of its
+world, so no caller of a deploy hears the overflow's sentence. A fleet of machines is replaced by
+generation the same way: the new machines first, then the old ones cordoned
+([scaling.md](../scaling.md)).
+
 ## A written call
 
 A chat over `WS /v1/chat` or a WhatsApp thread runs in the gateway's own process, and a restart ends

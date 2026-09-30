@@ -25,6 +25,10 @@ NO_MEASURE = "livekit's load_fnc option no longer carries a measure of its own"
 A_SLOT_AT_LEAST = "a worker holds at least one call: PINECALL_MAX_JOBS={max_jobs}"
 
 
+# The id livekit's AgentServer holds until LiveKit answers its registration with the real one.
+UNREGISTERED = "unregistered"
+
+
 # The exit a cordoned worker leaves with; its unit's RestartPreventExitStatus= keeps it down.
 CORDONED_EXIT = 3
 
@@ -81,6 +85,8 @@ class Heartbeats:
         self.minute = minute
         self.cordoned = False
         self.leave = asyncio.Event()
+        # Set once LiveKit registered the worker and the gateway answered a heartbeat uncordoned.
+        self.ready = asyncio.Event()
 
     def beat(self) -> HeartbeatRequest:
         """What this worker holds now, and what its calls did in the last minute."""
@@ -114,7 +120,25 @@ class Heartbeats:
                     self.cordoned = True
                     self.leave.set()
                     return
+                if self.server.id != UNREGISTERED:
+                    self.ready.set()
             await asyncio.sleep(HEARTBEAT_S)
+
+
+# systemd's Type=notify: `systemctl restart` returns only once this is said, so a release starts
+# the next instance only after this one can take calls. Outside systemd there is nobody to tell.
+async def announced_ready(beats: Heartbeats, notify: str | None) -> bool:
+    """Tell systemd the worker is ready once LiveKit registered it and the gateway heard it."""
+    await beats.ready.wait()
+    if not notify:
+        return False
+    # An address that starts with @ is in the abstract namespace, whose first byte is a zero.
+    address = "\0" + notify[1:] if notify.startswith("@") else notify
+    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as systemd:
+        systemd.connect(address)
+        systemd.sendall(b"READY=1")
+    logger.info("registered with LiveKit and heard by the gateway: ready")
+    return True
 
 
 # The job's process names its call's worker as the heartbeat does: the same settings, the same host.

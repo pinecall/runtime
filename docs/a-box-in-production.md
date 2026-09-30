@@ -96,7 +96,9 @@ make deploy BOX=my-box DOMAINS=voice.example.com,sandbox.voice.example.com
 
 The console is built in, a wheel is built and copied to `/opt/pinecall/wheels/<sha>/`, and
 `release.sh` runs on the box: the wheel into the venv, `migrate`, the gateway restarted and waited
-for, the workers of both worlds and the overflow restarted, the doctor. Then `tests/live` runs
+for, the workers of both worlds replaced one at a time and the overflow restarted, the doctor
+([a-deploy-never-cuts-a-call.md](protocol/a-deploy-never-cuts-a-call.md)): a release waits for
+each worker's drain, so it takes up to twenty minutes while calls are up. Then `tests/live` runs
 against the domain and `make logs` prints the journal of every unit since the gateway started,
 whole. `make rollback WHEEL=<sha>` releases an older wheel still on the box. The deploy account
 needs no sudo but the restarts, which a polkit rule allows. The first start mints each world's
@@ -217,7 +219,7 @@ before the target minute (`gcloud storage ls gs://<bucket>/`):
 
 ```sh
 # 1. Nothing writes while the database goes back; the database as it stands is kept aside.
-sudo systemctl stop pinecall-gateway 'pinecall-worker@*' 'pinecall-overflow@*' pinecall-wal.timer
+sudo systemctl stop pinecall-gateway 'pinecall-worker*@*' 'pinecall-overflow@*' pinecall-wal.timer
 sudo systemctl stop pinecall-postgres
 sudo podman volume export pinecall-postgres -o /var/lib/pinecall/before-restore.tar
 # 2. That night's base backup, every segment since, and the settings that stop at the target
@@ -242,8 +244,9 @@ for name in restore_command recovery_target_time recovery_target_action; do
   sudo podman exec pinecall-postgres psql -U pinecall -d pinecall -c "ALTER SYSTEM RESET $name"
 done
 sudo rm -rf /var/lib/pinecall/wal/restore
-sudo systemctl start pinecall-wal.timer pinecall-gateway pinecall-worker@production \
-  pinecall-worker@sandbox pinecall-overflow@production pinecall-doctor
+sudo systemctl start pinecall-wal.timer pinecall-gateway pinecall-worker-a@production \
+  pinecall-worker-b@production pinecall-worker-a@sandbox pinecall-worker-b@sandbox \
+  pinecall-overflow@production pinecall-doctor
 ```
 
 A target the archive does not reach yet ends step 4 in `FATAL: recovery ended before configured
@@ -348,7 +351,7 @@ fleets, and `pinecall-runtime fleet loop` grows and shrinks them through a cloud
 ## When it does not come up
 
 - The journal first, whole: `make logs` from a checkout, or on the box
-  `journalctl -u pinecall-gateway -u 'pinecall-worker@*' -u pinecall-migrate --since today`. The
+  `journalctl -u pinecall-gateway -u 'pinecall-worker*@*' -u pinecall-migrate --since today`. The
   sentence that stopped a unit is in it.
 - `box up` stops at the first step that fails and names it (`→ the box installed`); fix what it
   said and run it again: every step is safe to repeat.

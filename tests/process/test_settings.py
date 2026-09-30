@@ -240,3 +240,8 @@ def test_a_box_of_one_name_serves_both_worlds_at_it_and_its_console_is_productio
     unnamed = Settings.model_validate({"LIVEKIT_URL": "ws://127.0.0.1:7880"})
     assert unnamed.world_named("anything.example") is None
     assert unnamed.livekit_url_for("production") == "ws://127.0.0.1:7880"
+
+
+def test_systemd_says_where_a_worker_tells_it_is_ready(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NOTIFY_SOCKET", "/run/systemd/notify")
+    assert load().notify_socket == "/run/systemd/notify"
