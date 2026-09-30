@@ -152,7 +152,8 @@ From the console's box screens, or the operator's doors with the ops key
 - the **providers row** (`/v1/ops/providers`): the default vendor and model of each stage, the
   voices, the rates in dollars, the judge, the embedder. A box's first row can be written once from
   a file: `pinecall-runtime providers seed providers.json`, and its rates from the prices file:
-  `pinecall-runtime providers prices infra/box/prices.csv --apply`.
+  `pinecall-runtime providers prices infra/box/prices.csv --apply`. The row for open models on your
+  own GPU, and the servers it points at, is `infra/models/` ([the-open-stack.md](the-open-stack.md)).
 - the **box's vendor keys** (`/v1/ops/provider-keys/{vendor}`): offering a vendor is holding its key.
 - **admission** (`/v1/ops/admission`): what a new org is given in each world.
 - the **mail** the box posts through, its **brand**, the **fleets** each world dispatches to.
