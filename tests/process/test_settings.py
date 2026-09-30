@@ -197,6 +197,18 @@ def test_a_number_a_word_and_a_switch_are_read_as_what_they_are(
         load()
 
 
+def test_the_pool_holds_ten_connections_unless_the_variable_says_how_many(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PINECALL_DB_POOL", raising=False)
+    assert load().db_pool == 10
+    monkeypatch.setenv("PINECALL_DB_POOL", "40")
+    assert load().db_pool == 40
+    monkeypatch.setenv("PINECALL_DB_POOL", "0")
+    with pytest.raises(SettingsRefused, match="PINECALL_DB_POOL"):
+        load()
+
+
 def test_what_settings_print_never_shows_a_secret(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PINECALL_OPS_KEY", "the-ops-key-of-this-box")
     monkeypatch.setenv("PINECALL_VAULT_KEY", "the-vault-key-of-this-box")

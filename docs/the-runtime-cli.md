@@ -157,7 +157,7 @@ calls past their org's `retention_days` (`PUT /v1/org/policy`), oldest first; `r
 erases them, each through the erasure path with `retention` as who asked, 5 000 a run at most,
 then forgets the detail records of erased phone calls, and the dials, older than 24 months, and
 the WhatsApp message ids claimed more than 7 days ago ([whatsapp.md](protocol/whatsapp.md));
-`pinecall-retention.timer` runs it at 04:00 every night. `traceback <number> [--since
+then makes the log's days a week ahead (`call_log` is partitioned by UTC day; a row no day holds lands in `call_log_default`, and a day the default already holds rows of is named and not made) and drops each past day nothing is left in; `pinecall-retention.timer` runs it at 04:00 every night. `doctor`'s `days` line names rows in the default and fewer than two days made ahead. `traceback <number> [--since
 YYYY-MM-DD]` answers a carrier's traceback: every phone call with the number, still kept or erased
 with its record, and every dial to it placed or refused, with the org, the world, the number shown
 and who asked — 24 months back unless `--since` says a day. `migrate up` applies what the
@@ -172,7 +172,11 @@ YYYY-MM-DD]` folds each call's facts row (what the lists, the inbox and the insi
 from its log, every call's when no flag is given, and writes the row where it differs: one call at
 a time, each in a transaction of its own under the lock its appends take, so a live call waits
 milliseconds and nothing holds a long transaction; it prints how many calls it read and how many
-rows it rewrote. `doctor` asks each thing the box needs one question, a line each, and exits 1
+rows it rewrote. `usage rebuild` folds every org's
+usage totals (what admission counts, a row per org, world and month) again from the summaries in
+the log, as the usage feed folds each one, and rewrites the table in one transaction that holds
+it: a summary written meanwhile waits and is counted after; it prints how many summaries and rows.
+`doctor` asks each thing the box needs one question, a line each, and exits 1
 when one is missing; it is the last line of every deploy. Its `facts` line names every log whose
 head gave out fewer seqs than its rows hold, and refolds 20 sealed calls from a random point of
 the call ids, naming each whose stored facts differ and the columns that do: `facts rebuild

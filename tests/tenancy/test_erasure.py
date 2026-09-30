@@ -23,7 +23,7 @@ from pinecall.tenancy.canary import Canary, CanarySet
 from pinecall.tenancy.prompts import Prompts
 from pinecall.wire.rest.evals import Expect
 from pinecall.wire.scores import CallScore
-from tests.conftest import issued, postgres
+from tests.conftest import issued, outlasting_a_lock, postgres
 from tests.fakes.bucket import Bucket as Remote
 from tests.log.conftest import AGENT, ACall, judgment, logged_call
 from tests.tenancy.conftest import an_org
@@ -169,6 +169,20 @@ async def test_a_call_erased_leaves_no_row_no_recording_and_a_trail_that_counts_
     )
     assert (trail.calls, trail.memories, trail.recordings) == (1, 1, 1)
     assert trail.entries > 0
+
+
+async def test_an_erasure_runs_past_the_pools_statement_timeout(
+    pool: Pool, impatient_pool: Pool, store: Store, schema: str, tmp_path: Path
+) -> None:
+    org = await an_org(pool)
+    call = await logged_call(store, org.id)
+    a_recording(tmp_path, call)
+
+    async def erased() -> erasure.Erased:
+        return await erasure.call(impatient_pool, Disk(tmp_path), Scope(org.id), call, by="m_1")
+
+    await outlasting_a_lock(schema, "call_log", erased)
+    assert await left_of(pool, call) == NOTHING_LEFT
 
 
 async def test_the_log_still_refuses_every_update_and_a_delete_that_is_not_an_erasure(

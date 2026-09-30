@@ -8,11 +8,13 @@ from psycopg.rows import DictRow
 from pinecall.domain.errors import Conflict, StoreUnreachable
 from pinecall.domain.names import Env
 from pinecall.domain.scope import Scope
-from pinecall.postgres.pool import Pool
+from pinecall.postgres.pool import Pool, unbounded
 from pinecall.process.recordings import Recordings
 from pinecall.wire.rest.calls import Erasure, ErasureSubject
 
-# The trigger on call_log lets a DELETE through in this transaction alone (0011_erasure.sql).
+# The trigger on call_log lets a DELETE through in this transaction alone (0011_erasure.sql). An
+# erasure is unbounded: an org's logs are long to delete, and its recordings go inside the
+# transaction.
 ERASING = "SET LOCAL pinecall.erasing = 'on'"
 
 CALLS_OF_CONTACT = """
@@ -24,10 +26,10 @@ WHERE head.org = %(org)s AND head.env = %(env)s AND facts.contact = %(contact)s
 # Every log of the org: its calls, and its agents' own logs ("@<agent>"), which carry no call.
 LOGS_OF_ORG = "SELECT log, call, agent FROM call_log_head WHERE org = %(org)s"
 
-# What a call left: its entries and the private values sealed beside them, its head, its facts,
-# its tokens, the memories it taught, its recording's key, the verdicts its day's drift counted
-# (the day's sums keep its numbers, which name nobody), and the case of the org's dataset made of
-# it (evals/dataset.py). A phone call's numbers, times and end stay in call_records, and the dials
+# What a call left besides its entries: the private values sealed beside them, its head, facts,
+# tokens, the memories it taught, its recording's key, the verdicts its day's drift counted (the
+# day's sums keep its numbers, which name nobody), and the case of the org's dataset made of it
+# (evals/dataset.py). A phone call's numbers, times and end stay in call_records, and the dials
 # ledger stays: they name numbers and times, never what was said, and a traceback asks for them
 # (0016_call_records.sql). Every statement of the WITH reads the rows as they were before it, so
 # the record reads the facts.
@@ -41,7 +43,6 @@ WITH recorded AS (
     WHERE facts.call = ANY(%(calls)s) AND facts.channel = 'phone'
     ON CONFLICT (call) DO NOTHING
 ),
-     entries AS (DELETE FROM call_log WHERE log = ANY(%(logs)s) RETURNING 1),
      private AS (DELETE FROM call_private WHERE log = ANY(%(logs)s)),
      keys AS (DELETE FROM recording_keys WHERE call = ANY(%(calls)s)),
      heads AS (DELETE FROM call_log_head WHERE log = ANY(%(logs)s) RETURNING 1),
@@ -50,8 +51,12 @@ WITH recorded AS (
      taught AS (DELETE FROM contact_memories WHERE source_call = ANY(%(calls)s) RETURNING 1),
      drifted AS (DELETE FROM drift_calls WHERE call = ANY(%(calls)s)),
      promoted AS (DELETE FROM eval_cases WHERE source_call = ANY(%(calls)s))
-SELECT (SELECT count(*) FROM entries) AS entries, (SELECT count(*) FROM taught) AS memories
+SELECT (SELECT count(*) FROM taught) AS memories
 """
+
+# Before ERASE_LOGS takes the heads: call_log's trigger reads each summary's org off its head, to
+# take its usage out of the org's totals (0023_usage_totals.sql).
+ERASE_ENTRIES = "DELETE FROM call_log WHERE log = ANY(%(logs)s)"
 
 # A contact's memories no erased call taught (written by hand, or by a call erased before), and
 # what each reader had read of their thread.
@@ -119,7 +124,7 @@ async def call(
     pool: Pool, recordings: Recordings, scope: Scope, call_id: str, *, by: str
 ) -> Erased:
     """Erase one call: its log, facts, tokens, the memories it taught, and its recording."""
-    async with pool.connection() as connection, connection.transaction():
+    async with unbounded(pool) as connection:
         await connection.execute(ERASING)
         entries, memories = await _logs(connection, [call_id], [call_id])
         taking = _Taking(scope.org, scope.env, "call", call_id, by, [call_id], entries, memories)
@@ -131,7 +136,7 @@ async def contact(
 ) -> Erased:
     """Erase a contact in the world: every call they were on and every fact kept of them."""
     params = {"org": scope.org, "env": scope.env, "contact": contact_id}
-    async with pool.connection() as connection, connection.transaction():
+    async with unbounded(pool) as connection:
         await connection.execute(ERASING)
         rows = await (await connection.execute(CALLS_OF_CONTACT, params)).fetchall()
         live = next((str(row["call"]) for row in rows if not row["sealed"]), None)
@@ -147,7 +152,7 @@ async def contact(
 
 async def org(pool: Pool, recordings: Recordings, org_id: str, *, by: str) -> Erased:
     """Erase an org whole: every log it owns, every recording, then the org and what cascades."""
-    async with pool.connection() as connection, connection.transaction():
+    async with unbounded(pool) as connection:
         await connection.execute(ERASING)
         rows = await (await connection.execute(LOGS_OF_ORG, {"org": org_id})).fetchall()
         logs = [str(row["log"]) for row in rows]
@@ -170,8 +175,9 @@ async def trail(pool: Pool, org_id: str, *, limit: int = 100) -> list[Erasure]:
 async def _logs(
     connection: AsyncConnection[DictRow], logs: list[str], calls: list[str]
 ) -> tuple[int, int]:
+    entries = (await connection.execute(ERASE_ENTRIES, {"logs": logs})).rowcount
     row = await (await connection.execute(ERASE_LOGS, {"logs": logs, "calls": calls})).fetchone()
-    return (0, 0) if row is None else (int(row["entries"]), int(row["memories"]))
+    return entries, 0 if row is None else int(row["memories"])
 
 
 # The recordings go inside the transaction, before its trail is written: a disk or a bucket

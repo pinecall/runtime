@@ -146,7 +146,8 @@ and seals the call. A worker that ends a call, drains or hands a ring to the san
 
 `GET /v1/ops/usage?after=&limit=&org=`: every org's metered rows after the cursor, `{rows, totals:
 {org: totals}, next}`, one row per `call.summary` and `call.score` folded; the cursor is the store's
-position of the last row read, so a billing consumer resumes and counts nothing twice. With
+position of the last row read, so a billing consumer resumes and counts nothing twice, and skips
+nothing: the positions of metered rows are given in the order they commit. With
 `Accept: text/event-stream` the same rows stream, `id:` the cursor, then new ones as they land.
 An org reads its own at `GET /v1/usage`.
 

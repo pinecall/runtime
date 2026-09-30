@@ -236,3 +236,8 @@ why = "connected() is what the log's relay waits on to follow its channels again
 path = "pinecall/process/connections.py"
 checks = ["unread_field"]
 why = "Connections.signal is read by the log's relay and the gateway's registries from P3 3.2 on: the signal lands before its users"
+
+[[tool.vibesmell.skip]]
+path = "pinecall/log/store.py"
+checks = ["unstable_dependency"]
+why = "the writer is the store's own write half (log/_writer.py), split out as the queue that outlives a request; nothing else reaches it"

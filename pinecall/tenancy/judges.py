@@ -87,7 +87,7 @@ async def put_judge(pool: Pool, org: str, agent: str, written: AgentJudge, *, au
         "runs_on": written.runs_on,
         "author": author,
     }
-    async with pool.connection() as connection:
+    async with pool.connection() as connection, connection.transaction():
         clash = await (await connection.execute(CLASH, values)).fetchone()
         if clash is not None:
             raise Conflict(TAKEN.format(name=written.name, whose=_owner(str(clash["agent"]))))

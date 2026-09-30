@@ -202,6 +202,7 @@ class Outbox:
 
     # Kept on the mailbox the letter went through, never on another.
     async def _went(self, org: str | None, source: Source, error: str | None) -> None:
+        # independent: one of the two runs, on the mailbox the letter went through
         async with self.connections.pool.connection() as connection:
             if source == "org":
                 await connection.execute(ORG_MAIL_WENT, {"org": org, "error": error})

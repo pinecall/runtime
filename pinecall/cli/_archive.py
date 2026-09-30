@@ -57,6 +57,7 @@ class Archive:
 
 async def archive_of(pool: Pool) -> Archive:
     """Read the archiver's state and, when it is on, the spool's backlog."""
+    # independent: two reads of the archiver's state, each its own snapshot
     async with pool.connection() as connection:
         row = await (await connection.execute(ARCHIVER)).fetchone()
         if row is None or row["mode"] == "off":

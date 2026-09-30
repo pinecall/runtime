@@ -11,7 +11,11 @@ import pytest
 from psycopg import sql
 
 from pinecall.domain.errors import MigrationsRefused
+from pinecall.domain.names import JsonObject
+from pinecall.domain.scope import Scope
+from pinecall.log.store import Claim, Store
 from pinecall.postgres.migrate import (
+    ADVISORY_LOCK,
     FIRST,
     MIGRATIONS,
     MIGRATIONS_TABLE,
@@ -24,6 +28,7 @@ from pinecall.postgres.migrate import (
     migrations_behind,
 )
 from pinecall.postgres.pool import connect, database_named, open_pool
+from pinecall.tenancy import usage
 
 DSN = os.environ.get("DATABASE_URL", "")
 
@@ -324,6 +329,29 @@ async def test_two_runs_at_once_do_not_both_migrate(schema: str) -> None:
     assert set(ran) == {path.name for path in migration_files()}
 
 
+# PGOPTIONS stands for a timeout the role or the database was given: libpq sends it on connect.
+@postgres
+async def test_a_run_waits_for_another_runner_whatever_timeout_the_session_was_given(
+    schema: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    locked = asyncio.Event()
+
+    async def another_runner() -> None:
+        async with await connect(DSN) as connection:
+            await connection.execute("select pg_advisory_lock(%s)", (ADVISORY_LOCK,))
+            locked.set()
+            await asyncio.sleep(0.4)
+            await connection.execute("select pg_advisory_unlock(%s)", (ADVISORY_LOCK,))
+
+    async def once_locked() -> tuple[str, ...]:
+        await locked.wait()
+        monkeypatch.setenv("PGOPTIONS", "-c statement_timeout=100")
+        return (await apply_migrations(DSN, schema=schema)).applied
+
+    _, applied = await asyncio.gather(another_runner(), once_locked())
+    assert applied == tuple(path.name for path in migration_files())
+
+
 @postgres
 async def test_a_run_says_which_database_it_talked_to_and_never_the_password(schema: str) -> None:
     ran = await apply_migrations(DSN, schema=schema)
@@ -430,3 +458,50 @@ async def test_the_time_an_app_served_is_a_count_per_day_of_an_org_that_exists(
         with pytest.raises(psycopg.errors.ForeignKeyViolation):
             await connection.execute(insert, ("nobody", 1.0))
     assert await column_of(schema, "hosted_usage", "seconds") == ["5.0"]
+
+
+# The database as the release before usage_totals left it: no table, no function, no trigger.
+BEFORE_THE_TOTALS = """
+drop table usage_totals;
+drop function usage_of_summaries_written, usage_of_summaries_erased, usage_of_a_log_moved,
+              usage_counted, summary_usage, usage_rows, usage_number, usage_period cascade;
+delete from schema_migrations where name = '0023_usage_totals.sql';
+"""
+
+
+def a_summary_of(duration_s: float) -> JsonObject:
+    """A summary as the seal writes one."""
+    cost: JsonObject = {"usd": 0.5, "rows": [], "unpriced": []}
+    return {
+        "reason": "caller_hung_up",
+        "outcome": "done",
+        "duration_s": duration_s,
+        "turns": 2,
+        "usage": [],
+        "cost": cost,
+    }
+
+
+@postgres
+async def test_the_totals_are_backfilled_from_every_summary_the_log_holds(schema: str) -> None:
+    await apply_migrations(DSN, schema=schema)
+    pool = await open_pool(DSN, schema=schema)
+    try:
+        async with pool.connection() as connection:
+            await connection.execute(BEFORE_THE_TOTALS)
+        store = Store(pool, clock=lambda: 1790726400.0)
+        for n, org in enumerate(("org-a", "org-a", "org-b")):
+            call = f"CA_backfilled_{n}"
+            await store.claim(call, "agent", org, Claim(Scope(org)))
+            summary = a_summary_of(60.0 * (n + 1))
+            await store.append(call, "agent", "call.summary", summary, ephemeral=False)
+        await store.writer.drained()
+        assert (await apply_migrations(DSN, schema=schema)).applied == ("0023_usage_totals.sql",)
+        kept = await usage.totals(pool)
+        assert kept == await usage.rebuild(pool)
+    finally:
+        await pool.close()
+    assert [(month.org, used.calls, used.minutes) for month, used in sorted(kept.items())] == [
+        ("org-a", 2, 3.0),
+        ("org-b", 1, 3.0),
+    ]

@@ -38,7 +38,7 @@ from pinecall.retrieval.knowledge import (
     where,
 )
 from pinecall.tenancy import orgs
-from tests.conftest import postgres
+from tests.conftest import outlasting_a_lock, postgres
 from tests.fakes.embeddings import Embeddings, Meanings
 
 URL = "https://embeddings.test/v1"
@@ -319,6 +319,17 @@ async def test_a_push_counts_its_chunks_and_a_second_push_replaces_the_first(
     assert {item.path for item in await found(pool, embedder, at(org), "turnos teléfono")} == {
         "tarifas.md"
     }
+
+
+@postgres
+async def test_a_push_indexes_its_chunks_past_the_pools_statement_timeout(
+    impatient_pool: Pool, embedder: Embedder, org: str, schema: str
+) -> None:
+    async def indexed() -> None:
+        await pushed(impatient_pool, embedder, at(org), THE_BASE, CLINICA, TARIFAS)
+
+    await outlasting_a_lock(schema, "knowledge_chunks", indexed)
+    assert await chunks_of_the_base(impatient_pool, org) == [5]
 
 
 @postgres

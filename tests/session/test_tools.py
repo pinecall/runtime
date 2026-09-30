@@ -58,6 +58,16 @@ def went_out(log: Log, many: int = 1) -> asyncio.Event:
     return out
 
 
+# A tool.call goes out once the log has written it: waited for, never guessed at with a sleep.
+async def gone_out(calls: ToolCalls, n: int) -> None:
+    """Return once n tool.call entries went out and nobody answered them yet."""
+    async with asyncio.timeout(5):
+        while True:
+            if len(calls.pending()) >= n:
+                return
+            await asyncio.sleep(0.001)
+
+
 def _call(box: Box, config: AgentConfig) -> Call:
     assert box.log.call is not None
     return Call(context_of(box.log.call), config, box.platform())
