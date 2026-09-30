@@ -5,6 +5,7 @@ import json
 import signal
 import sys
 import textwrap
+from collections.abc import Callable, Coroutine
 
 import psycopg
 import pytest
@@ -12,6 +13,7 @@ from psycopg import sql
 
 from pinecall.domain.agent import Versions
 from pinecall.domain.errors import Conflict, DeclarationRefused
+from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.log.reduce import reduce
 from pinecall.log.store import (
@@ -432,6 +434,93 @@ async def test_across_pages_the_metered_types_of_every_log_by_position(
     resumed = await store.across(("call.summary",), after=rows[0].position)
     assert [row.entry.call for row in resumed] == [other]
     assert await store.across(("call.summary",), after=rows[1].position) == []
+
+
+# Who waits behind a backend: the one a row lock holds, then the one that one holds.
+WAITING_ON = "select pid from pg_stat_activity where %(pid)s = any(pg_blocking_pids(pid))"
+
+A_START: JsonObject = {
+    "channel": "phone",
+    "from": "+34600111222",
+    "to": "+34910000000",
+    "caller": None,
+    "direction": "inbound",
+    "started_at": 1.0,
+    "persona": None,
+}
+
+A_SUMMARY: JsonObject = {"duration_s": 1}
+
+FEEDS = ("call.summary", "call.score")
+
+
+async def waiter_of(pool: Pool, pid: int, done: Callable[[], bool] = lambda: False) -> int | None:
+    """The backend that waits on this one, once one does; None when `done` comes first."""
+    async with asyncio.timeout(10):
+        while not done():
+            async with pool.connection() as connection:
+                row = await (await connection.execute(WAITING_ON, {"pid": pid})).fetchone()
+            if row is not None:
+                return int(row["pid"])
+            await asyncio.sleep(0.01)
+    return None
+
+
+# Each way a fed row is written: the gateway's entry, a worker's batch, a verdict on a sealed log.
+async def fed_by_append(store: Store, call: str) -> str:
+    await store.append(call, AGENT, "call.summary", A_SUMMARY, ephemeral=False)
+    return "call.summary"
+
+
+async def fed_by_batch(store: Store, call: str) -> str:
+    summary = Unnumbered("call.summary", A_SUMMARY, ephemeral=False, ts=1.0)
+    await store.append_many(call, AGENT, [summary], after=0)
+    return "call.summary"
+
+
+async def fed_by_rescore(store: Store, call: str) -> str:
+    await store.seal(call)
+    await store.rescored(call, AGENT, {"judges": [], "judge_calls": 0})
+    return "call.score"
+
+
+# The skip: a row numbered first and committed last, after a reader's cursor passed its number.
+@pytest.mark.parametrize("fed", [fed_by_append, fed_by_batch, fed_by_rescore])
+async def test_a_feed_read_by_cursor_never_passes_a_row_that_commits_late(
+    pool: Pool,
+    store: Store,
+    call: str,
+    schema: str,
+    fed: Callable[[Store, str], Coroutine[None, None, str]],
+) -> None:
+    early, late = f"{call}-early", f"{call}-late"
+    for each in (early, late):
+        await store.append(each, AGENT, "call.started", A_START, ephemeral=False)
+    async with await connect(DSN) as holder:
+        await holder.execute(sql.SQL("set search_path to {}").format(sql.Identifier(schema)))
+        async with holder.transaction():
+            # The early summary is numbered, then waits on its facts row before it can commit.
+            await holder.execute("select 1 from call_facts where call = %s for update", (early,))
+            numbered_first = asyncio.create_task(fed(store, early))
+            blocked = await waiter_of(pool, holder.info.backend_pid)
+            assert blocked is not None
+            numbered_last = asyncio.create_task(
+                store.append(late, AGENT, "call.score", A_SUMMARY, ephemeral=False)
+            )
+            await waiter_of(pool, blocked, numbered_last.done)
+            read_first = await store.across(FEEDS)
+        await numbered_first
+        await numbered_last
+    cursor = read_first[-1].position if read_first else 0
+    read_after = await store.across(FEEDS, after=cursor)
+    whole = await store.across(FEEDS)
+    assert [row.entry.call for row in whole] == [early, late]
+    assert [row.position for row in [*read_first, *read_after]] == [row.position for row in whole]
+
+
+async def test_a_type_no_writer_orders_by_commit_is_not_read_across_every_log(store: Store) -> None:
+    with pytest.raises(DeclarationRefused, match=r"turn\.user"):
+        await store.across(("call.summary", "turn.user"))
 
 
 async def test_the_operator_sees_the_newest_calls_and_the_newest_one_still_live(
