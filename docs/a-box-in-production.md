@@ -126,6 +126,8 @@ through Caddy, which marks every request it passes on with `X-Forwarded-For`. Th
 | `pinecall_pool_requests_total` · `pinecall_pool_wait_seconds_total` | connections asked of the pool, and the time spent waiting for one: their rates' ratio is the mean wait |
 | `pinecall_held{what}` | live log readers, app sockets and calls served, now |
 | `pinecall_fleet{fleet,what}` | each fleet as its heartbeats say: workers, seats, busy, accepting |
+| `pinecall_worker_state{fleet,worker,state}` | 1 for each worker heard lately, labelled how the roster counts it: `accepting`, `failing`, `full`, `draining`, `cordoned` ([scaling.md](scaling.md)) |
+| `pinecall_worker_first_audio_p95_seconds{fleet,worker}` | each worker's first audio at the p95 over its last minute, as its heartbeat says; absent under five turns |
 
 Counts start at zero when the gateway starts; the roster fills within one heartbeat, five seconds.
 

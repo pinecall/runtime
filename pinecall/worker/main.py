@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import signal
-import socket
 import time
 
 from livekit.agents import AgentServer, JobContext, JobProcess
@@ -16,6 +15,7 @@ from pinecall.domain.errors import GatewayRefused, SettingsRefused
 from pinecall.domain.scope import Scope
 from pinecall.fleet.client import GatewayClient, gateway_at
 from pinecall.fleet.heartbeat import CORDONED_EXIT, Heartbeats, Load
+from pinecall.fleet.measures import LastMinute, listening, measures_path
 from pinecall.fleet.roster import HEARTBEAT_S
 from pinecall.process.settings import Settings, load
 from pinecall.providers.build import tts_of
@@ -142,7 +142,9 @@ async def run(settings: Settings) -> int:
     """Run the worker until it is told to stop or cordoned; the exit it leaves with."""
     server = server_of(settings)
     gateway = gateway_at(settings.gateway_url, settings.worker_key)
-    beats = Heartbeats(server, gateway, settings, settings.worker_name or _short_host())
+    minute = LastMinute()
+    hearing = await listening(measures_path(settings), minute)
+    beats = Heartbeats(server, gateway, settings, minute)
     stopping = _stop_on_a_signal()
     running = asyncio.create_task(server.run())
     beating = asyncio.create_task(beats.run())
@@ -156,6 +158,8 @@ async def run(settings: Settings) -> int:
     await server.aclose()
     for task in (*waits, beating):
         task.cancel()
+    hearing.close()
+    measures_path(settings).unlink(missing_ok=True)
     await gateway.aclose()
     return CORDONED_EXIT if beats.cordoned else 0
 
@@ -312,7 +316,3 @@ def _stop_on_a_signal() -> asyncio.Event:
     for stop in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(stop, stopping.set)
     return stopping
-
-
-def _short_host() -> str:
-    return socket.gethostname().split(".")[0]

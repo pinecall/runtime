@@ -190,6 +190,7 @@ class Session:
         hold: HoldMusic | None = None,
         seat: str | None = None,
         opening: str | None = None,
+        worker: str | None = None,
     ) -> None:
         """Open a new call: its first entries, the session, the opening, the greeting."""
         self.room = where
@@ -198,7 +199,9 @@ class Session:
         self.call.writing.open()
         context = self.call.context
         door = context.route.number or self.call.config.slug
-        started = wire.CallStarted.model_validate(started_entry(context, door, self.started_at))
+        started = wire.CallStarted.model_validate(
+            started_entry(context, door, self.started_at, worker)
+        )
         await self.call.writing.write("call.started", started)
         knowledge = _prompt.knowledge_changed(self.blocks)
         if knowledge is not None:

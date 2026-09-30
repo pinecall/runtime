@@ -32,6 +32,8 @@ from pinecall.domain.names import (
 )
 from pinecall.domain.scope import SCOPE_ATTRIBUTE, Scope
 from pinecall.fleet.client import GatewayClient, again
+from pinecall.fleet.heartbeat import worker_name_of
+from pinecall.fleet.measures import measures_path, reported
 from pinecall.process.settings import Settings
 from pinecall.providers.credentials import Pipeline
 from pinecall.session import room
@@ -148,7 +150,8 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
         data = SealCallRequest(usage=usage, outcome=outcome, recording=kept, lent=pipeline.lent)
         await gateway.sealed(context.call, data)
 
-    call = Call(context, config, _platform(gateway, context.call, config, ended))
+    measures = measures_path(settings)
+    call = Call(context, config, _platform(gateway, context.call, config, ended, measures))
     session = text_session(call, pipeline.llm) if typed else voice_session(call, pipeline)
 
     # Registered before anything else can fail: a call that dies in its setup still seals.
@@ -170,6 +173,7 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
         hold=hold,
         seat=await _seat_of(ctx.room, route.channel, typed=typed),
         opening=None if typed else opening_of(opened, recorded=audio is not None),
+        worker=worker_name_of(settings),
     )
     if hold is not None:
         await hold.start(ctx.room)
@@ -378,8 +382,12 @@ def _recorded(config: AgentConfig, settings: Settings, call: str, *, typed: bool
     return recording_path(Path(settings.recordings_root), call)
 
 
-def _platform(gateway: GatewayClient, call: str, config: AgentConfig, seal: Seal) -> Platform:
+# What the call writes also tells its worker's heartbeat: first audio, errors, how it ended.
+def _platform(
+    gateway: GatewayClient, call: str, config: AgentConfig, seal: Seal, measures: Path
+) -> Platform:
     async def append_many(entries: list[BatchedEntry], *, after: int) -> list[Entry]:
+        reported(measures, entries)
         return await gateway.append_many(call, entries, after=after)
 
     async def tool(use: ToolUse, speech: str | None) -> ToolResult:

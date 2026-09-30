@@ -15,6 +15,12 @@ class HeartbeatRequest(WireModel):
     max_jobs: int | None
     load: float
     draining: bool
+    # Its last minute, as its calls' jobs told it; absent from a worker of an older release.
+    ended: int | None = None
+    failed: int | None = None
+    errors: int | None = None
+    turns: int | None = None
+    first_audio_p95_s: float | None = None
 
 
 class HeartbeatResponse(WireModel):
@@ -49,3 +55,8 @@ class WorkerStatus(WireModel):
     draining: bool
     cordoned: bool
     seen_at: float
+    ended: int | None = None
+    failed: int | None = None
+    errors: int | None = None
+    turns: int | None = None
+    first_audio_p95_s: float | None = None
