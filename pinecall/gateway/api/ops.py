@@ -199,6 +199,7 @@ async def put_quotas(named: str, body: PutQuotasRequest, gateway: GatewayDep) ->
         numbers=wanted.limits.get("numbers"),
         seats=wanted.limits.get("seats"),
         llm_tokens=wanted.limits.get("llm_tokens"),
+        hosted_apps=wanted.limits.get("hosted_apps"),
         budget_usd=wanted.budget_usd,
         lends=None if wanted.lends is None else parse_lending(wanted.lends),
     )
