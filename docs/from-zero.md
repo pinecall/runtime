@@ -24,7 +24,8 @@ that version with its names and secrets kept. On the box, `sudo pinecall-runtime
 operator verb with the box's own credentials ([the-runtime-cli.md](the-runtime-cli.md)).
 
 The box then needs a vendor for each stage with a key it holds: the providers row
-(`/v1/ops/providers`, `/v1/ops/provider-keys/{vendor}`, or the console's Box screens).
+(`/v1/ops/providers`, `/v1/ops/provider-keys/{vendor}`, or the console's Box screens). On your own
+GPU, with open models and no cloud vendor at all: [the-open-stack.md](the-open-stack.md).
 
 Pinecall's own box is made the other way, from this repository, so a change is deployed before it
 is released: `make box`, `make deploy` ([a-box-in-production.md](a-box-in-production.md)).

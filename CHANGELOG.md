@@ -7,6 +7,11 @@
 - How a spoken turn ends is the ears' `tuning` too: `turn_model` picks the local model that reads
   the end of the caller's turn off the audio, `v1-mini` (livekit's, the default) or `smart-turn-v3`
   (Daily's Smart Turn v3, a new dependency, 8 MB of ONNX on the worker's CPU).
+- The open stack: `infra/models/` holds three model servers for one NVIDIA GPU (`compose.yaml`:
+  Nemotron ASR Streaming, Gemma 4 12B and bge-m3 on Ollama, Kokoro-82M) and the providers row that
+  points a box at them (`providers.json`); the wheel carries it as `pinecall/infra/models/`.
+  `docs/the-open-stack.md` walks it and has the numbers: 2.1 s from the caller's last word to the
+  agent's first on an RTX 3090.
 
 ## 0.1.2 — A box from the package itself
 

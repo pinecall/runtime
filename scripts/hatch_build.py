@@ -7,8 +7,9 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
 NOT_BUILT = "no build/public: run scripts/console before building the wheel"
 
-# What `pinecall-runtime box up` makes a machine from: the box's files and the Postgres image.
-INFRA = ("box", "postgres")
+# What `pinecall-runtime box up` makes a machine from: the box's files and the Postgres image;
+# and the open stack's servers and row, for a box that runs on its own GPU.
+INFRA = ("box", "postgres", "models")
 
 # Pinecall's own backup key: a box someone else runs encrypts to the key they give `box up`.
 NOT_SHIPPED = frozenset({"backup.age.pub"})
