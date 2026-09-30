@@ -192,6 +192,38 @@ class EvalCaseList(WireModel):
     cases: list[EvalCase]
 
 
+# ── the judge judged ──
+
+
+class LabelRequest(WireModel):
+    """POST /v1/evals/calibration, the body: what one judge should have answered on a call."""
+
+    call: str
+    judge: str = Field(min_length=1)
+    held: bool
+    note: str | None = None
+
+
+class JudgeAgreement(WireModel):
+    """One judge against the labels people gave: how many, compared, agreed, and trusted."""
+
+    judge: str
+    labelled: int
+    compared: int
+    agreed: int
+    rate: float | None
+    # None until enough labels were compared to say; False is a judge under its line.
+    trusted: bool | None
+
+
+class Calibration(WireModel):
+    """GET /v1/evals/calibration: each judge's agreement, and the line it is held to."""
+
+    judges: list[JudgeAgreement]
+    labels_to_judge: int
+    agrees_at_least: float
+
+
 # ── a finished call checked again ──
 
 

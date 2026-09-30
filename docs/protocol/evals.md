@@ -110,6 +110,17 @@ contact who made it, or the org erases the case in the same transaction (`tenanc
 and so does the nightly retention run, which erases through the same path. The calls a run
 plays a case in are calls of the sandbox like any other, under the org's retention there.
 
+## The judge judged — `POST /v1/evals/calibration`, `GET /v1/evals/calibration?agent=`
+
+A person who knows says what a judge should have answered on a finished call:
+`POST /v1/evals/calibration {call, judge, held, note?}` keeps it (a second label of the same
+call and judge replaces the first), in the call's world, by the key's person. `GET` answers each
+judge against those labels, beside the verdict the seal counted for it on the same call:
+`{judges: [{judge, labelled, compared, agreed, rate, trusted}], labels_to_judge, agrees_at_least}`.
+A judge is judged once 10 labels have its verdict beside them, and `trusted` is false while it
+agrees with fewer than 80 % of them: it is reported, never dropped silently, and until 10 it is
+null. Erasing the call takes its labels.
+
 ## The judges
 
 A judge is settled by code, or by one question to the judge model when code leaves the answer
