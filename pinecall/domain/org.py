@@ -8,7 +8,8 @@ from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import parse_slug
 
 # Names match the DB columns and the wire. The first four are flows (consumed or open now); the
-# rest are stocks (rows kept), which lets a plan disable a feature with a zero.
+# rest are stocks (rows kept), which lets a plan disable a feature with a zero; the budget is
+# dollars a month, both worlds together.
 type QuotaName = Literal[
     "minutes",
     "messages",
@@ -20,6 +21,7 @@ type QuotaName = Literal[
     "seats",
     "llm_tokens",
     "hosted_apps",
+    "budget_usd",
 ]
 
 
@@ -59,17 +61,18 @@ class Quotas:
     llm_tokens: int | None = None
     # Apps the box runs for the org from sources it uploaded.
     hosted_apps: int | None = None
-    # Monthly budget in whole US dollars. Informational: nothing is refused over it.
+    # Whole US dollars a calendar month, both worlds together: a new call is refused past it.
     budget_usd: int | None = None
     # Box vendor keys the org may use: None all, empty none, else `vendor` or `vendor/model`.
     lends: frozenset[str] | None = None
 
     def __post_init__(self) -> None:
         for name, limit in self.limits.items():
-            if limit is not None and limit < 0:
-                raise DeclarationRefused(f"a quota is a count, and {name} cannot be {limit}")
-        if self.budget_usd is not None and self.budget_usd < 0:
-            raise DeclarationRefused(f"a budget is dollars, and cannot be {self.budget_usd}")
+            if limit is None or limit >= 0:
+                continue
+            if name == "budget_usd":
+                raise DeclarationRefused(f"a budget is dollars, and cannot be {limit}")
+            raise DeclarationRefused(f"a quota is a count, and {name} cannot be {limit}")
 
     @property
     def limits(self) -> Mapping[QuotaName, int | None]:
@@ -85,6 +88,7 @@ class Quotas:
             "seats": self.seats,
             "llm_tokens": self.llm_tokens,
             "hosted_apps": self.hosted_apps,
+            "budget_usd": self.budget_usd,
         }
 
     def reached(self, quota: QuotaName, used: float) -> int | None:

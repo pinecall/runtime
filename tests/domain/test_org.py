@@ -52,12 +52,13 @@ def test_a_quota_is_a_count_and_a_negative_one_is_refused_by_name() -> None:
         Quotas(budget_usd=-1)
 
 
+# The budget is dollars, not a count: a limit all the same, but set apart on the wire and the CLI.
 def test_the_quota_names_are_spelled_once_and_the_dataclass_has_a_field_for_each() -> None:
-    assert set(QUOTAS) == set(Quotas().limits)
+    assert {*QUOTAS, "budget_usd"} == set(Quotas().limits)
     assert set(QUOTAS) <= {declared.name for declared in fields(Quotas)}
     assert all(limit is None for limit in Quotas().limits.values())
 
 
 def test_the_quota_names_here_are_the_ones_a_refusal_may_say() -> None:
     assert wire_events.CreditsExhausted.model_fields["quota"].annotation is QuotaName
-    assert set(QUOTAS) == set(get_args(QuotaName.__value__))
+    assert {*QUOTAS, "budget_usd"} == set(get_args(QuotaName.__value__))

@@ -257,7 +257,9 @@ async def place_call(
         consent=placement.consent,
     )
     guards = await guard_dial(connections.pool, dial)
-    await admission.admit_call(connections.pool, scope.org, scope.env, running=running)
+    await admission.admit_call(
+        connections.pool, scope.org, scope.env, running=running, at=placement.at.timestamp()
+    )
     context = CallContext(
         call=call,
         channel="phone",

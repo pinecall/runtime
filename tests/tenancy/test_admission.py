@@ -23,14 +23,14 @@ from pinecall.tenancy.admission import (
     set_quotas,
 )
 from pinecall.tenancy.orgs import create, remove
-from pinecall.tenancy.usage import used
+from pinecall.tenancy.usage import month_of, used
 from tests.conftest import postgres
 
 CLOSED = Quotas(minutes=0, messages=0, concurrent_calls=0)
 TRIAL = Quotas(minutes=30, messages=300, concurrent_calls=1, lends=frozenset({"deepgram"}))
 
 
-def _summary(seconds: float, turns: int, tokens: int) -> JsonObject:
+def _summary(seconds: float, turns: int, tokens: int, usd: float = 0.01) -> JsonObject:
     llm: JsonObject = {
         "type": "llm_usage",
         "provider": "acme",
@@ -44,11 +44,7 @@ def _summary(seconds: float, turns: int, tokens: int) -> JsonObject:
         "duration_s": seconds,
         "turns": turns,
         "usage": [llm],
-        "cost": {
-            "usd": 0.01,
-            "rows": [],
-            "unpriced": [],
-        },
+        "cost": {"usd": usd, "rows": [], "unpriced": []},
     }
 
 
@@ -67,14 +63,32 @@ async def test_what_an_org_used_is_its_calls_summaries_in_that_world_only(
     await _a_call(store, org, "sandbox", _summary(60, 2, 100), "call_2")
     await _a_call(store, org, "production", _summary(600, 10, 5000), "call_3")
     await _a_call(store, other, "sandbox", _summary(600, 10, 5000), "call_4")
-    spent = await used(pool, org.id, "sandbox")
+    spent = await used(pool, org.id, "sandbox", month_of(store.clock()))
     assert (spent.calls, spent.minutes, spent.messages, spent.input_tokens) == (2, 3.0, 6, 1000)
+
+
+# Dollars are the same in both worlds: the sandbox's spend counts against production's budget.
+@postgres
+async def test_the_budget_refuses_a_new_call_once_both_worlds_spent_it_this_month(
+    pool: Pool, store: Store
+) -> None:
+    org = await create(pool, "clinica-norte", "Clínica Norte")
+    await set_quotas(pool, org.id, "production", Quotas(budget_usd=1))
+    await _a_call(store, org, "sandbox", _summary(60, 2, 0, usd=0.6), "call_1")
+    assert await admit_call(pool, org.id, "production", running=0, at=1.0) is None
+    await _a_call(store, org, "production", _summary(60, 2, 0, usd=0.5), "call_2")
+    with pytest.raises(
+        QuotaExhausted, match=r"spent 1\.1 of its 1 USD budget this month"
+    ) as refused:
+        await admit_call(pool, org.id, "production", running=0, at=1.0)
+    assert (refused.value.quota, refused.value.used, refused.value.limit) == ("budget_usd", 1.1, 1)
+    assert await admit_call(pool, org.id, "sandbox", running=0, at=1.0) is None
 
 
 @postgres
 async def test_an_org_nobody_limited_is_admitted_with_no_ceiling(pool: Pool) -> None:
     org = await create(pool, "clinica-norte", "Clínica Norte")
-    assert await admit_call(pool, org.id, "sandbox", running=100) is None
+    assert await admit_call(pool, org.id, "sandbox", running=100, at=1.0) is None
 
 
 @postgres
@@ -84,7 +98,7 @@ async def test_a_call_is_admitted_with_what_is_left_of_the_minutes_as_its_ceilin
     org = await create(pool, "clinica-norte", "Clínica Norte")
     await set_quotas(pool, org.id, "sandbox", Quotas(minutes=30))
     await _a_call(store, org, "sandbox", _summary(600, 4, 0), "call_1")
-    ceiling = await admit_call(pool, org.id, "sandbox", running=0)
+    ceiling = await admit_call(pool, org.id, "sandbox", running=0, at=1.0)
     assert ceiling is not None
     assert (ceiling.seconds, ceiling.minutes) == (20 * 60, 30)
 
@@ -99,7 +113,7 @@ async def test_the_minutes_spent_refuse_the_next_call_naming_the_quota_and_the_n
     with pytest.raises(
         QuotaExhausted, match=r"used 1\.5 of its 1 minutes in the sandbox"
     ) as refused:
-        await admit_call(pool, org.id, "sandbox", running=0)
+        await admit_call(pool, org.id, "sandbox", running=0, at=1.0)
     assert (refused.value.quota, refused.value.used, refused.value.limit) == ("minutes", 1.5, 1)
 
 
@@ -109,7 +123,7 @@ async def test_what_the_sandbox_spent_never_closes_production(pool: Pool, store:
     await set_quotas(pool, org.id, "sandbox", Quotas(minutes=1))
     await set_quotas(pool, org.id, "production", Quotas(minutes=100))
     await _a_call(store, org, "sandbox", _summary(600, 2, 0), "call_1")
-    assert await admit_call(pool, org.id, "production", running=0) is not None
+    assert await admit_call(pool, org.id, "production", running=0, at=1.0) is not None
 
 
 @postgres
@@ -118,9 +132,9 @@ async def test_a_call_past_the_concurrent_calls_is_refused_before_anything_is_co
 ) -> None:
     org = await create(pool, "clinica-norte", "Clínica Norte")
     await set_quotas(pool, org.id, "sandbox", Quotas(concurrent_calls=1))
-    await admit_call(pool, org.id, "sandbox", running=0)
+    await admit_call(pool, org.id, "sandbox", running=0, at=1.0)
     with pytest.raises(QuotaExhausted, match="concurrent calls"):
-        await admit_call(pool, org.id, "sandbox", running=1)
+        await admit_call(pool, org.id, "sandbox", running=1, at=1.0)
 
 
 @postgres
@@ -129,18 +143,18 @@ async def test_the_tokens_spent_refuse_a_call_and_a_turn(pool: Pool, store: Stor
     await set_quotas(pool, org.id, "sandbox", Quotas(llm_tokens=1000))
     await _a_call(store, org, "sandbox", _summary(10, 1, 1000), "call_1")
     with pytest.raises(QuotaExhausted, match="llm tokens"):
-        await admit_call(pool, org.id, "sandbox", running=0)
+        await admit_call(pool, org.id, "sandbox", running=0, at=1.0)
     with pytest.raises(QuotaExhausted, match="llm tokens"):
-        await admit_turn(pool, org.id, "sandbox", turns=0, tokens=0)
+        await admit_turn(pool, Scope(org.id, "sandbox"), turns=0, tokens=0, at=1.0)
 
 
 @postgres
 async def test_a_long_written_call_counts_its_own_turns_before_its_summary(pool: Pool) -> None:
     org = await create(pool, "clinica-norte", "Clínica Norte")
     await set_quotas(pool, org.id, "sandbox", Quotas(messages=10))
-    await admit_turn(pool, org.id, "sandbox", turns=9, tokens=0)
+    await admit_turn(pool, Scope(org.id, "sandbox"), turns=9, tokens=0, at=1.0)
     with pytest.raises(QuotaExhausted, match="10 of its 10 messages"):
-        await admit_turn(pool, org.id, "sandbox", turns=10, tokens=0)
+        await admit_turn(pool, Scope(org.id, "sandbox"), turns=10, tokens=0, at=1.0)
 
 
 @postgres

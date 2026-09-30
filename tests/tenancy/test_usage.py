@@ -88,10 +88,10 @@ async def test_a_summary_is_counted_in_its_org_world_and_month_as_it_is_written(
         characters=40,
         cost_usd=0.25,
     )
-    assert await usage.used(pool, "org-a", "production") == Usage()
+    assert await usage.used(pool, "org-a", "production", date(2026, 9, 1)) == Usage()
 
 
-async def test_admission_reads_every_month_summed_and_a_month_spend_crosses_both_worlds(
+async def test_admission_reads_one_month_of_one_world_and_a_month_spend_crosses_both_worlds(
     pool: Pool, call: str
 ) -> None:
     await a_call(pool, Scope("org-a"), a_summary(1, usd=1.0), at=SEPTEMBER, call=f"{call}-1")
@@ -99,8 +99,10 @@ async def test_admission_reads_every_month_summed_and_a_month_spend_crosses_both
     await a_call(
         pool, Scope("org-a", "sandbox"), a_summary(4, usd=4.0), at=OCTOBER, call=f"{call}-3"
     )
-    used = await usage.used(pool, "org-a", "production")
-    assert (used.calls, used.minutes, used.cost_usd) == (2, 3.0, 3.0)
+    used = await usage.used(pool, "org-a", "production", date(2026, 10, 17))
+    assert (used.calls, used.minutes, used.cost_usd) == (1, 2.0, 2.0)
+    before = await usage.used(pool, "org-a", "production", date(2026, 9, 30))
+    assert (before.calls, before.minutes, before.cost_usd) == (1, 1.0, 1.0)
     assert await usage.spent_in(pool, "org-a", date(2026, 10, 17)) == 6.0
     assert await usage.spent_in(pool, "org-a", date(2026, 9, 30)) == 1.0
 
@@ -112,15 +114,16 @@ async def test_an_erased_call_is_taken_out_of_its_orgs_totals(
     await a_call(pool, scope, a_summary(1, usd=1.0), at=SEPTEMBER, call=f"{call}-kept")
     erased = await a_call(pool, scope, a_summary(2, usd=2.0), at=SEPTEMBER, call=f"{call}-gone")
     await erasure.call(pool, Disk(tmp_path), scope, erased, by="m_1")
-    used = await usage.used(pool, "org-a", "production")
+    used = await usage.used(pool, "org-a", "production", date(2026, 9, 1))
     assert (used.calls, used.minutes, used.cost_usd) == (1, 1.0, 1.0)
 
 
 async def test_a_log_moved_to_another_org_takes_its_usage_along(pool: Pool, call: str) -> None:
     await a_call(pool, Scope("wrong"), a_summary(3), at=SEPTEMBER, call=call)
     assert await Store(pool).moved(AGENT, "right") == 1
-    assert (await usage.used(pool, "wrong", "production")).calls == 0
-    assert (await usage.used(pool, "right", "production")).minutes == 3.0
+    september = date(2026, 9, 1)
+    assert (await usage.used(pool, "wrong", "production", september)).calls == 0
+    assert (await usage.used(pool, "right", "production", september)).minutes == 3.0
 
 
 async def test_the_refold_writes_what_the_database_kept_and_mends_a_row_that_drifted(

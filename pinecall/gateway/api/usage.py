@@ -157,7 +157,7 @@ async def limits(key: ActingDep, gateway: GatewayDep) -> Limits:
     """Each quota of the key's world as {limit, used}, the lends, and where to buy more."""
     pool, org, env = gateway.connections.pool, key.org, key.env
     quotas = await admission.quotas_of(pool, org, env)
-    used = await usage.used(pool, org, env)
+    used = await usage.used(pool, org, env, usage.month_of(gateway.logs.store.clock()))
     return Limits(
         minutes=Limit(limit=quotas.minutes, used=used.minutes),
         messages=Limit(limit=quotas.messages, used=used.messages),
