@@ -237,7 +237,6 @@ async def append_entry(
     """Write one entry of a call this gateway serves."""
     if body.type not in EVENTS:
         raise DeclarationRefused(UNKNOWN_EVENT.format(kind=body.type))
-    _orgs_call(gateway, key, call)
     served = _orgs_call(gateway, key, call)
     began = time.perf_counter()
     entry = await served.log.append(body.type, body.data, ephemeral=body.ephemeral)
@@ -277,7 +276,6 @@ async def run_tool(
     gateway: GatewayDep,
 ) -> ToolResult:
     """Run a worker's tool call through the app that holds its agent, and answer its result."""
-    _orgs_call(gateway, key, call)
     served = _orgs_call(gateway, key, call)
     if agent != served.agent:
         raise NotFound(NOT_OPEN.format(call=call))
@@ -308,7 +306,6 @@ async def recording_key(call: str, key: WorkerKey, gateway: GatewayDep) -> Recor
 @router.get("/v1/calls/{call}/commands")
 async def stream_commands(call: str, key: WorkerKey, gateway: GatewayDep) -> StreamingResponse:
     """The app's commands for the call, in order, until it is sealed."""
-    _orgs_call(gateway, key, call)
     served = _orgs_call(gateway, key, call)
     return streamed(_commanded(served.commands), gateway.closing)
 
@@ -316,7 +313,6 @@ async def stream_commands(call: str, key: WorkerKey, gateway: GatewayDep) -> Str
 @router.get("/v1/calls/{call}/judging")
 async def call_judging(call: str, key: WorkerKey, gateway: GatewayDep) -> JudgingSettings:
     """Whether the call's org judges its calls at hang-up."""
-    _orgs_call(gateway, key, call)
     served = _orgs_call(gateway, key, call)
     pool = gateway.connections.pool
     on = await orgs.judged(pool, served.scope.org)

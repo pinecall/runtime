@@ -19,7 +19,7 @@ from pinecall.session.text import text_session
 from pinecall.wire.events import CallEnded
 from pinecall.wire.frames import Command
 from pinecall.wire.metrics import ModelUsage
-from pinecall.wire.parts import PlatformTool, ToolResult
+from pinecall.wire.parts import EndedBy, EndReason, PlatformTool, ToolResult
 from pinecall.wire.rest.calls import OpenCallRequest, OpenCallResponse
 from pinecall.worker._job import (
     Arrival,
@@ -31,11 +31,12 @@ from pinecall.worker._job import (
     named_by,
     opening_of,
     resolve,
+    room_over,
     writer_of,
 )
 from tests.conftest import AGENT, Knocking, postgres
 from tests.fakes.acme import ACME, seat
-from tests.fakes.livekit import Room
+from tests.fakes.livekit import Room, Server
 from tests.fleet.test_client import LosingTheFirstBatchAnswer, a_call, losing_client
 
 NUMBER = "+15550100"
@@ -216,3 +217,25 @@ async def test_a_command_the_session_refused_is_written_once_by_the_calls_writer
     assert [entry.data["code"] for entry in errors] == ["refused"]
     await client.aclose()
     await losing.real.aclose()
+
+
+# The agent leaving ends no SIP leg: the room going is what hangs the caller up.
+@pytest.mark.parametrize(
+    ("ended", "gone"),
+    [
+        (("agent_hung_up", "agent"), True),
+        (("timeout", "platform"), True),
+        (("supervisor_ended", "supervisor"), True),
+        (("transferred", "agent"), False),
+        (None, False),
+    ],
+)
+async def test_a_call_the_session_hung_up_takes_its_room_with_it_but_a_transfer_leaves_it(
+    *, ended: tuple[EndReason, EndedBy] | None, gone: bool
+) -> None:
+    server = Server()
+    server.rooms.existing = {"call_a": True}
+    await room_over(server, "call_a", ended)
+    assert ("call_a" not in server.rooms.existing) == gone
+    await room_over(server, "call_a", ended)
+    await server.aclose()
