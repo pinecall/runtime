@@ -1,5 +1,7 @@
 """Tests for GET /metrics: what the append doors count, what the gateway holds, on loopback."""
 
+import time
+
 import httpx
 
 from pinecall.domain.names import JsonObject
@@ -69,6 +71,20 @@ async def test_the_appends_are_timed_counted_and_a_vendors_failures_named(
     most = float(line_of(text, 'pinecall_pool_connections{state="max"}').split()[-1])
     assert 0 <= in_use <= most
     assert "# TYPE pinecall_append_seconds histogram" in text
+
+
+@postgres
+async def test_a_failing_vendor_and_each_replicas_lag_are_families_of_their_own(
+    knocking: Knocking,
+) -> None:
+    counted = knocking.gateway.counters
+    for n in range(5):
+        counted.handed_out(["deepgram"], time.time())
+        counted.failed_on("deepgram", f"call_{n}", time.time())
+    async with httpx.AsyncClient(base_url=knocking.url) as scraper:
+        read = (await scraper.get("/metrics")).text
+    assert 'pinecall_vendor_failing{vendor="deepgram"} 1.0' in read
+    assert "# TYPE pinecall_replication_lag_seconds gauge" in read
 
 
 @postgres

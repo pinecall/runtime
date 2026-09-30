@@ -128,11 +128,21 @@ through Caddy, which marks every request it passes on with `X-Forwarded-For`. Th
 | `pinecall_pool_requests_total` · `pinecall_pool_wait_seconds_total` | connections asked of the pool, and the time spent waiting for one: their rates' ratio is the mean wait |
 | `pinecall_held{what}` | live log readers, app sockets and calls served, now |
 | `pinecall_fleet{fleet,what}` | each fleet as its heartbeats say: workers, seats, busy, accepting |
+| `pinecall_vendor_failing{vendor}` | 1 for each vendor over its error line (half the calls handed it in two minutes saw it fail), as this gateway saw; its calls step over to their fallbacks |
+| `pinecall_replication_lag_seconds{replica}` | how far behind each standby is in replaying the primary's WAL, from `pg_stat_replication`; empty with no replica |
 | `pinecall_spend_unusual{org}` | how many times its usual day (the trailing four weeks' mean) an org's calls cost today, for each org over three times it; the same is `spend.unusual` on the agent's log, once a day |
 | `pinecall_worker_state{fleet,worker,state}` | 1 for each worker heard lately, labelled how the roster counts it: `accepting`, `failing`, `full`, `draining`, `cordoned` ([scaling.md](scaling.md)) |
 | `pinecall_worker_first_audio_p95_seconds{fleet,worker}` | each worker's first audio at the p95 over its last minute, as its heartbeat says; absent under five turns |
 
 Counts start at zero when the gateway starts; the roster fills within one heartbeat, five seconds.
+
+### The four alerts
+
+`infra/cell/alerts.yaml` is four Prometheus alerting rules over these families, for any
+Prometheus-compatible agent that scrapes the gateway on its machine: appends slow (p99 over 250 ms
+for five minutes), a fleet busy over 0.8 for five minutes, a vendor over its error line for two,
+a replica more than 30 s behind for five. Nothing else is alerted on until one of them misses an
+incident.
 
 ### What the box keeps, and for how long
 
