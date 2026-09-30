@@ -58,7 +58,7 @@ async def chat(websocket: WebSocket) -> None:
         return
     await websocket.accept()
     served = gateway.live.calls.get(session.call.context.call)
-    heard = served.log.fanout.subscribe() if served is not None else None
+    heard = await served.log.followed() if served is not None else None
     sending = asyncio.create_task(_sent(websocket, heard)) if heard is not None else None
     # The call can end from the desk or by the model: the socket is closed under the caller.
     ending = asyncio.create_task(_hung_up(websocket, session))

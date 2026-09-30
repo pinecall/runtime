@@ -106,7 +106,9 @@ Reconnecting is the same URL with a fresher `after`. A reader that missed a stre
 `log.gap` (with a `snapshot` of the state when the platform has one), then `log.caught_up`
 when the replay ends and what follows is live. A marker stands at the seq of the last entry it
 speaks for: the gap at `to_seq`, `log.caught_up` at the last seq sent. The cursor is the whole
-protocol.
+protocol. Which gateway wrote an entry, or which one a reader is connected to, changes none of
+it: every gateway hears every log something of its own reads, and hands each entry on in seq
+order.
 
 ## Tokens
 

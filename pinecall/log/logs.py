@@ -9,10 +9,12 @@ from pinecall.domain.call import CallContext
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import ENVS, Env, JsonObject
 from pinecall.log import private
+from pinecall.log._relay import Relay
 from pinecall.log.private import Privacy
 from pinecall.log.readers import EVERYTHING, Filter
 from pinecall.log.reduce import reduce
 from pinecall.log.store import Claimant, Store, Unnumbered, log_name
+from pinecall.process.signal import LocalSignal, Signal
 from pinecall.wire.events import (
     EPHEMERAL_EVENTS,
     TERMINAL_EVENT,
@@ -54,12 +56,19 @@ ORG_EVENTS = frozenset(
 class Subscription:
     """One live reader's queue; iteration ends when the log closes or the reader fell behind."""
 
-    def __init__(self, only: Filter, leave: Callable[["Subscription"], None]) -> None:
-        """Keep the filter and the way out of the fanout."""
+    def __init__(
+        self,
+        only: Filter,
+        leave: Callable[["Subscription"], None],
+        after: Callable[[], None] | None = None,
+    ) -> None:
+        """Keep the filter, the way out of the fanout, and what to do once out (unfollow)."""
         self.only = only
         self.dropped = False
         self._leave = leave
+        self._after = after
         self._ended = False
+        self._left = False
         # One slot past the depth for the end marker, so closing a full queue never blocks.
         self._queue: asyncio.Queue[Entry | None] = asyncio.Queue(maxsize=QUEUE_DEPTH + 1)
 
@@ -80,6 +89,10 @@ class Subscription:
         """End the iteration after what is queued, and leave the fanout."""
         self._end()
         self._leave(self)
+        if not self._left:
+            self._left = True
+            if self._after is not None:
+                self._after()
 
     def _end(self) -> None:
         if not self._ended:
@@ -110,9 +123,11 @@ class Fanout:
         """Return how many readers are subscribed."""
         return len(self._readers)
 
-    def subscribe(self, only: Filter = EVERYTHING) -> Subscription:
+    def subscribe(
+        self, only: Filter = EVERYTHING, after: Callable[[], None] | None = None
+    ) -> Subscription:
         """Return a reader of what is published from now on; on a closed fanout, an ended one."""
-        subscription = Subscription(only, self._readers.discard)
+        subscription = Subscription(only, self._readers.discard, after)
         if self._closed:
             subscription.close()
         else:
@@ -123,7 +138,7 @@ class Fanout:
         """Offer the entry to every reader, dropping the ones that fell behind."""
         for reader in tuple(self._readers):
             if not reader.offer(entry):
-                self._readers.discard(reader)
+                reader.close()
 
     def close(self) -> None:
         """End every reader after what it was given; a later subscriber gets nothing."""
@@ -132,13 +147,22 @@ class Fanout:
             reader.close()
         self._readers.clear()
 
+    def drop(self) -> None:
+        """End every reader as one that fell behind: each resumes from the store."""
+        for reader in tuple(self._readers):
+            reader.dropped = True
+            reader.close()
+        self._readers.clear()
+
 
 # Readers and the writer share the one Log of a name: a reader often arrives before the writer.
 class Log:
     """One call's log, or one agent's: written here, read live here, replayed from the store."""
 
-    def __init__(self, store: Store, call: str | None, agent: str) -> None:
-        """Name the log: a call's, or an agent's own when call is None."""
+    def __init__(
+        self, store: Store, call: str | None, agent: str, relay: Relay | None = None
+    ) -> None:
+        """Name the log: a call's, or an agent's own when call is None; alone with no relay."""
         self.call = call
         self.agent = agent
         self.name = log_name(call, agent)
@@ -151,6 +175,8 @@ class Log:
         # The private values of the entries appended here, by seq, for the socket that runs them.
         self.private_values: dict[int, JsonObject] = {}
         self._store = store
+        # None: a log of this process alone, its readers hearing its own appends only.
+        self._relay = relay
         self._taps: list[Tap] = []
         self._snapshot: tuple[int, State] | None = None
 
@@ -237,12 +263,21 @@ class Log:
             self._snapshot = latest, reduce(await self._store.whole(self.name))
         return self._snapshot[1]
 
+    # Followed before the fanout is subscribed, so an entry another gateway commits after the
+    # backlog is read was published after the subscription was confirmed, and is heard.
+    async def followed(self, only: Filter = EVERYTHING) -> Subscription:
+        """A live reader that hears what any gateway writes to this log, from now on."""
+        if self._relay is None:
+            return self.fanout.subscribe(only)
+        await self._relay.follow(self.name)
+        return self.fanout.subscribe(only, after=self._unfollowed)
+
     async def stream(self, *, after: int = 0, only: Filter = EVERYTHING) -> AsyncIterator[Entry]:
         """Yield the backlog above the cursor, log.caught_up, then what is written from then on."""
         cursor = after
         while True:
             # Subscribed before the backlog is read, so nothing written between the two is lost.
-            subscription = self.fanout.subscribe(only)
+            subscription = await self.followed(only)
             try:
                 # Asked before the backlog: a log sealed by then is whole in it, and one sealed
                 # after ends its readers here, once they drained what they were given.
@@ -292,8 +327,15 @@ class Log:
         if self.privacy is not None:
             await private.kept_aside(self._store, self.privacy.vault, self.name, aside)
 
+    def _unfollowed(self) -> None:
+        if self._relay is not None:
+            self._relay.unfollow(self.name)
+
     async def _published(self, entry: Entry) -> None:
-        self.fanout.publish(entry)
+        if self._relay is None:
+            self.fanout.publish(entry)
+        else:
+            self._relay.local(self.name, entry)
         for tap in list(self._taps):
             await tap(entry)
         if entry.type == TERMINAL_EVENT and self.call is not None:
@@ -314,9 +356,10 @@ class Log:
 class Logs:
     """The logs of this process by name, the org feeds and the box's, and who owns what."""
 
-    def __init__(self, store: Store) -> None:
-        """Start with no log open and no feed listened to."""
+    def __init__(self, store: Store, signal: Signal | None = None) -> None:
+        """Start with no log open and no feed listened to; alone with no signal."""
         self.store = store
+        self.relay = Relay(store, signal or LocalSignal(), self._delivered, self._dropped)
         self.box = Fanout()
         self._logs: dict[str, Log] = {}
         self._feeds: dict[tuple[str, Env], Fanout] = {}
@@ -362,6 +405,10 @@ class Logs:
         self._logs.pop(call, None)
         self._owners.pop(call, None)
 
+    async def close(self) -> None:
+        """Stop following every log."""
+        await self.relay.close()
+
     def feed(self, org: str, env: Env) -> Fanout:
         """Return the org's feed in that world: the lifecycle entries of every log it owns there."""
         self._prune()
@@ -385,8 +432,24 @@ class Logs:
         name = log_name(call, agent)
         log = self._logs.get(name)
         if log is None:
-            log = self._logs[name] = Log(self.store, call, agent)
+            log = self._logs[name] = Log(self.store, call, agent, self.relay)
         return log
+
+    # What the relay hands on, this process's own appends included: the log's readers hear it,
+    # and the terminal entry ends them, sealed here or on another gateway.
+    def _delivered(self, name: str, entry: Entry) -> None:
+        log = self._logs.get(name)
+        if log is None:
+            return
+        log.fanout.publish(entry)
+        if entry.type == TERMINAL_EVENT and log.call is not None:
+            log.sealed = True
+            log.fanout.close()
+
+    def _dropped(self, name: str) -> None:
+        log = self._logs.get(name)
+        if log is not None:
+            log.fanout.drop()
 
     # An agent's own entries serve both worlds, so they reach the org's feed in each.
     async def _fed(self, entry: Entry) -> None:
