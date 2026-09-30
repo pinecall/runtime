@@ -70,6 +70,46 @@ session from the declaration, so a spoken run refuses `models` and a golden that
 `GET /v1/evals/runs?agent=&since=&limit=` lists the runs of the key's org in its world, newest
 first; `GET /v1/evals/runs/{id}` is one of them, and another org's is `404`.
 
+A run may also name the org's **cases** (below): `cases: ["jueves-tarde"]` plays those by name,
+and `dataset: true` plays every case of the agent that is not held out, which is what a nightly
+run asks for; a case held out is played only when a run names it, which is what a release asks
+for. `version: 4` builds every call of the run on that version of the agent's settings in the
+scope of the app that holds it, instead of the one standing (a candidate, a canary's: see
+[settings-api.md](settings-api.md)); a version the scope never had is `404`. Beside `models`, it
+is how a run compares a candidate with what runs now. A run of cases is refused in production
+(`403`): a case is a real caller's words, and it is played only in the sandbox, as written calls
+through the app a developer holds there, never through production's app, whose tools act for real,
+and never out loud or on a phone.
+
+## The dataset — `POST /v1/evals/cases`, `GET /v1/evals/cases?agent=`, `DELETE /v1/evals/cases/{id}`
+
+Real calls are the dataset. `pinecall runs promote` keeps a finished call as a **case**: its
+caller's lines, the state it opened in (the first `state.changed` before the caller spoke), the
+facts the app injected (`event.received` from the app, after the line they followed) and the day
+it ran, as a golden the org names, with what it expects.
+
+```
+POST /v1/evals/cases
+{"call": "call_…", "name": "jueves-tarde", "expect": {"says_any": ["jueves"]}, "held_out": false}
+
+{"id": "case_3f0c…", "agent": "recepcion", "name": "jueves-tarde",
+ "golden": {"name": "jueves-tarde", "state": {"stage": "book"}, "input": ["Quiero cita el jueves"],
+            "today": "2026-09-29", "expect": {"says_any": ["jueves"]}, "promoted_from": "call_…"},
+ "source_call": "call_…", "source_env": "production", "held_out": false,
+ "author": "m_ana", "created_at": 1790000000.1}
+```
+
+The key must read the call, as a replay's does: a production call is promoted with a key of
+production. The case is the org's, in both worlds, and played in the sandbox. A call still going is
+`409`, one whose caller said nothing is `409`, and a name the agent has already is `409`.
+`GET` lists the org's cases by agent and name; `DELETE` forgets one, and another org's, or one
+nobody kept, is `404`.
+
+A case is tenant data like the call it came from, and never outlives it: erasing the call, the
+contact who made it, or the org erases the case in the same transaction (`tenancy/erasure.py`),
+and so does the nightly retention run, which erases through the same path. The calls a run
+plays a case in are calls of the sandbox like any other, under the org's retention there.
+
 ## The judges
 
 A judge is settled by code, or by one question to the judge model when code leaves the answer
@@ -81,6 +121,7 @@ open. A model that is unsure scores a half and never passes.
 | `heard` | a golden with lines | code: every line reached the agent |
 | `tools` · `not_tools` | `expect.tools`, `expect.not_tools` | code, the second naming the seq of the call that ran |
 | `silence` · `says` | `expect.not`, `expect.says` | code, case-blind; the turn is named |
+| `says_any` | `expect.says_any` | code, case-blind: any one of the phrases is enough, for an expectation with several right answers (`de 9 a 14`, `de nueve a dos`); the reason names the one said, or every one when none was |
 | `grounded` | `expect.grounded`, and at hang-up | every price, hour, date and name stated is in the evidence of its scope (prices in the text shown, the rest in tool answers and states); what code cannot match goes to the model |
 | `register` | `expect.register` | code: no word of the other register (`tú`, `usted`) |
 | `replies` | `expect.replies` | code: the agent's turn after each fact names what it carried, or does not |
@@ -93,10 +134,11 @@ open. A model that is unsure scores a half and never passes.
 
 ## A finished call
 
-`POST /v1/evals/replay/{call}` `{banned?, budget?}` runs five checks by code alone: consent,
+`POST /v1/evals/replay/{call}` `{banned?, budget?}` runs six checks by code alone: consent,
 the banned words, the errors the session did not recover from, each latency's **worst turn**
 against the budget (seconds, under livekit's names; the default is 2 s end to end, 1 s to the
-model's first token, 0.6 s to the voice's first byte), and how much of the talking the agent did.
+model's first token, 0.6 s to the voice's first byte), how much of the talking the agent did,
+and how it took being interrupted.
 A call nobody wrote and another org's are the same `404`.
 
 Two of the budget's keys are the runtime's own measures. `dead_air` is the silence between the
@@ -107,6 +149,13 @@ part of the time anybody spoke on the call, 0 to 1, and is judged by the `talk` 
 obeyed: from the caller starting to speak over the agent to the agent leaving `speaking`, one
 value per reply written as interrupted, read off `user.state` and `agent.state`. None of the three
 has a default: a budget that leaves them out does not judge them.
+
+`interruptions` reads every reply of the agent's written as interrupted: the caller's words that
+cut it off must be followed by a reply of the agent's, and that reply must not start over the one
+cut off (its first four words the same as the cut reply's). A reply the agent went on with before
+the caller said anything (a cough, a false start: livekit resumes it) and a caller who hung up
+after cutting in are not judged; a call where nothing was cut off, or nothing cut off wanted an
+answer, is `skipped`. The detail names the seqs of the cut reply, the caller's words and the reply.
 
 ```json
 {"call": "call_…", "agent": "recepcion", "passed": true,
@@ -131,6 +180,9 @@ what one call may spend on it: a model judge asked once the calls before it reac
 `skipped`, saying why; a judge whose model failed is skipped too, and the call seals all the same.
 `judge_calls` counts the model's requests and `judge_cost_usd` prices them at the row's rates. An
 org that judges nothing gets `not_judged` saying so; a call an eval run opened is judged by the run.
+Each settled verdict is counted into the day's drift, by the version of the agent's settings the
+call ran and the hash of the judge's question, which `GET /v1/insights/drift` reads to say which
+judge's pass rate moved ([console-api.md](console-api.md)).
 
 ## An agent's own judges — `GET /v1/agents/{slug}/judges`, `PUT` · `DELETE /v1/agents/{slug}/judges/{name}`
 

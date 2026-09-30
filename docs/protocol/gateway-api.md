@@ -135,6 +135,7 @@ SSE frames are `id: <seq>`, `event: <type>`, `data: <the entry>`, a `: ping` eve
 | `GET /v1/calls/{call}/recording` | the audio, seekable; a written call keeps none |
 | `GET /v1/agents/{slug}/sessions` · `GET /v1/sessions` | one line per call, filtered, counted and paged, in the reader's scope |
 | `GET /v1/calls/{call}/settings` | the exact settings the call was built on |
+| `GET /v1/calls/{call}/prompt` | the exact prompt the call was told: `{call, blocks: [{seq, name, hash, chars, text}]}`, one per `prompt.changed` in order, each block's words as the org kept them under its hash the first time a gateway met them (a call's knowledge when it opened, an app's `prompt.set`), once per distinct text and never per call; `text` is null for a block nobody kept (a call from before they were kept). A key's read, never a page's token |
 | `GET /v1/events` | the org's floor as it changes, in the world the key acts in: agents registered and detached, calls ringing, starting and ending, a person asked for and taken |
 
 What each reader receives is its projection: [projections.md](projections.md).
@@ -167,7 +168,7 @@ key id (`k_…`):
 
 | what | subject | the doors |
 |---|---|---|
-| `log` · `recording` | the call | `GET /v1/calls/{call}/events`, `/state`, `/recording` |
+| `log` · `recording` | the call | `GET /v1/calls/{call}/events`, `/state`, `/prompt`, `/recording` |
 | `listen` · `supervise` | the call | a seat handed out, `POST /v1/calls/{call}/listen`, `/supervise` |
 | `export` | the org | `GET /v1/org/export` |
 | `memory` | the contact, the agent, or the org | `GET /v1/contacts/{contact}/memory`, `/v1/agents/{slug}/memory`, `/v1/memory` |

@@ -15,7 +15,6 @@ from pinecall.wire.events import (
     CallDialing,
     CallEnded,
     CallRinging,
-    CallScore,
     CallStarted,
     CallSummary,
     RoomOpened,
@@ -23,6 +22,7 @@ from pinecall.wire.events import (
     event_of,
 )
 from pinecall.wire.frames import Entry, WireModel
+from pinecall.wire.scores import CallScore
 
 # The judge whose broken verdict raises the promise flag (evals/judges.py).
 PROMISES = "promises"
@@ -363,36 +363,6 @@ where head.org = %(org)s and head.env = %(env)s and head.holder = %(holder)s
   and head.call is not null and {day}
 group by head.agent
 order by calls desc, slug
-""").format(day=_ITS_DAY)
-
-
-# Each stage of the day's turns by the vendor and model the turn's report names: the ears'
-# transcription delay and confidence off turn.user, the model's first token and the voice's first
-# byte off turn.agent. call_log is joined on log, its primary key's first column.
-DAY_BY_STAGE = sql.SQL("""
-select sample.stage, sample.vendor, sample.model, count(*) as turns,
-       percentile_cont(0.5) within group (order by sample.seconds) as median_s,
-       percentile_cont(0.95) within group (order by sample.seconds) as p95_s,
-       avg(sample.confidence) as confidence
-from call_log_head head
-join call_log entry on entry.log = head.log and entry.type in ('turn.user', 'turn.agent')
-cross join lateral (values
-    ('stt', entry.data #>> '{{metrics,stt_metadata,model_provider}}',
-     entry.data #>> '{{metrics,stt_metadata,model_name}}',
-     (entry.data #>> '{{metrics,transcription_delay}}')::double precision,
-     (entry.data ->> 'transcript_confidence')::double precision),
-    ('llm', entry.data #>> '{{metrics,llm_metadata,model_provider}}',
-     entry.data #>> '{{metrics,llm_metadata,model_name}}',
-     (entry.data #>> '{{metrics,llm_node_ttft}}')::double precision, null),
-    ('tts', entry.data #>> '{{metrics,tts_metadata,model_provider}}',
-     entry.data #>> '{{metrics,tts_metadata,model_name}}',
-     (entry.data #>> '{{metrics,tts_node_ttfb}}')::double precision, null)
-) as sample(stage, vendor, model, seconds, confidence)
-where head.org = %(org)s and head.env = %(env)s and head.holder = %(holder)s
-  and head.call is not null and {day}
-  and (sample.seconds is not null or sample.confidence is not null)
-group by sample.stage, sample.vendor, sample.model
-order by sample.stage, sample.vendor, sample.model
 """).format(day=_ITS_DAY)
 
 

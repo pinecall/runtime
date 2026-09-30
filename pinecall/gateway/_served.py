@@ -23,6 +23,7 @@ from pinecall.session.session import Session
 from pinecall.session.tools import ToolCalls
 from pinecall.tenancy import admission
 from pinecall.tenancy.codes import Codes
+from pinecall.tenancy.prompts import Prompts
 from pinecall.wire.commands import DevAnswer
 from pinecall.wire.events import (
     CallAttached,
@@ -208,6 +209,8 @@ class Serving:
     live: ServedCalls
     # None when the box embeds nothing: every lookup finds nothing and no hang-up remembers.
     embedder: Embedder | None
+    # The blocks of prompt this process has kept, so a call's prompt is read back whole.
+    prompts: Prompts = field(default_factory=Prompts)
 
 
 # A call opened with a key goes to that key's scope; one that rang, to its phone owner, or the line.

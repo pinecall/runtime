@@ -124,12 +124,12 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
     ):
         return
     scope = Scope(route.org, route.env, dispatch.holder or "")
+    context = context_of(ctx, dispatch, arrival, route, settings)
     config, stages, played = await asyncio.gather(
-        gateway.agent(route.agent, scope),
-        gateway.stages(route.agent, scope),
+        gateway.agent(route.agent, scope, call=context.call),
+        gateway.stages(route.agent, scope, call=context.call),
         gateway.hold_audio(route.agent, scope),
     )
-    context = context_of(ctx, dispatch, arrival, route, settings)
     opened = await gateway.open(
         OpenCallRequest(agent=route.agent, context=context, app=dispatch.app or settings.app)
     )

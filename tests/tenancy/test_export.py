@@ -6,12 +6,19 @@ import pytest
 
 from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
+from pinecall.evals import dataset
+from pinecall.evals.dataset import Promoted
+from pinecall.log import drift
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
-from pinecall.tenancy import consents, export
+from pinecall.tenancy import canary, consents, export
+from pinecall.tenancy.canary import Canary, CanarySet
 from pinecall.tenancy.consents import Given
+from pinecall.tenancy.prompts import Prompts
+from pinecall.wire.rest.evals import Expect
+from pinecall.wire.scores import CallScore
 from tests.conftest import postgres
-from tests.log.conftest import ACall, logged_call
+from tests.log.conftest import ACall, judgment, logged_call
 from tests.tenancy.conftest import an_org
 
 pytestmark = postgres
@@ -66,6 +73,52 @@ async def test_an_orgs_world_comes_out_whole_header_first(pool: Pool, store: Sto
     assert lines[3]["text"] == "Open 9 to 5."
 
 
+async def test_the_drift_the_seal_counted_comes_out_as_numbers_by_day(
+    pool: Pool, store: Store
+) -> None:
+    org = await an_org(pool)
+    turn: JsonObject = {
+        "speech_id": "a",
+        "text": "claro",
+        "interrupted": False,
+        "metrics": {"llm_node_ttft": 0.5},
+    }
+    call = await logged_call(
+        store, org.id, ACall(judges=(judgment("consent", "held"),), ended=False)
+    )
+    await store.append(call, "dental-sur", "turn.agent", turn, ephemeral=False)
+    score: JsonObject = {"judges": [judgment("consent", "held")], "judge_calls": 0}
+    await drift.fold(pool, call, await store.whole(call), CallScore.model_validate(score))
+
+    lines = await exported(pool, org.id)
+
+    stage = next(line for line in lines if line["kind"] == "stage_day")
+    verdict = next(line for line in lines if line["kind"] == "judge_day")
+    assert (stage["stage"], stage["turns"], stage["day"]) == ("llm", 1, "1970-01-01")
+    assert (verdict["judge"], verdict["held"], verdict["broken"]) == ("consent", 1, 0)
+    assert call not in json.dumps(lines[-2:]), "a day's numbers name no call"
+
+
+async def test_the_orgs_cases_and_prompts_come_out_in_each_worlds_export(
+    pool: Pool, store: Store
+) -> None:
+    org = await an_org(pool)
+    call = await logged_call(store, org.id)
+    golden = dataset.golden_of(await store.whole(call), "hola", Expect())
+    await dataset.promoted(pool, golden, "dental-sur", Promoted(org.id, "production", "hola", "m"))
+    await Prompts().keep(pool, org.id, "Sos la recepción.")
+    for world in ("production", "sandbox"):
+        lines = await exported(pool, org.id, world)
+        prompt = next(line for line in lines if line["kind"] == "prompt")
+        assert prompt["text"] == "Sos la recepción."
+        case = next(line for line in lines if line["kind"] == "eval_case")
+        assert (case["name"], case["source_call"], case["source_env"]) == (
+            "hola",
+            call,
+            "production",
+        )
+
+
 A_SETTING = """
 INSERT INTO agent_config (org, env, holder, agent, version, config, author)
 VALUES (%(org)s, 'production', '', 'agenda', 1, '{"slug": "agenda"}', 'm_ana')
@@ -83,13 +136,17 @@ async def test_the_settings_the_words_and_the_consents_come_out_too(pool: Pool) 
         await connection.execute(A_SETTING, {"org": org.id})
         await connection.execute(A_WORD, {"org": org.id})
     await consents.give(pool, Scope(org.id), "+14155550142", Given("express", "the form", "m_ana"))
+    tried = CanarySet(Canary(version=1, share=10), "m_ana", 1.0, "try it")
+    await canary.put(pool, Scope(org.id), "agenda", tried)
     lines = await exported(pool, org.id)
-    assert [line["kind"] for line in lines] == ["export", "agent_config", "lexicon", "consent"]
-    assert (lines[1]["version"], lines[2]["said"], lines[3]["number"]) == (
+    kinds = [line["kind"] for line in lines]
+    assert kinds == ["export", "agent_config", "canary", "lexicon", "consent"]
+    assert (lines[1]["version"], lines[3]["said"], lines[4]["number"]) == (
         1,
         {"ok": "vale"},
         "+14155550142",
     )
+    assert (lines[2]["version"], lines[2]["share"], lines[2]["note"]) == (1, 10, "try it")
 
 
 async def test_another_org_and_the_other_world_are_not_in_it(pool: Pool, store: Store) -> None:

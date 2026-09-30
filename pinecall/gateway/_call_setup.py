@@ -11,16 +11,22 @@ from pinecall.providers.catalog import Providers
 from pinecall.providers.credentials import Keyring
 from pinecall.providers.declared import apply_tuning
 from pinecall.tenancy import admission, scopes, vault
+from pinecall.tenancy.scopes import Picked
 from pinecall.wire.events import (
     CreditsExhausted,
 )
 
 
+# A call's own id picks its version where the scope stands on a canary; no call is the rest.
 async def tuned(
-    pool: Pool, declared: AgentConfig, scope: Scope, configured: Providers
+    pool: Pool,
+    declared: AgentConfig,
+    scope: Scope,
+    configured: Providers,
+    picked: Picked | None = None,
 ) -> tuple[AgentConfig, Versions]:
     """The declaration under the scope's settings, and the versions it was built from."""
-    existing = await scopes.current(pool, scope, declared.slug)
+    existing = await scopes.current(pool, scope, declared.slug, picked)
     config = apply_tuning(declared, existing.tuning, existing.lexicon, defaults=configured.defaults)
     return config, existing.versions
 

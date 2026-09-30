@@ -1,6 +1,7 @@
 """Tuning and lexicon: versions per agent and scope, knob by knob from the nearest that sets it."""
 
 import asyncio
+import time
 
 import pytest
 
@@ -9,8 +10,11 @@ from pinecall.domain.errors import Conflict
 from pinecall.domain.org import Org
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
+from pinecall.tenancy import canary
+from pinecall.tenancy.canary import Canary, CanarySet, bucket_of
 from pinecall.tenancy.orgs import create
 from pinecall.tenancy.scopes import (
+    Picked,
     Written,
     current,
     every_tuning,
@@ -22,6 +26,7 @@ from pinecall.tenancy.scopes import (
     tuning_at,
     tuning_history,
     tuning_side_by_side,
+    versions_noted,
 )
 from tests.conftest import postgres
 
@@ -129,6 +134,69 @@ async def test_history_is_the_corners_own_newest_first_and_at_reads_one_back(poo
     assert at is not None
     assert (at.holder, at.value.voice) == ("m_ana", "a")
     assert await tuning_at(pool, mine, AGENT, 9) is None
+
+
+@postgres
+async def test_the_versions_noted_are_those_named_and_those_set_in_the_window(pool: Pool) -> None:
+    mine, team, _ = await _corners(pool)
+    await put_tuning(pool, team, AGENT, Tuning(voice="team"), Written("m_bo", note="the team's"))
+    await put_tuning(pool, mine, AGENT, Tuning(voice="a"), Written("m_ana", note="first"))
+    await put_tuning(pool, mine, AGENT, Tuning(voice="b"), Written("m_ana", note="second"))
+    named = await versions_noted(pool, mine, AGENT, [1], (0.0, 0.0))
+    assert [(row.holder, row.version, row.note) for row in named] == [("m_ana", 1, "first")]
+    everything = await versions_noted(pool, mine, AGENT, [], (0.0, 4102444800.0))
+    assert [(row.holder, row.version) for row in everything] == [("m_ana", 1), ("m_ana", 2)]
+    assert [row.author for row in await versions_noted(pool, team, AGENT, [1], (0.0, 0.0))] == [
+        "m_bo"
+    ]
+
+
+def a_call_placed(*, inside: bool, share: int) -> str:
+    """A call id whose place among a hundred is under the share, or at or over it."""
+    return next(
+        call
+        for call in (f"CA_{number}" for number in range(1000))
+        if (bucket_of(call) < share) == inside
+    )
+
+
+@postgres
+async def test_a_canary_takes_its_share_of_the_calls_and_the_rest_run_the_others(
+    pool: Pool,
+) -> None:
+    mine, team, _ = await _corners(pool)
+    await put_tuning(pool, team, AGENT, Tuning(voice="old"), BY_ANA)
+    await put_tuning(pool, team, AGENT, Tuning(voice="new"), BY_ANA)
+    await canary.put(
+        pool, team, AGENT, CanarySet(Canary(version=2, share=30), "m_ana", time.time())
+    )
+    picked, rest = a_call_placed(inside=True, share=30), a_call_placed(inside=False, share=30)
+    on_canary = await current(pool, team, AGENT, Picked(call=picked))
+    on_rest = await current(pool, team, AGENT, Picked(call=rest))
+    assert (on_canary.tuning.voice, on_canary.versions.config) == ("new", 2)
+    assert (on_rest.tuning.voice, on_rest.versions.config) == ("old", 1)
+    assert (await current(pool, team, AGENT)).versions.config == 1, "no call is the rest"
+    assert (await current(pool, mine, AGENT, Picked(call=picked))).versions.config == 2, (
+        "falls through"
+    )
+    await canary.put(pool, team, AGENT, CanarySet(Canary(version=2, share=0), "m_ana", time.time()))
+    assert (await current(pool, team, AGENT, Picked(call=picked))).versions.config == 1
+    await canary.put(pool, team, AGENT, CanarySet(None, "m_ana", time.time()))
+    assert (await current(pool, team, AGENT, Picked(call=rest))).versions.config == 2, (
+        "cleared: newest"
+    )
+
+
+@postgres
+async def test_a_version_named_is_the_scopes_own_whatever_canary_stands(pool: Pool) -> None:
+    mine, team, _ = await _corners(pool)
+    await put_tuning(pool, team, AGENT, Tuning(voice="team"), BY_ANA)
+    await put_tuning(pool, mine, AGENT, Tuning(voice="first"), BY_ANA)
+    await put_tuning(pool, mine, AGENT, Tuning(voice="second"), BY_ANA)
+    await canary.put(pool, mine, AGENT, CanarySet(Canary(version=2, share=100), "m_ana", 1.0))
+    named = await current(pool, mine, AGENT, Picked(version=1, call="CA_1"))
+    assert (named.tuning.voice, named.versions.config) == ("first", 1)
+    assert (await current(pool, mine, AGENT, Picked(version=9))).tuning.voice == "team"
 
 
 @postgres

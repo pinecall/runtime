@@ -4,13 +4,15 @@ import asyncio
 import logging
 from collections.abc import Sequence
 
+import psycopg
+
 from pinecall.domain.agent import AgentConfig, Model
 from pinecall.domain.errors import PinecallError, QuotaExhausted
 from pinecall.evals import judges
 from pinecall.evals.compliance import Compliance, Panel
 from pinecall.gateway._call_setup import exhausted, keys_of
 from pinecall.gateway._served import Served, Serving, now_of
-from pinecall.log import facts
+from pinecall.log import drift, facts
 from pinecall.log.logs import Log
 from pinecall.log.reduce import phone_legs, reduce
 from pinecall.log.store import Store
@@ -23,10 +25,11 @@ from pinecall.retrieval import extraction, lookups, memory
 from pinecall.retrieval.extraction import MemoryWrite
 from pinecall.tenancy import admission, consents, disclosure, orgs, policy, vault
 from pinecall.tenancy.judges import StoredJudge, for_call
-from pinecall.wire.events import CallEnded, CallScore, CallSummary, ErrorEvent, MemoryOps
+from pinecall.wire.events import CallEnded, CallSummary, ErrorEvent, MemoryOps
 from pinecall.wire.frames import Entry
 from pinecall.wire.parts import MemoryOp
 from pinecall.wire.rest.calls import SealCallRequest
+from pinecall.wire.scores import CallScore
 from pinecall.wire.state import AgentTurn
 
 logger = logging.getLogger(__name__)
@@ -64,6 +67,7 @@ async def sealed(
             await _priced(serving, served, sealing, lent)
         score = await _scored(serving, served)
         await served.log.append("call.score", score.written())
+        await drifted(serving.connections.pool, served.call, entries, score)
         serving.logs.forget(served.call)
         serving.live.close(served.call)
 
@@ -154,6 +158,16 @@ async def judge_of(connections: Connections, configured: Providers) -> judges.Ju
     declared = Model(provider=named.vendor, model=named.model or "")
     stage = credentials.stage("llm", declared, configured, Keyring(box=box))
     return judges.JudgeModel(stage, configured.judge.ceiling_usd)
+
+
+# Drift is a measure of the day, not of the call: a fold that breaks is logged and the call seals
+# all the same, and `pinecall-runtime drift rebuild` counts it later.
+async def drifted(pool: Pool, call: str, entries: Sequence[Entry], score: CallScore) -> None:
+    """Count the call's stages and verdicts into its day's drift, or log why not."""
+    try:
+        await drift.fold(pool, call, entries, score)
+    except psycopg.Error:
+        logger.warning("call %s was not counted into its day's drift", call, exc_info=True)
 
 
 async def summed_up(pool: Pool, store: Store, log: Log, sealing: SealCallRequest) -> None:

@@ -30,6 +30,7 @@ from livekit.agents.beta.tools import EndCallTool
 from livekit.agents.voice import AgentSession
 from livekit.agents.voice.room_io import RoomOptions
 
+from pinecall.domain.agent import block_hash
 from pinecall.domain.errors import DeclarationRefused, NotAllowed, PinecallError
 from pinecall.domain.names import JsonObject
 from pinecall.log.logs import started_entry
@@ -337,7 +338,7 @@ class Session:
         """Rewrite one block; the log keeps its hash."""
         if self.blocks.set(name, text):
             await self.agent.update_instructions(self.blocks.instructions)
-        changed = wire.PromptChanged(name=name, hash=_prompt.hashed(text), chars=len(text))
+        changed = wire.PromptChanged(name=name, hash=block_hash(text), chars=len(text))
         await self.call.writing.write("prompt.changed", changed)
 
     # ── the line ──
