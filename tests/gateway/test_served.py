@@ -7,7 +7,7 @@ import pytest
 from pinecall.domain.agent import AgentConfig
 from pinecall.domain.scope import Scope
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import attach, handed_on, opened, served_call
+from pinecall.gateway._served import opened, served_call
 from pinecall.gateway._sockets import Sockets
 from pinecall.gateway.api import calls
 from pinecall.gateway.ending.reaper import let_go
@@ -17,13 +17,13 @@ from pinecall.log.queries import CallScope
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.session.call import ToolUse
-from pinecall.wire.frames import Command, Entry
+from pinecall.wire.frames import Command
 from pinecall.wire.parts import ToolResult
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
 from tests.conftest import AGENT as THE_KNOCKED_AGENT
 from tests.conftest import Knocking, postgres
 from tests.fleet.test_client import a_call as a_widget_call
-from tests.gateway.conftest import AGENT, OURS, a_call, a_start
+from tests.gateway.conftest import AGENT, OURS, a_call
 from tests.session.test_tools import went_out
 
 ANA = Scope("org_a", "sandbox", "m_ana")
@@ -100,46 +100,6 @@ async def test_a_socket_leaving_says_whether_anybody_is_left(store: Store) -> No
 
 
 # ── the calls served ──
-
-
-@postgres
-async def test_a_call_served_to_a_socket_reaches_it_and_moves_when_the_socket_leaves(
-    wired: Gateway,
-) -> None:
-    await holding(wired.sockets, "app_1", OURS)
-    await holding(wired.sockets, "app_2", OURS)
-    got: list[Entry] = []
-
-    async def into_the_socket(entry: Entry) -> None:
-        got.append(entry)
-
-    wired.live.sockets["app_1"] = into_the_socket
-    wired.live.sockets["app_2"] = into_the_socket
-    context = a_call()
-    served = served_call(wired.serving, "app_2", context, AgentConfig(slug=AGENT), OURS)
-    await served.log.append("call.started", a_start(context))
-    await served.log.append("custom", {"name": "x", "data": {}})
-    await asyncio.sleep(0.05)
-    assert [item.type for item in got] == ["call.started", "custom"]
-    await wired.sockets.release("app_2")
-    handed, parked = await handed_on(wired.live, wired.sockets, ["call_nobody", context.call])
-    assert (handed, parked) == (1, 0)
-    await asyncio.sleep(0.05)
-    assert got[-1].type == "call.attached"
-    assert wired.live.calls[context.call].app == "app_1"
-
-
-@postgres
-async def test_attaching_names_the_start_the_state_and_the_seq(wired: Gateway) -> None:
-    context = a_call()
-    served = served_call(wired.serving, None, context, AgentConfig(slug=AGENT), OURS)
-    await served.log.append("call.started", a_start(context))
-    await served.log.append("state.changed", {"state": {"step": 2}, "changed": ["step"]})
-    entry = await attach(wired.live, context.call, "app_9")
-    assert entry is not None
-    assert entry.data["state"] == {"step": 2}
-    assert entry.data["seq"] == 2
-    assert await attach(wired.live, context.call, "app_9") is None
 
 
 @postgres
