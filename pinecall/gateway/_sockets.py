@@ -1,14 +1,18 @@
 """Who holds each agent: the app sockets registered in this process, per scope, and the line."""
 
+import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, replace
 from uuid import uuid4
+
+from pydantic import TypeAdapter
 
 from pinecall.domain.agent import AgentConfig
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import PRODUCTION, Env, JsonObject
 from pinecall.domain.scope import THE_ORGS_OWN, Scope
 from pinecall.log.logs import Logs
+from pinecall.process.shared import Assigned, Shared, newest
 from pinecall.wire.events import (
     AgentConfigured,
     AgentDetached,
@@ -50,6 +54,9 @@ NO_UNCLAIMED = (
 
 type Stop = Callable[[str], Awaitable[None]]
 
+# Every gateway's sockets, lines and phones, said on this channel and merged by each.
+HELD_CHANNEL = "held"
+
 
 @dataclass(frozen=True)
 class Registration:
@@ -62,8 +69,8 @@ class Registration:
     sdk: str | None = None
     # False for a console: it takes only the calls that name it.
     takes_unclaimed: bool = True
-    # The order of claims across scopes, so the newest holder is known.
-    claimed: int = 0
+    # When it was claimed, on any gateway, so the newest holder is known across all of them.
+    claimed: float = 0.0
     # Set by agent.drain: its tools still answer, it takes no new call.
     draining: bool = False
 
@@ -73,7 +80,17 @@ class Registration:
         return (self.scope, self.slug)
 
 
-# Durable facts are in the log; this is which sockets are open now. The line is where a ring
+@dataclass(frozen=True)
+class Share:
+    """What one gateway holds: its sockets' agents, and the lines and phones it set."""
+
+    registrations: tuple[Registration, ...] = ()
+    lines: tuple[Assigned, ...] = ()
+    phones: tuple[Assigned, ...] = ()
+
+
+# Durable facts are in the log; this is which sockets are open now, on every gateway of the box:
+# each says its own share on the signal and reads the merged view. The line is where a ring
 # lands: the org's own scope in production, one developer's in the sandbox, which an org shares.
 class Sockets:
     """The agents the app sockets hold, per scope, the line of each, and the developers' phones."""
@@ -81,11 +98,25 @@ class Sockets:
     def __init__(self, logs: Logs) -> None:
         """Nobody holds anything yet."""
         self.logs = logs
+        # This gateway's own sockets, and the lines and phones it set.
+        self.mine: dict[Held, list[Registration]] = {}
+        self.mine_lines: dict[tuple[str, str], Assigned] = {}
+        self.mine_phones: dict[tuple[str, str], Assigned] = {}
+        # The merged view every read answers from: every gateway's.
         self.holders: dict[Held, list[Registration]] = {}
-        self.lines: dict[tuple[Env, str], str] = {}
-        self.phones: dict[tuple[Env, str], str] = {}
+        self.lines: dict[tuple[str, str], str] = {}
+        self.phones: dict[tuple[str, str], str] = {}
         self.owned: dict[SocketId, set[Held]] = {}
-        self.claims = 0
+        self.shared = Shared(logs.relay.signal, HELD_CHANNEL, _SHARE, Share(), self._merged)
+        self._last_claim = 0.0
+
+    async def start(self) -> None:
+        """Hear the other gateways' sockets, and say this one's."""
+        await self.shared.start()
+
+    async def close(self) -> None:
+        """Stop hearing and saying."""
+        await self.shared.close()
 
     # ── reading ──
 
@@ -172,13 +203,13 @@ class Sockets:
         """Give the agent's line to this scope, which must hold an app that answers a ring."""
         if self._taker((scope, slug)) is None:
             raise DeclarationRefused(NOT_HOLDING.format(slug=slug, env=scope.env))
-        self.lines[(scope.env, slug)] = scope.holder
+        self._assigned(self.mine_lines, scope.env, slug, scope.holder)
 
     def drop_the_line(self, scope: Scope, slug: str) -> bool:
         """Let the line go, to the newest other scope that could take it."""
         if self.lines.get((scope.env, slug)) != scope.holder:
             return False
-        del self.lines[(scope.env, slug)]
+        self._assigned(self.mine_lines, scope.env, slug, None)
         self._next_takes_the_line(scope, slug, leaving=scope.holder)
         return True
 
@@ -196,7 +227,7 @@ class Sockets:
 
     def calls_from(self, env: Env, number: str, holder: str) -> None:
         """Send rings from this phone to this person's scope; the last one said wins."""
-        self.phones[(env, number)] = holder
+        self._assigned(self.mine_phones, env, number, holder)
 
     def forget_calls_from(self, env: Env, holder: str) -> list[str]:
         """Forget every phone of this person, and say which."""
@@ -206,7 +237,7 @@ class Sockets:
             if world == env and owner_scope == holder
         )
         for number in gone:
-            del self.phones[(env, number)]
+            self._assigned(self.mine_phones, env, number, None)
         return gone
 
     def phone_of(self, env: Env, number: str) -> str | None:
@@ -276,23 +307,28 @@ class Sockets:
 
     async def release(self, owner: SocketId) -> None:
         """A socket closed: its agents let go, the line handed on, agent.detached for each."""
-        for found in self.owned.pop(owner, set()):
-            left = [item for item in self.holders.get(found, ()) if item.owner != owner]
-            if left:
-                self.holders[found] = left
+        theirs = [key for key, kept in self.mine.items() if any(i.owner == owner for i in kept)]
+        for found in theirs:
+            kept = [item for item in self.mine[found] if item.owner != owner]
+            if kept:
+                self.mine[found] = kept
             else:
-                self.holders.pop(found, None)
+                del self.mine[found]
+            self._merged()
+            left = self.holders.get(found, [])
             scope, slug = found
             if self.lines.get((scope.env, slug)) == scope.holder and not left:
-                del self.lines[(scope.env, slug)]
+                self._assigned(self.mine_lines, scope.env, slug, None)
                 self._next_takes_the_line(scope, slug)
             data = AgentDetached(app=owner, env=scope.env, left=not left)
             await self._written(scope.env, slug, "agent.detached", data.written())
+        self._say()
 
+    # Claimed at the gateway's clock, never earlier than its last claim: the newest is the last.
     def _replace(self, registration: Registration) -> None:
-        self.claims += 1
-        claim = replace(registration, claimed=self.claims)
-        holding = self.holders.setdefault(claim.held_as, [])
+        self._last_claim = max(time.time(), self._last_claim + 1e-6)
+        claim = replace(registration, claimed=self._last_claim)
+        holding = self.mine.setdefault(claim.held_as, [])
         at = next(
             (n for n, item_found in enumerate(holding) if item_found.owner == claim.owner), None
         )
@@ -300,10 +336,49 @@ class Sockets:
             holding.append(claim)
         else:
             holding[at] = claim
+        self._merged()
         # The first scope able to take a ring gets the line; later ones claim it.
-        if claim.takes_unclaimed and not claim.draining:
-            self.lines.setdefault((claim.scope.env, claim.slug), claim.scope.holder)
-        self.owned.setdefault(claim.owner, set()).add(claim.held_as)
+        taking = claim.takes_unclaimed and not claim.draining
+        if taking and (claim.scope.env, claim.slug) not in self.lines:
+            self._assigned(self.mine_lines, claim.scope.env, claim.slug, claim.scope.holder)
+        self._say()
+
+    # A line or a phone set here: said to every gateway, the newest setting of a key standing.
+    def _assigned(
+        self, table: dict[tuple[str, str], Assigned], env: Env, key: str, holder: str | None
+    ) -> None:
+        table[(env, key)] = Assigned(env, key, holder, time.time())
+        self._merged()
+        self._say()
+
+    def _say(self) -> None:
+        self.shared.put(
+            Share(
+                registrations=tuple(item for kept in self.mine.values() for item in kept),
+                lines=tuple(self.mine_lines.values()),
+                phones=tuple(self.mine_phones.values()),
+            )
+        )
+
+    # Every gateway's sockets, oldest claim first; each line and phone as its newest setting says.
+    def _merged(self) -> None:
+        theirs = [heard.share for heard in self.shared.theirs.values()]
+        holders: dict[Held, list[Registration]] = {k: list(v) for k, v in self.mine.items()}
+        for share in theirs:
+            for item in share.registrations:
+                holders.setdefault(item.held_as, []).append(item)
+        owned: dict[SocketId, set[Held]] = {}
+        for key, kept in holders.items():
+            kept.sort(key=lambda item: item.claimed)
+            for item in kept:
+                owned.setdefault(item.owner, set()).add(key)
+        self.holders, self.owned = holders, owned
+        self.lines = newest(
+            self.mine_lines, (setting for share in theirs for setting in share.lines)
+        )
+        self.phones = newest(
+            self.mine_phones, (setting for share in theirs for setting in share.phones)
+        )
 
     def _newest(self, holding_found: Held) -> Registration | None:
         holding = self.holders.get(holding_found)
@@ -318,7 +393,7 @@ class Sockets:
             item for item in self.waiting_for_the_line(scope, slug) if item.scope.holder != leaving
         ]
         if waiting:
-            self.lines[(scope.env, slug)] = waiting[0].scope.holder
+            self._assigned(self.mine_lines, scope.env, slug, waiting[0].scope.holder)
 
     # A laptop restarts often: in the sandbox these entries are forgettable, or they flood the log.
     async def _written(self, env: Env, slug: str, kind: str, data: JsonObject) -> Entry:
@@ -337,6 +412,9 @@ class Process:
     # Sends `error stopped` and closes: the SDK exits instead of reconnecting.
     stop: Stop
     host: str | None = None
+
+
+_SHARE: TypeAdapter[Share] = TypeAdapter(Share)
 
 
 def orgs_own(scope: Scope) -> Scope:
