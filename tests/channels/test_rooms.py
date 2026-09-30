@@ -7,9 +7,11 @@ from livekit import api
 
 from pinecall.channels import rooms
 from pinecall.channels.rooms import Dialling, Dispatch
-from pinecall.domain.errors import DeclarationRefused
+from pinecall.domain.errors import DeclarationRefused, NotAllowed
 from tests.channels.test_routes import A_NUMBER
-from tests.fakes.livekit import Server
+from tests.fakes.livekit import A_SECRET, Server, signed
+
+KEY = "APIbox"
 
 
 def test_a_dispatch_travels_as_compact_json_without_what_was_not_said() -> None:
@@ -69,3 +71,36 @@ async def test_a_room_closed_is_gone_whoever_was_in_it() -> None:
     assert server.rooms.existing == {}
     assert isinstance(server.rooms.requests[-1], api.DeleteRoomRequest)
     await server.aclose()
+
+
+def test_a_dispatch_for_a_call_its_worker_left_says_so_and_an_ordinary_one_says_nothing() -> None:
+    gone = Dispatch(agent="agenda", org="org_a", env="production", worker_gone=True)
+    assert json.loads(rooms.written(gone))["worker_gone"] is True
+    assert rooms.read_dispatch(rooms.written(gone)).worker_gone
+    assert "worker_gone" not in json.loads(rooms.written(Dispatch(agent="agenda")))
+
+
+async def test_a_room_is_left_alone_when_a_caller_sits_in_it_and_no_agent_does() -> None:
+    server = Server()
+    server.rooms.people = {"CA_alone", "CA_served"}
+    server.rooms.existing = {"CA_served": True, "CA_empty": False}
+    assert await rooms.left_alone(server, "CA_alone")
+    assert not await rooms.left_alone(server, "CA_served")
+    assert not await rooms.left_alone(server, "CA_empty")
+    assert not await rooms.left_alone(server, "CA_gone")
+    await server.aclose()
+
+
+def test_an_event_signed_with_the_boxs_key_is_read() -> None:
+    body = json.dumps({"event": "participant_left", "room": {"name": "CA_1"}, "id": "EV_1"})
+    event = rooms.livekit_event(body, signed(body, KEY), KEY, A_SECRET)
+    assert (event.event, event.room.name) == ("participant_left", "CA_1")
+
+
+@pytest.mark.parametrize("forged", ["another secret of thirty-two bytes", "tampered"])
+def test_an_event_signed_otherwise_or_changed_on_the_way_is_refused(forged: str) -> None:
+    body = json.dumps({"event": "participant_left", "room": {"name": "CA_1"}})
+    token = signed(body, KEY) if forged == "tampered" else signed(body, KEY, forged)
+    sent = body.replace("CA_1", "CA_2") if forged == "tampered" else body
+    with pytest.raises(NotAllowed, match="no signature of this box's LiveKit key"):
+        rooms.livekit_event(sent, token, KEY, A_SECRET)

@@ -26,6 +26,13 @@ from pinecall.wire.metrics import LLMModelUsage
 
 type Modality = Literal["llm", "stt", "tts"]
 
+# A call's stage as it is built: the plugin's object, or livekit's adapter over several.
+type Thinking = llm.LLM[Never] | llm.FallbackAdapter
+
+type Ears = stt.STT[Never] | stt.FallbackAdapter
+
+type Speaking = tts.TTS[Never] | tts.FallbackAdapter
+
 # The two local end-of-turn models, both read off the audio on the worker's CPU: livekit's own
 # (its detector's small version) and Daily's Smart Turn v3 (smart-turn-livekit).
 type TurnModel = Literal["v1-mini", "smart-turn-v3"]
@@ -77,6 +84,11 @@ _UNTAKEN = (
 )
 
 
+# livekit's adapter wraps ears that do not stream with a VAD the session does not hold, and refuses
+# voices of another channel count: such a fallback is left out and the call runs on the rest.
+LEFT_OUT = "%s is left out of the stage's fallbacks: %s"
+
+
 @dataclass(frozen=True)
 class Vendor:
     """A vendor this process can build: what it does, or why its plugin does not import."""
@@ -108,6 +120,8 @@ class Running:
     turn_model: TurnModel = "v1-mini"
     # On the box's key rather than the org's own.
     lent: bool = False
+    # Who takes over, in order, each on its own key: the stage is livekit's FallbackAdapter.
+    fallbacks: tuple["Running", ...] = ()
 
 
 MODALITIES: tuple[Modality, ...] = ("llm", "stt", "tts")
@@ -226,12 +240,46 @@ def tts_of(running: Running) -> tts.TTS[Never]:
 
 def stt_of(running: Running, turn: Turn | None) -> stt.STT[Never]:
     """The ears a stage hears with; the agent's turn knobs reach them where they take them."""
-    knobs: dict[str, object] = {} if turn is None else dataclasses.asdict(turn)
-    given = {knob: value for knob, value in knobs.items() if value is not None}
-    # The agent's endpointing is the silence that closes a turn: the ears that take it call it so.
-    if turn is not None and turn.endpointing_ms is not None:
-        given["eot_timeout_ms"] = turn.endpointing_ms
-    return _built("stt", _AN_STT, running, given)
+    return _built("stt", _AN_STT, running, _turn_knobs(turn))
+
+
+# A call's three stages: with no fallback, exactly the plugin's object; with some, livekit's
+# FallbackAdapter over the stage and the vendors that take over, in order.
+def thinking_of(running: Running) -> Thinking:
+    """The LLM a call thinks with, over its fallbacks when the stage names any."""
+    primary = llm_of(running)
+    if not running.fallbacks:
+        return primary
+    return llm.FallbackAdapter([primary, *(llm_of(fallback) for fallback in running.fallbacks)])
+
+
+def ears_of(running: Running, turn: Turn | None) -> Ears:
+    """The ears a call hears with, over its fallbacks when the stage names any that stream."""
+    primary = stt_of(running, turn)
+    if not primary.capabilities.streaming:
+        return primary
+    backups: list[stt.STT[Never]] = []
+    for fallback in running.fallbacks:
+        ears = stt_of(fallback, turn)
+        if ears.capabilities.streaming:
+            backups.append(ears)
+        else:
+            logger.warning(LEFT_OUT, ears.label, "it does not stream")
+    return stt.FallbackAdapter([primary, *backups]) if backups else primary
+
+
+# The adapter resamples to the highest rate among them, but mixes no channels.
+def speaking_of(running: Running) -> Speaking:
+    """The voice a call speaks with, over its fallbacks when the stage names any that fit."""
+    primary = tts_of(running)
+    backups: list[tts.TTS[Never]] = []
+    for fallback in running.fallbacks:
+        voice = tts_of(fallback)
+        if voice.num_channels == primary.num_channels:
+            backups.append(voice)
+        else:
+            logger.warning(LEFT_OUT, voice.label, "its channels differ")
+    return tts.FallbackAdapter([primary, *backups]) if backups else primary
 
 
 # Only what the org set: the key, the language and the hints are the runtime's, and a plugin
@@ -254,6 +302,15 @@ def vendor_named_in(text: str) -> str:
     if found is None:
         return ""
     return INFERENCE if found["inference"] else found["plugin"]
+
+
+def _turn_knobs(turn: Turn | None) -> dict[str, object]:
+    knobs: dict[str, object] = {} if turn is None else dataclasses.asdict(turn)
+    given = {knob: value for knob, value in knobs.items() if value is not None}
+    # The agent's endpointing is the silence that closes a turn: the ears that take it call it so.
+    if turn is not None and turn.endpointing_ms is not None:
+        given["eot_timeout_ms"] = turn.endpointing_ms
+    return given
 
 
 def _vendor(name: str, module: str) -> Vendor:

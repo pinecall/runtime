@@ -607,6 +607,17 @@ class UserTranscript(WireModel):
     confidence: float | None = None
 
 
+class VendorSwitched(WireModel):
+    """A stage's vendor failed or came back; `serving` is the vendor the stage runs on now."""
+
+    stage: Literal["llm", "stt", "tts"]
+    vendor: str
+    model: str
+    available: bool
+    serving: str
+    serving_model: str
+
+
 EVENTS: dict[str, type[WireModel]] = {
     "agent.configured": AgentConfigured,
     "agent.detached": AgentDetached,
@@ -677,6 +688,7 @@ EVENTS: dict[str, type[WireModel]] = {
     "turn.user": UserTurnEnded,
     "user.state": UserStateChanged,
     "user.transcript": UserTranscript,
+    "vendor.switched": VendorSwitched,
 }
 
 
