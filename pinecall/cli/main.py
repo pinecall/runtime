@@ -15,7 +15,8 @@ import httpx
 import uvicorn
 from livekit import api
 
-from pinecall.cli import _box, _load, _operator, _sessions, _traceback
+from pinecall.channels import whatsapp
+from pinecall.cli import _box, _facts, _load, _operator, _sessions, _traceback
 from pinecall.domain.errors import NotAvailable, PinecallError
 from pinecall.gateway.app import announce_closing, app, embedder_of
 from pinecall.postgres.migrate import apply_migrations, migration_files, migrations_behind
@@ -178,10 +179,11 @@ def retention_due(settings: Settings, _args: argparse.Namespace) -> int:
 
 
 def retention_run(settings: Settings, _args: argparse.Namespace) -> int:
-    """Erase every sealed call past its org's days, forget old records and dials; how many."""
-    erased, records, dials = asyncio.run(_purged(settings))
+    """Erase every sealed call past its org's days, forget what is kept for a time; how many."""
+    erased, records, dials, seen = asyncio.run(_purged(settings))
     sys.stdout.write(f"{len(erased)} calls erased past their org's days\n")
     sys.stdout.write(f"{records} call records and {dials} dials forgotten past 24 months\n")
+    sys.stdout.write(f"{seen} WhatsApp message ids forgotten past Meta's 7 days of retries\n")
     return 0
 
 
@@ -245,6 +247,7 @@ def verbs() -> argparse.ArgumentParser:
         run=retention_run
     )
     _sessions.sessions_group(under.add_parser("sessions", help="the log, off Postgres"))
+    _facts.facts_group(under.add_parser("facts", help="each call's facts, folded from its log"))
     _traceback.traceback_verb(
         under.add_parser("traceback", help="a number's calls and dials, for a carrier")
     )
@@ -316,13 +319,14 @@ async def _due(settings: Settings) -> list[retention.Due]:
         await pool.close()
 
 
-async def _purged(settings: Settings) -> tuple[list[str], int, int]:
+async def _purged(settings: Settings) -> tuple[list[str], int, int, int]:
     pool = await open_pool(settings.database_url)
     now = time.time()
     try:
         erased = await retention.purge(pool, Path(settings.recordings_root), now)
         records = await retention.forget_records(pool, now)
-        return erased, records, await retention.forget_dials(pool, now)
+        dials = await retention.forget_dials(pool, now)
+        return erased, records, dials, await whatsapp.forget_seen(pool, now)
     finally:
         await pool.close()
 
@@ -331,6 +335,7 @@ async def _examined(settings: Settings) -> list[tuple[str, str | None]]:
     return [
         ("vault", _vault(settings)),
         ("database", await _database(settings)),
+        ("facts", await _facts.examined(settings)),
         ("livekit", await _livekit(settings)),
         ("gateway", await _gateway(settings)),
     ]

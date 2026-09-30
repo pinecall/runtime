@@ -7,7 +7,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import PlainTextResponse
 
 from pinecall.channels import whatsapp
-from pinecall.domain.errors import NotAllowed
+from pinecall.domain.errors import NotAllowed, NotAvailable
 from pinecall.gateway._deps import GatewayDep
 
 logger = logging.getLogger(__name__)
@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 UNSIGNED = "the body carries no signature of this box's Meta app"
+
+STILL_READING = "{count} of these messages are being read by another delivery: send it again"
 
 
 @router.get("/v1/whatsapp/webhook", response_class=PlainTextResponse)
@@ -29,8 +31,9 @@ async def verify_webhook(
     return whatsapp.handshake(app, mode, word, challenge)
 
 
-# Past the signature every answer is 200: Meta disables a webhook that keeps failing, so what
-# goes wrong after it is a line in the log.
+# Past the signature the answer is 200: Meta disables a webhook that keeps failing, so what goes
+# wrong after it is a line in the log. The one exception is a message another delivery is still
+# reading: 503 keeps it on Meta's side until that reading is done or has died.
 @router.post("/v1/whatsapp/webhook")
 async def receive_webhook(request: Request, gateway: GatewayDep) -> dict[str, int]:
     """Every message of a signed body onto its contact's conversation."""
@@ -39,6 +42,7 @@ async def receive_webhook(request: Request, gateway: GatewayDep) -> dict[str, in
     if not whatsapp.is_signed(app.app_secret, body, request.headers.get(whatsapp.SIGNATURE_HEADER)):
         raise NotAllowed(UNSIGNED)
     messages = whatsapp.messages_in(body)
-    for inbound in messages:
-        await gateway.threads.received(inbound)
+    unread = [inbound for inbound in messages if not await gateway.threads.received(inbound)]
+    if unread:
+        raise NotAvailable(STILL_READING.format(count=len(unread)))
     return {"received": len(messages)}
