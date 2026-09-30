@@ -23,7 +23,7 @@ from pinecall.session.call import Writing
 from pinecall.tenancy import carriers
 from pinecall.tenancy.carriers import SipPeer
 from pinecall.wire.events import Custom
-from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
+from pinecall.wire.rest.calls import CallbackRequest, OpenCallRequest, SealCallRequest
 from pinecall.wire.rest.fleet import HeartbeatRequest
 from tests.conftest import AGENT, Knocking, postgres, received_until, sent
 
@@ -35,10 +35,10 @@ def fleet_client(knocking: Knocking) -> GatewayClient:
     return gateway_at(knocking.url, knocking.fleet["sandbox"])
 
 
-def a_call(knocking: Knocking) -> CallContext:
-    """A sandbox call of the org's agent through the widget."""
+def a_call(knocking: Knocking, call: str | None = None) -> CallContext:
+    """A sandbox call of the org's agent through the widget, a new one unless named."""
     return CallContext(
-        call=new_call_id(),
+        call=call or new_call_id(),
         channel="web",
         direction="inbound",
         caller="web_1",
@@ -262,6 +262,39 @@ async def test_a_heartbeat_says_the_fleet_is_open(knocking: Knocking) -> None:
     await client.aclose()
 
 
+# Every door a worker knocks at before and during a call, as a worker of this release and the
+# one before it knock: the fleet's key, the dispatch's scope, the call named once it is opened.
+@postgres
+async def test_every_request_a_worker_makes_passes_with_the_fleets_key(
+    knocking: Knocking,
+) -> None:
+    socket = await holding_app(knocking)
+    client = fleet_client(knocking)
+    scope = Scope(knocking.org.id, "sandbox")
+    context = a_call(knocking)
+    assert await client.routes(scope, number=None, channel="phone") == []
+    assert await client.routes(None, number=A_NUMBER, channel="phone") == []
+    assert (await client.hold_audio(AGENT, scope)).played == "default"
+    assert (await client.rings_for(AGENT, knocking.org.id, "+59899000001")).holder is None
+    await client.open(OpenCallRequest(agent=AGENT, context=context))
+    await client.append(context.call, "custom", {"name": "x", "data": {}})
+    state = await client.state(context.call)
+    since = [entry.type async for entry in client.since(context.call, 0)]
+    wanted = CallbackRequest(agent=AGENT, channel="phone", number="+59899000002", call=context.call)
+    await client.callback(wanted)
+    await client.sealed(context.call, SealCallRequest(usage=[], outcome="done"))
+    tail = [entry.type async for entry in client.tail(context.call, 0)]
+    assert state["last_seq"] == 2
+    assert since == ["call.ringing", "custom"]
+    assert tail[:2] == ["call.ringing", "custom"]
+    assert tail[-1] == "call.score"
+    with pytest.raises(GatewayRefused, match="plays no clip") as refused:
+        await client.hold_clip(AGENT, scope)
+    assert refused.value.answered == 404
+    await client.aclose()
+    await socket.close()
+
+
 @postgres
 async def test_a_refusal_names_the_request_refused_and_its_status(knocking: Knocking) -> None:
     client = fleet_client(knocking)
@@ -337,8 +370,12 @@ async def test_a_leg_is_told_its_trunk_inline_and_a_refusal_is_the_gateways_sent
 ) -> None:
     fleet = fleet_client(knocking)
     scope = Scope(knocking.org.id, "sandbox")
-    with pytest.raises(GatewayRefused, match="answers at no phone number"):
+    call = a_call(knocking).call
+    with pytest.raises(GatewayRefused, match="no call call_1 was opened"):
         await fleet.leg(AGENT, scope, to="+34910000000", call="call_1", shown=None)
+    await fleet.open(OpenCallRequest(agent=AGENT, context=a_call(knocking, call)))
+    with pytest.raises(GatewayRefused, match="answers at no phone number"):
+        await fleet.leg(AGENT, scope, to="+34910000000", call=call, shown=None)
     peer = SipPeer.model_validate(
         {
             "username": "pbx",
@@ -353,7 +390,7 @@ async def test_a_leg_is_told_its_trunk_inline_and_a_refusal_is_the_gateways_sent
     )
     wanted = NumberImport(scope, AGENT, A_NUMBER, account="pbx")
     await numbers.import_number(knocking.gateway.connections, wanted)
-    leg = await fleet.leg(AGENT, scope, to="+34910000000", call="call_1", shown=A_NUMBER)
+    leg = await fleet.leg(AGENT, scope, to="+34910000000", call=call, shown=A_NUMBER)
     await fleet.aclose()
     assert (leg.hostname, leg.transport, leg.username, leg.shown) == (
         "sip.pbx.test",

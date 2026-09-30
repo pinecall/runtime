@@ -25,6 +25,7 @@ from pinecall.gateway import _deps, _streams
 from pinecall.gateway._call_setup import tuned
 from pinecall.gateway._deps import (
     Acting,
+    CallReaderDep,
     GatewayDep,
     Reader,
     ReaderDep,
@@ -162,6 +163,7 @@ async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) 
     """Open a call's log, serve it to its agent's socket, say its minutes and its first words."""
     context = body.context
     scope = _call_corner(key, context)
+    await _unclaimed_or_in(gateway, context.call, scope)
     await _spent(gateway, context, body.agent)
     ceiling = await _deps.admit_call(gateway, scope, body.agent)
     found = serving_agent(gateway.sockets, scope, body.agent, body.app, context)
@@ -195,7 +197,7 @@ async def reopen_call(
     kept = await queries.scope_of_call(gateway.connections.pool, call)
     if kept is None:
         raise NotFound(NOT_OPEN.format(call=call))
-    if kept.scope is None or kept.scope.org != scope.org:
+    if kept.scope != scope:
         raise NotFound(_deps.NO_SUCH_CALL.format(call=call))
     if kept.sealed:
         raise Conflict(SEALED.format(call=call))
@@ -317,7 +319,7 @@ async def claim_keypad_code(
 @router.get("/v1/calls/{call}/events", response_model=None)
 async def stream_events(
     call: str,
-    reading: ReaderDep,
+    reading: CallReaderDep,
     gateway: GatewayDep,
     query: Annotated[LogQuery, Query()],
     options: Annotated[StreamOptions, Header()],
@@ -350,7 +352,7 @@ async def stream_agent_events(
     if reading.acting is None:
         raise NotAllowed(_deps.NOT_YOURS)
     owner = await gateway.logs.store.owner(slug)
-    if owner is not None and owner != reading.acting.org and not _deps.is_the_fleet(reading):
+    if owner is not None and owner != reading.acting.org:
         raise NotFound(NO_AGENT.format(slug=slug))
     config = gateway.sockets.declared(slug)
     only = parse_filter(query.types, durable=query.durable)
@@ -362,7 +364,7 @@ async def stream_agent_events(
 
 
 @router.get("/v1/calls/{call}/state")
-async def call_state(call: str, reading: ReaderDep, gateway: GatewayDep) -> JsonObject:
+async def call_state(call: str, reading: CallReaderDep, gateway: GatewayDep) -> JsonObject:
     """The call's folded state as this reader may see it, and the seq a stream resumes from."""
     config = await _deps.check_readable(gateway, reading, call)
     await _read_by(gateway, reading, call, "log")
@@ -378,7 +380,7 @@ async def call_state(call: str, reading: ReaderDep, gateway: GatewayDep) -> Json
 
 
 @router.get("/v1/calls/{call}/recording")
-async def recording(call: str, reading: ReaderDep, gateway: GatewayDep) -> FileResponse:
+async def recording(call: str, reading: CallReaderDep, gateway: GatewayDep) -> FileResponse:
     """The call's audio, with byte ranges so a player can seek."""
     await _deps.check_readable(gateway, reading, call)
     await _read_by(gateway, reading, call, "recording")
@@ -473,6 +475,14 @@ def _orgs_call(gateway: Gateway, key: Acting, call: str) -> Served:
     if not fleet and served.scope.org != key.org:
         raise NotFound(NOT_OPEN.format(call=call))
     return served
+
+
+# A call a dial placed already has its head: the worker opens it in the scope the head keeps, or
+# not at all, whatever its key; the first claim of a head stands, so this is the one check.
+async def _unclaimed_or_in(gateway: Gateway, call: str, scope: Scope) -> None:
+    kept = await queries.scope_of_call(gateway.connections.pool, call)
+    if kept is not None and kept.scope is not None and kept.scope != scope:
+        raise NotFound(_deps.NO_SUCH_CALL.format(call=call))
 
 
 async def _spent(gateway: Gateway, context: CallContext, agent: str) -> None:
