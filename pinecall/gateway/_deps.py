@@ -385,38 +385,45 @@ ScopeDep = Annotated[Scope, Depends(scope)]
 
 
 # ?token= only for a token of ours: EventSource sets no header, and a key in a URL would leak.
-async def reader(
-    connection: HTTPConnection,
-    gateway: GatewayDep,
-    named: DispatchedDep,
-    token: Annotated[str | None, Query()] = None,
-) -> Reader:
-    """A key that opens the calls, or a token of one call; 401 for anything else."""
-    return await _reader_of(connection, gateway, named, token, ("calls",))
+# A worker reads the call it serves with the fleet's key and names no scope to do it, since the
+# call's head row says whose it is: only a call's own reading doors (its events, its state, its
+# recording) let that key in.
+def reading(*opens: KeyScope) -> Callable[..., Awaitable[Reader]]:
+    """A dependency that lets through a key that opens one of the scopes, or a call's token."""
+
+    async def read(
+        connection: HTTPConnection,
+        gateway: GatewayDep,
+        named: DispatchedDep,
+        token: Annotated[str | None, Query()] = None,
+    ) -> Reader:
+        data = bearer_of(connection.headers) or token
+        if data is None:
+            raise NotSignedIn(READ_WITH_A_KEY)
+        if tokens.is_a_jwt(data):
+            visit = tokens.read(gateway.signer, data)
+            if visit is None:
+                raise NotSignedIn(READ_WITH_A_KEY)
+            return Reader(visit=visit)
+        verified = None if data == token else await keys.verify(gateway.connections.pool, data)
+        if verified is None:
+            raise NotSignedIn(READ_WITH_A_KEY)
+        key = Acting(bearer=verified, env=world_of_request(connection, verified, gateway))
+        keys.check_opens(verified, *opens)
+        _check_agent_named(connection, verified)
+        await _paced(gateway, key, "calls")
+        if THE_FLEET in verified.key.scopes:
+            return Reader(acting=key)
+        return Reader(acting=key, scope=await scope(connection, key, gateway, named))
+
+    SCOPES_OF[read] = frozenset(opens)
+    return read
 
 
-ReaderDep = Annotated[Reader, Depends(reader)]
+ReaderDep = Annotated[Reader, Depends(reading("calls"))]
 
 
-SCOPES_OF[reader] = frozenset({"calls"})
-
-
-# The one call's own reading doors (its events, its state, its recording): a worker reads the
-# call it serves there, and names no scope to do it, since the call's head row says whose it is.
-async def call_reader(
-    connection: HTTPConnection,
-    gateway: GatewayDep,
-    named: DispatchedDep,
-    token: Annotated[str | None, Query()] = None,
-) -> Reader:
-    """A reader of one call's log: a key that opens the calls, the fleet's, or the call's token."""
-    return await _reader_of(connection, gateway, named, token, ("calls", THE_FLEET))
-
-
-CallReaderDep = Annotated[Reader, Depends(call_reader)]
-
-
-SCOPES_OF[call_reader] = frozenset({"calls", THE_FLEET})
+CallReaderDep = Annotated[Reader, Depends(reading("calls", THE_FLEET))]
 
 
 # A key reads a call of its org in its world; a token, its own call alone. A call nobody wrote
@@ -437,33 +444,6 @@ async def check_readable(gateway: Gateway, reading: Reader, call: str) -> AgentC
     if reading.acting is not None:
         keys.check_agent(reading.acting.bearer, kept.agent)
     return gateway.sockets.declared(kept.agent)
-
-
-async def _reader_of(
-    connection: HTTPConnection,
-    gateway: Gateway,
-    named: Scope | None,
-    token: str | None,
-    opens: tuple[KeyScope, ...],
-) -> Reader:
-    data = bearer_of(connection.headers) or token
-    if data is None:
-        raise NotSignedIn(READ_WITH_A_KEY)
-    if tokens.is_a_jwt(data):
-        visit = tokens.read(gateway.signer, data)
-        if visit is None:
-            raise NotSignedIn(READ_WITH_A_KEY)
-        return Reader(visit=visit)
-    verified = None if data == token else await keys.verify(gateway.connections.pool, data)
-    if verified is None:
-        raise NotSignedIn(READ_WITH_A_KEY)
-    key = Acting(bearer=verified, env=world_of_request(connection, verified, gateway))
-    keys.check_opens(verified, *opens)
-    _check_agent_named(connection, verified)
-    await _paced(gateway, key, "calls")
-    if THE_FLEET in verified.key.scopes:
-        return Reader(acting=key)
-    return Reader(acting=key, scope=await scope(connection, key, gateway, named))
 
 
 # The org's own calls and the reader's own scope; a token is checked by its call, the fleet's
