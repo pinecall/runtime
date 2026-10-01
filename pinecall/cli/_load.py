@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import math
+import re
 import sys
 import time
 from collections import Counter
@@ -71,6 +72,8 @@ GRACE_S = 2 * SEALED_WITHIN_S
 LET_GO_S = 0.1
 
 UNREACHABLE = "unreachable"
+
+A_CALL_IN_A_PATH = re.compile(r"call_[0-9a-f]+")
 
 NO_KEY = "PINECALL_WORKER_KEY is unset: the load knocks with the sandbox fleet's key"
 
@@ -426,8 +429,12 @@ async def _verified(run: Run, client: GatewayClient, call: str, sent: list[Entry
         tally.wrong += 1
 
 
+# By status and door, the call's id taken out: which request was refused is what a run under
+# gateways killed must say (`unreachable POST /v1/calls`), not a count of statuses alone.
 def _status(refused: GatewayRefused) -> str:
-    return UNREACHABLE if refused.answered is None else str(refused.answered)
+    status = UNREACHABLE if refused.answered is None else str(refused.answered)
+    door = A_CALL_IN_A_PATH.sub("{call}", str(refused).split(": ", 1)[0])
+    return f"{status} {door}"
 
 
 def _percentiles(samples: Sequence[float], shares: Sequence[float]) -> str:

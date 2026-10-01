@@ -102,6 +102,25 @@ async def test_a_call_opened_writes_and_seals_through_the_client(knocking: Knock
     await client.aclose()
 
 
+# A gateway that died with the open or the seal in flight: the worker asks again, the call is one.
+@postgres
+async def test_an_open_asked_again_is_the_same_call_and_a_seal_asked_again_is_done(
+    knocking: Knocking,
+) -> None:
+    client = fleet_client(knocking)
+    context = a_call(knocking)
+    await client.open(OpenCallRequest(agent=AGENT, context=context))
+    await client.open(OpenCallRequest(agent=AGENT, context=context))
+    await client.sealed(context.call, SealCallRequest(usage=[], outcome="done"))
+    client.opened[context.call] = OpenCallRequest(agent=AGENT, context=context)
+    await client.sealed(context.call, SealCallRequest(usage=[], outcome="done"))
+    kept = await knocking.gateway.logs.store.whole(context.call)
+    assert [entry.type for entry in kept].count("call.ringing") == 1
+    assert [entry.type for entry in kept].count("call.summary") == 1
+    assert context.call not in client.opened
+    await client.aclose()
+
+
 # The seal is held from here as its memory and its judges hold it: longer than a request waits.
 @postgres
 async def test_a_seal_slower_than_a_request_is_waited_for_and_never_asked_twice(
