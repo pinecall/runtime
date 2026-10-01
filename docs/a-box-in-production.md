@@ -358,7 +358,19 @@ secret, `box up --domains
 database running and keeps the three secrets sealed above; its numbers go back on the SIP service
 when the gateway starts. Afterwards this machine is the box, and a new replica joins it the same way.
 
-**Drilled: not yet.**
+**Drilled on 2026-10-01**, on three throwaway machines of one network, the store an S3 endpoint
+on one of them (`rclone serve s3`; Google's organisation policy refused an HMAC key, which any S3
+endpoint replaces):
+
+| drill | what was done | measured |
+|---|---|---|
+| restore to a minute | a marker written before a minute T and one after; WAL archiving on, a base backup, then the steps above to T | the database back at T in **79 s** (`recovery stopping before commit … 14:36:29`): the marker before T there, the one after T not; the write of 14:36:29 was already in the bucket 50 s later — **RPO under a minute** |
+| failover | a marker written, the box's VM stopped outright; `box failover` and `box up` on the replica | promoted **17 s** after the decision, no write lost (the replica was 0.6 ms behind); `box up` until the gateway answered: **145 s**; the doctor all `ok`. **RTO under 3 minutes** plus the time the names take to move |
+
+What the drill found: until 2026-10-01 the replica could not have streamed at all — Ubuntu 24.04's
+podman ignores the `.container.d` drop-in that published Postgres toward it (fixed: the publish
+lines are written into the installed container file). And a promoted replica keeps archiving off
+until `backup.env` and the store's secret are copied to it, as step 3 of the failover says.
 
 ### Two gateways, or more
 

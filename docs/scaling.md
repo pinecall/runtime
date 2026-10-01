@@ -18,7 +18,7 @@ table at the end). Stop at the first one that holds your peak.
 | more gateway processes | on a bigger box: `systemctl enable --now pinecall-gateway@8880` (not 8082–8085) and its address in Caddy's `(gateways)` | ~330 calls a gateway core |
 | gateways off the box | on the box `primary.sh allow-gateway <machine>`; then `primary.sh gateway-credentials \| ssh <machine> gateway.sh join <box> <wheel>` ([a-box-in-production.md](a-box-in-production.md), "Gateways on other machines") | a gateway machine killed under 1 200 calls lost none |
 | more media | a second LiveKit node on the box's Redis (same page, "A second LiveKit node") | ~90 voice calls a core, 0 packets lost at 400 |
-| Postgres that outlives the box | `primary.sh allow <replica>` and `replica.sh join` ([../infra/cell/README.md](../infra/cell/README.md)) | — |
+| Postgres that outlives the box | `primary.sh allow <replica>` and `replica.sh join` ([../infra/cell/README.md](../infra/cell/README.md)) | drilled: promoted in 17 s with no write lost, a box again in under 3 min; a restore to any minute in 79 s |
 | past ~15 000–20 000 calls | a second cell: another box and its machines, an org living in one | Postgres grows ~1.4 cores per 1 000 calls; one database is one cell |
 
 ## Three planes, each grows on its own

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- The disaster drills, run: a restore to a minute in 79 s with RPO under a minute, and a failover
+  to the replica in 17 s with no write lost, a box again in under 3 minutes (`docs/a-box-in-production.md`).
+
 ## 0.1.3 — The server side, measured: gateways on many machines, a cluster of media, and the numbers (2026-10-02)
 
 - A model that says nothing for 12 s (or the agent's `llm_timeout_s`) no longer leaves the caller in
