@@ -1,4 +1,4 @@
-"""A verified key remembered on this gateway for seconds, forgotten the moment one is revoked."""
+"""A verified key remembered on this gateway for seconds, forgotten once it or its person change."""
 
 import asyncio
 import contextlib
@@ -21,20 +21,22 @@ logger = logging.getLogger(__name__)
 
 
 # Verifying a key is a round trip per request, 15 % of a gateway's core under load (measured
-# 2026-09-30). A key is remembered this long; a revocation is said on the signal and forgets it
-# everywhere at once, so the seconds are only what a gateway that cannot hear the signal keeps.
+# 2026-09-30). A key is remembered this long; a revocation or a change to its person is said on the
+# signal and forgets it everywhere at once, so the seconds are only what a gateway that cannot hear
+# the signal keeps, and what a change made outside the doors (a shell, psql) waits.
 REMEMBERED_FOR_S = 5.0
 
 
-# What every gateway hears when a key, or every key of a person, stops opening anything.
-CHANNEL = "keys:revoked"
+# What every gateway hears when a key is revoked, or a person's standing changes (a role, an agent
+# list, production, operator, disabled or removed): what it remembered of them no longer holds.
+CHANNEL = "keys:forgotten"
 
 
 RETRY_S = 1.0
 
 
-class Revoked(BaseModel):
-    """What was revoked: one key by its fingerprint, or every key of a person."""
+class Forgotten(BaseModel):
+    """What to forget: one key by its fingerprint, or every key of a person."""
 
     fingerprint: str | None = None
     subject: str | None = None
@@ -103,17 +105,17 @@ class RememberedKeys:
 
     # Forgotten here before the door answers, and said to every other gateway: a signal that is
     # away queues it, so the other gateways keep the key for the seconds and no longer.
-    def revoked(self, *, fingerprint: str | None = None, subject: str | None = None) -> None:
+    def forget(self, *, fingerprint: str | None = None, subject: str | None = None) -> None:
         """Forget a key, or a person's keys, on every gateway."""
-        revoked = Revoked(fingerprint=fingerprint, subject=subject)
-        self._forgotten(revoked)
-        self.signal.publish(CHANNEL, revoked.model_dump_json().encode())
+        forgotten = Forgotten(fingerprint=fingerprint, subject=subject)
+        self._forgotten(forgotten)
+        self.signal.publish(CHANNEL, forgotten.model_dump_json().encode())
 
-    def _forgotten(self, revoked: Revoked) -> None:
-        if revoked.fingerprint is not None:
-            self.kept.pop(revoked.fingerprint, None)
-        if revoked.subject is not None:
-            for hashed in [h for h, kept in self.kept.items() if _of(kept, revoked.subject)]:
+    def _forgotten(self, forgotten: Forgotten) -> None:
+        if forgotten.fingerprint is not None:
+            self.kept.pop(forgotten.fingerprint, None)
+        if forgotten.subject is not None:
+            for hashed in [h for h, kept in self.kept.items() if _of(kept, forgotten.subject)]:
                 del self.kept[hashed]
 
     # Keys verified once and never again would stay: swept each period.
@@ -135,7 +137,7 @@ class RememberedKeys:
             self.kept.clear()
             try:
                 async for data in listening:
-                    self._forgotten(Revoked.model_validate_json(data))
+                    self._forgotten(Forgotten.model_validate_json(data))
             finally:
                 listening.close()
             with contextlib.suppress(TimeoutError):

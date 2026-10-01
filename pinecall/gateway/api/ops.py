@@ -273,6 +273,7 @@ async def make_operator(
     """Whether this member runs the box; false takes it back at once."""
     org = await _org(gateway, named)
     changed = await people.make_operator(gateway.connections.pool, org.id, member, on=body.operator)
+    gateway.keys.forget(subject=member)
     if changed is None:
         raise NotFound(people.NOBODY_BY_THAT_ID)
     return MemberRow.of(changed)
@@ -284,7 +285,7 @@ async def remove_member(named: str, member: MemberId, gateway: GatewayDep) -> No
     """The person out of the org for good, their keys revoked."""
     org = await _org(gateway, named)
     await people.remove(gateway.connections.pool, org.id, member)
-    gateway.keys.revoked(subject=member)
+    gateway.keys.forget(subject=member)
 
 
 @router.get("/v1/ops/orgs/{named}/sso")
@@ -349,7 +350,7 @@ async def revoke_key(fingerprint: str, gateway: GatewayDep) -> RevokeKeyResponse
     """One key stops opening anything from the next request on."""
     if not await keys.revoke(gateway.connections.pool, fingerprint):
         raise NotFound(NO_SUCH_KEY.format(fingerprint=fingerprint))
-    gateway.keys.revoked(fingerprint=fingerprint)
+    gateway.keys.forget(fingerprint=fingerprint)
     return RevokeKeyResponse(fingerprint=fingerprint, revoked=True)
 
 

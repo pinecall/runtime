@@ -349,3 +349,18 @@ async def test_a_reset_with_nothing_to_mail_hands_the_link_and_an_invited_member
     assert (reset.json()["mailed"], reset.json()["token"][:4]) == (False, "inv_")
     assert refused.status_code == 409
     assert nobody.status_code == 404
+
+
+@postgres
+async def test_a_member_disabled_at_the_door_is_refused_on_the_next_request_not_seconds_later(
+    knocking: Knocking,
+) -> None:
+    _, admins = await seated(knocking, "ana@clinica.test", "admin")
+    bo, bos = await seated(knocking, "bo@clinica.test", "admin")
+    async with knocking.http(bos) as bo_console:
+        before = await bo_console.get("/v1/members")
+        async with knocking.http(admins) as admin:
+            changed = await admin.patch(f"/v1/members/{bo.id}", json={"status": "disabled"})
+        after = await bo_console.get("/v1/members")
+    assert (before.status_code, changed.status_code) == (200, 200)
+    assert after.status_code == 401, "the key the gateway remembered is forgotten at once"
