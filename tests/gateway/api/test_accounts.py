@@ -257,6 +257,8 @@ async def test_a_persons_orgs_mark_the_one_the_key_opens_and_an_operator_sees_ev
         mine = (await console.get("/v1/login/orgs")).json()["orgs"]
         operator = await people.make_operator(pool, knocking.org.id, berna.id, on=True)
         assert operator is not None
+        # As the operator's door does: the gateway forgets what it remembered of the person.
+        knocking.gateway.keys.forget(subject=berna.id)
         every = (await console.get("/v1/login/orgs")).json()["orgs"]
     async with knocking.http(knocking.app["sandbox"]) as server:
         refused = await server.get("/v1/login/orgs")
@@ -283,6 +285,7 @@ async def test_the_switch_mints_the_same_persons_key_in_another_org_of_theirs_or
         switched = (await console.post("/v1/login/org", json={"org": "tienda-sur"})).json()
         refused = await console.post("/v1/login/org", json={"org": "acme"})
         await people.make_operator(pool, knocking.org.id, berna.id, on=True)
+        knocking.gateway.keys.forget(subject=berna.id)
         visit = (await console.post("/v1/login/org", json={"org": "acme"})).json()
     async with knocking.http(knocking.app["sandbox"]) as server:
         server_refused = await server.post("/v1/login/org", json={"org": "tienda-sur"})

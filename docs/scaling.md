@@ -18,8 +18,9 @@ The control plane is as many gateways as the requests need. Each keeps in memory
 what Postgres holds and what is bound to a connection it holds (an app socket, a stream, a written
 call's session, a WhatsApp thread) and, for five seconds, a key it verified; everything else is in
 Postgres, or said on the signal each second (who holds which agent, the roster, an org's calls at
-once). A key revoked at a door is forgotten on every gateway at once, said on the signal; one
-revoked at a shell (`keys revoke`) opens for those seconds on a gateway that remembered it. A call's requests go to one
+once). A key revoked, or a person changed (role, agents, production, operator, disabled), at a door is
+forgotten on every gateway at once, said on the signal; a change made at a shell (`keys revoke`)
+holds for those seconds on a gateway that remembered the key. A call's requests go to one
 gateway while it lives, by the `Pinecall-Call` header the balancer hashes, so a second gateway
 costs a call nothing; any other gateway answers them the same when that one is gone. The box runs
 two ([a-box-in-production.md](a-box-in-production.md), "Two gateways").

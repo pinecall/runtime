@@ -64,7 +64,7 @@ async def test_a_revocation_said_by_one_gateway_forgets_the_key_on_every_other_a
     assert await first.verify(secret) is not None
     assert await second.verify(secret) is not None
     await revoke(pool, fingerprint(secret))
-    first.revoked(fingerprint=fingerprint(secret))
+    first.forget(fingerprint=fingerprint(secret))
     await asyncio.sleep(0)
     await asyncio.sleep(0)
     assert fingerprint(secret) not in first.kept
@@ -85,7 +85,7 @@ async def test_a_persons_revocation_forgets_every_key_of_theirs_and_nobody_elses
         memory.kept["h1"] = Remembered(Bearer(Key(key_id="k1", org="o", subject="m_1")), 2000.0)
         memory.kept["h2"] = Remembered(Bearer(Key(key_id="k2", org="o", subject="m_1")), 2000.0)
         memory.kept["h3"] = Remembered(Bearer(Key(key_id="k3", org="o", subject="m_2")), 2000.0)
-    remembered.revoked(subject="m_1")
+    remembered.forget(subject="m_1")
     await asyncio.sleep(0)
     await asyncio.sleep(0)
     assert set(remembered.kept) == {"h3"}
