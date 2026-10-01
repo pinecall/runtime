@@ -21,9 +21,24 @@ class WireModel(BaseModel):
         except ValidationError as error:
             raise DeclarationRefused(f"{what}: {error}") from error
 
+    # The two below stay in pydantic's own parser and writer (Rust): on the paths a gateway runs
+    # per entry, decoding to a dict and reading it, or dumping and encoding, is what shows in its
+    # profile (21 % of a core at 100 calls, 2026-10-01).
+    @classmethod
+    def read_json(cls, raw: str | bytes, what: str) -> Self:
+        """Build the model from JSON text, raising DeclarationRefused with what did not fit."""
+        try:
+            return cls.model_validate_json(raw)
+        except ValidationError as error:
+            raise DeclarationRefused(f"{what}: {error}") from error
+
     def written(self) -> JsonObject:
         """Return the model as it goes on the wire: wire keys, absent fields absent, JSON values."""
         return self.model_dump(mode="json", by_alias=True, exclude_unset=True)
+
+    def written_json(self) -> str:
+        """Return the model as `written()` is, as JSON text in one step."""
+        return self.model_dump_json(by_alias=True, exclude_unset=True)
 
 
 # seq is written before control returns, so two readers never disagree about order.

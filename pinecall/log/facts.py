@@ -11,6 +11,7 @@ from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Connection, Pool
 from pinecall.wire.events import (
+    EVENTS,
     AgentTurnEnded,
     CallDialing,
     CallEnded,
@@ -333,6 +334,29 @@ class CallScope:
     written: int
 
 
+# The types fold() reads; every other entry leaves a call's facts as they are, so a group of only
+# those never locks or reads a facts row (most of a call's entries: its metrics, its transcripts).
+FOLDED_TYPES = (
+    frozenset(
+        name
+        for name, model in EVENTS.items()
+        if model
+        in (
+            CallRinging,
+            CallDialing,
+            CallStarted,
+            CallEnded,
+            CallSummary,
+            CallScore,
+            RoomOpened,
+            UserTurnEnded,
+            AgentTurnEnded,
+        )
+    )
+    | A_PERSON_TOOK_PART
+)
+
+
 # The whole row is written every time: the merge happened in fold(), in one place.
 FACTS_WRITTEN = sql.SQL(
     "insert into call_facts ({columns}) values ({values})"
@@ -438,7 +462,7 @@ async def record(connection: Connection, entries: Sequence[Entry]) -> None:
     """Fold the entries into their calls' facts rows, in the transaction they are written in."""
     by_call: dict[str, list[Entry]] = {}
     for entry in entries:
-        if entry.call is not None and not entry.ephemeral:
+        if entry.call is not None and not entry.ephemeral and entry.type in FOLDED_TYPES:
             by_call.setdefault(entry.call, []).append(entry)
     if not by_call:
         return

@@ -63,7 +63,8 @@ returning log, seq, sealed, written, written_seq
 """
 
 # The heads moved and the durable rows written in one statement: two tables, nothing between them
-# to read.
+# to read. The rows travel as one JSON document, read apart by Postgres: six arrays of N were six
+# parameters adapted a value at a time in Python, a fifth of the gateway's core at 100 calls.
 WRITTEN = """
 with moved as (
     update call_log_head as head
@@ -81,9 +82,8 @@ with moved as (
 )
 insert into call_log (call, seq, ts, agent, type, ephemeral, data)
 select kept.call, kept.seq, kept.ts, kept.agent, kept.type, false, kept.data
-from unnest(%(calls)s::text[], %(row_seqs)s::bigint[], %(stamps)s::float8[],
-            %(row_agents)s::text[], %(types)s::text[], %(data)s::jsonb[])
-     as kept(call, seq, ts, agent, type, data)
+from jsonb_to_recordset(%(rows)s::jsonb)
+     as kept(call text, seq bigint, ts float8, agent text, type text, data jsonb)
 """
 
 # The first-of-its-type requests whose log already holds an entry of that type: read under the
@@ -429,15 +429,19 @@ def _heads_moved(moved: Sequence[tuple[Append, _Moved]]) -> dict[str, object]:
 
 
 def _rows(entries: Sequence[Entry]) -> dict[str, object]:
-    kept = [entry for entry in entries if not entry.ephemeral]
-    return {
-        "calls": [entry.call for entry in kept],
-        "row_seqs": [entry.seq for entry in kept],
-        "stamps": [entry.ts for entry in kept],
-        "row_agents": [entry.agent for entry in kept],
-        "types": [entry.type for entry in kept],
-        "data": [Jsonb(entry.data) for entry in kept],
-    }
+    rows = [
+        {
+            "call": entry.call,
+            "seq": entry.seq,
+            "ts": entry.ts,
+            "agent": entry.agent,
+            "type": entry.type,
+            "data": entry.data,
+        }
+        for entry in entries
+        if not entry.ephemeral
+    ]
+    return {"rows": Jsonb(rows)}
 
 
 # A caller that gave up has a cancelled future: its entries were written all the same.

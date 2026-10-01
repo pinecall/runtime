@@ -2,6 +2,10 @@
 
 ## 0.1.3 — Open models on the row (unreleased)
 
+- The append path costs a gateway a third less of its core (100 calls held: 155 % → 100 % on two
+  gateways; append p50 161 → 14 ms, p99 1.4 s → 94 ms): a group's rows go to Postgres as one JSON
+  document instead of six arrays adapted a value at a time, the entries socket and the relay read and
+  write JSON in pydantic's own parser, and only the types the facts fold lock a call's facts row.
 - A worker's batches of a call go down one WebSocket for the call's life (`WS /v1/calls/{call}/entries`)
   instead of a request per batch: no routing, headers or key per batch on the gateway. A refusal is a
   frame and the socket stays; a lost socket is opened again and the batch asked again with the same
