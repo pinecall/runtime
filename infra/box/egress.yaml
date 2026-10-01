@@ -2,6 +2,8 @@
 ws_url: ws://pinecall-livekit:7880
 redis:
   address: pinecall-redis:6379
+  # install.sh writes it in; the file it installs is root's and the media group's alone.
+  password: "@REDIS_PASSWORD@"
 health_port: 7980
 log_level: info
 # An audio room composite with no layout runs on livekit's SDK, not Chromium (egress

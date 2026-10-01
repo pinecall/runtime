@@ -2,6 +2,14 @@
 
 ## 0.1.3 — Open models on the row (unreleased)
 
+- Gateways on machines of their own: `infra/cell/primary.sh allow-gateway` on the box (pg_hba, the
+  fence, Postgres, Redis and LiveKit's API published on its address for those machines alone, Caddy
+  sending them calls), `gateway.sh join` on the other machine (the credentials through a pipe). Redis
+  asks a password of everyone (drawn by `install.sh`, `PINECALL_REDIS_URL` a credential). Measured: a
+  gateway machine killed for two minutes under 1 200 calls lost none of them.
+- What a container is published on beyond loopback is written into its installed file: podman 4.9
+  reads no `.container.d` drop-ins, so the replica's Postgres (`primary.sh allow`) was never
+  published on the box's address. Fixed for it and for gateway machines.
 - A gateway that dies with a worker's request in flight loses no call: an open is asked again while
   the gateway is away and is the same call by its id (one claim, one opening, one ringing), and a seal
   asked again that finds the call sealed is done. The seal's lease is 15 s renewed while sealing (was 120 s):

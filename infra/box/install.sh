@@ -69,7 +69,6 @@ PINECALL_DOMAINS=${DOMAINS//,/, }
 LIVEKIT_PUBLIC_URL=wss://$FIRST
 PINECALL_DB_POOL=$((2 * $(nproc) + 2))
 ENV
-install -m 0644 "$HERE"/sip.yaml "$HERE"/egress.yaml /etc/pinecall/
 install -m 0644 "$HERE"/fleets/*.env /etc/pinecall/fleets/
 
 # The box's secrets, drawn here once and never printed; a re-run keeps what exists.
@@ -86,6 +85,22 @@ if [ ! -f "$STORE/LIVEKIT_API_KEY" ]; then
         printf 'postgresql://pinecall:%s@127.0.0.1:5432/pinecall' "$password" | sealed DATABASE_URL
     unset key secret password
 fi
+# Redis asks everyone a password: the media services read it from their files (root's, and the
+# media group's: egress runs as its own user in that group), the gateways from PINECALL_REDIS_URL. Drawn once; a box from before has none until this run, and its
+# Redis and media services take it on their next start (`systemctl restart pinecall-redis`).
+if [ ! -f "$STORE/redis.env" ]; then
+    redis_password="$(openssl rand -hex 24)"
+    printf 'REDIS_PASSWORD=%s\n' "$redis_password" | sealed redis.env
+    printf 'redis://:%s@127.0.0.1:6379/1' "$redis_password" | sealed PINECALL_REDIS_URL
+    unset redis_password
+fi
+redis_password="$(systemd-creds decrypt --name=redis.env "$STORE/redis.env" - | sed -n 's/^REDIS_PASSWORD=//p')"
+for file in sip.yaml egress.yaml; do
+    sed -e "s|@REDIS_PASSWORD@|$redis_password|" "$HERE/$file" > "/etc/pinecall/$file"
+    chown root:pinecall-media "/etc/pinecall/$file"
+    chmod 0640 "/etc/pinecall/$file"
+done
+unset redis_password
 # LiveKit signs its webhook with the box's key, by name; the name is no secret (every token
 # says it), and livekit-server reads this file when it starts.
 livekit_key="$(systemd-creds decrypt --name=LIVEKIT_API_KEY "$STORE/LIVEKIT_API_KEY" -)"
@@ -100,10 +115,22 @@ unset livekit_key
 # The containers, Caddy, the runtime's units.
 install -d /etc/containers/systemd
 install -m 0644 "$HERE"/containers/* /etc/containers/systemd/
+# The ports a container is published on beyond loopback (infra/cell/primary.sh writes them, for a
+# replica or a gateway machine): appended to the file just installed, since podman 4.9's quadlet
+# reads no .container.d drop-ins.
+# After its loopback PublishPort=, so in [Container].
+for kept in /etc/pinecall/published/*.conf; do
+    [ -f "$kept" ] || continue
+    container="/etc/containers/systemd/$(basename "$kept" .conf).container"
+    awk -v kept="$kept" '{ print } /^PublishPort=127\.0\.0\.1:/ && !done {
+        while ((getline line < kept) > 0) print line; done = 1 }' "$container" > "$container.new"
+    mv "$container.new" "$container"
+done
 install -d /etc/caddy/conf.d
 install -m 0644 "$HERE/caddy/Caddyfile" /etc/caddy/Caddyfile
 install -d /etc/systemd/system/caddy.service.d
-printf '[Service]\nEnvironmentFile=/etc/pinecall/box.env\n' > /etc/systemd/system/caddy.service.d/pinecall.conf
+printf '[Service]\nEnvironmentFile=/etc/pinecall/box.env\nEnvironmentFile=-/etc/pinecall/gateways.env\n' \
+    > /etc/systemd/system/caddy.service.d/pinecall.conf
 install -m 0644 "$HERE"/pinecall-*.service "$HERE"/pinecall-*.timer /etc/systemd/system/
 # Two workers per world, the one template under two names, each told its slot by its drop-in.
 for slot in a b; do
@@ -132,7 +159,7 @@ rm -f /etc/systemd/system/pinecall-gateway.service
 # The second gateway only once Redis answers on loopback: two gateways that cannot tell each other
 # what they did would each serve alone. A box whose Redis was started before it was published there
 # gets it after `systemctl restart pinecall-redis`, in a window (it restarts LiveKit, SIP, egress).
-if podman exec pinecall-redis redis-cli ping >/dev/null 2>&1 \
+if podman exec pinecall-redis sh -c 'redis-cli --no-auth-warning -a "$REDIS_PASSWORD" ping' >/dev/null 2>&1 \
     && timeout 2 bash -c '</dev/tcp/127.0.0.1/6379' 2>/dev/null; then
     systemctl enable pinecall-gateway@8081
 else
