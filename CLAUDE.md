@@ -86,6 +86,13 @@ v1 stopped and the tenant apps under `/opt/pinecall/apps`). Everything is tested
 never a local gateway; local is for the suites. `pinecall-notify` runs
 beside the runtime (it pushes calls of both worlds to phones and browsers).
 
+Since 2026-10-01 the box's database is not alone: its WAL is archived every minute to S3
+(`pinecall-box-backups-905418191085`, us-east-1, the IAM user `pinecall-box-store` that can only
+touch that bucket; `/etc/pinecall/backup.env`), the nightly backup and base backup go there too
+(35-day lifecycle), and `ssh pinecall-runtime-replica` (34.31.81.33, 10.128.15.203) is a streaming
+replica, `box failover` ready (`docs/a-box-in-production.md`, "A replica"). The backup's private
+age key is never on either machine.
+
 ## Secrets and what never gets committed
 
 - Keys come from `~/.pinecall/credentials` into an env var and are never printed, logged,
