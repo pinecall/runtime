@@ -425,6 +425,18 @@ two gateways took every call while it was gone, at p99 3.7 s. A recording kept o
 (`PINECALL_RECORDINGS`) is served by the box's gateways alone: with gateway machines, keep
 recordings in the bucket ("Recordings, off the disk").
 
+### A second LiveKit node
+
+LiveKit runs as a cluster on the box's Redis: a node on another machine is the same image with
+`redis.address` at the box (its password in `REDIS_PASSWORD`, as the box's LiveKit has it),
+`rtc.node_ip` its own address, and the same `LIVEKIT_KEYS`; the box's fence lets it reach Redis
+once `primary.sh allow-gateway <its address>` has run. A room is placed on any node by load, and a
+worker registered on one node takes rooms on the other (measured 2026-10-01 on livekit 1.13.7:
+eight rooms created on the second node with the sandbox agent dispatched, every job assigned and
+joined). Measured with `lk load-test`: 400 voice calls at once across two nodes, 0 packets lost,
+2.25 cores a node. A room never spans nodes; a node lost ends its rooms (the caller hears the
+sentence of a dead worker's call, by LiveKit's webhook) and new rooms land on the others.
+
 ## 5. What the box runs
 
 From the console's box screens, or the operator's doors with the ops key
