@@ -20,7 +20,12 @@ case "${1:-}" in
 join)
     [ -n "${2:-}" ] || { echo "replica.sh join <box address>, the replication password on stdin" >&2; exit 2; }
     primary="$2"
-    command -v podman >/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y -q podman
+    # A machine made a minute ago has an empty package index: podman is not found until it is read.
+    command -v podman >/dev/null || { DEBIAN_FRONTEND=noninteractive apt-get update -q &&
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -q podman; }
+    # The box's directories name the deploy account (install.sh makes it there); a replica that is
+    # promoted runs `box up` on them, so it needs the same account before tmpfiles reads them.
+    id deploy >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin deploy
     install -D -m 0644 "$BOX/sysusers.d/pinecall.conf" /etc/sysusers.d/pinecall.conf
     install -D -m 0644 "$BOX/tmpfiles.d/pinecall.conf" /etc/tmpfiles.d/pinecall.conf
     systemd-sysusers
