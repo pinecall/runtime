@@ -226,11 +226,7 @@ GatewayDep = Annotated[Gateway, Depends(gateway_of)]
 async def bearer(connection: HTTPConnection, gateway: GatewayDep) -> Bearer:
     """The key that knocked, and its person; 401 without saying why."""
     data = bearer_of(connection.headers)
-    verified = (
-        None
-        if data is None or tokens.is_a_jwt(data)
-        else await keys.verify(gateway.connections.pool, data)
-    )
+    verified = None if data is None or tokens.is_a_jwt(data) else await gateway.keys.verify(data)
     if verified is None:
         raise NotSignedIn(TAKES_A_KEY)
     return verified
@@ -245,7 +241,7 @@ async def operator(connection: HTTPConnection, gateway: GatewayDep) -> None:
     ops = gateway.connections.settings.ops_key
     if data is not None and ops and compare_digest(data, ops):
         return
-    verified = None if data is None else await keys.verify(gateway.connections.pool, data)
+    verified = None if data is None else await gateway.keys.verify(data)
     if verified is None or verified.member is None or not verified.member.operator:
         raise NotSignedIn(NOT_THE_OPERATORS)
 
@@ -418,7 +414,7 @@ def reading(*opens: KeyScope) -> Callable[..., Awaitable[Reader]]:
             if visit is None:
                 raise NotSignedIn(READ_WITH_A_KEY)
             return Reader(visit=visit)
-        verified = None if data == token else await keys.verify(gateway.connections.pool, data)
+        verified = None if data == token else await gateway.keys.verify(data)
         if verified is None:
             raise NotSignedIn(READ_WITH_A_KEY)
         key = Acting(bearer=verified, env=world_of_request(connection, verified, gateway))

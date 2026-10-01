@@ -124,7 +124,10 @@ async def change_member(
         raise Conflict(AN_ADMIN_OPENS_PRODUCTION.format(email=found.email))
     agents = None if body.agents is None else frozenset(body.agents)
     change = people.Change(role=role, agents=agents, status=status, production=body.production)
-    return MemberRow.of(await people.update(pool, key.org, member, change))
+    changed = await people.update(pool, key.org, member, change)
+    if status == "disabled":
+        gateway.keys.revoked(subject=member)
+    return MemberRow.of(changed)
 
 
 @router.delete(A_MEMBER, status_code=204)
@@ -133,6 +136,7 @@ async def remove_member(member: MemberId, key: TeamKey, gateway: GatewayDep) -> 
     if key.bearer.key.subject == member:
         raise Conflict(NOT_YOURSELF)
     await people.remove(gateway.connections.pool, key.org, member)
+    gateway.keys.revoked(subject=member)
 
 
 # A new link spends the older ones; it is handed over on the same terms as an invitation.

@@ -81,7 +81,7 @@ async def _hung_up(websocket: WebSocket, session: Session) -> None:
 
 async def _chatting(websocket: WebSocket, gateway: Gateway) -> tuple[Registration, str | None]:
     data = _deps.bearer_of(websocket.headers)
-    verified = None if data is None else await keys.verify(gateway.connections.pool, data)
+    verified = None if data is None else await gateway.keys.verify(data)
     if verified is None:
         raise NotAllowed(_deps.TAKES_A_KEY)
     keys.check_opens(verified, "talk")

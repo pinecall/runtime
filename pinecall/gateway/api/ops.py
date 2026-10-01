@@ -104,7 +104,7 @@ A_MEMBER = "/v1/ops/orgs/{named}/members/{id}"
 async def box_identity(request: Request, gateway: GatewayDep) -> BoxIdentityResponse:
     """The box this key opens, and the person holding it; nobody for the box's own key."""
     data = bearer_of(request.headers)
-    found = None if data is None else await keys.verify(gateway.connections.pool, data)
+    found = None if data is None else await gateway.keys.verify(data)
     person = None if found is None else found.member
     return BoxIdentityResponse(
         operator=True,
@@ -284,6 +284,7 @@ async def remove_member(named: str, member: MemberId, gateway: GatewayDep) -> No
     """The person out of the org for good, their keys revoked."""
     org = await _org(gateway, named)
     await people.remove(gateway.connections.pool, org.id, member)
+    gateway.keys.revoked(subject=member)
 
 
 @router.get("/v1/ops/orgs/{named}/sso")
@@ -348,6 +349,7 @@ async def revoke_key(fingerprint: str, gateway: GatewayDep) -> RevokeKeyResponse
     """One key stops opening anything from the next request on."""
     if not await keys.revoke(gateway.connections.pool, fingerprint):
         raise NotFound(NO_SUCH_KEY.format(fingerprint=fingerprint))
+    gateway.keys.revoked(fingerprint=fingerprint)
     return RevokeKeyResponse(fingerprint=fingerprint, revoked=True)
 
 

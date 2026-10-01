@@ -4,7 +4,8 @@ from datetime import UTC, datetime, timedelta
 
 from pinecall.domain.person import SERVER_SCOPES, Member, Role
 from pinecall.tenancy import keys, people
-from tests.conftest import Knocking, postgres
+from pinecall.tenancy.remembered import REMEMBERED_FOR_S
+from tests.conftest import A_TICK_S, Knocking, postgres
 
 KEYS = "/v1/keys"
 
@@ -156,6 +157,9 @@ async def test_a_servers_token_may_open_fewer_scopes_and_end_and_an_ended_one_sa
             "UPDATE api_keys SET expires_at = now() - interval '1 second' WHERE id = %(id)s",
             {"id": made.json()["key_id"]},
         )
+    # The gateway remembers a verified key for five seconds: an expiry is honoured past them.
+    for _ in range(int(REMEMBERED_FOR_S / A_TICK_S)):
+        knocking.gateway.logs.store.clock()
     async with knocking.http(made.json()["key"]) as server:
         ended = await server.get("/v1/knowledge")
     assert ended.status_code == 401

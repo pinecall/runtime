@@ -80,6 +80,7 @@ async def revoke_key(fingerprint: str, key: BearerDep, gateway: GatewayDep) -> R
         raise NotFound(NO_SUCH_KEY.format(fingerprint=fingerprint))
     if not await keys.revoke(pool, fingerprint):
         raise NotFound(NO_SUCH_KEY.format(fingerprint=fingerprint))
+    gateway.keys.revoked(fingerprint=fingerprint)
     return RevokeKeyResponse(fingerprint=fingerprint, revoked=True)
 
 
