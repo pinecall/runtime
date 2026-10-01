@@ -194,7 +194,7 @@ The control plane, measured on 2026-10-01 with `pinecall-runtime load` from a ma
 | what | measured | so, per 1 000 calls at once |
 |---|---|---|
 | a gateway process | 1 200 calls on four processes: 3.6 cores | ~3 cores of gateway (~330 calls a core) |
-| Postgres | 1.9 cores at 1 200 calls | ~1.6 cores, the writer's groups (up to 500 entries a transaction) |
+| Postgres | 1.9 cores at 1 200 calls, the gateways on the same machine | the figure to plan with is the next-but-two row's: ~1.4 cores, measured with the gateways apart |
 | Caddy, as the balancer on the box | 2.4 cores at 1 200 calls | ~2 cores: past one box, a cloud balancer |
 | append, worker to log | p50 26 ms, p99 410 ms at 1 200 calls | — |
 | a gateway killed every minute | 0 of 8 000 logs wrong; its calls go on on the others | — |
