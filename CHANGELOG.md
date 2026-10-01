@@ -2,6 +2,9 @@
 
 ## 0.1.3 — Open models on the row (unreleased)
 
+- A log read is built from its rows without validating them again (`log/store.py` `entry_of`): a seal
+  reads its whole log three times. Measured from a generator machine at 300 calls held: append p50
+  60 → 38 ms, p99 850 → 430 ms, seal p50 330 → 200 ms.
 - The append path costs a gateway a third less of its core (100 calls held: 155 % → 100 % on two
   gateways; append p50 161 → 14 ms, p99 1.4 s → 94 ms): a group's rows go to Postgres as one JSON
   document instead of six arrays adapted a value at a time, the entries socket and the relay read and

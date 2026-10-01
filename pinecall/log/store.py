@@ -317,10 +317,13 @@ def log_name(call: str | None, agent: str) -> str:
     return f"{AGENT_LOG_PREFIX}{agent}" if call is None else call
 
 
+# Built, not validated: a row is what an Entry wrote, and its columns are typed (text, bigint,
+# float8, boolean, jsonb), so validating it again re-checked our own write on every read, a tenth
+# of a gateway's core at 300 calls (a seal reads its whole log; 2026-10-01).
 def entry_of(row: DictRow) -> Entry:
     """Return the entry a call_log row holds."""
-    return Entry.model_validate(
-        {name: row[name] for name in ("call", "seq", "ts", "agent", "type", "ephemeral", "data")}
+    return Entry.model_construct(
+        **{name: row[name] for name in ("call", "seq", "ts", "agent", "type", "ephemeral", "data")}
     )
 
 
