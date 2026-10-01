@@ -134,19 +134,25 @@ where f.call = any(%(calls)s)
 
 # call_log is joined on log, its primary key's first column, never on call, which scans it.
 # A call that never reached call.started may have no facts row, hence the left join.
+# A head claimed at the open, whose first entry waits on the writer, moved last when it opened; a
+# head with no entry, no start and no opening (a seal's lease) is never quiet. Under load this is
+# the whole window: at 300 calls held the reaper sealed calls 36 ms after they opened (2026-10-01).
 UNSEALED_SPOKEN = """
 select head.log as call, head.agent,
        coalesce(head.started_at, 0) as started_at,
-       coalesce(max(entry.ts), head.started_at, 0) as last_at, null as channel
+       coalesce(max(entry.ts), head.started_at, extract(epoch from opening.opened_at)) as last_at,
+       null as channel
 from call_log_head head
 left join call_facts f on f.call = head.log
+left join call_openings opening on opening.call = head.log
 left join call_log entry on entry.log = head.log
 where head.call is not null and not head.sealed
   and (coalesce(f.spoken, false)
        or not exists (select 1 from call_log began
                        where began.log = head.log and began.type = 'call.started'))
-group by head.log, head.agent, head.started_at
-having coalesce(max(entry.ts), head.started_at, 0) < %(quiet_since)s
+group by head.log, head.agent, head.started_at, opening.opened_at
+having coalesce(max(entry.ts), head.started_at, extract(epoch from opening.opened_at))
+       < %(quiet_since)s
 order by last_at
 limit %(limit)s
 """

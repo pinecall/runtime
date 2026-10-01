@@ -1,13 +1,17 @@
 """Tests for the reaper: the calls nothing runs any more are ended and sealed, and no other."""
 
+import time
 from datetime import date
 
 from pinecall.domain.agent import AgentConfig
 from pinecall.domain.call import CallContext, Route, new_call_id
+from pinecall.domain.scope import Scope
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import opened, served_call
 from pinecall.gateway.ending.reaper import reaped
 from pinecall.gateway.ending.seal import sealed
+from pinecall.log import openings
+from pinecall.tenancy import orgs
 from pinecall.wire.rest.calls import SealCallRequest
 from tests.conftest import postgres
 from tests.fakes.livekit import Server
@@ -115,4 +119,20 @@ async def test_a_written_call_this_process_runs_is_left_to_end_itself(wired: Gat
     assert await reaped(wired.serving, server, 10_000.0) == []
     wired.live.close(context.call)
     assert await reaped(wired.serving, server, 10_000.0) == [context.call]
+    await server.aclose()
+
+
+# Under load the first entry waits on the writer: the claim is there, the ringing is not yet.
+@postgres
+async def test_a_call_claimed_whose_first_entry_has_not_landed_moved_when_it_opened(
+    wired: Gateway,
+) -> None:
+    pool = wired.connections.pool
+    org = await orgs.create(pool, "clinica-norte", "Clinica Norte")
+    context = a_call(Scope(org.id, "sandbox"), channel="phone")
+    await wired.logs.store.claim(context.call, AGENT, org.id)
+    await openings.kept(pool, org.id, context, AgentConfig(slug=AGENT))
+    server = Server()
+    assert await reaped(wired.serving, server, time.time()) == []
+    assert await reaped(wired.serving, server, time.time() + 10_000) == [context.call]
     await server.aclose()
