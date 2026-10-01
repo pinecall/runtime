@@ -77,6 +77,13 @@ SAID_EVERY = 10
 NOT_SERVED = 404
 
 
+ALREADY_OVER = 409
+
+
+# A caller is waiting on the line while the open is asked again.
+OPENED_WITHIN_S = 15.0
+
+
 # The socket a call's batches go down: `WS /v1/calls/{call}/entries`.
 STREAM_DOOR = "/v1/calls/{call}/entries"
 
@@ -161,9 +168,12 @@ class GatewayClient:
 
     # ── a call ──
 
+    # Asked again while the gateway is away: an open is the same call by its id (one claim, one
+    # opening, one ringing), so an answer lost with a gateway that died is not a call lost.
     async def open(self, opening: OpenCallRequest) -> OpenCallResponse:
         """Open the call's log; the answer is what the org's minutes leave it."""
-        data = await self._read("POST", "/v1/calls", opening.written())
+        body = opening.written()
+        data = await again(lambda: self._read("POST", "/v1/calls", body), OPENED_WITHIN_S, "open")
         self.opened[opening.context.call] = opening
         return OpenCallResponse.model_validate(data)
 
@@ -205,11 +215,16 @@ class GatewayClient:
         """Hand the end of the call to the gateway, which prices, judges and seals it."""
         path = f"/v1/calls/{call}/sealed"
         body = sealing.written()
-        await again(
-            lambda: self._on_the_call(call, "POST", path, body, SEALED_WITHIN_S),
-            SEALED_WITHIN_S,
-            path,
-        )
+        try:
+            await again(
+                lambda: self._on_the_call(call, "POST", path, body, SEALED_WITHIN_S),
+                SEALED_WITHIN_S,
+                path,
+            )
+        except GatewayRefused as refused:
+            # Sealed already: by this seal, whose answer a gateway that died took with it.
+            if refused.answered != ALREADY_OVER:
+                raise
         self.opened.pop(call, None)
         await self._stream_closed(call)
 

@@ -190,13 +190,16 @@ async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) 
     found = serving_agent(gateway.sockets, scope, body.agent, body.app, context)
     _refuse_unserved(gateway, scope, body, found)
     config, versions = await _tuned(gateway, scope, body.agent, found, context.call)
+    # Asked again by a worker whose gateway died with the answer: the same call, one ringing.
+    again = await openings.opening_of(gateway.connections.pool, context.call) is not None
     await gateway.logs.store.claim(context.call, body.agent, scope.org, Claim(scope, versions))
     await openings.kept(gateway.connections.pool, scope.org, context, config)
     await gateway.prompts.keep(gateway.connections.pool, scope.org, config.knowledge or "")
     owner = None if found is None else found.owner
     served = served_call(gateway.serving, owner, context, config, scope)
     await gateway.live.commands_heard(context.call)
-    await opened(served.log, context, body.agent)
+    if not again:
+        await opened(served.log, context, body.agent)
     first, notice = await _opening(gateway, scope, config.language)
     return OpenCallResponse(
         seconds_left=None if ceiling is None else ceiling.seconds,

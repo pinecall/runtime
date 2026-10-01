@@ -221,7 +221,7 @@ async def test_a_call_refused_is_counted_and_the_run_goes_on(knocking: Knocking)
     pool = knocking.gateway.connections.pool
     await set_quotas(pool, knocking.org.id, "sandbox", Quotas(concurrent_calls=1))
     tally = await run_load(knocks_of(knocking), plan_of(knocking, calls=2, minutes=0.01))
-    assert tally.refusals["429"] >= 1
+    assert tally.refusals["429 POST /v1/calls"] >= 1
     assert tally.opened == tally.sealed >= 1
     assert len(await durable_logs(knocking)) == tally.opened
 
