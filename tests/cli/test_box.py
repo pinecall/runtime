@@ -8,7 +8,15 @@ from pathlib import Path
 import pytest
 
 from pinecall.cli import _box
-from pinecall.cli._box import box_failover, box_up, box_upgrade, domains_in, steps_of
+from pinecall.cli._box import (
+    BIN,
+    SYSTEM_PATH,
+    box_failover,
+    box_up,
+    box_upgrade,
+    domains_in,
+    steps_of,
+)
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.process.settings import Settings
 
@@ -39,6 +47,16 @@ def test_a_box_is_made_in_order_from_the_packages_own_files() -> None:
     assert copied.argv[-2:] == (f"{INFRA}/", "/opt/pinecall/infra/")
     released = next(step for step in steps if step.what.endswith("released"))
     assert released.env == {"PACKAGE": "pinecall==0.1.2"}
+
+
+def test_uv_already_beside_the_runtime_is_not_copied_onto_itself() -> None:
+    whats = [step.what for step in steps_of("box.x.com", "pinecall==0.1.2", INFRA, BIN / "uv")]
+    assert "uv beside the runtime" not in whats
+    assert "uv beside the runtime" in [step.what for step in steps_of("b.x", "p", INFRA, UV)]
+
+
+def test_every_step_runs_on_the_systems_whole_path() -> None:
+    assert {"/usr/sbin", "/sbin", str(BIN)} <= set(SYSTEM_PATH.split(":"))
 
 
 def test_the_names_a_box_has_are_read_back_as_box_up_takes_them() -> None:

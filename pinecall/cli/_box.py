@@ -101,6 +101,10 @@ INFRA = OPT / "infra"
 
 BIN = OPT / "bin"
 
+# Every step runs on the system's whole PATH: `sudo env`, `uvx` and a bare shell each hand on a
+# PATH without the sbin directories, and install.sh calls nft, sysctl and useradd from them.
+SYSTEM_PATH = f"{BIN}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
 PROMOTE = f"SELECT pg_promote(true, {PROMOTED_WITHIN_S})"
 
 
@@ -163,7 +167,16 @@ def steps_of(domains: str, package: str, infra: Path, uv: Path) -> list[Step]:
             {"DEBIAN_FRONTEND": "noninteractive"},
         ),
         Step("the firewall on at boot", ("systemctl", "enable", "--now", "nftables")),
-        Step("uv beside the runtime", ("install", "-D", "-m", "755", str(uv), str(BIN / "uv"))),
+        *(
+            ()
+            if uv == BIN / "uv"
+            else (
+                Step(
+                    "uv beside the runtime",
+                    ("install", "-D", "-m", "755", str(uv), str(BIN / "uv")),
+                ),
+            )
+        ),
         Step("the box's files", ("rsync", "-a", "--delete", f"{infra}/", f"{INFRA}/")),
         Step("the box installed", ("bash", str(INFRA / "box" / "install.sh"), names)),
         Step(
@@ -185,17 +198,19 @@ def domains_in(box_env: str) -> str:
 
 
 def _made(domains: str, backup_key: str | None, package: str) -> int:
-    uv = shutil.which("uv")
+    # cloud-init puts uv beside the runtime, which no PATH names yet.
+    uv = shutil.which("uv", path=SYSTEM_PATH)
     if uv is None:
         raise DeclarationRefused(NO_UV)
     infra = _infra_carried()
     if backup_key is not None:
         BACKUP_KEY.parent.mkdir(parents=True, exist_ok=True)
         BACKUP_KEY.write_text(f"{backup_key}\n")
-    for step in steps_of(domains, package, infra, Path(uv)):
+    # Resolved: the uv on the PATH may be cloud-init's link to the one beside the runtime.
+    for step in steps_of(domains, package, infra, Path(uv).resolve()):
         sys.stdout.write(f"→ {step.what}\n")
         sys.stdout.flush()
-        subprocess.run(step.argv, check=True, env={**os.environ, **step.env})
+        subprocess.run(step.argv, check=True, env={**os.environ, "PATH": SYSTEM_PATH, **step.env})
     backups = f"nightly at 03:00, to {BACKUP_KEY}" if BACKUP_KEY.exists() else NO_BACKUPS
     first = domains.split(",", 1)[0].strip()
     sys.stdout.write(NEXT.format(first=first, backups=backups))
