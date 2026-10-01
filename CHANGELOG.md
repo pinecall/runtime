@@ -2,6 +2,9 @@
 
 ## 0.1.3 — Open models on the row (unreleased)
 
+- A model that says nothing for 12 s (or the agent's `llm_timeout_s`) no longer leaves the caller in
+  silence: the turn is cut and the caller hears a short sentence asking them to say it again, in the
+  agent's language. Unset used to mean no deadline at all.
 - LiveKit as a cluster, measured: two nodes on the box's Redis carried 400 voice calls with no packet
   lost, and a worker on one node took rooms placed on the other. How a node is added is on the box page.
 - Gateways on machines of their own: `infra/cell/primary.sh allow-gateway` on the box (pg_hba, the

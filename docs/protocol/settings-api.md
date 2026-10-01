@@ -56,8 +56,9 @@ its own default model, or a model alone on whichever vendor is in use), `greetin
 eager_eot_threshold, min_interruption_ms}` (the last is how long the caller must speak over the
 agent before it stops; unset, livekit's own half second), `memory {remember, forget}`, `record`, `max_duration_s` (voice calls; `0` is
 no limit), `llm_timeout_s` (how long a turn waits for the model's first word, livekit's retries
-included; past it the turn ends unanswered and the call's log says `error {code: llm_timeout}`;
-unset, there is no deadline of ours), `knowledge` (Markdown read whole into the static block of every call) and `bases
+included; past it the caller hears a short sentence asking them to say it again, in the agent's
+language (Spanish, English, Portuguese; English otherwise), and the call's log says `error {code:
+llm_timeout}`; unset, 12 s), `knowledge` (Markdown read whole into the static block of every call) and `bases
 [{base, mode, k, min_score}]`.
 
 ## `PUT /v1/agents/{slug}/settings` — `pipeline` or `words`
