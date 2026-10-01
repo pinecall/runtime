@@ -4,6 +4,7 @@ import logging
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
+from uuid import uuid4
 
 from psycopg.rows import DictRow
 
@@ -45,19 +46,24 @@ HEAD = "select seq, sealed, written, written_seq from call_log_head where log = 
 # Taken by one gateway at a time, and only while the call is open; it runs out by itself. A call
 # that wrote nothing yet has no head: the lease makes it, as the seal does.
 LEASED = """
-insert into call_log_head as head (log, call, sealing_until)
-values (%(call)s, %(call)s, now() + make_interval(secs => %(seconds)s))
-on conflict (log) do update set sealing_until = excluded.sealing_until
+insert into call_log_head as head (log, call, sealing_until, sealing_by)
+values (%(call)s, %(call)s, now() + make_interval(secs => %(seconds)s), %(by)s)
+on conflict (log) do update
+    set sealing_until = excluded.sealing_until, sealing_by = excluded.sealing_by
 where not head.sealed and (head.sealing_until is null or head.sealing_until < now())
 returning log
 """
 
-UNLEASED = "update call_log_head set sealing_until = null where log = %(call)s and not sealed"
+# The holder alone gives the lease back or renews it: a gateway that lost the race to the lease
+# cannot keep the winner's alive, and one that died stops renewing.
+UNLEASED = """
+update call_log_head set sealing_until = null, sealing_by = null
+where log = %(call)s and not sealed and sealing_by = %(by)s
+"""
 
-# Only the gateway sealing the call renews it, while it seals: one that died stops renewing.
 RENEWED = """
 update call_log_head set sealing_until = now() + make_interval(secs => %(seconds)s)
-where log = %(call)s and not sealed
+where log = %(call)s and not sealed and sealing_by = %(by)s
 """
 
 
@@ -137,6 +143,8 @@ class Store:
         self.pool = pool
         # ts is the runtime's clock, when it saw the event, never the database's.
         self.clock = clock
+        # This process, as the holder of the seals it leases.
+        self.lease_id = uuid4().hex
         # A gateway's writer has connections of its own; a verb's and a test's share the pool.
         self.writer = Writer(pool if writing is None else writing)
 
@@ -228,19 +236,23 @@ class Store:
         """Take the right to seal the call for so long; False when another holds it, or it ended."""
         async with self.pool.connection() as connection:
             taken = await (
-                await connection.execute(LEASED, {"call": call, "seconds": seconds})
+                await connection.execute(
+                    LEASED, {"call": call, "seconds": seconds, "by": self.lease_id}
+                )
             ).fetchone()
         return taken is not None
 
     async def renew_seal(self, call: str, seconds: float) -> None:
         """Hold the right to seal the call for so long again, while sealing it."""
         async with self.pool.connection() as connection:
-            await connection.execute(RENEWED, {"call": call, "seconds": seconds})
+            await connection.execute(
+                RENEWED, {"call": call, "seconds": seconds, "by": self.lease_id}
+            )
 
     async def release_seal(self, call: str) -> None:
         """Give the right to seal back, after a seal that broke: the next knock takes it."""
         async with self.pool.connection() as connection:
-            await connection.execute(UNLEASED, {"call": call})
+            await connection.execute(UNLEASED, {"call": call, "by": self.lease_id})
 
     async def claim(
         self, call: str | None, agent: str, org: str, claim: Claim | None = None

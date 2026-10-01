@@ -155,3 +155,18 @@ tick and touches nothing.
 ```
 
 At about 16 live calls a worker and 60 % busy, that is about 70 machines kept ready: `--max 70`.
+
+The control plane, measured on 2026-10-01 with `pinecall-runtime load` from a machine of its own
+(the golden call as the script, 2.1 entries a second per call, every log read back and verified):
+
+| what | measured | so, per 1 000 calls at once |
+|---|---|---|
+| a gateway process | 1 200 calls on four processes: 3.6 cores | ~3 cores of gateway (~330 calls a core) |
+| Postgres | 1.9 cores at 1 200 calls | ~1.6 cores, the writer's groups (up to 500 entries a transaction) |
+| Caddy, as the balancer on the box | 2.4 cores at 1 200 calls | ~2 cores: past one box, a cloud balancer |
+| append, worker to log | p50 26 ms, p99 410 ms at 1 200 calls | — |
+| a gateway killed every minute | 0 of 8 000 logs wrong; its calls go on on the others | — |
+
+What this says of 100 000 calls at once in a cell: about 300 gateway cores, and Postgres is the
+next wall to measure, at 160 cores' worth of writes it has not been asked for yet (P3's exit and
+P8 in `internal-docs`).
