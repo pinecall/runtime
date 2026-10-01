@@ -2,6 +2,9 @@
 
 ## 0.1.3 — Open models on the row (unreleased)
 
+- A gateway remembers a key it verified for five seconds (`tenancy/remembered.py`): verifying
+  was a round trip per request, 15 % of its core under load. A key revoked at a door is forgotten
+  on every gateway at once, said on the signal; one revoked at a shell opens for those seconds.
 - A summary or a score written before money in dollars (`eur`, `judge_cost_eur`, the euro's `rate`)
   is read again, its euros as the same number of dollars, as migration 0007 kept the facts: 1113
   of box.pinecall.io's 1154 summaries had become unreadable. `facts rebuild` and doctor's sample

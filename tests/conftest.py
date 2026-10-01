@@ -46,6 +46,7 @@ from pinecall.tenancy import keys, orgs, people, vault
 from pinecall.tenancy.codes import Codes
 from pinecall.tenancy.knocks import Throttle
 from pinecall.tenancy.mail import Outbox
+from pinecall.tenancy.remembered import RememberedKeys
 from pinecall.tenancy.signin import SignIns
 from pinecall.tenancy.throttle import Window
 from pinecall.tenancy.tokens import Signer
@@ -375,6 +376,8 @@ async def a_gateway(pool: Pool, logs: Logs, shared: Shared) -> AsyncGenerator[Ga
     threads = Threads(serving, sockets)
     await threads.start()
     outbox = Outbox(connections, None)
+    remembered = RememberedKeys(pool, shared.signal, clock=store.clock)
+    await remembered.start()
     yield Gateway(
         connections=connections,
         logs=logs,
@@ -382,6 +385,7 @@ async def a_gateway(pool: Pool, logs: Logs, shared: Shared) -> AsyncGenerator[Ga
         live=live,
         roster=roster,
         codes=Codes(logs),
+        keys=remembered,
         signer=Signer(LIVEKIT_KEY, A_SECRET),
         threads=threads,
         closing=asyncio.Event(),
@@ -393,6 +397,7 @@ async def a_gateway(pool: Pool, logs: Logs, shared: Shared) -> AsyncGenerator[Ga
         paced=Window(store.clock, shared.signal),
     )
     await outbox.drained()
+    await remembered.close()
     await threads.closed()
     await sockets.close()
     await live.quiet()

@@ -16,6 +16,7 @@ from pinecall.tenancy.codes import Codes
 from pinecall.tenancy.knocks import Throttle
 from pinecall.tenancy.mail import Outbox
 from pinecall.tenancy.prompts import Prompts
+from pinecall.tenancy.remembered import RememberedKeys
 from pinecall.tenancy.signin import SignIns
 from pinecall.tenancy.throttle import Window
 from pinecall.tenancy.tokens import Signer
@@ -31,6 +32,8 @@ class Gateway:
     live: ServedCalls
     roster: Roster
     codes: Codes
+    # The keys verified lately, so a request costs no round trip to verify its key.
+    keys: RememberedKeys
     signer: Signer
     threads: Threads
     # Set when the process is told to stop: every stream ends on it.

@@ -84,6 +84,7 @@ from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy.codes import Codes
 from pinecall.tenancy.knocks import Throttle
 from pinecall.tenancy.mail import Mailbox, Outbox, parse_mailbox_url
+from pinecall.tenancy.remembered import RememberedKeys
 from pinecall.tenancy.signin import SignIns
 from pinecall.tenancy.throttle import Window
 from pinecall.tenancy.tokens import Signer
@@ -292,6 +293,9 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
     stack.push_async_callback(paced.close)
     outbox = Outbox(connections, _box_mailbox(settings))
     stack.push_async_callback(outbox.drained)
+    remembered = RememberedKeys(connections.pool, connections.signal)
+    await remembered.start()
+    stack.push_async_callback(remembered.close)
     return Gateway(
         connections=connections,
         logs=logs,
@@ -299,6 +303,7 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
         live=live,
         roster=roster,
         codes=codes,
+        keys=remembered,
         signer=Signer(settings.livekit_api_key, settings.livekit_api_secret),
         threads=threads,
         closing=asyncio.Event(),

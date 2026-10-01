@@ -391,7 +391,7 @@ async def stop_app(app: str, key: AppKey, where: ScopeDep, gateway: GatewayDep) 
 
 async def _socket_key(websocket: WebSocket, gateway: Gateway) -> Acting:
     data = _deps.bearer_of(websocket.headers)
-    verified = None if data is None else await keys.verify(gateway.connections.pool, data)
+    verified = None if data is None else await gateway.keys.verify(data)
     if verified is None:
         raise NotAllowed(_deps.TAKES_A_KEY)
     keys.check_opens(verified, HOLDING)
