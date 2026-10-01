@@ -20,6 +20,7 @@ from pinecall.domain.call import CallContext, Route, new_call_id
 from pinecall.domain.errors import GatewayRefused
 from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
+from pinecall.fleet import client as client_module
 from pinecall.fleet.client import (
     GatewayClient,
     affine,
@@ -147,9 +148,13 @@ def losing_client(knocking: Knocking, losing: LosingTheFirstBatchAnswer) -> Gate
     """The sandbox fleet's client on a transport that loses the first batch's answer."""
     headers = {"Authorization": f"Bearer {knocking.fleet['sandbox']}"}
     transport = httpx.MockTransport(losing.handled)
-    return GatewayClient(
+    client = GatewayClient(
         httpx.AsyncClient(base_url=knocking.url, headers=headers, transport=transport)
     )
+    # The batches by request, as a client that found no socket door sends them: the transport
+    # loses answers, and a socket's lost answer is test_a_socket_lost_mid_call's.
+    client.doorless = True
+    return client
 
 
 def writing_on(client: GatewayClient, call: str) -> Writing:
@@ -182,6 +187,74 @@ async def test_a_calls_entries_written_through_its_writer_land_once_and_in_order
         "tres",
     ]
     assert await knocking.gateway.logs.store.written(context.call) == 3
+    assert writing.refused == []
+    await client.aclose()
+
+
+@postgres
+async def test_a_calls_batches_go_down_one_socket_until_the_seal_closes_it(
+    knocking: Knocking,
+) -> None:
+    client = fleet_client(knocking)
+    context = a_call(knocking)
+    await client.open(OpenCallRequest(agent=AGENT, context=context))
+    writing = writing_on(client, context.call)
+    writing.open()
+    await writing.write("custom", custom("uno"))
+    stream = client.streams[context.call]
+    assert stream.socket is not None, "the first batch opened the call's socket"
+    await writing.write("custom", custom("dos"))
+    assert client.streams[context.call] is stream, "the second went down the same socket"
+    await writing.close(5)
+    await client.sealed(context.call, SealCallRequest(usage=[], outcome="done"))
+    assert context.call not in client.streams
+    assert stream.socket is None
+    assert await knocking.gateway.logs.store.written(context.call) == 2
+    await client.aclose()
+
+
+@postgres
+async def test_a_socket_lost_mid_call_is_opened_again_and_the_batch_lands_once(
+    knocking: Knocking,
+) -> None:
+    client = fleet_client(knocking)
+    context = a_call(knocking)
+    await client.open(OpenCallRequest(agent=AGENT, context=context))
+    writing = writing_on(client, context.call)
+    writing.open()
+    await writing.write("custom", custom("uno"))
+    first = client.streams[context.call].socket
+    assert first is not None
+    await first.close()
+    entry = await writing.write("custom", custom("dos"))
+    await writing.close(5)
+    second = client.streams[context.call].socket
+    assert second is not None
+    assert second is not first
+    kept = await knocking.gateway.logs.store.whole(context.call)
+    customs = [item for item in kept if item.type == "custom"]
+    assert [item.data["name"] for item in customs] == ["uno", "dos"]
+    assert entry.seq == customs[-1].seq
+    assert writing.refused == []
+    await client.aclose()
+
+
+@postgres
+async def test_a_gateway_with_no_socket_door_takes_every_batch_by_request(
+    knocking: Knocking, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(client_module, "STREAM_DOOR", "/v1/calls/{call}/no-such-door")
+    client = fleet_client(knocking)
+    context = a_call(knocking)
+    await client.open(OpenCallRequest(agent=AGENT, context=context))
+    writing = writing_on(client, context.call)
+    writing.open()
+    await writing.write("custom", custom("uno"))
+    assert client.doorless
+    assert client.streams == {}
+    await writing.write("custom", custom("dos"))
+    await writing.close(5)
+    assert await knocking.gateway.logs.store.written(context.call) == 2
     assert writing.refused == []
     await client.aclose()
 

@@ -18,6 +18,8 @@ from collections.abc import (
 import httpx
 from opentelemetry import propagate
 from pydantic import TypeAdapter
+from websockets.asyncio.client import ClientConnection, connect
+from websockets.exceptions import ConnectionClosed, InvalidHandshake
 
 from pinecall.domain.agent import AgentConfig
 from pinecall.domain.call import Route
@@ -28,6 +30,7 @@ from pinecall.wire.frames import Command, Entry
 from pinecall.wire.parts import PlatformTool, ToolResult
 from pinecall.wire.rest.agents import HoldAudio, RingHandoff
 from pinecall.wire.rest.calls import (
+    AppendEntriesRefused,
     AppendEntriesRequest,
     AppendEntriesResponse,
     BatchedEntry,
@@ -74,6 +77,10 @@ SAID_EVERY = 10
 NOT_SERVED = 404
 
 
+# The socket a call's batches go down: `WS /v1/calls/{call}/entries`.
+STREAM_DOOR = "/v1/calls/{call}/entries"
+
+
 EVENT_STREAM = "text/event-stream"
 
 
@@ -94,6 +101,9 @@ class GatewayClient:
         self.http = http
         # What each unsealed call was opened with, said again to a gateway that restarted.
         self.opened: dict[str, OpenCallRequest] = {}
+        # Each unsealed call's socket for its batches; none once a gateway had no such door.
+        self.streams: dict[str, EntriesStream] = {}
+        self.doorless = False
 
     # ── an agent, before its call ──
 
@@ -158,14 +168,26 @@ class GatewayClient:
         return OpenCallResponse.model_validate(data)
 
     # Retried without a limit, the same batch after the same count: the log answers a batch it
-    # already took with the seqs it gave it, so an answer lost never writes an entry twice.
+    # already took with the seqs it gave it, so an answer lost never writes an entry twice. The
+    # batches go down one socket per call; a gateway of before has no such door, and from the
+    # first that says so every call's batches go by request.
     async def append_many(
         self, call: str, entries: Sequence[BatchedEntry], *, after: int
     ) -> list[Entry]:
         """Write a batch of the call's entries once, in order; the gateway numbers them."""
+        path = STREAM_DOOR.format(call=call)
+        if not self.doorless:
+            stream = self.streams.get(call) or self._stream_of(call)
+            numbered = await again(
+                lambda: self._streamed_batch(call, stream, entries, after), None, path
+            )
+            if numbered is not None:
+                return numbered
+            self.doorless = True
+            self.streams.pop(call, None)
         body = AppendEntriesRequest(after=after, entries=list(entries)).written()
-        path = f"/v1/calls/{call}/entries"
-        answer = await again(lambda: self._on_the_call(call, "POST", path, body), None, path)
+        door = f"/v1/calls/{call}/entries"
+        answer = await again(lambda: self._on_the_call(call, "POST", door, body), None, door)
         return AppendEntriesResponse.model_validate(answer).entries
 
     # The gateway answers a lapsed tool at its own deadline: wait past it, so the model reads
@@ -189,6 +211,7 @@ class GatewayClient:
             path,
         )
         self.opened.pop(call, None)
+        await self._stream_closed(call)
 
     async def lookup(
         self, call: str, tool: PlatformTool, arguments: Mapping[str, Json], speech: str | None
@@ -282,7 +305,9 @@ class GatewayClient:
         await self._read("POST", "/v1/callbacks", wanted.written())
 
     async def aclose(self) -> None:
-        """Close the connection pool."""
+        """Close every call's socket and the connection pool."""
+        for call in list(self.streams):
+            await self._stream_closed(call)
         await self.http.aclose()
 
     # ── the wire ──
@@ -334,6 +359,36 @@ class GatewayClient:
                 raise
         return await self._read(method, path, data, wait_s)
 
+    def _stream_of(self, call: str) -> "EntriesStream":
+        path = STREAM_DOOR.format(call=call)
+        base = str(self.http.base_url).rstrip("/")
+        url = f"ws{base.removeprefix('http')}{path}"
+        # The key alone of the pool's headers: its keep-alive and encodings are not a handshake's.
+        bearer = self.http.headers.get("Authorization")
+        headers = {**({"Authorization": bearer} if bearer else {}), **traced(), **affine(path)}
+        stream = EntriesStream(url, headers, call)
+        self.streams[call] = stream
+        return stream
+
+    # A 404 on the socket is the gateway that forgot the call, as on a request; None is a gateway
+    # with no such door at all, which the batch door serves.
+    async def _streamed_batch(
+        self, call: str, stream: "EntriesStream", entries: Sequence[BatchedEntry], after: int
+    ) -> list[Entry] | None:
+        try:
+            return await stream.append_many(entries, after=after)
+        except GatewayRefused as refused:
+            if stream.doorless:
+                return None
+            if not await self._reopened(call, refused):
+                raise
+        return await stream.append_many(entries, after=after)
+
+    async def _stream_closed(self, call: str) -> None:
+        stream = self.streams.pop(call, None)
+        if stream is not None:
+            await stream.close()
+
     async def _reopened(self, call: str, refused: GatewayRefused) -> bool:
         opening = self.opened.get(call)
         if refused.answered != NOT_SERVED or opening is None:
@@ -354,6 +409,62 @@ class GatewayClient:
                     yield frame
         except httpx.HTTPError as unreachable:
             raise GatewayRefused(f"GET {path}: {unreachable}") from unreachable
+
+
+# One batch is out at a time (the call's writer sends the next when this one is answered), so an
+# answer is the last frame sent. An answer that does not come within the request's timeout is
+# not waited for past it: the socket is dropped, and the retry asks again on a new one.
+class EntriesStream:
+    """A call's batches down one WebSocket to the gateway, each answered with its seqs."""
+
+    def __init__(self, url: str, headers: Mapping[str, str], call: str) -> None:
+        """Not connected yet: the first batch connects."""
+        self.url = url
+        self.headers = dict(headers)
+        self.call = call
+        self.socket: ClientConnection | None = None
+        # True once the gateway refused the upgrade: it has no such door.
+        self.doorless = False
+        self._sending = asyncio.Lock()
+
+    async def append_many(self, entries: Sequence[BatchedEntry], *, after: int) -> list[Entry]:
+        """Send the batch and read its answer; GatewayRefused when the socket or the log did."""
+        frame = AppendEntriesRequest(after=after, entries=list(entries)).model_dump_json()
+        async with self._sending:
+            socket = await self._connected()
+            try:
+                await socket.send(frame)
+                raw = await asyncio.wait_for(socket.recv(), TIMEOUT_S)
+            except (ConnectionClosed, OSError, TimeoutError) as lost:
+                await self.close()
+                raise GatewayRefused(f"WS {self.url}: {lost}") from lost
+        answer = json.loads(raw)
+        if isinstance(answer, dict) and "refused" in answer:
+            refused = AppendEntriesRefused.model_validate(answer)
+            raise GatewayRefused(
+                f"WS {self.url}: {refused.status} {refused.refused}", answered=refused.status
+            )
+        return AppendEntriesResponse.model_validate(answer).entries
+
+    async def close(self) -> None:
+        """Close the socket; the next batch opens another."""
+        socket, self.socket = self.socket, None
+        if socket is not None:
+            await socket.close()
+
+    async def _connected(self) -> ClientConnection:
+        if self.socket is not None:
+            return self.socket
+        try:
+            self.socket = await connect(
+                self.url, additional_headers=self.headers, open_timeout=TIMEOUT_S
+            )
+        except InvalidHandshake as refused:
+            self.doorless = True
+            raise GatewayRefused(f"WS {self.url}: {refused}", answered=NOT_SERVED) from refused
+        except (OSError, TimeoutError) as unreachable:
+            raise GatewayRefused(f"WS {self.url}: {unreachable}") from unreachable
+        return self.socket
 
 
 # A stream is timed only on connect: a quiet one is kept open by the gateway's ping every 25 s.
