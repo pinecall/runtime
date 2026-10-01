@@ -238,8 +238,10 @@ async def test_two_codes_are_never_the_same_word_and_the_table_keeps_neither_wor
     pool: Pool,
 ) -> None:
     codes = kept_on(pool).codes
-    first, _ = await codes.mint(Key("k_1", "org_1"))
-    second, _ = await codes.mint(Key("k_1", "org_1"))
+    # Long enough that random bytes of a hash never hold it by chance (b"k_1" once did, on CI).
+    key_id = "key_id_never_kept_in_the_clear"
+    first, _ = await codes.mint(Key(key_id, "org_1"))
+    second, _ = await codes.mint(Key(key_id, "org_1"))
     assert first != second
     async with pool.connection() as connection:
         rows = await (
@@ -247,7 +249,7 @@ async def test_two_codes_are_never_the_same_word_and_the_table_keeps_neither_wor
         ).fetchall()
     kept = b"".join(bytes(row["word_hash"]) + row["sealed"].encode() for row in rows)
     assert first.encode() not in kept
-    assert b"k_1" not in kept
+    assert key_id.encode() not in kept
 
 
 @postgres
