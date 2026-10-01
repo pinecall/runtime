@@ -217,7 +217,9 @@ async def summed_up(pool: Pool, store: Store, log: Log, sealing: SealCallRequest
         cost=prices.cost(sealing.usage, configured, legs=phone_legs(entries), seconds=duration),
         recording=sealing.recording,
     )
-    await log.append("call.summary", summary.written())
+    # Once per log: two gateways sealing one call (a lease lapsed under a stalled seal) price it
+    # once.
+    await log.append_first("call.summary", summary.written())
 
 
 async def _priced(

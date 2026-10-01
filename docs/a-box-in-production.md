@@ -360,7 +360,7 @@ when the gateway starts. Afterwards this machine is the box, and a new replica j
 
 **Drilled: not yet.**
 
-### Two gateways
+### Two gateways, or more
 
 The box runs its gateway twice, `pinecall-gateway@8080` and `pinecall-gateway@8081`, each a
 process of its own; any serves any door of any call, and they tell each other what they did
@@ -369,6 +369,20 @@ the box's own workers knock at `127.0.0.1:8088`, a site of Caddy's on loopback, 
 in `Pinecall-Call`, which Caddy hashes so a call's requests stay on one gateway while it lives. A
 release restarts `@8081`, waits for it to answer, then `@8080`: Caddy steps over the one
 restarting, trying the other, so no request of a call is lost.
+
+A gateway process holds about 300 calls a core (measured 2026-10-01: 1 200 calls at once on four
+processes of a 16-vCPU box, 3.6 cores of gateway, 1.9 of Postgres, 2.4 of Caddy; append p50 26 ms,
+p99 410 ms). A bigger box runs more of them: `sudo systemctl enable --now pinecall-gateway@8880
+pinecall-gateway@8881`, and their addresses added to the `reverse_proxy` line of the `(gateways)`
+snippet in `/etc/caddy/Caddyfile`, then `sudo systemctl reload caddy`. **Not 8082–8085**: those
+are the workers' own health servers (`PINECALL_WORKER_HTTP_PORT`, one per worker slot), and a
+gateway told to listen there fails to bind while Caddy sends a share of every call to a worker,
+which answers `404: Not Found`. A gateway killed with calls live loses none of them (measured: a
+gateway killed every minute under 1 200 calls, 8 000 calls sealed, every log read back whole):
+Caddy sends the next request of its calls to another gateway, which serves them from what the
+log and `call_openings` keep; a worker whose open or seal was in flight asks again and gets the
+same call. Caddy itself costs about what a gateway process does at this rate: past one box, the
+balancer is the cloud's, not Caddy's.
 
 The second instance is enabled by `install.sh` only once Redis answers on `127.0.0.1:6379`: two
 gateways that cannot tell each other what they did would each serve alone. A box whose Redis was

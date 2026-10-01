@@ -692,3 +692,21 @@ async def test_a_killed_writer_leaves_a_contiguous_log_and_no_torn_row(
     assert len(entries) >= last, "an entry the writer was told it had is not there"
     assert await store.latest_seq(call) == len(entries), "an unfinished append moved the counter"
     assert all(entry.data == {"name": "tick", "data": {}} for entry in entries), "a torn row"
+
+
+# Two gateways are two stores on one pool: the lease is the holder's to renew or give back.
+@postgres
+async def test_a_seals_lease_is_renewed_and_given_back_by_its_holder_alone(
+    pool: Pool, store: Store, call: str
+) -> None:
+    other = Store(pool, clock=store.clock)
+    assert await store.lease_seal(call, 1.0)
+    await other.renew_seal(call, 60.0)
+    await other.release_seal(call)
+    assert not await other.lease_seal(call, 60.0), "neither renewed nor released by the other"
+    await asyncio.sleep(1.1)
+    assert await other.lease_seal(call, 60.0), "lapsed, the other takes it"
+    await store.renew_seal(call, 60.0)
+    await store.release_seal(call)
+    assert not await store.lease_seal(call, 60.0), "the one that lost it cannot touch it"
+    await other.writer.drained()
