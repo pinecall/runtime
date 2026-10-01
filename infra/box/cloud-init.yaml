@@ -41,6 +41,8 @@ runcmd:
       tar -xzf $build.tar.gz
       install -d -m 755 /opt/pinecall/bin
       install -m 755 $build/uv $build/uvx /opt/pinecall/bin/
+      # On every PATH, so `sudo uvx --from pinecall pinecall-runtime box up` is the one command.
+      ln -sf /opt/pinecall/bin/uv /opt/pinecall/bin/uvx /usr/local/bin/
       rm -rf $build $build.tar.gz
   - [systemctl, enable, --now, nftables]
 
