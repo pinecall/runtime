@@ -2,6 +2,8 @@
 
 ## 0.1.3 — Open models on the row (unreleased)
 
+- LiveKit as a cluster, measured: two nodes on the box's Redis carried 400 voice calls with no packet
+  lost, and a worker on one node took rooms placed on the other. How a node is added is on the box page.
 - Gateways on machines of their own: `infra/cell/primary.sh allow-gateway` on the box (pg_hba, the
   fence, Postgres, Redis and LiveKit's API published on its address for those machines alone, Caddy
   sending them calls), `gateway.sh join` on the other machine (the credentials through a pipe). Redis

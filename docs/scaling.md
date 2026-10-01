@@ -168,6 +168,8 @@ The control plane, measured on 2026-10-01 with `pinecall-runtime load` from a ma
 | a gateway killed every minute | 0 of 8 000 logs wrong; its calls go on on the others | — |
 | gateways on a machine of their own, the box keeping Postgres | 2 000 calls on six gateways (two on the box, four apart): Postgres 2.6–3 cores, 9 017 calls sealed, 0 wrong | ~1.4 cores of Postgres, linear from 1 200 to 2 000 |
 | a gateway machine killed for two minutes | 1 200 calls: 6 778 opened and sealed, 0 refused, 0 wrong, 0 billed twice | — |
+| the media plane: two LiveKit nodes on one Redis | `lk load-test`, voice rooms of two audio publishers and one subscriber, rooms spread across both nodes: 400 at once, 0 packets lost, 2.25 cores a node | ~5–6 cores of SFU (~90 calls a core) |
+| a worker on node 1 taking a room on node 2 | the agent dispatched to rooms created on either node: every job assigned and joined (livekit 1.13.7) | — |
 
 What this says of a cell: Postgres grows by about 1.4 cores per 1 000 calls at once, so a cell of
 100 000 would need some 140 cores of one database, which no one machine holds; a cell is sized
