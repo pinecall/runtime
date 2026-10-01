@@ -92,6 +92,9 @@ touch that bucket; `/etc/pinecall/backup.env`), the nightly backup and base back
 (35-day lifecycle), and `ssh pinecall-runtime-replica` (34.31.81.33, 10.128.15.203) is a streaming
 replica, `box failover` ready (`docs/a-box-in-production.md`, "A replica"). The backup's private
 age key is never on either machine.
+The four alerts (`infra/cell/alerts.yaml`) are evaluated on the box by Prometheus and mailed by
+Alertmanager through SES (`infra/box/alerts.sh`, `/etc/pinecall/alerts.env`, IAM user
+`pinecall-box-alerts`, which can only send as alerts@pinecall.io); `alerts.sh test` proves the path.
 
 ## Secrets and what never gets committed
 
