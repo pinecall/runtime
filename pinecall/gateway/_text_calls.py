@@ -15,7 +15,7 @@ from pinecall.gateway._served import Served, Serving, looked_up, served_call
 from pinecall.gateway._sockets import Registration
 from pinecall.gateway.calls.binding import attach
 from pinecall.gateway.ending.seal import sealed
-from pinecall.log import private, queries
+from pinecall.log import openings, private, queries
 from pinecall.log.store import Claim
 from pinecall.providers import catalog
 from pinecall.providers.build import Running
@@ -78,6 +78,8 @@ async def open_text_as(
     await serving.logs.store.claim(
         context.call, registration.slug, scope.org, Claim(scope, setup.versions)
     )
+    # Kept as a phone call's is: the gateway holding the app's socket serves it from this.
+    await openings.kept(pool, scope.org, context, setup.config)
     await serving.prompts.keep(pool, scope.org, setup.config.knowledge or "")
     served = served_call(serving, registration.owner, context, setup.config, scope)
     await serving.live.commands_heard(context.call)
