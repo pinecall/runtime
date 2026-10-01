@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,15 +11,15 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from pinecall.domain.errors import UpstreamFailed
 
-# Every container the runner starts carries these, so a restart finds what is its own.
+# Every container the runner starts carries these, so a runner that restarts finds what is its
+# own. Two runners, one per world, may share a machine and its podman: each sees its world's.
 APP_LABEL = "pinecall.app"
 
 
-HOST_LABEL = "pinecall.host"
-
-
-# Two runners, one per world, may share a machine and its podman: each sees only its own world's.
 WORLD_LABEL = "pinecall.world"
+
+
+RELEASE_LABEL = "pinecall.release"
 
 
 # The spike's measure (72 MB an idle agent under gVisor) with room for a tool's burst.
@@ -52,10 +53,28 @@ DRAIN_S = 45
 A_VERB_WITHIN_S = 60.0
 
 
+# What podman says of a container whose process is over; "created" and "initialized" are not.
+ENDED = frozenset({"exited", "stopped", "dead"})
+
+
+# Where a container finds what it is started with: a file the runner wrote, mounted read-only.
+ENVIRONMENT = "/run/pinecall"
+
+
+A_VARIABLE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+IN_THE_NAME = re.compile(r"-r(?P<release>[0-9]+)-")
+
+
 NO_ANSWER = "podman {verb}: no answer in {seconds:.0f}s"
 
 
-# The environment podman itself runs with: where it finds its binaries and its storage.
+NOT_A_VARIABLE = "{name!r} is not an environment variable's name"
+
+
+# The environment podman itself runs with, and nothing else: where it finds its binaries and
+# its storage. Nothing of an org's is ever in it.
 PODMANS_OWN = ("PATH", "HOME", "XDG_RUNTIME_DIR", "CONTAINERS_CONF", "CONTAINERS_STORAGE_CONF")
 
 
@@ -77,63 +96,82 @@ class Engine:
 
 @dataclass(frozen=True)
 class Container:
-    """A container the runner started: its name (the host), the app it serves, and its state."""
+    """A container the runner started: its name (the host), its app and release, how it is."""
 
     name: str
     app: str
+    release: int
     state: str
+    started_at: float
 
     @property
-    def is_running(self) -> bool:
-        """Whether its process is up."""
-        return self.state == "running"
+    def has_exited(self) -> bool:
+        """Whether its process ended; one still being created or started has not."""
+        return self.state in ENDED
 
 
 @dataclass(frozen=True)
 class Launch:
-    """One release to start: the app's label, its host, its network, its folder, its command."""
+    """One host to start: whose, which release, its network, its sources, what it starts with."""
 
     world: str
     app: str
     host: str
+    release: int
     network: str
     folder: Path
+    environment: Path
     command: Sequence[str]
 
 
 class _Row(BaseModel):
-    """One row of podman's listing, the three fields read of it."""
+    """One row of podman's listing, the fields read of it."""
 
     model_config = ConfigDict(extra="ignore")
 
     names: list[str] = Field(alias="Names")
     labels: dict[str, str] | None = Field(alias="Labels")
     state: str = Field(alias="State")
+    started_at: float = Field(default=0.0, alias="StartedAt")
+
+
+# The process's own shell reads its environment, then becomes the command.
+READ_THEN_RUN = f'. {ENVIRONMENT}/env && exec "$@"'
 
 
 _LISTING: TypeAdapter[list[_Row]] = TypeAdapter(list[_Row])
 
 
-async def ran(
-    argv: Sequence[str], *, within_s: float = A_VERB_WITHIN_S, env: Mapping[str, str] | None = None
-) -> Done:
+# An org's secret never rides this process's environment: a name like LD_PRELOAD or PATH there
+# would be read by podman itself, which runs as root.
+async def ran(argv: Sequence[str], *, within_s: float = A_VERB_WITHIN_S) -> Done:
     """Run one podman verb to its end; UpstreamFailed when it takes longer than it may."""
-    environment = {
-        name: value for name in PODMANS_OWN if (value := os.environ.get(name)) is not None
-    }
+    own = {name: value for name in PODMANS_OWN if (value := os.environ.get(name)) is not None}
     process = await asyncio.create_subprocess_exec(
-        *argv,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-        env={**environment, **(env or {})},
+        *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, env=own
     )
     try:
         printed, _ = await asyncio.wait_for(process.communicate(), within_s)
     except TimeoutError:
-        process.kill()
-        await process.wait()
         raise UpstreamFailed(NO_ANSWER.format(verb=argv[1], seconds=within_s)) from None
+    finally:
+        # Past its time, or the runner leaving: the verb does not outlive whoever waited for it.
+        if process.returncode is None:
+            process.kill()
+            await process.wait()
     return Done(returncode=process.returncode or 0, output=printed.decode(errors="replace"))
+
+
+# Single-quoted, so any value is itself: a key of several lines, a quote, a dollar sign.
+def exported(environment: Mapping[str, str]) -> str:
+    """The environment as a shell reads it: one `export NAME='value'` a variable."""
+    lines: list[str] = []
+    for name, value in sorted(environment.items()):
+        if not A_VARIABLE.match(name):
+            raise UpstreamFailed(NOT_A_VARIABLE.format(name=name))
+        quoted = value.replace("'", "'\\''")
+        lines.append(f"export {name}='{quoted}'")
+    return "\n".join(lines) + "\n"
 
 
 def sandboxed(engine: Engine) -> list[str]:
@@ -178,9 +216,8 @@ def install_argv(engine: Engine, folder: Path, network: str, scratch: Path) -> l
     ]
 
 
-# The values ride podman's own environment, named here and never written to a file or an argv.
-def run_argv(engine: Engine, launch: Launch, names: Sequence[str]) -> list[str]:
-    """Start one release: read-only, capped, on its own network, under its host's name."""
+def run_argv(engine: Engine, launch: Launch) -> list[str]:
+    """Start one host: read-only, capped, on its own network, its environment read off a file."""
     return [
         "podman",
         "run",
@@ -188,8 +225,8 @@ def run_argv(engine: Engine, launch: Launch, names: Sequence[str]) -> list[str]:
         f"--name={launch.host}",
         f"--hostname={launch.host}",
         f"--label={APP_LABEL}={launch.app}",
-        f"--label={HOST_LABEL}={launch.host}",
         f"--label={WORLD_LABEL}={launch.world}",
+        f"--label={RELEASE_LABEL}={launch.release}",
         *sandboxed(engine),
         "--read-only",
         f"--network={launch.network}",
@@ -200,10 +237,14 @@ def run_argv(engine: Engine, launch: Launch, names: Sequence[str]) -> list[str]:
         f"--tmpfs={TMP}",
         "--env=HOME=/tmp",
         "--env=NO_COLOR=1",
-        *(f"--env={name}" for name in names),
+        f"--volume={launch.environment}:{ENVIRONMENT}:ro",
         f"--volume={launch.folder}:/app:ro",
         "--workdir=/app",
         engine.image,
+        "sh",
+        "-c",
+        READ_THEN_RUN,
+        "sh",
         *launch.command,
     ]
 
@@ -211,7 +252,7 @@ def run_argv(engine: Engine, launch: Launch, names: Sequence[str]) -> list[str]:
 # The bridge's name is what the fence matches: only the runner's bridges, never another podman
 # network of the machine. A Linux interface name is 15 characters at most. No DNS of podman's: it
 # answers on the host, which the fence closes, so a container asks the public resolvers itself.
-def network_argv(network: str, bridge: str) -> list[str]:
+def network_argv(network: str, bridge: str, world: str) -> list[str]:
     """One app's own network: two apps never share a bridge, so they never reach each other."""
     return [
         "podman",
@@ -219,9 +260,15 @@ def network_argv(network: str, bridge: str) -> list[str]:
         "create",
         "--ignore",
         "--disable-dns",
+        f"--label={WORLD_LABEL}={world}",
         f"--interface-name={bridge}",
         network,
     ]
+
+
+def prune_networks_argv(world: str) -> list[str]:
+    """Every network of the world no container is on, gone: an app dropped leaves none behind."""
+    return ["podman", "network", "prune", "--force", f"--filter=label={WORLD_LABEL}={world}"]
 
 
 def listing_argv(world: str) -> list[str]:
@@ -251,11 +298,23 @@ def logs_argv(name: str, lines: int) -> list[str]:
     return ["podman", "logs", f"--tail={lines}", name]
 
 
+# A container started before containers carried their release is still this runner's to stop:
+# its release is read off its name, as the gateway wrote it there.
 def containers_in(listing: str) -> list[Container]:
     """The containers `podman ps --format=json` printed."""
-    rows = _LISTING.validate_json(listing or "[]")
-    return [
-        Container(name=row.names[0], app=(row.labels or {}).get(APP_LABEL, ""), state=row.state)
-        for row in rows
-        if row.names
-    ]
+    found: list[Container] = []
+    for row in _LISTING.validate_json(listing or "[]"):
+        labels = row.labels or {}
+        named = IN_THE_NAME.search(row.names[0]) if row.names else None
+        release = labels.get(RELEASE_LABEL) or (named["release"] if named else "0")
+        if row.names:
+            found.append(
+                Container(
+                    name=row.names[0],
+                    app=labels.get(APP_LABEL, ""),
+                    release=int(release),
+                    state=row.state,
+                    started_at=row.started_at,
+                )
+            )
+    return found

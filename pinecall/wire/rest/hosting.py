@@ -2,10 +2,14 @@
 
 from typing import Literal
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from pinecall.domain.names import Env
 from pinecall.wire.frames import WireModel
+
+# A runner is deployed apart from its gateway, and must outlive a gateway newer than itself: what
+# the gateway answers it is read leniently, and every field added to it carries a default.
+READ_BY_AN_OLDER_RUNNER = ConfigDict(extra="ignore", validate_by_name=True, validate_by_alias=True)
 
 
 class HostedAppRow(WireModel):
@@ -135,6 +139,8 @@ class RunnerHeartbeatRequest(WireModel):
 class WantedApp(WireModel):
     """One app the runner is to have running: a release, under the host name its process takes."""
 
+    model_config = READ_BY_AN_OLDER_RUNNER
+
     org: str
     name: str
     release: int
@@ -146,10 +152,15 @@ class WantedApp(WireModel):
     failed: bool
     # Whether a person asked for its logs lately: the runner sends them with its next beat.
     logs_wanted: bool = False
+    # The host that last went live: it serves until the one wanted registers, and is the one
+    # started again when its process exits.
+    live_host: str | None = None
 
 
 class RunnerHeartbeatResponse(WireModel):
     """The answer to a heartbeat: the runner's world, and every app of it that has a release."""
+
+    model_config = READ_BY_AN_OLDER_RUNNER
 
     world: Env
     apps: list[WantedApp]
@@ -157,5 +168,7 @@ class RunnerHeartbeatResponse(WireModel):
 
 class AppEnvironment(WireModel):
     """GET /v1/runner/apps/{org}/{name}/environment: what the app's process is started with."""
+
+    model_config = READ_BY_AN_OLDER_RUNNER
 
     environment: dict[str, str]

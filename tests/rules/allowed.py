@@ -18,6 +18,11 @@ PROTOCOLS_AND_CASTS: tuple[Allowed, ...] = ()
 # Rule 9: noqa, type: ignore, pyright: ignore, pragma: no cover.
 SUPPRESSIONS: tuple[Allowed, ...] = (
     Allowed(
+        "pinecall/session/voice.py",
+        "pyright: " + "ignore",
+        "smart-turn-livekit ships no py.typed; its SmartTurnDetector is typed inline",
+    ),
+    Allowed(
         "tests/fakes/livekit.py",
         "pyright: " + "ignore",
         "livekit's ParticipantInfo stub types `kind` as its enum and refuses the wire's int",
@@ -121,6 +126,11 @@ NOT_YET_REACHED: tuple[Allowed, ...] = (
 
 # Rule 14: the files that create a task, and who cancels or awaits it.
 TASK_OWNERS: tuple[Allowed, ...] = (
+    Allowed(
+        "pinecall/runner/main.py",
+        "create_task",
+        "working holds one per app; close() cancels and awaits them",
+    ),
     Allowed(
         "pinecall/gateway/app.py",
         "create_task",
