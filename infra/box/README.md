@@ -23,6 +23,7 @@ pinecall-migrate.service · pinecall-doctor.service · pinecall-fleet-key@.servi
 pinecall-retention.service · pinecall-retention.timer   the nightly erasure of calls past their org's days
 pinecall-backup.service · pinecall-backup.timer · backup.sh · backup.age.pub   the nightly encrypted backup
 wal.sh · pinecall-wal.service · pinecall-wal.timer   the WAL archive to the backup bucket, for a restore to any minute
+alerts.sh                                            the cell's four alerts evaluated on the box and mailed (alerts.env)
 objects.sh             the object store (any S3-compatible one) as rclone speaks it, from backup.env
 pinecall-postgres-image.service · hardening.conf · polkit/ · sysusers.d/ · tmpfiles.d/ · journald.conf.d/
 ```

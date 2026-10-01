@@ -145,6 +145,23 @@ for five minutes), a fleet busy over 0.8 for five minutes, a vendor over its err
 a replica more than 30 s behind for five. Nothing else is alerted on until one of them misses an
 incident.
 
+On the box, `infra/box/alerts.sh apply` (run by `install.sh`) evaluates them: Prometheus scrapes
+every gateway's `/metrics` every 15 s and Alertmanager mails what fires and what resolves, both on
+127.0.0.1 alone. It is on when `/etc/pinecall/alerts.env` names who is told and the SMTP account,
+and the password is sealed; off otherwise:
+
+```
+# /etc/pinecall/alerts.env
+PINECALL_ALERTS_TO=ops@example.com
+PINECALL_ALERTS_FROM=alerts@example.com
+PINECALL_ALERTS_SMTP=email-smtp.us-east-1.amazonaws.com:587
+PINECALL_ALERTS_SMTP_USER=…
+```
+
+`sudo /opt/pinecall/infra/box/install.sh secret PINECALL_ALERTS_SMTP_PASSWORD` seals the password
+(read from stdin), `alerts.sh apply` again takes an edit, and `alerts.sh test` mails a test alert
+through the same path.
+
 ### What the box keeps, and for how long
 
 Every call's log is kept until it is erased: by its org (`DELETE /v1/calls/{call}`,
