@@ -6,7 +6,6 @@ import time
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from pinecall.domain.errors import DeclarationRefused, NotSignedIn, PinecallError
-from pinecall.domain.names import Json
 from pinecall.gateway import _deps
 from pinecall.gateway._deps import Acting
 from pinecall.gateway._gateway import Gateway
@@ -41,7 +40,7 @@ async def entries_socket(websocket: WebSocket, call: str) -> None:
         return
     try:
         while True:
-            raw: Json = await websocket.receive_json()
+            raw = await websocket.receive_text()
             await _answered(websocket, gateway, served, call, raw)
     except WebSocketDisconnect:
         logger.debug("call %s: its worker's socket closed", call)
@@ -58,10 +57,10 @@ async def _served(websocket: WebSocket, gateway: Gateway, call: str) -> Served:
 
 
 async def _answered(
-    websocket: WebSocket, gateway: Gateway, served: Served, call: str, raw: Json
+    websocket: WebSocket, gateway: Gateway, served: Served, call: str, raw: str
 ) -> None:
     try:
-        body = AppendEntriesRequest.read(raw if isinstance(raw, dict) else {}, "entries")
+        body = AppendEntriesRequest.read_json(raw, "entries")
         for item in body.entries:
             if item.type not in EVENTS:
                 raise DeclarationRefused(UNKNOWN_EVENT.format(kind=item.type))
@@ -72,7 +71,7 @@ async def _answered(
     except PinecallError as refused:
         await _refused(websocket, refused)
         return
-    await websocket.send_json(AppendEntriesResponse(entries=entries).written())
+    await websocket.send_text(AppendEntriesResponse(entries=entries).written_json())
 
 
 async def _refused(websocket: WebSocket, refused: PinecallError) -> None:

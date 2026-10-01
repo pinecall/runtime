@@ -250,7 +250,7 @@ class Relay:
 # A big entry's address names its own log, which a feed's channel does not.
 def encoded(entry: Entry, sender: str) -> bytes:
     """The message an entry travels as: itself, or its address when it is big and durable."""
-    whole = json.dumps({"sender": sender, "entry": entry.written()}, separators=(",", ":"))
+    whole = f'{{"sender":{json.dumps(sender)},"entry":{entry.written_json()}}}'
     if len(whole) > STUB_OVER_BYTES and not entry.ephemeral:
         log = log_name(entry.call, entry.agent)
         stub = {"sender": sender, "stored": {"log": log, "seq": entry.seq}}
