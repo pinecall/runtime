@@ -4,10 +4,13 @@ from dataclasses import asdict, dataclass, fields
 from uuid import uuid4
 
 from pinecall.domain.call import A_CALL
+from pinecall.domain.errors import DeclarationRefused
 from pinecall.log import facts
 from pinecall.log.facts import CallFacts
 from pinecall.log.store import entry_of
 from pinecall.postgres.pool import Connection, Pool
+from pinecall.wire.events import EVENTS, event_of
+from pinecall.wire.frames import Entry
 
 # Calls named per read of the heads; each is refolded in a transaction of its own, so a rebuild
 # never holds a lock longer than one call's fold.
@@ -93,10 +96,11 @@ class Refolding:
 
 @dataclass(frozen=True)
 class Rebuilt:
-    """What a rebuild read and what it rewrote."""
+    """What a rebuild read, what it rewrote, and what it left: logs this release cannot read."""
 
     calls: int
     rewritten: int
+    left: int
 
 
 @dataclass(frozen=True)
@@ -117,19 +121,21 @@ class Differs:
 
 async def rebuild(pool: Pool, refolding: Refolding, *, page: int = A_PAGE) -> Rebuilt:
     """Fold each call's facts again from its log and write the row where it differs."""
-    calls = rewritten = 0
+    calls = rewritten = left = 0
     after = ""
     while names := await _calls_after(pool, refolding, after, page):
         for call in names:
             async with pool.connection() as connection, connection.transaction():
                 await connection.execute(HEAD_LOCKED, {"call": call})
                 stored, folded = await _refolded(connection, call)
-                if folded != (stored or CallFacts(call=call)):
+                if folded is None:
+                    left += 1
+                elif folded != (stored or CallFacts(call=call)):
                     await connection.execute(facts.FACTS_WRITTEN, _row(folded))
                     rewritten += 1
             calls += 1
         after = names[-1]
-    return Rebuilt(calls=calls, rewritten=rewritten)
+    return Rebuilt(calls=calls, rewritten=rewritten, left=left)
 
 
 async def heads_behind(pool: Pool) -> Heads:
@@ -152,6 +158,8 @@ async def differing(pool: Pool, *, sample: int = A_SAMPLE) -> list[Differs]:
         async with pool.connection() as connection, connection.transaction():
             await connection.execute(SNAPSHOT)
             stored, folded = await _refolded(connection, call)
+        if folded is None:
+            continue
         columns = _columns_apart(stored or CallFacts(call=call), folded)
         if columns:
             found.append(Differs(call=call, columns=columns))
@@ -165,13 +173,18 @@ async def _calls_after(pool: Pool, refolding: Refolding, after: str, page: int) 
     return [str(row["log"]) for row in rows]
 
 
-# The fold record() runs as entries land, run over the whole log from nothing.
-async def _refolded(connection: Connection, call: str) -> tuple[CallFacts | None, CallFacts]:
+# The fold record() runs as entries land, run over the whole log from nothing. A log holding an
+# entry this release's wire refuses folds to None: the fold would pass the entry by and lose what
+# the release that wrote it folded from it, so its stored row is the better account.
+async def _refolded(connection: Connection, call: str) -> tuple[CallFacts | None, CallFacts | None]:
     row = await (await connection.execute(FACTS, {"call": call})).fetchone()
     stored = None if row is None else facts.facts_of(row)
     folded = CallFacts(call=call)
-    for entry in await (await connection.execute(ENTRIES, {"call": call})).fetchall():
-        folded = facts.fold(folded, entry_of(entry))
+    for read in await (await connection.execute(ENTRIES, {"call": call})).fetchall():
+        entry = entry_of(read)
+        if _refused(entry):
+            return stored, None
+        folded = facts.fold(folded, entry)
     return stored, folded
 
 
@@ -192,3 +205,13 @@ def _columns_apart(stored: CallFacts, folded: CallFacts) -> tuple[str, ...]:
         if field.name in facts.COLUMNS
         and getattr(stored, field.name) != getattr(folded, field.name)
     )
+
+
+def _refused(entry: Entry) -> bool:
+    if entry.ephemeral or entry.type not in EVENTS:
+        return False
+    try:
+        event_of(entry)
+    except DeclarationRefused:
+        return True
+    return False

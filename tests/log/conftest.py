@@ -31,6 +31,8 @@ class ACall:
     persona: str | None = None
     ended: bool = True
     versions: Versions | None = None
+    # What else it logged before it ended, each a type and its data.
+    logged: tuple[tuple[str, JsonObject], ...] = ()
 
 
 @pytest.fixture
@@ -98,6 +100,8 @@ async def logged_call(store: Store, org: str, went: ACall | None = None) -> str:
         await store.append(
             call, agent, "supervisor.took_over", {"by": {"id": "m_1", "name": "I"}}, ephemeral=False
         )
+    for kind, data in went.logged:
+        await store.append(call, agent, kind, data, ephemeral=False)
     if went.ended:
         ended_with: JsonObject = {
             "reason": "caller_hung_up",

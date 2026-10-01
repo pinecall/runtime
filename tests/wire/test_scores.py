@@ -23,3 +23,9 @@ def test_a_judgment_whose_verdict_is_not_a_word_of_the_wire_is_refused() -> None
     judged = {"name": "consent", "verdict": "fine", "criteria": "c", "reason": "r"}
     with pytest.raises(DeclarationRefused, match="judgment"):
         Judgment.read({**judged, "evidence": {"seqs": []}}, "judgment")
+
+
+def test_a_score_whose_judges_cost_was_said_in_euros_reads_as_the_same_dollars() -> None:
+    score = CallScore.read({"judges": [], "judge_calls": 1, "judge_cost_eur": 0.01}, "call.score")
+    assert score.judge_cost_usd == 0.01
+    assert score.written() == {"judges": [], "judge_calls": 1, "judge_cost_usd": 0.01}

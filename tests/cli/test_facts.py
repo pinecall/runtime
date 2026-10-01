@@ -43,7 +43,10 @@ async def test_the_verb_refolds_what_differs_and_doctor_says_so_before_and_not_a
         _facts.rebuild, settings, rebuilt(org="org-a", since="1970-01-01")
     )
     assert ran == 0
-    assert capsys.readouterr().out == "1 calls refolded, 1 facts rows rewritten\n"
+    assert capsys.readouterr().out == (
+        "1 calls refolded, 1 facts rows rewritten, 0 left as they were:"
+        " their log holds an entry this release cannot read\n"
+    )
     assert await _facts.examined(settings) is None
 
 
