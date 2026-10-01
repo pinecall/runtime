@@ -166,7 +166,13 @@ The control plane, measured on 2026-10-01 with `pinecall-runtime load` from a ma
 | Caddy, as the balancer on the box | 2.4 cores at 1 200 calls | ~2 cores: past one box, a cloud balancer |
 | append, worker to log | p50 26 ms, p99 410 ms at 1 200 calls | — |
 | a gateway killed every minute | 0 of 8 000 logs wrong; its calls go on on the others | — |
+| gateways on a machine of their own, the box keeping Postgres | 2 000 calls on six gateways (two on the box, four apart): Postgres 2.6–3 cores, 9 017 calls sealed, 0 wrong | ~1.4 cores of Postgres, linear from 1 200 to 2 000 |
+| a gateway machine killed for two minutes | 1 200 calls: 6 778 opened and sealed, 0 refused, 0 wrong, 0 billed twice | — |
 
-What this says of 100 000 calls at once in a cell: about 300 gateway cores, and Postgres is the
-next wall to measure, at 160 cores' worth of writes it has not been asked for yet (P3's exit and
-P8 in `internal-docs`).
+What this says of a cell: Postgres grows by about 1.4 cores per 1 000 calls at once, so a cell of
+100 000 would need some 140 cores of one database, which no one machine holds; a cell is sized
+instead at 15 000–20 000 calls (a 32-core Postgres, ~50 gateway cores, ~1 000 worker machines) and
+the platform grows by cells (P8 in `internal-docs`). What saturated first at 2 000 calls was not
+Postgres but the box's own two gateway processes and its Caddy: past a box, gateways live on
+machines of their own (`docs/a-box-in-production.md`, "Gateways on other machines") and the
+balancer is the cloud's.
