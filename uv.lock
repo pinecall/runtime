@@ -3153,6 +3153,7 @@ dependencies = [
     { name = "starlette" },
     { name = "typing-extensions" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "websockets" },
 ]
 
 [package.optional-dependencies]
@@ -3202,6 +3203,7 @@ requires-dist = [
     { name = "starlette", specifier = ">=1.7,<2" },
     { name = "typing-extensions", specifier = ">=4.12,<5" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54,<1" },
+    { name = "websockets", specifier = ">=15,<16" },
 ]
 provides-extras = ["voice", "voice-big"]
 

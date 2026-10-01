@@ -35,6 +35,8 @@ dependencies = [
   "argon2-cffi>=25.1,<26",
   # A provider's discovery, keys and token endpoint.
   "httpx>=0.28,<1",
+  # A worker's entries go to the gateway on one WebSocket per call.
+  "websockets>=15,<16",
   # The gateway's doors and sockets; starlette's middleware and types are imported by name.
   "fastapi>=0.141,<1",
   "starlette>=1.7,<2",

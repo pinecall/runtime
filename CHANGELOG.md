@@ -2,6 +2,10 @@
 
 ## 0.1.3 — Open models on the row (unreleased)
 
+- A worker's batches of a call go down one WebSocket for the call's life (`WS /v1/calls/{call}/entries`)
+  instead of a request per batch: no routing, headers or key per batch on the gateway. A refusal is a
+  frame and the socket stays; a lost socket is opened again and the batch asked again with the same
+  `after`; a gateway of before (no such door) gets every batch by request, as before.
 - A gateway remembers a key it verified for five seconds (`tenancy/remembered.py`): verifying
   was a round trip per request, 15 % of its core under load. A key revoked at a door is forgotten
   on every gateway at once, said on the signal; one revoked at a shell opens for those seconds.

@@ -241,10 +241,10 @@ async def append_entry(
     """Write one entry of a call this gateway serves."""
     if body.type not in EVENTS:
         raise DeclarationRefused(UNKNOWN_EVENT.format(kind=body.type))
-    served = await _known(gateway, key, call)
+    served = await known(gateway, key, call)
     began = time.perf_counter()
     entry = await served.log.append(body.type, body.data, ephemeral=body.ephemeral)
-    _counted(gateway, time.perf_counter() - began, [entry])
+    counted(gateway, time.perf_counter() - began, [entry])
     return entry
 
 
@@ -257,17 +257,17 @@ async def append_entries(
     for item in body.entries:
         if item.type not in EVENTS:
             raise DeclarationRefused(UNKNOWN_EVENT.format(kind=item.type))
-    served = await _known(gateway, key, call)
+    served = await known(gateway, key, call)
     began = time.perf_counter()
     entries = await served.log.append_many(body.entries, after=body.after)
-    _counted(gateway, time.perf_counter() - began, entries)
+    counted(gateway, time.perf_counter() - began, entries)
     return AppendEntriesResponse(entries=entries)
 
 
 @router.post("/v1/calls/{call}/sealed", status_code=204)
 async def seal_call(call: str, body: SealCallRequest, key: WorkerKey, gateway: GatewayDep) -> None:
     """Price the call, write its summary and score, and seal its log."""
-    await sealed(gateway.serving, await _known(gateway, key, call), body, lent=body.lent)
+    await sealed(gateway.serving, await known(gateway, key, call), body, lent=body.lent)
 
 
 # The gateway writes tool.call and tool.result: appending the call is what reaches the app.
@@ -280,7 +280,7 @@ async def run_tool(
     gateway: GatewayDep,
 ) -> ToolResult:
     """Run a worker's tool call through the app that holds its agent, and answer its result."""
-    served = await _known(gateway, key, call)
+    served = await known(gateway, key, call)
     if agent != served.agent:
         raise NotFound(NOT_OPEN.format(call=call))
     # Parked because nobody holds the agent: a refusal now, not a wait until the tool's deadline.
@@ -299,7 +299,7 @@ async def run_tool(
 @router.post("/v1/calls/{call}/recording/key")
 async def recording_key(call: str, key: WorkerKey, gateway: GatewayDep) -> RecordingKeyResponse:
     """The key the call's recording is sealed under, made once for the call."""
-    served = await _known(gateway, key, call)
+    served = await known(gateway, key, call)
     connections = gateway.connections
     found = await recording_keys.key_for(
         connections.pool, connections.vault, served.scope.org, call
@@ -313,7 +313,7 @@ async def recording_key(call: str, key: WorkerKey, gateway: GatewayDep) -> Recor
 @router.get("/v1/calls/{call}/commands")
 async def stream_commands(call: str, key: WorkerKey, gateway: GatewayDep) -> StreamingResponse:
     """The app's commands for the call, in order, until it is sealed."""
-    served = await _known(gateway, key, call)
+    served = await known(gateway, key, call)
     await gateway.live.commands_heard(call)
     return streamed(_commanded(served.commands), gateway.closing)
 
@@ -321,7 +321,7 @@ async def stream_commands(call: str, key: WorkerKey, gateway: GatewayDep) -> Str
 @router.get("/v1/calls/{call}/judging")
 async def call_judging(call: str, key: WorkerKey, gateway: GatewayDep) -> JudgingSettings:
     """Whether the call's org judges its calls at hang-up."""
-    served = await _known(gateway, key, call)
+    served = await known(gateway, key, call)
     pool = gateway.connections.pool
     on = await orgs.judged(pool, served.scope.org)
     return JudgingSettings(on=on, ceiling_usd=judge_ceiling(await catalog.providers(pool)))
@@ -333,7 +333,7 @@ async def lookup(
     call: str, body: LookupRequest, key: WorkerKey, gateway: GatewayDep
 ) -> LookupResponse:
     """Recall or search for a call served here, answered as the model reads it."""
-    served = await _known(gateway, key, call)
+    served = await known(gateway, key, call)
     started = time.perf_counter()
     output = await looked_up(gateway.serving, served, body)
     return LookupResponse(output=output, took_ms=(time.perf_counter() - started) * 1000)
@@ -342,7 +342,7 @@ async def lookup(
 @router.post("/v1/calls/{call}/remember")
 async def remember(call: str, key: WorkerKey, gateway: GatewayDep) -> RememberResponse:
     """Write what the call taught into its contact's memory now, as the seal would."""
-    served = await _known(gateway, key, call)
+    served = await known(gateway, key, call)
     started = time.perf_counter()
     written = await remembered(gateway.serving, served)
     ops = 0 if written is None else len(written.op.facts)
@@ -355,7 +355,7 @@ async def claim_keypad_code(
     call: str, call_claim: CallClaim, key: WorkerKey, gateway: GatewayDep
 ) -> None:
     """The caller keyed a page's code: tie the call to it."""
-    served = await _known(gateway, key, call)
+    served = await known(gateway, key, call)
     if not await claim_code(gateway.codes, served, call_claim.code, via="keypad"):
         raise NotFound(_deps.NOBODY_ISSUED.format(code=call_claim.code, agent=served.agent))
 
@@ -473,26 +473,14 @@ async def stream_org_events(reading: ReaderDep, gateway: GatewayDep) -> Streamin
     return streamed(_projected(feed, reading, None, ends=False), gateway.closing)
 
 
-# A tenant's worker opens its own org's calls in its own world; the fleet's opens any org's in
-# its world, in the scope the dispatch named.
-def _call_corner(key: Acting, context: CallContext) -> Scope:
-    named = Scope(context.route.org, context.env, context.holder or "")
-    fleet = THE_FLEET in key.bearer.key.scopes
-    if not fleet and context.route.org != key.org:
-        raise NotFound(_deps.NO_SUCH_CALL.format(call=context.call))
-    if not fleet and context.env != key.env:
-        raise NotAllowed(
-            f"this key opens {key.env}, and that call's route answers in {context.env}"
-        )
-    return keys.scope_of(key.bearer, key.env, dispatched=named)
-
-
 # An id grants nothing: another org's or world's call is the same 404 as a call nobody opened.
 # The fleet's key serves every org of its world; a tenant's worker its own org alone.
 # A call this gateway serves, or one another gateway opened, served here from what was kept when
 # it opened: one read, the first time a door here asks. A call opened by a release that kept
 # nothing is the 404 a worker answers by saying the call again (`/reopened`).
-async def _known(gateway: Gateway, key: Acting, call: str) -> Served:
+# What a door of a call this gateway serves starts from; the socket door starts from it too.
+async def known(gateway: Gateway, key: Acting, call: str) -> Served:
+    """The call as this gateway serves it, first seen here if need be; a refusal names why."""
     now = time.monotonic()
     served = gateway.live.calls.get(call)
     if served is not None:
@@ -510,6 +498,40 @@ async def _known(gateway: Gateway, key: Acting, call: str) -> Served:
     if opening is None:
         raise NotFound(NOT_OPEN.format(call=call))
     return first_seen(gateway.serving, opening.context, opening.config, kept.scope, now)
+
+
+# What /metrics reads: the append's time at the door, and each vendor's failures as they come in.
+# A vendor fails a call when an error names its plugin, or when a stage switches away from it.
+def counted(gateway: Gateway, seconds: float, entries: list[Entry]) -> None:
+    """Count an append's time and entries, and what they say of vendors, for /metrics."""
+    counters = gateway.counters
+    counters.appended_in(seconds, len(entries))
+    at = time.monotonic()
+    for entry in entries:
+        vendor = ""
+        if entry.type == ERROR:
+            code, message = entry.data.get("code"), entry.data.get("message")
+            vendor = vendor_named_in(message if isinstance(message, str) else "")
+            counters.failed(code if isinstance(code, str) else "", vendor)
+        elif entry.type == SWITCHED and entry.data.get("available") is False:
+            named = entry.data.get("vendor")
+            vendor = named if isinstance(named, str) else ""
+        if vendor and entry.call is not None:
+            counters.failed_on(vendor, entry.call, at)
+
+
+# A tenant's worker opens its own org's calls in its own world; the fleet's opens any org's in
+# its world, in the scope the dispatch named.
+def _call_corner(key: Acting, context: CallContext) -> Scope:
+    named = Scope(context.route.org, context.env, context.holder or "")
+    fleet = THE_FLEET in key.bearer.key.scopes
+    if not fleet and context.route.org != key.org:
+        raise NotFound(_deps.NO_SUCH_CALL.format(call=context.call))
+    if not fleet and context.env != key.env:
+        raise NotAllowed(
+            f"this key opens {key.env}, and that call's route answers in {context.env}"
+        )
+    return keys.scope_of(key.bearer, key.env, dispatched=named)
 
 
 def _yours(key: Acting, scope: Scope, call: str) -> None:
@@ -662,22 +684,3 @@ def _seq_of(header: str | None) -> int:
 def _sees_to_erase(where: Scope, owner: Scope) -> bool:
     same = where.org == owner.org and where.env == owner.env
     return same and owner.holder in ("", where.holder)
-
-
-# What /metrics reads: the append's time at the door, and each vendor's failures as they come in.
-# A vendor fails a call when an error names its plugin, or when a stage switches away from it.
-def _counted(gateway: Gateway, seconds: float, entries: list[Entry]) -> None:
-    counters = gateway.counters
-    counters.appended_in(seconds, len(entries))
-    at = time.monotonic()
-    for entry in entries:
-        vendor = ""
-        if entry.type == ERROR:
-            code, message = entry.data.get("code"), entry.data.get("message")
-            vendor = vendor_named_in(message if isinstance(message, str) else "")
-            counters.failed(code if isinstance(code, str) else "", vendor)
-        elif entry.type == SWITCHED and entry.data.get("available") is False:
-            named = entry.data.get("vendor")
-            vendor = named if isinstance(named, str) else ""
-        if vendor and entry.call is not None:
-            counters.failed_on(vendor, entry.call, at)

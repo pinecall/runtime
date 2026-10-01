@@ -201,6 +201,14 @@ class AppendEntriesResponse(WireModel):
     entries: list[Entry]
 
 
+# On the entries socket, where a refusal is a frame and not a status: the socket stays open.
+class AppendEntriesRefused(WireModel):
+    """A batch the gateway refused, with the sentence and the status a request would get."""
+
+    refused: str
+    status: int
+
+
 # `input` is whole and unread by the wire: what recall and search take is the runtime's shape.
 class LookupRequest(WireModel):
     """Which platform tool to run for a call's turn, what to run it with, and the turn it joins."""
