@@ -2,6 +2,11 @@
 
 ## 0.1.3 — Open models on the row (unreleased)
 
+- A summary or a score written before money in dollars (`eur`, `judge_cost_eur`, the euro's `rate`)
+  is read again, its euros as the same number of dollars, as migration 0007 kept the facts: 1113
+  of box.pinecall.io's 1154 summaries had become unreadable. `facts rebuild` and doctor's sample
+  leave a call whose log holds an entry the wire still refuses as it was folded, instead of
+  refolding it to nothing.
 - The providers row may name the language a vendor's ears are told (`tuning."stt/<vendor>".options.language_code`),
   and it wins over the call's base code: NVIDIA's streaming ASR takes `es-US`, not `es`.
 - How a spoken turn ends is the ears' `tuning` too: `turn_model` picks the local model that reads

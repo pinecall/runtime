@@ -103,7 +103,7 @@ The last entry of a call: what the judges said about it at hang-up, one row per 
 | `panel` | `string[]` | no | Every judge this call declared, whether or not it answered: a judge that raised is here and absent from judges. Empty when nothing was ever declared, and absent on entries written before this field existed. |
 | `judge_calls` | `integer` | yes | How many questions judging this call actually put to a model. Zero is the happy path: a policy answers by code. |
 | `judged_by` | `JudgedBy | null` | no | Who gave the score: `{provider, model, criteria}`, the judge model (null for a panel settled by code alone) and the sha256 of every question the panel asked, in its order. Drift tells a worse agent from a changed judge by it. Absent when nothing was judged. |
-| `judge_cost_usd` | `number` | no | What those questions cost in US dollars, priced from the judge model's own usage rows. Absent when no usage was reported, never zero. |
+| `judge_cost_usd` | `number` | no | What those questions cost in US dollars, priced from the judge model's own usage rows. Absent when no usage was reported, never zero. A score written before money in dollars said `judge_cost_eur`: the same number, read as dollars. |
 
 ### `call.started`
 

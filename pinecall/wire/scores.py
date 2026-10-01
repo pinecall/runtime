@@ -1,5 +1,7 @@
 """What the judges said about a call: call.score, one judgment per judge, and its evidence."""
 
+from pydantic import AliasChoices, Field
+
 from pinecall.wire.frames import WireModel
 from pinecall.wire.parts import ScoreVerdict
 
@@ -38,7 +40,10 @@ class CallScore(WireModel):
     judges: list[Judgment]
     panel: list[str] | None = None
     judge_calls: int
-    judge_cost_usd: float | None = None
+    # A score written before money in dollars said it in euros: the same number, read as dollars.
+    judge_cost_usd: float | None = Field(
+        default=None, validation_alias=AliasChoices("judge_cost_usd", "judge_cost_eur")
+    )
     # Absent on a score written before 10.6, or with nothing judged: drift tells a worse agent from
     # a changed judge by it.
     judged_by: JudgedBy | None = None

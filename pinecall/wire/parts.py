@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from pinecall.domain.agent import EventSource
 from pinecall.domain.names import Channel, Json, JsonObject
@@ -182,7 +182,9 @@ class CostRow(WireModel):
     ]
     quantity: float
     unit_price_usd: float
-    usd: float
+    # A summary written before money in dollars priced its rows in euros: the same number, read as
+    # dollars and never converted, as migration 0007 kept the facts' column.
+    usd: float = Field(validation_alias=AliasChoices("usd", "eur"))
 
 
 class UnpricedRow(WireModel):
@@ -195,9 +197,11 @@ class UnpricedRow(WireModel):
 class Cost(WireModel):
     """What the call cost in provider fees and, priced, the box's own compute; US dollars."""
 
-    usd: float
+    usd: float = Field(validation_alias=AliasChoices("usd", "eur"))
     rows: list[CostRow]
     unpriced: list[UnpricedRow]
+    # The euro's rate a summary written before money in dollars carried; read, never written.
+    rate: JsonObject | None = Field(default=None, exclude=True)
 
 
 class VoiceConfig(WireModel):

@@ -11,7 +11,10 @@ from pinecall.log.refold import Rebuilt, Refolding
 from pinecall.postgres.pool import open_pool
 from pinecall.process.settings import Settings
 
-REBUILT = "{calls} calls refolded, {rewritten} facts rows rewritten\n"
+REBUILT = (
+    "{calls} calls refolded, {rewritten} facts rows rewritten, {left} left as they were:"
+    " their log holds an entry this release cannot read\n"
+)
 
 BEHIND = "{logs}: rows past their head's seq, of {examined} heads examined"
 
@@ -32,7 +35,7 @@ def rebuild(settings: Settings, args: argparse.Namespace) -> int:
     """Refold the facts of the calls the flags name, every call's when none; say what changed."""
     refolding = Refolding(call=args.call, org=args.org, since=day_of(args.since))
     done = asyncio.run(_rebuilt(settings, refolding))
-    sys.stdout.write(REBUILT.format(calls=done.calls, rewritten=done.rewritten))
+    sys.stdout.write(REBUILT.format(calls=done.calls, rewritten=done.rewritten, left=done.left))
     return 0
 
 

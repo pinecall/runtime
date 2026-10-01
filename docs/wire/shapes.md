@@ -277,6 +277,7 @@ What the call cost in provider fees, informational, in US dollars, the currency 
 | `usd` | `number` | yes | The sum of every priced row, in US dollars. |
 | `rows` | `CostRow[]` | yes | Every usage row that had a price, one line per unit billed. |
 | `unpriced` | `UnpricedRow[]` | yes | The usage rows the price table did not know, so the total is known to be incomplete. |
+| `rate` | `object` | no | Only on a summary written before money in dollars, which said `eur` where it says `usd` now: the euro's rate it carried. Read, never written; its `eur` is read as the same number of dollars, never converted, as migration 0007 kept the facts. |
 
 ### `VoiceConfig`
 

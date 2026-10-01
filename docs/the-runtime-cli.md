@@ -171,8 +171,10 @@ ships `infra/box/prices.csv`. `facts rebuild [--call <call>] [--org <org id>] [-
 YYYY-MM-DD]` folds each call's facts row (what the lists, the inbox and the insights read) again
 from its log, every call's when no flag is given, and writes the row where it differs: one call at
 a time, each in a transaction of its own under the lock its appends take, so a live call waits
-milliseconds and nothing holds a long transaction; it prints how many calls it read and how many
-rows it rewrote. `usage rebuild` folds every org's
+milliseconds and nothing holds a long transaction; it prints how many calls it read, how many
+rows it rewrote, and how many it left as they were: a log holding an entry this release's wire
+refuses is never refolded, because the fold would pass the entry by and lose what the release that
+wrote it folded from it (doctor's sample passes those by too). `usage rebuild` folds every org's
 usage totals (what admission counts, a row per org, world and month) again from the summaries in
 the log, as the usage feed folds each one, and rewrites the table in one transaction that holds
 it: a summary written meanwhile waits and is counted after; it prints how many summaries and rows.

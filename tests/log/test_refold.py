@@ -22,6 +22,10 @@ GONE = "delete from call_facts where call = %(call)s"
 
 HEAD_BACK = "update call_log_head set seq = 1 where log = %(call)s"
 
+# What a release before this one wrote that this one's wire refuses: a block of the prompt named
+# by its v1 key.
+GONE_SHAPE: JsonObject = {"region": "rules", "hash": "a1", "chars": 12}
+
 
 async def stored(pool: Pool, call: str) -> facts.CallFacts | None:
     """The facts row as Postgres holds it now."""
@@ -48,7 +52,7 @@ async def test_a_rebuild_writes_back_what_the_log_folds_to_and_leaves_a_right_ro
     assert before is not None
     assert before.outcome == "booked a visit"
     assert await stored(pool, broken) == before
-    assert await refold.rebuild(pool, Refolding(call=right)) == refold.Rebuilt(1, 0)
+    assert await refold.rebuild(pool, Refolding(call=right)) == refold.Rebuilt(1, 0, 0)
 
 
 async def test_a_row_lost_is_written_again_and_what_is_not_a_fold_is_kept(
@@ -64,7 +68,7 @@ async def test_a_row_lost_is_written_again_and_what_is_not_a_fold_is_kept(
     assert row is not None
     assert row["lent"] == ["acme"]
     await ran(pool, GONE, call)
-    assert await refold.rebuild(pool, Refolding(call=call)) == refold.Rebuilt(1, 1)
+    assert await refold.rebuild(pool, Refolding(call=call)) == refold.Rebuilt(1, 1, 0)
     assert await stored(pool, call) == before
 
 
@@ -75,10 +79,10 @@ async def test_a_rebuild_reads_only_the_org_and_the_days_it_is_given_page_by_pag
     theirs = await logged_call(store, "org-other", ACall(scope=Scope("org-other")))
     for call in [*ours, theirs]:
         await ran(pool, WRONG, call)
-    assert await refold.rebuild(pool, Refolding(org=org), page=2) == refold.Rebuilt(3, 3)
+    assert await refold.rebuild(pool, Refolding(org=org), page=2) == refold.Rebuilt(3, 3, 0)
     assert (await stored(pool, theirs) or facts.CallFacts(call=theirs)).outcome == "wrong"
-    assert await refold.rebuild(pool, Refolding(since=10_000.0)) == refold.Rebuilt(0, 0)
-    assert await refold.rebuild(pool, Refolding(since=0.0)) == refold.Rebuilt(4, 1)
+    assert await refold.rebuild(pool, Refolding(since=10_000.0)) == refold.Rebuilt(0, 0, 0)
+    assert await refold.rebuild(pool, Refolding(since=0.0)) == refold.Rebuilt(4, 1, 0)
 
 
 async def test_appends_that_come_while_their_call_is_refolded_are_folded_all_the_same(
@@ -93,7 +97,7 @@ async def test_appends_that_come_while_their_call_is_refolded_are_folded_all_the
     folded = await stored(pool, call)
     assert folded is not None
     assert len(folded.heard_at) == 6
-    assert await refold.rebuild(pool, Refolding(call=call)) == refold.Rebuilt(1, 0)
+    assert await refold.rebuild(pool, Refolding(call=call)) == refold.Rebuilt(1, 0, 0)
 
 
 async def test_doctor_names_a_head_behind_its_rows_and_a_fact_its_log_does_not_fold_to(
@@ -107,3 +111,14 @@ async def test_doctor_names_a_head_behind_its_rows_and_a_fact_its_log_does_not_f
     await ran(pool, WRONG, second)
     assert await refold.heads_behind(pool) == refold.Heads(examined=2, behind=(first,))
     assert await refold.differing(pool) == [Differs(call=second, columns=("outcome", "e2e"))]
+
+
+async def test_a_log_holding_an_entry_this_release_cannot_read_is_left_as_it_was_folded(
+    pool: Pool, store: Store, org: str
+) -> None:
+    call = await logged_call(store, org, ACall(logged=(("prompt.changed", GONE_SHAPE),)))
+    before = await stored(pool, call)
+    assert await refold.rebuild(pool, Refolding(call=call)) == refold.Rebuilt(1, 0, 1)
+    assert await stored(pool, call) == before
+    await ran(pool, WRONG, call)
+    assert await refold.differing(pool) == []
