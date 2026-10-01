@@ -10,6 +10,12 @@ After=network-online.target nftables.service
 WorkingDirectory=/var/lib/pinecall/runner
 EnvironmentFile=/etc/pinecall/runner/%i.env
 Environment=PINECALL_RUNNER_ROOT=/var/lib/pinecall/runner/%i
+# A tmpfs, kept across restarts: each container's environment — the org's secrets — is a file
+# here, mounted read-only into that container and never written to a disk.
+RuntimeDirectory=pinecall-runner/%i
+RuntimeDirectoryPreserve=yes
+RuntimeDirectoryMode=0700
+Environment=PINECALL_RUNNER_ENVIRONMENTS=/run/pinecall-runner/%i
 LoadCredentialEncrypted=PINECALL_RUNNER_KEY:/etc/pinecall/runner/%i.credstore/PINECALL_RUNNER_KEY
 ExecStart=/opt/pinecall-runner/venv/bin/pinecall-runtime runner start
 # The apps are podman's and outlive the runner: stopping it stops nothing of theirs.

@@ -1,6 +1,8 @@
 #!/bin/sh
 # pinecall-runtime as the box's own units run it: its names, its sealed credentials, its loopback
 # gateway and SFU. install.sh puts this at /usr/local/bin/pinecall-runtime; run it with sudo.
+# It runs as root, so it writes no bytecode: a root-owned __pycache__ in the venv breaks the
+# next release, which the pinecall user installs.
 exec systemd-run --quiet --wait --pipe --collect \
     -p EnvironmentFile=/etc/pinecall/box.env \
     -p EnvironmentFile=-/etc/pinecall/backup.env \
@@ -8,5 +10,5 @@ exec systemd-run --quiet --wait --pipe --collect \
     -p ImportCredential=PINECALL_OPS_KEY -p ImportCredential=LIVEKIT_API_KEY \
     -p ImportCredential=LIVEKIT_API_SECRET -p ImportCredential=PINECALL_S3_SECRET_ACCESS_KEY \
     -E PINECALL_GATEWAY_URL=http://127.0.0.1:8080 -E LIVEKIT_URL=ws://127.0.0.1:7880 \
-    -E PINECALL_RECORDINGS=/var/lib/pinecall/recordings \
+    -E PINECALL_RECORDINGS=/var/lib/pinecall/recordings -E PYTHONDONTWRITEBYTECODE=1 \
     /opt/pinecall/venv/bin/pinecall-runtime "$@"

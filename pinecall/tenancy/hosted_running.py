@@ -1,10 +1,12 @@
 """A hosted app while it runs: stopped and started, the logs asked for, the time it served."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import LiteralString
 
 from pinecall.domain.errors import NotFound
+from pinecall.domain.names import Env
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy.hosting import NOT_HOSTED, HostedApp
 
@@ -41,29 +43,32 @@ WHERE org = %(org)s AND env = %(env)s AND name = %(name)s
 """
 
 
-# Read under a lock and written in the same transaction, so two beats never count one span twice.
-LAST_METERED = """
-SELECT metered_at FROM hosted_apps
-WHERE org = %(org)s AND env = %(env)s AND name = %(name)s FOR UPDATE
-"""
-
-
-METER = """
-UPDATE hosted_apps SET metered_at = %(now)s
-WHERE org = %(org)s AND env = %(env)s AND name = %(name)s
-"""
-
-
-ADD_SECONDS = """
-INSERT INTO hosted_usage (org, env, name, day, seconds)
-VALUES (%(org)s, %(env)s, %(name)s, %(day)s, %(seconds)s)
-ON CONFLICT (org, env, name, day) DO UPDATE SET seconds = hosted_usage.seconds + excluded.seconds
-"""
-
-
-UNMETER = """
-UPDATE hosted_apps SET metered_at = NULL
-WHERE org = %(org)s AND env = %(env)s AND name = %(name)s AND metered_at IS NOT NULL
+# One statement for a world's beat. Every app that was being counted, or serves now, is locked and
+# read once: the time since its last count goes on today's row, capped, and it is counted from now
+# if it serves and from nothing if it does not. Two runners beating at once wait on the lock and
+# read the other's count, so no span is counted twice.
+COUNT = """
+WITH serving AS (
+    SELECT * FROM unnest(%(orgs)s::text[], %(names)s::text[]) AS app (org, name)
+), previous AS (
+    SELECT app.org, app.name, app.metered_at,
+           EXISTS (SELECT 1 FROM serving WHERE org = app.org AND name = app.name) AS serves
+    FROM hosted_apps app
+    WHERE app.env = %(env)s AND (app.metered_at IS NOT NULL OR EXISTS (
+        SELECT 1 FROM serving WHERE org = app.org AND name = app.name))
+    FOR UPDATE OF app
+), counted AS (
+    INSERT INTO hosted_usage (org, env, name, day, seconds)
+    SELECT org, %(env)s, name, %(day)s,
+           least(greatest(extract(epoch FROM %(now)s::timestamptz - metered_at), 0), %(longest)s)
+    FROM previous WHERE serves AND metered_at IS NOT NULL
+    ON CONFLICT (org, env, name, day)
+    DO UPDATE SET seconds = hosted_usage.seconds + excluded.seconds
+)
+UPDATE hosted_apps app
+SET metered_at = CASE WHEN previous.serves THEN %(now)s::timestamptz END
+FROM previous
+WHERE app.env = %(env)s AND app.org = previous.org AND app.name = previous.name
 """
 
 
@@ -121,24 +126,20 @@ async def keep_logs(pool: Pool, app: HostedApp, *, host: str, lines: str) -> Non
         await connection.execute(KEEP_LOGS, values)
 
 
-async def metered(pool: Pool, app: HostedApp, now: datetime) -> float:
-    """Count the app's time serving since it was last counted, on today's UTC row; the seconds."""
+async def count_serving(
+    pool: Pool, env: Env, serving: Sequence[tuple[str, str]], now: datetime
+) -> None:
+    """Count the time the world's serving apps, each an (org, name), served since the last count."""
+    values = {
+        "env": env,
+        "orgs": [org for org, _ in serving],
+        "names": [name for _, name in serving],
+        "now": now,
+        "day": now.astimezone(UTC).date(),
+        "longest": LONGEST_BEAT_S,
+    }
     async with pool.connection() as connection, connection.transaction():
-        row = await (await connection.execute(LAST_METERED, app.columns)).fetchone()
-        await connection.execute(METER, {**app.columns, "now": now})
-        previous = None if row is None else row["metered_at"]
-        if previous is None:
-            return 0.0
-        seconds = min(max((now - previous).total_seconds(), 0.0), LONGEST_BEAT_S)
-        day = now.astimezone(UTC).date()
-        await connection.execute(ADD_SECONDS, {**app.columns, "day": day, "seconds": seconds})
-    return seconds
-
-
-async def unmetered(pool: Pool, app: HostedApp) -> None:
-    """The app is not serving: the next time it is, counting starts from then."""
-    async with pool.connection() as connection:
-        await connection.execute(UNMETER, app.columns)
+        await connection.execute(COUNT, values)
 
 
 async def served(
