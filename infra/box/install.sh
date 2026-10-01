@@ -70,6 +70,14 @@ LIVEKIT_PUBLIC_URL=wss://$FIRST
 PINECALL_DB_POOL=$((2 * $(nproc) + 2))
 ENV
 install -m 0644 "$HERE"/fleets/*.env /etc/pinecall/fleets/
+# Each of the box's four workers counts its calls (one per vCPU), never the machine's CPU: a call's
+# first seconds load the turn models in a new process, and a burst read as CPU crossed 0.7 for an
+# instant, LiveKit marked the worker unavailable and never offered those rooms again (measured
+# 2026-10-01: 5 of 10 calls at once got no agent at 20 % CPU; counting, 14 of 15 at 42 %). A call
+# costs ~0.24 vCPU, so four workers at one call per vCPU leave the box room for the rest.
+for slot in /etc/pinecall/fleets/*-[ab].env; do
+    grep -q '^PINECALL_MAX_JOBS=' "$slot" || echo "PINECALL_MAX_JOBS=$(nproc)" >> "$slot"
+done
 
 # The box's secrets, drawn here once and never printed; a re-run keeps what exists.
 if [ ! -f "$STORE/LIVEKIT_API_KEY" ]; then

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The box's workers count their calls (`PINECALL_MAX_JOBS`, one per vCPU each, written by `install.sh`)
+  instead of reading the machine's CPU: on CPU, a burst of calls left rooms with no agent, LiveKit never
+  offering them again (measured: 5 of 10 at 20 % CPU; counting, 14 of 15). A call costs ~0.24 vCPU.
 - The disaster drills, run: a restore to a minute in 79 s with RPO under a minute, and a failover
   to the replica in 17 s with no write lost, a box again in under 3 minutes (`docs/a-box-in-production.md`).
 

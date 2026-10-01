@@ -58,6 +58,16 @@ measure is taken, never guessed: on the machine type it will run on, calls with 
 each step, until first audio's p95 crosses what a caller tolerates; `MAX_JOBS` is one under it,
 because LiveKit re-reads the load every half second.
 
+**Set it; never leave a worker on CPU.** Measured on 2026-10-01 with spoken calls (Deepgram,
+Haiku, Cartesia) against a worker alone on an 8-vCPU machine: on CPU, ten calls placed a second
+apart got five agents at 20 % of the machine — each new call's process loads the turn models, the
+CPU reading crosses 0.7 for an instant, LiveKit marks the worker unavailable and never offers that
+room again; counting (`PINECALL_MAX_JOBS=20`), 14 of 15 calls got their agent (the fifteenth was
+the 0.7 line) at 42 % of the machine. **A call costs ~0.24 vCPU**, so a worker machine holds about
+`2.9 × vCPU` calls at the line: set `PINECALL_MAX_JOBS` to `vCPU × 4` and the 0.7 line falls there.
+The box's own four workers get one per vCPU each from `install.sh`, which leaves room for what
+else the box runs.
+
 ## The gateway hears every worker
 
 Every five seconds a worker posts its heartbeat, `{fleet, worker, active, max_jobs, load,
@@ -136,6 +146,13 @@ the fleet is full. On a box of one worker per world, a dead worker's calls wait 
 come back (systemd restarts it in seconds), since the overflow opens only for a full fleet and a
 fleet nobody hears from is not full. A drain, a cordon and a call that ends leave on purpose, and
 are not this. If no job comes, the reaper seals the call after five quiet minutes, as before.
+
+Measured on 2026-10-01 (a spoken call, its worker SIGKILLed 25 s in): **20.5 s** from the kill to
+`call.ended drained` on the log — LiveKit's connection timeout for the agent, which leaves as
+`CONNECTION_TIMEOUT` — and the sentence's job on the other worker a second later; before LiveKit
+read its webhook on a box, the same call waited for the reaper's five minutes. The sentence is
+said after `call.ended` is on the log: a client that hangs up on `call.ended` (the simulated caller
+of `/v1/evals/voice` does) leaves before it; a phone caller stays on the line and hears it.
 
 ## The fleet loop
 
