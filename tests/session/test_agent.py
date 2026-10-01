@@ -14,7 +14,7 @@ from pinecall.domain.agent import AgentConfig
 from pinecall.log.store import Store
 from pinecall.session import hold as hold_module
 from pinecall.session import text
-from pinecall.session._agent import LLM_TIMEOUT
+from pinecall.session._agent import LLM_TIMEOUT, MODEL_LATE
 from pinecall.session.hold import HoldMusic
 from tests.conftest import postgres
 from tests.fakes.livekit import Player
@@ -87,15 +87,16 @@ async def test_a_real_callers_call_keeps_no_request(box: Box) -> None:
 
 
 @postgres
-async def test_a_model_past_the_agents_deadline_is_cut_and_the_turn_ends_unanswered(
+async def test_a_model_past_the_agents_deadline_is_cut_and_the_caller_asked_to_say_it_again(
     box: Box, store: Store, call: str
 ) -> None:
-    session = a_session(box, AgentConfig(slug="clinica-norte", llm_timeout_s=0.05), ["tarde"])
+    config = AgentConfig(slug="clinica-norte", language="es-ES", llm_timeout_s=0.05)
+    session = a_session(box, config, ["tarde"])
     model_of(session).thinks_s = 5.0
     await session.start()
     sentence = await text.hears(session, "hola")
     await text.end(session, "caller_hung_up", "caller")
-    assert sentence == ""
+    assert sentence == MODEL_LATE["es"]
     (cut,) = [entry.data for entry in await store.whole(call) if entry.type == "error"]
     assert (cut["code"], cut["recoverable"]) == (LLM_TIMEOUT, True)
     assert "0.05s" in str(cut["message"])
@@ -103,7 +104,7 @@ async def test_a_model_past_the_agents_deadline_is_cut_and_the_turn_ends_unanswe
 
 
 @postgres
-async def test_an_agent_with_no_deadline_waits_for_its_model_as_long_as_it_takes(
+async def test_an_agent_with_no_deadline_of_its_own_waits_for_a_slow_model_under_the_default(
     box: Box, store: Store, call: str
 ) -> None:
     session = a_session(box, NOBODY, ["por fin"])

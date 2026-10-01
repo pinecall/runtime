@@ -30,7 +30,21 @@ type Waiting = Callable[[], AbstractAsyncContextManager[None]]
 LLM_TIMEOUT = "llm_timeout"
 
 
-MODEL_SILENT = "the model said nothing within {seconds:g}s, so this turn ends unanswered"
+MODEL_SILENT = "the model said nothing within {seconds:g}s, so the caller was asked to say it again"
+
+
+# How long a turn waits for the model's first word when the agent sets no deadline: past it the
+# caller hears MODEL_LATE instead of a silence a model stuck for 20 s would leave them in.
+LLM_TIMEOUT_S = 12.0
+
+
+# What the caller hears when the model is past the deadline, by the agent's language; English
+# where the agent's language has no sentence here.
+MODEL_LATE = {
+    "es": "Disculpe, me demoré. ¿Me lo repite, por favor?",
+    "en": "Sorry, that took me too long. Could you say that again?",
+    "pt": "Desculpe, demorei. Pode repetir, por favor?",
+}
 
 
 class CallAgent(Agent):
@@ -73,7 +87,7 @@ class CallAgent(Agent):
         params = _prompt.request(chat_ctx, self.blocks, self.lookups.items)
         if self.call.context.run is not None:
             self.call.requests.append(_prompt.as_asked(params, tools))
-        deadline = self.call.config.llm_timeout_s
+        deadline = self.call.config.llm_timeout_s or LLM_TIMEOUT_S
         thought = Agent.default.llm_node(self, params, tools, model_settings)
         waited = asyncio.timeout(deadline)
         async with contextlib.aclosing(thought):
@@ -88,6 +102,7 @@ class CallAgent(Agent):
                 self.call.writing.write(
                     "error", ErrorEvent(code=LLM_TIMEOUT, message=why, recoverable=True)
                 )
+                yield _late_in(self.call.config.language)
                 return
             if isinstance(first, llm.ChatChunk | str):
                 yield first
@@ -120,3 +135,7 @@ class CallAgent(Agent):
     def _agreement(self, event: stt.SpeechEvent) -> bool:
         text = event.alternatives[0].text if event.alternatives else ""
         return self.call.agent_speaking and self.call.turn_policy.is_a_backchannel(text)
+
+
+def _late_in(language: str | None) -> str:
+    return MODEL_LATE.get((language or "en")[:2].lower(), MODEL_LATE["en"])
