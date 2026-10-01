@@ -85,6 +85,21 @@ async def test_a_call_sealed_twice_at_once_is_summed_up_and_scored_once(wired: G
     assert await wired.logs.store.sealed(context.call)
 
 
+# A gateway that took the lease and died: its lease runs out, and a knock waiting takes the seal.
+@postgres
+async def test_a_seal_whose_gateway_died_holding_the_lease_is_taken_over_once_it_lapses(
+    wired: Gateway,
+) -> None:
+    context = a_call()
+    served = served_call(wired.serving, None, context, AgentConfig(slug=AGENT), OURS)
+    await opened(served.log, context, AGENT)
+    assert await wired.logs.store.lease_seal(context.call, 1.0)
+    await sealed(wired.serving, served, SealCallRequest(usage=[], outcome="booked"))
+    kinds = [item.type for item in await wired.logs.store.whole(context.call)]
+    assert (kinds.count("call.summary"), kinds.count("call.score")) == (1, 1)
+    assert await wired.logs.store.sealed(context.call)
+
+
 @postgres
 async def test_the_seal_counts_the_calls_verdicts_into_its_days_drift_once(wired: Gateway) -> None:
     pool = wired.connections.pool

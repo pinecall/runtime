@@ -51,10 +51,15 @@ REMEMBER_FAILED = "the call was not written into memory: {why}"
 # What a hang-up waits for the one model call that writes memory, unless the settings say.
 REMEMBER_BUDGET_S = 8.0
 
-# How long one gateway holds the right to seal a call (memory, judges and all fit well inside),
-# and how often a knock that found it taken looks whether the call was sealed.
-LEASED_S = 120.0
+# How long one gateway holds the right to seal a call, renewed at a third of it while it seals:
+# a gateway that dies sealing lets the call go within these seconds, and a knock waiting on it
+# takes the seal over. Held 120 s unrenewed, a worker gave up (30 s) on a call whose sealing gateway
+# died, and the reaper sealed it later with no usage: measured with a gateway killed every minute.
+LEASED_S = 15.0
 LOOKED_AGAIN_S = 0.5
+
+# How long a knock waits on another gateway's seal before it says so: the worker asks again.
+WAITED_AT_MOST_S = 25.0
 
 SEALED_ELSEWHERE = (
     "call {call} is being sealed by another gateway, which has not finished: ask again"
@@ -74,9 +79,11 @@ async def sealed(
         if served.call not in serving.live.calls:
             return
         store = serving.logs.store
-        if not await store.lease_seal(served.call, LEASED_S):
-            await _sealed_elsewhere(serving, served)
+        if not await store.lease_seal(served.call, LEASED_S) and await _sealed_elsewhere(
+            serving, served
+        ):
             return
+        renewing = asyncio.create_task(_renewed(store, served.call))
         try:
             entries = await store.whole(served.call)
             if all(entry.type != "call.summary" for entry in entries):
@@ -86,6 +93,9 @@ async def sealed(
         except BaseException:
             await store.release_seal(served.call)
             raise
+        finally:
+            renewing.cancel()
+            await asyncio.gather(renewing, return_exceptions=True)
         await drifted(serving.connections.pool, served.call, entries, score)
         await _watched(serving, served)
         serving.logs.forget(served.call)
@@ -234,16 +244,27 @@ async def _scored(serving: Serving, served: Served) -> CallScore:
     return await judged_call(serving.connections, entries, served.config, own, org_facts)
 
 
-async def _sealed_elsewhere(serving: Serving, served: Served) -> None:
+# True once another gateway sealed it; False when its lease ran out (that gateway died sealing)
+# and this one took it over, so the caller seals.
+async def _sealed_elsewhere(serving: Serving, served: Served) -> bool:
     store = serving.logs.store
     loop = asyncio.get_running_loop()
-    deadline = loop.time() + LEASED_S
+    deadline = loop.time() + WAITED_AT_MOST_S
     while not await store.sealed(served.call):
+        if await store.lease_seal(served.call, LEASED_S):
+            return False
         if loop.time() > deadline:
             raise NotAvailable(SEALED_ELSEWHERE.format(call=served.call))
         await asyncio.sleep(LOOKED_AGAIN_S)
     serving.logs.forget(served.call)
     serving.live.close(served.call)
+    return True
+
+
+async def _renewed(store: Store, call: str) -> None:
+    while True:
+        await asyncio.sleep(LEASED_S / 3)
+        await store.renew_seal(call, LEASED_S)
 
 
 # The org's spend is watched once the summary priced the call: today against its own trailing
