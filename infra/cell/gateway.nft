@@ -1,0 +1,19 @@
+#!/usr/sbin/nft -f
+# A gateway machine's fence (gateway.sh join installs it, @BOX@ written in): ssh from anyone, the
+# gateways' Caddy (8090) from the box alone, nothing else in.
+
+destroy table inet pinecall
+
+table inet pinecall {
+	chain input {
+		type filter hook input priority filter; policy drop;
+		iif "lo" accept
+		ct state established,related accept
+		ct state invalid drop
+		icmp type echo-request accept
+		# The cloud's DHCP renewals arrive unicast; a lapsed lease takes the machine off the net.
+		udp dport 68 accept
+		tcp dport 22 accept
+		ip saddr @BOX@ tcp dport 8090 accept
+	}
+}

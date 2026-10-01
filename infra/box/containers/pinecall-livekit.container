@@ -16,12 +16,15 @@ PublishPort=7881:7881
 PublishPort=7882:7882/udp
 # LIVEKIT_KEYS, decrypted by systemd for this unit alone: the pair is on no disk in the clear.
 EnvironmentFile=%d/media.env
+# REDIS_PASSWORD, which livekit-server reads from its environment.
+EnvironmentFile=%d/redis.env
 HealthCmd=wget -q --spider -T 3 http://127.0.0.1:7880/
 HealthInterval=5s
 HealthRetries=12
 
 [Service]
 ImportCredential=media.env
+ImportCredential=redis.env
 Restart=always
 RestartSec=3
 

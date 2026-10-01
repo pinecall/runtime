@@ -5,9 +5,11 @@ import /etc/caddy/conf.d/*.caddy
 
 # The gateways: a call's requests go to one while it lives (the worker names the call in
 # Pinecall-Call, hashed so a gateway gone moves only its own calls), a request with none to any;
-# one restarting is stepped over for as long as it takes, the request tried on the other.
+# one restarting is stepped over for as long as it takes, the request tried on the other. The
+# box's own two, and the gateway machines of the cell (PINECALL_REMOTE_GATEWAYS, written by
+# infra/cell/primary.sh allow-gateway in /etc/pinecall/gateways.env; empty on a box alone).
 (gateways) {
-	reverse_proxy 127.0.0.1:8080 127.0.0.1:8081 {
+	reverse_proxy 127.0.0.1:8080 127.0.0.1:8081 {$PINECALL_REMOTE_GATEWAYS} {
 		lb_policy header Pinecall-Call
 		lb_try_duration 10s
 		lb_try_interval 250ms

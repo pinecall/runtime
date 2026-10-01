@@ -2,6 +2,8 @@
 ws_url: ws://pinecall-livekit:7880
 redis:
   address: pinecall-redis:6379
+  # install.sh writes it in; the file it installs is root's and the media group's alone.
+  password: "@REDIS_PASSWORD@"
 sip_port: 5060
 # 200 concurrent calls; closed to all but the carrier by nftables.
 rtp_port:

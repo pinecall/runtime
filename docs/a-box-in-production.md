@@ -390,6 +390,41 @@ started before it was published on loopback gets it after `sudo systemctl restar
 which restarts LiveKit, SIP and egress with it, so every call in progress ends: in a window. Then
 `sudo systemctl enable --now pinecall-gateway@8081`.
 
+### Gateways on other machines
+
+Past what one box's cores hold, gateways run on machines of their own beside it; the box keeps
+Postgres, Redis, LiveKit, SIP and the workers. On the box, once per gateway machine:
+
+```
+sudo /opt/pinecall/infra/cell/primary.sh allow-gateway <its address>
+```
+
+lets that address alone reach Postgres (5432), Redis (6379) and LiveKit's API (7880) on the box's
+address, writes its `pg_hba` line, and adds it to the gateways Caddy sends calls to
+(`/etc/pinecall/gateways.env`). Then, from your laptop, the credentials go from one machine to the
+other through a pipe, never through a terminal:
+
+```
+ssh box 'sudo /opt/pinecall/infra/cell/primary.sh gateway-credentials' |
+  ssh gateway-machine 'sudo <a copy of infra>/cell/gateway.sh join <box address> <wheel> 4'
+```
+
+`gateway.sh join` seals them on the gateway machine, installs the runtime, starts four gateways on
+loopback and that machine's Caddy on its own address, port 8090, fenced to the box. A release there
+is `gateway.sh release <wheel>`, after the box's own (the box migrates; a gateway machine never
+does). Redis asks a password of everyone since 2026-10-01: a box installed before gets it from
+`install.sh` and takes it on `sudo systemctl restart pinecall-redis`, which restarts LiveKit, SIP
+and egress: a window.
+
+Measured on 2026-10-01 (a 16-vCPU box with two gateways, an 8-vCPU machine with four, a generator
+apart): 1 200 calls at once, 5 510 sealed, 0 wrong, append p50 20 ms; the box spent 1.9 cores of
+gateway, 1.75 of Postgres and 2.2 of Caddy, the gateway machine 2.8. **The gateway machine killed
+outright (its four gateways and its Caddy, SIGKILL) for two minutes under 1 200 calls: 6 778
+calls opened and sealed, none refused, none wrong, none left open, none billed twice**; the box's
+two gateways took every call while it was gone, at p99 3.7 s. A recording kept on the box's disk
+(`PINECALL_RECORDINGS`) is served by the box's gateways alone: with gateway machines, keep
+recordings in the bucket ("Recordings, off the disk").
+
 ## 5. What the box runs
 
 From the console's box screens, or the operator's doors with the ops key
