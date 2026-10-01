@@ -6,6 +6,21 @@ reaches the gateway and LiveKit, holding its world's fleet key. The operator's v
 [the-runtime-cli.md](the-runtime-cli.md); the box is [../infra/box/README.md](../infra/box/README.md);
 the clouds a fleet grows on are [../infra/fleet/README.md](../infra/fleet/README.md).
 
+## Growing it, step by step
+
+Each step is a command on a machine, and each was measured on 2026-10-01 (the numbers are the
+table at the end). Stop at the first one that holds your peak.
+
+| you need | do | holds (measured) |
+|---|---|---|
+| a box | `sudo uvx --from pinecall pinecall-runtime box up --domains <prod>,<sandbox>` on Ubuntu 24.04 | two gateways, Postgres, LiveKit, two workers per world |
+| more calls at once | workers on more machines: the fleet loop asks your cloud for them ([../infra/fleet/README.md](../infra/fleet/README.md)) | ~16 calls a 4-vCPU worker machine; workers are 93 % of the cores a call costs |
+| more gateway processes | on a bigger box: `systemctl enable --now pinecall-gateway@8880` (not 8082–8085) and its address in Caddy's `(gateways)` | ~330 calls a gateway core |
+| gateways off the box | on the box `primary.sh allow-gateway <machine>`; then `primary.sh gateway-credentials \| ssh <machine> gateway.sh join <box> <wheel>` ([a-box-in-production.md](a-box-in-production.md), "Gateways on other machines") | a gateway machine killed under 1 200 calls lost none |
+| more media | a second LiveKit node on the box's Redis (same page, "A second LiveKit node") | ~90 voice calls a core, 0 packets lost at 400 |
+| Postgres that outlives the box | `primary.sh allow <replica>` and `replica.sh join` ([../infra/cell/README.md](../infra/cell/README.md)) | — |
+| past ~15 000–20 000 calls | a second cell: another box and its machines, an org living in one | Postgres grows ~1.4 cores per 1 000 calls; one database is one cell |
+
 ## Three planes, each grows on its own
 
 | plane | what it is | grows with |

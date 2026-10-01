@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.3 — Open models on the row (unreleased)
+## 0.1.3 — The server side, measured: gateways on many machines, a cluster of media, and the numbers (2026-10-02)
 
 - A model that says nothing for 12 s (or the agent's `llm_timeout_s`) no longer leaves the caller in
   silence: the turn is cut and the caller hears a short sentence asking them to say it again, in the
