@@ -168,6 +168,11 @@ TASK_OWNERS: tuple[Allowed, ...] = (
         "the lease's renewal is cancelled and awaited when the run's alone() ends",
     ),
     Allowed(
+        "pinecall/gateway/ending/seal.py",
+        "create_task",
+        "the lease's renewal is cancelled and awaited in sealed()'s finally",
+    ),
+    Allowed(
         "pinecall/tenancy/remembered.py",
         "create_task",
         "the revocation listener is cancelled and awaited in RememberedKeys.close()",

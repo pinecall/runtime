@@ -54,6 +54,12 @@ returning log
 
 UNLEASED = "update call_log_head set sealing_until = null where log = %(call)s and not sealed"
 
+# Only the gateway sealing the call renews it, while it seals: one that died stops renewing.
+RENEWED = """
+update call_log_head set sealing_until = now() + make_interval(secs => %(seconds)s)
+where log = %(call)s and not sealed
+"""
+
 
 # The first claim wins, and it may come before the first entry.
 CLAIM = """
@@ -225,6 +231,11 @@ class Store:
                 await connection.execute(LEASED, {"call": call, "seconds": seconds})
             ).fetchone()
         return taken is not None
+
+    async def renew_seal(self, call: str, seconds: float) -> None:
+        """Hold the right to seal the call for so long again, while sealing it."""
+        async with self.pool.connection() as connection:
+            await connection.execute(RENEWED, {"call": call, "seconds": seconds})
 
     async def release_seal(self, call: str) -> None:
         """Give the right to seal back, after a seal that broke: the next knock takes it."""

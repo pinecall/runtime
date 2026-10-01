@@ -4,7 +4,9 @@
 
 - A gateway that dies with a worker's request in flight loses no call: an open is asked again while
   the gateway is away and is the same call by its id (one claim, one opening, one ringing), and a seal
-  asked again that finds the call sealed is done. Measured: 1 200 calls held, a gateway killed every
+  asked again that finds the call sealed is done. The seal's lease is 15 s renewed while sealing (was 120 s):
+  a gateway that dies sealing lets the call go in seconds, and a knock waiting on it takes the seal
+  over, instead of the worker giving up and the reaper sealing the call with no usage. Measured: 1 200 calls held, a gateway killed every
   minute: 0 logs wrong, and the only refusals left were opens and seals in flight at the kill.
 - `pinecall-runtime load` counts refusals by status and door (`502 POST /v1/calls`), not by status.
 - A log read is built from its rows without validating them again (`log/store.py` `entry_of`): a seal
