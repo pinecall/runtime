@@ -64,3 +64,24 @@ resource "google_compute_firewall" "lab" {
     protocol = "all"
   }
 }
+
+# The box's SIP and LiveKit announce its public address (use_external_ip), so the generator's RTP
+# and the worker's media reach it from the lab machines' public addresses, which the rule above
+# (internal, by tag) does not cover: the media ports from those addresses alone.
+resource "google_compute_firewall" "lab_media" {
+  name    = "pinecall-lab-media"
+  network = "default"
+  source_ranges = [
+    for address in compact([module.generator.public_address, try(module.worker[0].public_address, "")]) :
+    "${address}/32"
+  ]
+  target_tags = ["pinecall-lab"]
+  allow {
+    protocol = "udp"
+    ports    = ["7882", "10000-10199"]
+  }
+  allow {
+    protocol = "tcp"
+    ports    = ["7881"]
+  }
+}
