@@ -28,11 +28,6 @@ type Channel = Literal["phone", "web", "whatsapp"]
 type Direction = Literal["inbound", "outbound"]
 
 
-# Who a track of a call's recording is, as the worker named it when it asked egress for it: the
-# caller sounds on the left of the mix, every other voice on the right.
-type RecordedTrack = Literal["caller", "agent", "melody", "supervisor", "transfer", "other"]
-
-
 # e.g. clinica-norte: an agent's slug, and an org's.
 A_SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
@@ -58,16 +53,6 @@ CHANNELS: tuple[Channel, ...] = ("phone", "web", "whatsapp")
 
 
 CHANNELS_WITH_A_NUMBER: tuple[Channel, ...] = ("phone", "whatsapp")
-
-
-RECORDED_TRACKS: tuple[RecordedTrack, ...] = (
-    "caller",
-    "agent",
-    "melody",
-    "supervisor",
-    "transfer",
-    "other",
-)
 
 
 THE_WIDGET: Channel = "web"

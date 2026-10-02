@@ -3,7 +3,7 @@
 import asyncio
 import hashlib
 import shutil
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
@@ -24,20 +24,12 @@ from pinecall.process.sealed_audio import (
 )
 from pinecall.process.settings import Settings
 
-# A call recorded before its tracks were: one file in its own directory, `<root>/<call>/audio.ogg`
-# on the disk, `<org>/<call>/audio.ogg` in the bucket, `audio.sealed` once sealed under the call's
-# own key (sealed_audio.py). A call recorded by its tracks: egress writes each track flat in the
-# root, `<root>/<call>.<track sid>.<kind>.ogg` (it writes as a uid of its own, and the root is the
-# directory both it and the gateway may write in); the box's gateway seals each into
-# `<root>/<call>/<track sid>.sealed` (gateway/ending/recorded.py); the door's mix of them is
-# `mix.sealed` beside them. In the bucket, the same names under `<org>/<call>/`.
+# The recorder's file in the call's own directory: `<root>/<call>/audio.ogg` on the disk,
+# `<org>/<call>/audio.ogg` in the bucket. Sealed under the call's own key, it is `audio.sealed`
+# beside it (sealed_audio.py): the name says which a stored recording is.
 AUDIO_FILE = "audio.ogg"
 
 SEALED_FILE = "audio.sealed"
-
-MIX_FILE = "mix.sealed"
-
-SEALED = ".sealed"
 
 # An hour of a call is tens of megabytes: the default five seconds is a small file's. Under what
 # a job is given to seal (worker/main.py SEALING_S): an upload that hangs leaves the file on the
@@ -77,17 +69,16 @@ class Disk:
     root: Path
 
     async def store(self, org: str, call: str, audio: Path) -> None:
-        """Nothing to do: the sealed file is where it is kept."""
+        """Nothing to do: the recorder's file is where it is kept."""
 
     async def fetch(self, org: str, call: str, byte_range: str | None) -> Fetched | None:
         """None: the file on the disk is the recording, and the door serves it as a file."""
 
-    async def sealed(self, org: str, call: str, name: str = SEALED_FILE) -> Sealed | None:
-        """None: a sealed file on the disk is read from the call's directory."""
+    async def sealed(self, org: str, call: str) -> Sealed | None:
+        """None: a sealed file on the disk is read from where the call's summary says it is."""
 
-    async def erase(self, org: str, calls: list[str], tracks: Mapping[str, list[str]]) -> int:
-        """Remove each call's directory and its tracks not yet sealed; how many calls had any."""
-        del tracks
+    async def erase(self, org: str, calls: list[str]) -> int:
+        """Remove each call's recording directory; how many calls had one."""
         return len(await asyncio.to_thread(_removed, self.root, calls))
 
 
@@ -100,7 +91,7 @@ class Bucket:
     objects: ObjectStore
 
     async def store(self, org: str, call: str, audio: Path) -> None:
-        """Upload the file under the org by its name, then remove it from the disk; raise if not."""
+        """Upload the file under the org, then remove it from the disk; raise if it stayed."""
         what = _object_name(org, call, audio.name)
         size, digest = await asyncio.to_thread(_measured, audio)
         url = self.objects.url_of(self.name, what)
@@ -118,15 +109,15 @@ class Bucket:
         await answer.aclose()
         if answer.status_code != HTTPStatus.OK:
             raise self._refused("an upload of", what, answer)
-        await asyncio.to_thread(_let_go, audio)
+        await asyncio.to_thread(_removed, self.root, [call])
 
     async def fetch(self, org: str, call: str, byte_range: str | None) -> Fetched | None:
         """The recording's bytes, the range asked for when one is; None while it is not there."""
         return await self._fetched(_object_name(org, call, AUDIO_FILE), byte_range)
 
-    async def sealed(self, org: str, call: str, name: str = SEALED_FILE) -> Sealed | None:
-        """A sealed object of the call, read by ranges; None while it is not in the bucket."""
-        what = _object_name(org, call, name)
+    async def sealed(self, org: str, call: str) -> Sealed | None:
+        """The call's sealed object, read by ranges; None while it is not in the bucket."""
+        what = _object_name(org, call, SEALED_FILE)
         first = await self._fetched(what, f"bytes=0-{HEADER - 1}")
         if first is None:
             return None
@@ -161,22 +152,19 @@ class Bucket:
         kept = {name: answer.headers[name] for name in PASSED_ON if name in answer.headers}
         return Fetched(answer.status_code, kept, _streamed(answer))
 
-    async def erase(self, org: str, calls: list[str], tracks: Mapping[str, list[str]]) -> int:
-        """Delete each call's objects, its tracks' too, and any file left; how many had any."""
+    async def erase(self, org: str, calls: list[str]) -> int:
+        """Delete each call's objects, and its file where one stayed; how many calls had either."""
         deleted: set[str] = set()
         for start in range(0, len(calls), DELETED_AT_ONCE):
             chunk = calls[start : start + DELETED_AT_ONCE]
-            gone = await asyncio.gather(
-                *(self._deleted(org, call, tracks.get(call, [])) for call in chunk)
-            )
+            gone = await asyncio.gather(*(self._deleted(org, call) for call in chunk))
             deleted |= {call for call, was_there in zip(chunk, gone, strict=True) if was_there}
         return len(deleted | await asyncio.to_thread(_removed, self.root, calls))
 
     # S3 answers a delete of nothing as it answers a delete: each object is looked for first, so
     # the trail counts the recordings there were.
-    async def _deleted(self, org: str, call: str, tracks: list[str]) -> bool:
-        names = (*NAMES, *tracks)
-        kept = [await self._deleted_named(_object_name(org, call, name)) for name in names]
+    async def _deleted(self, org: str, call: str) -> bool:
+        kept = [await self._deleted_named(_object_name(org, call, name)) for name in NAMES]
         return any(kept)
 
     async def _deleted_named(self, what: str) -> bool:
@@ -225,8 +213,8 @@ class Bucket:
         )
 
 
-# Every object a call's recording may be kept as, besides its tracks.
-NAMES = (AUDIO_FILE, SEALED_FILE, MIX_FILE)
+# Every object a call's recording may be kept as.
+NAMES = (AUDIO_FILE, SEALED_FILE)
 
 
 type Recordings = Disk | Bucket
@@ -291,8 +279,7 @@ async def _streamed(answer: httpx.Response) -> AsyncIterator[bytes]:
         await answer.aclose()
 
 
-# A recording is a directory named for its call, and its tracks egress wrote flat in the root
-# that were not yet sealed into it.
+# A recording is a directory named for its call (worker/_recorder.py recording_path).
 def _removed(root: Path, calls: list[str]) -> set[str]:
     removed: set[str] = set()
     for call in calls:
@@ -300,16 +287,4 @@ def _removed(root: Path, calls: list[str]) -> set[str]:
         if directory.is_dir():
             shutil.rmtree(directory)
             removed.add(call)
-        for plain in root.glob(f"{call}.*.ogg"):
-            plain.unlink(missing_ok=True)
-            removed.add(call)
     return removed
-
-
-# A file stored is gone from the disk; its call's directory with it once it holds nothing more.
-def _let_go(audio: Path) -> None:
-    audio.unlink(missing_ok=True)
-    try:
-        audio.parent.rmdir()
-    except OSError:
-        return

@@ -96,12 +96,6 @@ SELECT id, env, what, subject, asked_by, calls, entries, memories, recordings, a
 FROM erasures WHERE org = %(org)s ORDER BY at DESC, id DESC LIMIT %(limit)s
 """
 
-# A call's recorded tracks are objects named by these rows: read before the objects go, deleted
-# after, in the same transaction.
-TRACKS_OF_CALLS = "SELECT call, name FROM recording_tracks WHERE call = ANY(%(calls)s)"
-
-ERASE_TRACKS = "DELETE FROM recording_tracks WHERE call = ANY(%(calls)s)"
-
 NO_TRAIL = "the erasure of {subject} was not written down, so it was undone"
 
 STILL_ON_A_CALL = "{contact} is on call {call} right now: erase them once it has ended"
@@ -194,12 +188,7 @@ async def _logs(
 async def _written(
     connection: AsyncConnection[DictRow], recordings: Recordings, taking: _Taking
 ) -> Erased:
-    rows = await (await connection.execute(TRACKS_OF_CALLS, {"calls": taking.calls})).fetchall()
-    tracks: dict[str, list[str]] = {}
-    for kept in rows:
-        tracks.setdefault(str(kept["call"]), []).append(str(kept["name"]))
-    removed = await recordings.erase(taking.org, taking.calls, tracks)
-    await connection.execute(ERASE_TRACKS, {"calls": taking.calls})
+    removed = await recordings.erase(taking.org, taking.calls)
     params = {**asdict(taking), "calls": len(taking.calls), "recordings": removed}
     row = await (await connection.execute(TRAIL, params)).fetchone()
     if row is None:

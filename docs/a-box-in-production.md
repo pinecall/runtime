@@ -216,24 +216,18 @@ access id in `PINECALL_S3_ACCESS_KEY_ID`, the endpoint and `auto` as above, and 
 
 ### Recordings, off the disk
 
-A call is recorded a track at a time: the worker asks the box's egress for every audio track of
-the room (the caller, the agent's voice, the hold melody, a supervisor who takes over, the far end
-of a transfer), and egress copies each one's Opus into an Ogg as it was sent, no decode and no
-encode, flat in `/var/lib/pinecall/recordings/` as `<call>.<track>.<kind>.ogg`. When a track's
-egress ends, LiveKit's webhook reaches the box's own gateways (Caddy's site for the containers,
-port 8089, never a gateway machine of the cell: the file is on this box's disk), and one of them
-seals the file under the call's own key into `<call>/<track>.sealed`
-([security/private-values.md](security/private-values.md)), notes it in `recording_tracks`, and
-stores it. The call's summary names its directory. `GET /v1/calls/{call}/recording` plays one
-file: the tracks mixed into a stereo Ogg Opus, the caller on the left and every other voice on the
-right, each placed when it began, made the first time it is asked for and kept sealed beside them
-as `mix.sealed`; while a track's egress is still on, it answers `409`. A call recorded before is
-one file, `audio.sealed`, served as it was.
+A recording is the file the call's own session writes under `/var/lib/pinecall/recordings/<call>/`:
+livekit's recorder in the job process, a stereo Ogg Opus with the caller on the left and the agent
+on the right, on one timeline (the hold melody is a track of its own and is not in it). The session
+closes it before the call is sealed, and the worker seals it under the call's own key at once
+(`audio.sealed`, the plain file removed; [security/private-values.md](security/private-values.md)).
 With `PINECALL_RECORDINGS_BUCKET` and the object store in `backup.env` (read by the gateway, the
-workers and the retention run; restart them after adding it), the gateway uploads each sealed file
-to `<bucket>/<org>/<call>/` and removes it from the disk, so any gateway serves the call and it
-outlives the machine that took it. A file whose upload failed stays on the disk, the gateway's
-journal says `the track <track> of <call> stays on this disk`, and the door serves it from there. Erasing a
+workers and the retention run; restart them after adding it), the worker uploads that file to
+`<bucket>/<org>/<call>/audio.sealed` before it seals the call, and removes it from the disk.
+`GET /v1/calls/{call}/recording` then reads it from the bucket with the player's byte range, so any
+gateway serves it and it outlives the machine that took the call. A recording whose upload failed
+stays on the disk, the worker's journal says `the recording of <call> stays on this disk`, and the
+door serves it from there, as it does every recording made before the bucket was set. Erasing a
 call, a contact or an org, and the nightly retention, delete the object as well as any file left.
 It is a bucket of its own, not the backup's: it has no lifecycle rule (each org's
 `retention_days` is the rule, and the backup bucket's 35 days would forget what an org keeps

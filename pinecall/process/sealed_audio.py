@@ -69,8 +69,7 @@ def new_key() -> bytes:
 
 # Blocking, for a thread: the file is read and written a chunk at a time, never whole.
 def seal_file(plain: Path, sealed: Path, key: bytes) -> None:
-    """Write `sealed` from `plain` under the key, its directory made if need be; remove `plain`."""
-    sealed.parent.mkdir(parents=True, exist_ok=True)
+    """Write `sealed` from `plain` under the key, then remove `plain`."""
     cipher = AESGCM(key)
     prefix = os.urandom(PREFIX_BYTES)
     part = sealed.with_name(f"{sealed.name}.part")
