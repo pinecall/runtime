@@ -1,4 +1,4 @@
-# check · test · db · hooks · box · deploy · rollback · logs · ssh · test-box.
+# check · test · db · hooks · box · deploy · rollback · logs · ssh · test-box · tf-*.
 
 # The new box's ssh alias; the old box (v1) is never a target of this file.
 BOX      ?= example-box
@@ -18,8 +18,34 @@ REDIS_PORT ?= 56379
 LOCAL_REDIS = redis://127.0.0.1:$(REDIS_PORT)/1
 T        ?= tests
 
-check:            ## the rules and every suite that needs no database, on every core
+# Terraform's root modules (infra/terraform). Google's credentials are the gcloud login's, handed
+# over as a short-lived token in the environment, never printed; AWS's are ~/.aws.
+ENV      ?= production
+TF        = terraform -chdir=infra/terraform/environments/$(ENV)
+TF_AUTH   = GOOGLE_OAUTH_ACCESS_TOKEN="$$(gcloud auth print-access-token)"
+TF_ROOTS  = infra/terraform/bootstrap infra/terraform/environments/production infra/terraform/environments/lab
+
+check:            ## the rules and every suite that needs no database, on every core; terraform's form
 	uv run pytest -q -n auto
+	@if command -v terraform >/dev/null; then $(MAKE) --no-print-directory tf-check; fi
+
+# Its own data directory: a root module initialized against its bucket would be reached again.
+tf-check:         ## every root module formatted and valid, with no backend reached
+	terraform fmt -check -recursive infra/terraform
+	@for root in $(TF_ROOTS); do \
+	  data=$(CURDIR)/.terraform-check/$$(basename $$root); \
+	  TF_DATA_DIR=$$data terraform -chdir=$$root init -backend=false -input=false >/dev/null && \
+	  TF_DATA_DIR=$$data terraform -chdir=$$root validate -no-color >/dev/null || exit 1; \
+	done
+
+tf-init:          ## ENV=production|lab: the root module's providers and its state in the bucket
+	$(TF_AUTH) $(TF) init -input=false
+
+tf-plan:          ## ENV=…: what an apply would change; "No changes." is the cloud as the repo says
+	$(TF_AUTH) $(TF) plan -input=false
+
+tf-apply:         ## ENV=…: the change made, after the plan is read and `yes` typed
+	$(TF_AUTH) $(TF) apply -input=false
 
 test: db          ## every suite (or T=tests/log), on the local Postgres and Redis, on every core
 	DATABASE_URL=$(LOCAL_DSN) PINECALL_REDIS_URL=$(LOCAL_REDIS) uv run pytest -q -n auto $(T)
@@ -76,4 +102,4 @@ test-box:         ## every suite on the box's database through an ssh tunnel; th
 
 comma := ,
 
-.PHONY: check test db hooks box deploy rollback release logs ssh test-box
+.PHONY: check test db hooks box deploy rollback release logs ssh test-box tf-check tf-init tf-plan tf-apply

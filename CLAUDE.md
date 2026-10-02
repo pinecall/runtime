@@ -22,8 +22,13 @@ make check                        the rules (tests/rules/) and the suites with n
 make test [T=tests/log]           every suite on a local Postgres and Redis (colima; `make db`)
 make deploy BOX=example-box   console built in, wheel on the box, migrations, live tests
 make logs BOX=example-box     the journal of the three units, whole
+make tf-plan ENV=production       what Terraform would change in the cloud; "No changes." is the norm
+make tf-apply ENV=production      the change, after reading the plan and typing yes
 vibesmell check                   the hygiene findings; must say "nothing to fix"
 ```
+
+The cloud around the box (network, firewall, addresses, VMs, buckets, IAM, secrets, the fleet)
+is Terraform's (`infra/terraform/`, its README): nothing cloud-side is made or changed by hand.
 
 Both suites run before a reply says green. No test is skipped or deleted to pass.
 

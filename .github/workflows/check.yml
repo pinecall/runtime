@@ -18,6 +18,16 @@ jobs:
       - run: uv sync
       - run: uv run pytest -q -n auto
 
+  terraform:
+    name: terraform, formatted and valid
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+      - run: make tf-check
+
   suites:
     name: every suite, on Postgres
     runs-on: ubuntu-latest
