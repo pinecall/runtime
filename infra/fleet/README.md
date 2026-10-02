@@ -3,13 +3,13 @@
 A world's workers on machines of their own, as many as its calls need. There are two ways, and a
 box picks the one its cloud has:
 
-| | Google Cloud (Pinecall's) | any other cloud, a server of your own |
+| | Google Cloud (Pinecall's) · AWS | any other cloud, a server of your own |
 |---|---|---|
-| makes the machines | a **managed instance group** (Terraform's `modules/fleet-gcp`) from the image family Packer builds | the fleet loop, through a script with three verbs (`create`, `delete`, `list`) |
-| grows the fleet | the group's autoscaler, on the fleet's calls the loop writes to Cloud Monitoring | the loop |
-| lets one go | the loop: cordons the quietest, waits for its calls, abandons it from the group and deletes it | the loop, the same way |
-| a machine's credentials | read at its first boot from Secret Manager, as its own service account | spent at its first boot from a join token the loop made for it |
-| heals one | the group, on the worker's health port | the loop deletes a machine silent for 5 min |
+| makes the machines | a **managed instance group** (Terraform's `modules/fleet-gcp`) from the image family Packer builds · an **Auto Scaling group** (`modules/fleet-aws`) from the AMI it builds | the fleet loop, through a script with three verbs (`create`, `delete`, `list`) |
+| grows the fleet | the group's autoscaler, on the fleet's calls the loop writes to Cloud Monitoring · target tracking on the same number in CloudWatch, its scale-in off | the loop |
+| lets one go | the loop: cordons the quietest, waits for its calls, abandons it from the group and deletes it · terminates it out of the group, one less desired | the loop, the same way |
+| a machine's credentials | read at its first boot from Secret Manager, as its own service account · from Secrets Manager, as its instance profile | spent at its first boot from a join token the loop made for it |
+| heals one | the group, on the worker's health port · EC2's own checks | the loop deletes a machine silent for 5 min |
 
 **Why the loop stays on Google Cloud too.** A group removing a machine itself gives it 90 seconds
 to stop, and a call may last ten minutes; so the group only grows (`ONLY_SCALE_OUT`), and the loop
@@ -49,6 +49,28 @@ delete, `measure <fleet> <calls>`; `create` is refused: the group grows). It tak
 own token from the metadata server on the box, the gcloud login's elsewhere, and reads
 `PINECALL_FLEET_PROJECT`, `_ZONE`, `_MIG` (`/etc/pinecall/fleet-loop-<world>.env`).
 
+## On AWS
+
+The same shape, written and validated (`make tf-check`), applied by no box yet: Pinecall's runs on
+Google Cloud. `modules/secrets-aws` declares the five secrets in Secrets Manager under the same
+names and a role and instance profile per world that reads its own fleet key and the three
+shared; `modules/fleet-aws` is the launch template (the newest AMI named `pinecall-worker-<world>-*`,
+IMDSv2 alone with the instance's tags readable, the instance id as the hostname, the tags
+`pinecall-cloud=aws` and `pinecall-world`) and the Auto Scaling group with target tracking on
+`IF(machines > 0, calls / machines, calls)` over `Pinecall/fleet_calls{fleet}` and its machines in
+service, scale-in off, zone rebalancing suspended. `infra/terraform/examples/fleet-aws` is the root
+a box on AWS copies into its environment.
+
+```console
+$ packer build -only=amazon-ebs.worker -var world=production -var region=us-east-1 -var seats=32 \
+    -var box_address=<the box> -var package=dist/pinecall-<v>.whl -var settings=<worker-settings tar> infra/packer
+$ PINECALL_FLEET_ASG=pinecall-workers-production pinecall-runtime fleet loop \
+    --cloud infra/fleet/aws-asg.py --fleet pinecall --seats 32 --min 0 --max 10 --grow-at-most 0
+```
+
+A machine it makes reads its credentials with `cell enroll` through the aws CLI the image
+carries, as its instance profile; the box writes them with `cell publish-secrets` on a box on AWS.
+
 ## Anywhere else
 
 `pinecall-runtime fleet loop --cloud infra/fleet/<cloud> --seats <n> --fleet <fleet>` keeps a
@@ -67,9 +89,9 @@ three verbs, and nothing cloud-specific lives anywhere else:
 |---|---|---|
 | `first-boot` | — | shared by the clouds: `first-boot <name>` prints the cloud-config a `create` hands over |
 | `gcp` | `gcloud` | a project with no group: `PINECALL_FLEET_PROJECT` (the gcloud default), `_ZONE`, `_IMAGE` (a machine image), `_TYPE`, `_LABEL`, `_SUBNET` |
-| `aws` | `aws` | `PINECALL_FLEET_AMI`, `_SUBNET`, `_SG` (required), `_TYPE`, `_TAG` |
 | `hetzner` | `hcloud`, `jq` | `PINECALL_FLEET_IMAGE` (required), `_TYPE`, `_LOCATION`, `_LABEL` |
 | `gcp-mig.py` | Python 3 | the Google Cloud group above, with `--grow-at-most 0` |
+| `aws-asg.py` | Python 3, `aws` | the AWS group below, with `--grow-at-most 0`: `PINECALL_FLEET_ASG` |
 
 A cloud of your own is a script with the same three verbs: `--cloud ./yours`.
 

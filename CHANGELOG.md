@@ -29,6 +29,11 @@
 - **The runtime whole on a laptop**: `make local` starts the box's Postgres, Redis and LiveKit in
   docker (`infra/local/`), migrates and writes `.local/env` once; `make local-gateway` and
   `make local-worker` run both from the checkout. No cloud account, no key of a box.
+- **A fleet on AWS, the same shape as Google Cloud's**, written and validated, applied by no box:
+  `modules/secrets-aws` and `modules/fleet-aws` (an Auto Scaling group grown by target tracking on
+  `Pinecall/fleet_calls`, its scale-in off), `infra/fleet/aws-asg.py` for the loop, an
+  `amazon-ebs` source in `infra/packer`; `cell enroll` and `cell publish-secrets` read and write
+  Secrets Manager on AWS. `infra/fleet/aws`, the loop that made EC2 machines itself, is gone.
 - **The voice lab is Terraform's** (`environments/lab`): `infra/lab/measure.py` makes the box, the
   generator and the worker machine with `terraform apply` at the sizes under test, resizes the box
   by the same apply, and destroys all of it with `terraform destroy`; the machines' configuration

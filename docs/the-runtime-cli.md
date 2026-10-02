@@ -69,11 +69,13 @@ them refuses a terminal for its stdout, and the machine's verb reads it on stdin
 | `cell join-gateway <box address> [--processes N]` | gateways on loopback and the machine's Caddy on port 8090, fenced to the box; `--processes` unset is one per two vCPUs |
 | `cell release-gateway` | the runtime brought to this version, its gateways restarted one at a time |
 | `cell join-replica <box address>` | a streaming replica, the replication password on stdin: what `box failover` promotes |
-| `cell enroll` | a fleet machine's first boot (`pinecall-join.service` runs it at every boot): its credentials sealed here, from the join token cloud-init wrote, or on Google Cloud from Secret Manager as its own service account; enrolled already, or joined by hand, it says so and changes nothing |
+| `cell enroll` | a fleet machine's first boot (`pinecall-join.service` runs it at every boot): its credentials sealed here, from the join token cloud-init wrote, or from its cloud's store as its own identity (Secret Manager on Google Cloud, Secrets Manager on AWS through the aws CLI, by the instance's tags); enrolled already, or joined by hand, it says so and changes nothing |
 
 On the box, `cell publish-secrets` puts its credentials (each world's fleet key, the LiveKit pair,
-the store's secret) in Secret Manager for the fleet's machines to read, a version added only where
-one differs; the secrets themselves and who reads them are Terraform's (`modules/secrets`).
+the store's secret) in its cloud's store for the fleet's machines to read (Secret Manager, or
+Secrets Manager on a box on AWS, the value on the aws CLI's stdin), a version added only where one
+differs; the secrets themselves and who reads them are Terraform's (`modules/secrets`,
+`modules/secrets-aws`).
 
 Every machine's verb takes `--package <wheel path or pinecall==version>` to install another than
 the one it runs from. The procedures, step by step, are [a-box-in-production.md](a-box-in-production.md):
