@@ -17,3 +17,7 @@ output "fleet_subnet" {
 output "buckets" {
   value = [module.store.backups_bucket, module.store.recordings_bucket]
 }
+
+output "worker_service_accounts" {
+  value = module.secrets.worker_service_accounts
+}

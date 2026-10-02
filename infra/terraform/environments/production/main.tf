@@ -64,3 +64,9 @@ module "dns" {
   names   = ["box.pinecall.io", "sandbox.pinecall.io", "notify.pinecall.io", "billing.pinecall.io"]
   address = module.network.box_address
 }
+
+module "secrets" {
+  source     = "../../modules/secrets"
+  project    = var.project
+  publishers = ["serviceAccount:${google_service_account.fleet.email}"]
+}

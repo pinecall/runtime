@@ -11,12 +11,8 @@
 #   worker.sh image <box address> <wheel or pinecall==version> <world> [calls]
 #                   the same from `primary.sh worker-settings <world>` on stdin, which carries no
 #                   secret: for a machine to be frozen as the fleet's image. Each machine made from
-#                   it enrolls at its first boot, and holds no credential until then
-#   worker.sh enroll
-#                   the first boot of a machine made from the image (pinecall-join.service): the
-#                   token the loop gave it in /etc/pinecall/join.env is spent at the gateway's
-#                   join door for its own fleet key, the LiveKit pair and the store's secret,
-#                   sealed here; the file is shredded
+#                   it enrolls at its first boot (`pinecall-runtime cell enroll`), and holds no
+#                   credential until then
 #   worker.sh release <wheel or pinecall==version>
 #                   the runtime replaced, the worker restarted once its calls drained
 # On the box, before: `primary.sh allow-worker <this machine's address>`, or the fleet's subnet. A
@@ -28,7 +24,6 @@ BOX="$HERE/../box"
 STORE=/etc/credstore.encrypted
 UV=/opt/pinecall/bin/uv
 VENV=/opt/pinecall/venv
-JOIN=/etc/pinecall/join.env
 
 installed() {  # the wheel's path or pinecall==version, as release.sh takes it
     case "$1" in
@@ -112,32 +107,6 @@ join | image)
             "Stop this machine and freeze it; each machine made from it enrolls as it boots."
     fi
     ;;
-enroll)
-    [ -f "$JOIN" ] || { echo "no $JOIN: this machine was not made by the fleet loop" >&2; exit 2; }
-    set -a
-    # shellcheck source=/dev/null
-    . "$JOIN"
-    set +a
-    [ -n "${PINECALL_JOIN_URL:-}" ] && [ -n "${PINECALL_JOIN_TOKEN:-}" ] || {
-        echo "$JOIN names PINECALL_JOIN_URL and PINECALL_JOIN_TOKEN" >&2; exit 2; }
-    taken="$(mktemp -d)"
-    trap 'rm -rf "$taken"; shred -u "$JOIN"' EXIT
-    # The answer's fields to files named as the credentials the worker's unit imports, for sealing.
-    curl -fsS -X POST "$PINECALL_JOIN_URL/v1/fleet/join" \
-        -H "Authorization: Bearer $PINECALL_JOIN_TOKEN" -H 'Content-Type: application/json' \
-        -d "{\"worker\": \"$(hostname -s)\"}" |
-        "$VENV/bin/python" -c '
-import json, pathlib, sys
-out, given = pathlib.Path(sys.argv[1]), json.load(sys.stdin)
-for name, field in (("PINECALL_WORKER_KEY", "worker_key"), ("LIVEKIT_API_KEY", "livekit_api_key"),
-                    ("LIVEKIT_API_SECRET", "livekit_api_secret"),
-                    ("PINECALL_S3_SECRET_ACCESS_KEY", "s3_secret_access_key")):
-    if given.get(field) is not None:
-        (out / name).write_text(given[field])
-' "$taken"
-    sealed "$taken"
-    echo "enrolled as $(hostname -s): a fleet key of its own, sealed here; the token is spent"
-    ;;
 release)
     [ -n "${2:-}" ] || { echo "worker.sh release <wheel or pinecall==version>" >&2; exit 2; }
     world="$(world_here)"
@@ -147,6 +116,6 @@ release)
     echo "released $2 on the $world worker"
     ;;
 *)
-    echo "worker.sh join|image <box address> <wheel> <world> [calls] | enroll | release <wheel>" >&2
+    echo "worker.sh join|image <box address> <wheel> <world> [calls] | release <wheel>" >&2
     exit 2 ;;
 esac

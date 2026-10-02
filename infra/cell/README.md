@@ -37,10 +37,10 @@ gateway.nft                 a gateway machine's fence: ssh, and port 8090 from t
 worker.sh                   on a worker machine: `join <box address> <wheel> <world> [calls]`, the
                             credentials on stdin; `image …`, the same from `worker-settings`, no
                             credential on the disk, for the machine the fleet's image is frozen
-                            from; `enroll`, a machine made from the image spending its join token
-                            at its first boot; `release <wheel>`, the worker drained and restarted
-pinecall-join.service       the first boot of a machine made from the image: `worker.sh enroll`,
-                            skipped on a machine joined by hand (no /etc/pinecall/join.env)
+                            from; `release <wheel>`, the worker drained and restarted
+pinecall-join.service       every boot of a fleet machine: `pinecall-runtime cell enroll`, which seals
+                            its credentials once (a join token, or Secret Manager on Google Cloud)
+                            and is a no-op after, or on a machine joined by hand
 pinecall-worker@.service    a worker on a machine with no box: the box's unit less the LiveKit,
                             gateway and fleet key it waits for, both at the box's address; it waits
                             for the enrolment
