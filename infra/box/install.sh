@@ -59,6 +59,12 @@ nft -f /etc/nftables.conf
 install -d /etc/systemd/journald.conf.d
 install -m 0644 "$HERE/journald.conf.d/pinecall.conf" /etc/systemd/journald.conf.d/pinecall.conf
 
+# The object store's file was backup.env until 0.1.4: a box from before keeps its store.
+if [ -f /etc/pinecall/backup.env ] && [ ! -f /etc/pinecall/store.env ]; then
+    mv /etc/pinecall/backup.env /etc/pinecall/store.env
+    echo "/etc/pinecall/backup.env is /etc/pinecall/store.env now"
+fi
+
 # What is this box's and not a secret: a name per world, every name Caddy answers to, the
 # gateway's connections to its Postgres, sized to the machine: two per vCPU for the doors, and the
 # writer's two (an e2-standard-4 holds 10); and the address the cell's machines reach it at.
