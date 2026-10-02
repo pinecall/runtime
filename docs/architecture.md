@@ -48,21 +48,21 @@ core under `_` names.
 | folder | files | lines | imports of ours |
 |---|---|---|---|
 | `channels/` | 7 | 2255 | `domain`, `fleet`, `log`, `postgres`, `process`, `tenancy`, `wire` |
-| `cli/` | 10 | 2252 | `channels`, `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `runner`, `session`, `tenancy`, `wire`, `worker` |
+| `cli/` | 10 | 2274 | `channels`, `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `runner`, `session`, `tenancy`, `wire`, `worker` |
 | `domain/` | 8 | 1188 | — |
 | `evals/` | 11 | 2965 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
-| `fleet/` | 6 | 1400 | `domain`, `postgres`, `process`, `wire` |
-| `gateway/` | 56 | 11601 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
-| `log/` | 14 | 4670 | `domain`, `postgres`, `process`, `wire` |
+| `fleet/` | 6 | 1415 | `domain`, `postgres`, `process`, `wire` |
+| `gateway/` | 56 | 11628 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `log/` | 14 | 4730 | `domain`, `postgres`, `process`, `wire` |
 | `postgres/` | 2 | 283 | `domain` |
 | `process/` | 9 | 1855 | `domain`, `postgres` |
 | `providers/` | 6 | 1308 | `domain`, `postgres`, `process`, `wire` |
 | `retrieval/` | 6 | 2352 | `domain`, `log`, `postgres`, `providers`, `wire` |
 | `runner/` | 3 | 866 | `domain`, `process`, `wire` |
-| `session/` | 12 | 3328 | `domain`, `log`, `providers`, `wire` |
-| `tenancy/` | 37 | 7687 | `domain`, `log`, `postgres`, `process`, `wire` |
-| `wire/` | 20 | 4942 | `domain` |
-| `worker/` | 4 | 1082 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
+| `session/` | 13 | 3385 | `domain`, `log`, `providers`, `wire` |
+| `tenancy/` | 37 | 7689 | `domain`, `log`, `postgres`, `process`, `wire` |
+| `wire/` | 20 | 4957 | `domain` |
+| `worker/` | 4 | 1011 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
 
 ## The path of a call
 
@@ -116,7 +116,6 @@ answer and is never retried.
 | a vendor's stream (ears, model, voice) | livekit's own: 3 retries 2 s apart, 10 s each (its defaults, which the session keeps); the session closes after 3 unrecoverable errors of a stage | `408`, `429` and `5xx` pass; a refusal that never succeeds (`400`–`404`, `422`, a WebSocket policy close) ends the call on the first | `session/session.py` `_failed`, `session/_livekit.py` |
 | a reader's stream (SSE) | the client reconnects after 1 s and resumes from `Last-Event-ID` | stored before published: nothing is lost between two reads | `gateway/_streams.py` |
 | Meta's webhook | Meta delivers again for 7 days | each message id is claimed once per org before it is read | `gateway/calls/threads.py`, `channels/whatsapp.py` |
-| a recording's file | asked every 0.2 s for 8 s after the call | egress finishes writing after the call, and the summary points at the file | `worker/_recorder.py` |
 
 | never retried | what happens instead | why | file |
 |---|---|---|---|

@@ -55,7 +55,7 @@ from pinecall.wire.rest.calls import (
     SealCallRequest,
 )
 from pinecall.wire.state import State
-from pinecall.worker._recorder import file_written, record_room, recording_path, stored
+from pinecall.worker._recorder import recording_path, stored, written
 
 logger = logging.getLogger(__name__)
 
@@ -139,19 +139,16 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
         return
     typed = dispatch.scope == WRITTEN_SCOPE
     audio = _recorded(config, settings, context.call, typed=typed)
-    recording = None if audio is None else await record_room(ctx.api, ctx.room.name, audio)
     pipeline = _STAGES.validate_python(stages)
 
-    # The recorder stops before the summary, which points at its file.
+    # The session closed its recorder before it seals: the summary points at a whole file.
     async def ended(usage: list[ModelUsage], outcome: str) -> None:
-        kept = await _kept(
-            ctx.api, recording, audio, partial(stored, settings, gateway, route.org, context.call)
-        )
+        kept = await _kept(audio, partial(stored, settings, gateway, route.org, context.call))
         data = SealCallRequest(usage=usage, outcome=outcome, recording=kept, lent=pipeline.lent)
         await gateway.sealed(context.call, data)
 
     measures = measures_path(settings)
-    call = Call(context, config, _platform(gateway, context.call, config, ended, measures))
+    call = Call(context, config, _platform(gateway, context.call, config, ended, measures), audio)
     session = text_session(call, pipeline.llm) if typed else voice_session(call, pipeline)
 
     # Registered before anything else can fail: a call that dies in its setup still seals.
@@ -411,15 +408,8 @@ def _platform(
     return Platform(append_many=append_many, tool=tool, lookup=lookup, seal=seal)
 
 
-async def _kept(
-    server: api.LiveKitAPI,
-    recording: str | None,
-    audio: Path | None,
-    store: Callable[[Path], Awaitable[Path]],
-) -> str | None:
-    if recording is None or audio is None:
-        return None
-    if not await file_written(server, recording, audio):
+async def _kept(audio: Path | None, store: Callable[[Path], Awaitable[Path]]) -> str | None:
+    if audio is None or not await asyncio.to_thread(written, audio):
         return None
     return str(await store(audio))
 
