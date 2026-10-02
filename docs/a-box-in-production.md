@@ -220,7 +220,12 @@ A recording is the file the call's own session writes under `/var/lib/pinecall/r
 livekit's recorder in the job process, a stereo Ogg Opus at 24 kHz, the caller on the left and
 every other voice on the right, on one timeline: the agent as it was played, a supervisor who took
 over and the far end of a warm transfer heard from their own tracks while they spoke, and the hold
-melody laid in from its clip where it sounded. The session
+melody laid in from its clip where it sounded. A call that had one of those is decoded and
+encoded once more when it closes, a stretch at a time, nothing of its length held in memory: about
+a fortieth of its length on one core (ten minutes in ~15 s), inside the worker's minute to seal for
+the calls a phone line takes; a call of half an hour or more with a hold, a takeover or a transfer
+may run past that minute and keep no recording, and a mix made live is the fix the day such calls
+come. A call with none of those is never touched again. The session
 closes it before the call is sealed, and the worker seals it under the call's own key at once
 (`audio.sealed`, the plain file removed; [security/private-values.md](security/private-values.md)).
 With `PINECALL_RECORDINGS_BUCKET` and the object store in `store.env` (read by the gateway, the

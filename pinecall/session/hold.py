@@ -108,6 +108,13 @@ class HoldMusic:
         if self.running == 0:
             self._stop()
 
+    # Nothing stops the melody when the caller hangs up on hold: the player goes with the room.
+    def sounded(self) -> list[tuple[float, float]]:
+        """When the melody played, by the clock; the one still playing counted up to now."""
+        if self.playing_since is None:
+            return self.played
+        return [*self.played, (self.playing_since, time.time())]
+
     async def aclose(self) -> None:
         """Stop and close the player."""
         self._stop()
@@ -164,6 +171,17 @@ def converted(data: bytes) -> Converted:
     return Converted(audio=audio, seconds=round(seconds, 2))
 
 
+# Opus takes whole frames only: a tail shorter than one is dropped.
+def drained(fifo: AudioFifo, stream: AudioStream, sink: OutputContainer, *, final: bool) -> None:
+    """Encode what the fifo holds in whole Opus frames; at the end, the tail that is one."""
+    while fifo.samples >= OPUS_FRAME or (final and fifo.samples > 0):
+        frame = fifo.read(min(OPUS_FRAME, fifo.samples))
+        if frame is None or frame.samples < OPUS_FRAME:
+            return
+        for packet in stream.encode(frame):  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+            sink.mux(packet)  # pyright: ignore[reportUnknownMemberType]
+
+
 def _encoded(source: InputContainer) -> tuple[bytes, int]:
     out = io.BytesIO()
     resampler = av.AudioResampler(format="s16", layout="mono", rate=RATE)
@@ -180,22 +198,12 @@ def _encoded(source: InputContainer) -> tuple[bytes, int]:
                     raise DeclarationRefused(TOO_LONG)
                 frame.pts = None
                 fifo.write(frame)
-            _drained(fifo, stream, sink, final=False)
+            drained(fifo, stream, sink, final=False)
         for frame in resampler.resample(None):
             samples += frame.samples
             frame.pts = None
             fifo.write(frame)
-        _drained(fifo, stream, sink, final=True)
+        drained(fifo, stream, sink, final=True)
         for packet in stream.encode(None):  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
             sink.mux(packet)  # pyright: ignore[reportUnknownMemberType]
     return out.getvalue(), samples
-
-
-# Opus takes whole frames only: a tail shorter than one is dropped.
-def _drained(fifo: AudioFifo, stream: AudioStream, sink: OutputContainer, *, final: bool) -> None:
-    while fifo.samples >= OPUS_FRAME or (final and fifo.samples > 0):
-        frame = fifo.read(min(OPUS_FRAME, fifo.samples))
-        if frame is None or frame.samples < OPUS_FRAME:
-            return
-        for packet in stream.encode(frame):  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-            sink.mux(packet)  # pyright: ignore[reportUnknownMemberType]
