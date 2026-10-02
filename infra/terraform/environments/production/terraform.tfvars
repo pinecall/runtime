@@ -14,14 +14,3 @@ carrier_signalling = [
   "54.252.254.64/30",
   "177.71.206.192/30",
 ]
-
-box_service_account = "209548925515-compute@developer.gserviceaccount.com"
-box_scopes = [
-  "https://www.googleapis.com/auth/devstorage.read_only",
-  "https://www.googleapis.com/auth/logging.write",
-  "https://www.googleapis.com/auth/monitoring.write",
-  "https://www.googleapis.com/auth/pubsub",
-  "https://www.googleapis.com/auth/service.management.readonly",
-  "https://www.googleapis.com/auth/servicecontrol",
-  "https://www.googleapis.com/auth/trace.append",
-]

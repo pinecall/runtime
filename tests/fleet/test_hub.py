@@ -15,6 +15,7 @@ from pinecall.fleet.hub import (
     Line,
     Machine,
     applied,
+    calls_held,
     decide,
     free_names,
     printed,
@@ -239,3 +240,10 @@ def test_a_script_that_fails_or_is_missing_is_said_in_its_own_words(tmp_path: Pa
     unreadable = Cloud(a_script(tmp_path, 'printf "x\\tnot-a-time\\n"'))
     with pytest.raises(UpstreamFailed, match="ISO 8601"):
         unreadable.machines()
+
+
+def test_a_fleet_under_its_target_grows_by_no_machine_when_the_cloud_grows_it() -> None:
+    line = Line(grow_at_most=0, seats_per_worker=4)
+    busy = [a_seat("pinecall-worker-1", active=4, max_jobs=4)]
+    assert [d for d in decide(busy, [], line, NOW) if isinstance(d, Grow)] == []
+    assert calls_held(busy, NOW) == 4

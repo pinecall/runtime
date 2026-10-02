@@ -139,7 +139,8 @@ fleet loop --cloud <script> --seats <n> [--fleet <name>] [--target 0.6] [--min 1
 fleet summed. `loop` keeps a fleet at its target ([scaling.md](scaling.md)):
 `--cloud` is a script with three verbs, `create <name>`, `delete <name>`, `list`; `infra/fleet/`
 holds one per cloud. A tick grows by the seats missing, at most `--grow-at-most` machines (1 unless
-said), and shrinks by one cordon. Before each `create` the loop mints the machine a join token
+said; 0 is a cloud that grows the fleet itself, told the fleet's calls each tick with `measure
+<fleet> <calls>`), and shrinks by one cordon. Before each `create` the loop mints the machine a join token
 (`POST /v1/ops/fleet/join-tokens`) and hands it over with the door to spend it at, and after each
 `delete` it revokes the machine's keys (`DELETE /v1/ops/fleet/{worker}/keys`): `--fleet` is
 required unless `--dry-run`, which prints one tick's verdict and touches nothing.

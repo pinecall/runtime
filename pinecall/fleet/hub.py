@@ -46,7 +46,9 @@ class Line:
     boot_grace_s: float = 600.0
     gone_after_s: float = 300.0
     # The most machines one tick asks for. 1 is the loop as it was: a fleet far under its target
-    # then grows by one machine a tick. The operator raises it with `--grow-at-most`.
+    # then grows by one machine a tick. The operator raises it with `--grow-at-most`; 0 is a cloud
+    # that grows the fleet itself (a managed instance group on the calls the loop tells it), the
+    # loop letting go of the one too many, which the cloud cannot drain.
     grow_at_most: int = 1
 
 
@@ -93,6 +95,10 @@ class Cloud:
         if not script.is_file():
             raise DeclarationRefused(NO_SCRIPT.format(path=script))
         self.script = script
+
+    def measured(self, fleet: str, calls: int) -> None:
+        """The fleet's calls told to the cloud, which grows on them: `measure <fleet> <calls>`."""
+        self.ran("measure", fleet, str(calls))
 
     def machines(self) -> list[Machine]:
         """Every machine the cloud lists as the fleet's."""
@@ -160,6 +166,11 @@ def decide(
         if letting_go is not None:
             decided.append(letting_go)
     return decided
+
+
+def calls_held(seats: Sequence[WorkerStatus], now: float) -> int:
+    """The calls the fleet's workers heard from lately hold: what a cloud grows the fleet on."""
+    return sum(seat.active for seat in seats if heard_lately(seat, now))
 
 
 def free_names(machines: Sequence[Machine], count: int) -> list[str]:

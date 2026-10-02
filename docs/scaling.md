@@ -232,6 +232,16 @@ boots. The loop never cordons or deletes a machine the cloud does not list as
 the fleet's: a worker stood up by hand counts and is never let go. `--once --dry-run` prints one
 tick and touches nothing.
 
+**When the cloud grows the fleet** (`--grow-at-most 0`): the loop never asks for a machine; each
+tick it tells the cloud the fleet's calls (`<script> measure <fleet> <calls>`) and only cordons and
+deletes. On Google Cloud that is production's way: a managed instance group (Terraform's
+`modules/fleet-gcp`) grows on `custom.googleapis.com/pinecall/fleet_calls`, one machine per 19
+calls (32 seats at 0.6), and only grows, since a group removing a machine itself gives it 90 s and
+a call may last ten minutes; the loop, `pinecall-fleet-loop@production` on the box, lets go of the
+one too many once drained (abandoned from the group, then deleted: `infra/fleet/gcp-mig.py`). Its
+machines read their credentials from Secret Manager as their own identity. The recipe and why are
+[../infra/fleet/README.md](../infra/fleet/README.md).
+
 Run on Google Cloud on 2026-10-02 against the sandbox fleet, from a laptop, with no call: a machine
 made from an image that holds no credential, in the fleet's own subnet, spent its join token at
 its first boot and was `accepting` 99 s after the loop asked for it, on a fleet key of its own;
