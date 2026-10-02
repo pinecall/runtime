@@ -61,6 +61,11 @@ SUPPRESSIONS: tuple[Allowed, ...] = (
         "encode and mux are typed loosely",
     ),
     Allowed(
+        "pinecall/process/mixing.py",
+        "pyright: " + "ignore",
+        "PyAV's add_stream, encode and mux are typed loosely",
+    ),
+    Allowed(
         "pinecall/session/widget.py",
         "pyright: " + "ignore",
         "livekit's Room emits through a bare Callable",
@@ -80,6 +85,26 @@ SUPPRESSIONS: tuple[Allowed, ...] = (
         "pyright: " + "ignore",
         "redis-py's asyncio client takes untyped **kwargs (from_url, publish), an untyped "
         "callback, and hands its messages over as dicts it does not type",
+    ),
+    Allowed(
+        "pinecall/worker/_recorder.py",
+        "pyright: " + "ignore",
+        "livekit's Room emits through a bare Callable",
+    ),
+    Allowed(
+        "tests/process/test_mixing.py",
+        "pyright: " + "ignore",
+        "PyAV's add_stream, encode and mux are typed loosely",
+    ),
+    Allowed(
+        "tests/worker/test_recorder.py",
+        "pyright: " + "ignore",
+        "livekit's stubs type `kind` as its enum and refuse the wire's int; a room answers no dial",
+    ),
+    Allowed(
+        "tests/gateway/ending/test_recorded.py",
+        "pyright: " + "ignore",
+        "livekit's EgressInfo stub types `status` as its enum and refuses the wire's int",
     ),
 )
 
@@ -126,6 +151,11 @@ NOT_YET_REACHED: tuple[Allowed, ...] = (
 
 # Rule 14: the files that create a task, and who cancels or awaits it.
 TASK_OWNERS: tuple[Allowed, ...] = (
+    Allowed(
+        "pinecall/worker/_recorder.py",
+        "create_task",
+        "tasks holds one ask a track; stop() awaits them before it stops each egress",
+    ),
     Allowed(
         "pinecall/runner/main.py",
         "create_task",

@@ -13,6 +13,7 @@ from pinecall.gateway._deps import (
     FleetKey,
     GatewayDep,
 )
+from pinecall.gateway.ending.recorded import recorded
 from pinecall.gateway.ending.stranded import stranded
 from pinecall.wire.rest.fleet import FleetTotals, HeartbeatRequest, HeartbeatResponse
 
@@ -48,7 +49,7 @@ async def fleet_status(
 # agent lost mid-call are answered and let be.
 @router.post("/v1/livekit/webhook", status_code=204)
 async def receive_livekit_event(request: Request, gateway: GatewayDep) -> None:
-    """A room event LiveKit signed: an agent lost mid-call has its caller told, its call ended."""
+    """A room event LiveKit signed: an agent lost mid-call, or a track of a recording landed."""
     token = request.headers.get("Authorization")
     if not token:
         raise NotAllowed(UNSIGNED)
@@ -58,3 +59,4 @@ async def receive_livekit_event(request: Request, gateway: GatewayDep) -> None:
         body, token, settings.livekit_api_key or "", settings.livekit_api_secret or ""
     )
     await stranded(gateway.serving, gateway.connections.server, event)
+    await recorded(gateway.serving, event)

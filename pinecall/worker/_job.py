@@ -5,7 +5,7 @@ import logging
 import os
 import tempfile
 import time
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from datetime import timedelta
 from functools import partial
@@ -55,7 +55,7 @@ from pinecall.wire.rest.calls import (
     SealCallRequest,
 )
 from pinecall.wire.state import State
-from pinecall.worker._recorder import recording_path, stored, written
+from pinecall.worker._recorder import Tracks, prefix_of
 
 logger = logging.getLogger(__name__)
 
@@ -138,17 +138,22 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
     if dispatch.dial is not None and not await _answered(ctx, gateway, context, dispatch.dial):
         return
     typed = dispatch.scope == WRITTEN_SCOPE
-    audio = _recorded(config, settings, context.call, typed=typed)
+    recorded = not typed and config.record
     pipeline = _STAGES.validate_python(stages)
+    tracks: Tracks | None = None
 
-    # The session closed its recorder before it seals: the summary points at a whole file.
+    # Each track's egress stops before the summary, which names the call's directory: the box's
+    # gateway seals each file there as egress says it ended (gateway/ending/recorded.py).
     async def ended(usage: list[ModelUsage], outcome: str) -> None:
-        kept = await _kept(audio, partial(stored, settings, gateway, route.org, context.call))
+        kept = None
+        if tracks is not None:
+            await tracks.stop()
+            kept = prefix_of(route.org, context.call)
         data = SealCallRequest(usage=usage, outcome=outcome, recording=kept, lent=pipeline.lent)
         await gateway.sealed(context.call, data)
 
     measures = measures_path(settings)
-    call = Call(context, config, _platform(gateway, context.call, config, ended, measures), audio)
+    call = Call(context, config, _platform(gateway, context.call, config, ended, measures))
     session = text_session(call, pipeline.llm) if typed else voice_session(call, pipeline)
 
     # Registered before anything else can fail: a call that dies in its setup still seals.
@@ -164,12 +169,15 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
         trunks=partial(_trunk_for, gateway, context),
         claim=partial(_claimed, gateway, context.call),
     )
+    if recorded:
+        tracks = Tracks(ctx.api, where, Path(settings.recordings_root))
+        tracks.start()
     hold = await _hold_music(gateway, route.agent, scope, played.played, played.sha256)
     await session.start(
         where=where,
         hold=hold,
         seat=await _seat_of(ctx.room, route.channel, typed=typed),
-        opening=None if typed else opening_of(opened, recorded=audio is not None),
+        opening=None if typed else opening_of(opened, recorded=recorded),
         worker=worker_name_of(settings),
     )
     if hold is not None:
@@ -378,12 +386,6 @@ async def _handed_over(
     return True
 
 
-def _recorded(config: AgentConfig, settings: Settings, call: str, *, typed: bool) -> Path | None:
-    if typed or not config.record:
-        return None
-    return recording_path(Path(settings.recordings_root), call)
-
-
 # What the call writes also tells its worker's heartbeat: first audio, errors, how it ended.
 def _platform(
     gateway: GatewayClient, call: str, config: AgentConfig, seal: Seal, measures: Path
@@ -406,12 +408,6 @@ def _platform(
         return await gateway.lookup(call, tool_name, arguments, speech)
 
     return Platform(append_many=append_many, tool=tool, lookup=lookup, seal=seal)
-
-
-async def _kept(audio: Path | None, store: Callable[[Path], Awaitable[Path]]) -> str | None:
-    if audio is None or not await asyncio.to_thread(written, audio):
-        return None
-    return str(await store(audio))
 
 
 # The platform wants a claim that answers nothing; the client's says whether a page was waiting.

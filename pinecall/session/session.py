@@ -35,7 +35,7 @@ from pinecall.domain.errors import DeclarationRefused, NotAllowed, PinecallError
 from pinecall.domain.names import JsonObject
 from pinecall.log.logs import started_entry
 from pinecall.providers.build import Ears, Speaking, Thinking
-from pinecall.session import _prompt, _recording, room, tools
+from pinecall.session import _prompt, room, tools
 from pinecall.session._agent import CallAgent
 from pinecall.session._hearing import keyterms
 from pinecall.session._livekit import (
@@ -180,7 +180,6 @@ class Session:
         self.hold: HoldMusic | None = None
         # The one participant the session listens to: the caller's leg, or the talk seat.
         self.seat: str | None = None
-        self.recorder: _recording.RecorderIO | None = None
 
     # ── the session's life ──
 
@@ -246,8 +245,6 @@ class Session:
             return
         self.closed = True
         await self.live.aclose()
-        if self.recorder is not None:
-            await self.recorder.aclose()
         for name in LISTENED:
             self.live.off(name, self._heard)  # pyright: ignore[reportUnknownMemberType]
         for component in self.built:
@@ -663,7 +660,7 @@ class Session:
         on = NOT_GIVEN if self.room is None else self.room.room
         # The caller is pinned before livekit subscribes, or it links the first seat of a kind it
         # accepts, a supervisor's as soon as a caller's. A written call in a room hears no audio.
-        # record is said: left unset, livekit asks its cloud; the call's own recorder is ours.
+        # record is said: left unset, livekit's own recorder asks the server whether to run.
         spoken = any(isinstance(built_one, stt.STT) for built_one in self.built)
         options = RoomOptions(
             participant_identity=given_or_unset(self.seat),
@@ -673,7 +670,6 @@ class Session:
         await self.live.start(  # pyright: ignore[reportUnknownMemberType]
             self.agent, room=on, room_options=options, record=False
         )
-        self.recorder = await _recording.recorded(self.live, self.call.recording)
         for component in self.built:
             component.on("metrics_collected", self._measured)  # pyright: ignore[reportUnknownMemberType]
         given = history.copy()
