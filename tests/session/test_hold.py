@@ -38,6 +38,22 @@ async def test_a_tool_that_takes_a_while_plays_the_melody_looped_and_stops_it_af
     assert melody.player.handles[0].done()
 
 
+async def test_the_melody_keeps_when_it_sounded_for_the_recording_and_nothing_inside_the_grace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(hold_module, "GRACE_S", 0.01)
+    melody = HoldMusic(Path("hold.ogg"))
+    melody.player = Player()
+    melody.began()
+    melody.ended()
+    assert melody.played == []
+    melody.began()
+    await asyncio.sleep(0.05)
+    melody.ended()
+    ((start, end),) = melody.played
+    assert 0 < end - start < 1
+
+
 async def test_the_melody_waits_for_the_agent_to_stop_talking(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

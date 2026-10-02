@@ -180,7 +180,7 @@ class Session:
         self.hold: HoldMusic | None = None
         # The one participant the session listens to: the caller's leg, or the talk seat.
         self.seat: str | None = None
-        self.recorder: _recording.RecorderIO | None = None
+        self.recorder: _recording.Recorder | None = None
 
     # ── the session's life ──
 
@@ -247,7 +247,7 @@ class Session:
         self.closed = True
         await self.live.aclose()
         if self.recorder is not None:
-            await self.recorder.aclose()
+            await self.recorder.close(self.hold)
         for name in LISTENED:
             self.live.off(name, self._heard)  # pyright: ignore[reportUnknownMemberType]
         for component in self.built:
@@ -673,7 +673,7 @@ class Session:
         await self.live.start(  # pyright: ignore[reportUnknownMemberType]
             self.agent, room=on, room_options=options, record=False
         )
-        self.recorder = await _recording.recorded(self.live, self.call.recording)
+        self.recorder = await _recording.recorded(self.live, self.call.recording, self.room)
         for component in self.built:
             component.on("metrics_collected", self._measured)  # pyright: ignore[reportUnknownMemberType]
         given = history.copy()
