@@ -1,0 +1,19 @@
+# LiveKit on a laptop: one node on the compose's Redis, every WebRTC media on the two ports the
+# compose publishes on 127.0.0.1, the pair a development pair (never a box's), its webhook to the
+# gateway the checkout runs on the host.
+port: 7880
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: false
+  node_ip: 127.0.0.1
+redis:
+  address: redis:6379
+keys:
+  devkey: a-laptop-only-livekit-secret-0123456789
+webhook:
+  api_key: devkey
+  urls:
+    - http://host.docker.internal:8080/v1/livekit/webhook
+logging:
+  level: info

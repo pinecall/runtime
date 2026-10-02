@@ -1,0 +1,48 @@
+# What a box runs beside the runtime, on a laptop: Postgres (the box's image), Redis, LiveKit in
+# dev mode and, on Linux, LiveKit's SIP. The gateway and a worker run from the checkout
+# (`make local-gateway`, `make local-worker`). `make local` brings this up; infra/local/README.md.
+name: pinecall-local
+
+services:
+  postgres:
+    build: ../postgres
+    image: pinecall/postgres:17-pgvector0.8.6-pgtextsearch1.4.0
+    environment:
+      POSTGRES_USER: pinecall
+      POSTGRES_PASSWORD: pinecall
+      POSTGRES_DB: pinecall
+    ports: ["127.0.0.1:55433:5432"]
+    volumes: ["postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "pinecall", "-d", "pinecall"]
+      interval: 2s
+      retries: 30
+
+  redis:
+    image: docker.io/library/redis:8.10.2-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
+    ports: ["127.0.0.1:56380:6379"]
+
+  livekit:
+    image: docker.io/livekit/livekit-server:v1.13.7@sha256:6fd3b7088874c4d119160dd688798dfec852bc014786d392caad15f6f63912a3
+    command: ["--config", "/etc/livekit.yaml"]
+    volumes: ["./livekit.yaml:/etc/livekit.yaml:ro"]
+    ports:
+      - "127.0.0.1:7880:7880"
+      - "127.0.0.1:7881:7881"
+      - "127.0.0.1:7882:7882/udp"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on: [redis]
+
+  # A phone call needs the host's network (SIP and RTP to 127.0.0.1): Linux only.
+  # `docker compose --profile phone up -d sip`.
+  sip:
+    profiles: [phone]
+    image: docker.io/livekit/sip:v1.17.0@sha256:d3c6441eb0918a81ab9e48ba7df6f02c1eebbeace42c963b2c6a6e5418675671
+    network_mode: host
+    environment:
+      SIP_CONFIG_FILE: /etc/sip.yaml
+    volumes: ["./sip.yaml:/etc/sip.yaml:ro"]
+    depends_on: [livekit]
+
+volumes:
+  postgres:

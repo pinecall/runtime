@@ -1,0 +1,12 @@
+# LiveKit's SIP on a laptop (Linux, the host's network): calls to 127.0.0.1:5060, their audio on
+# twenty RTP ports, the same development pair as livekit.yaml.
+api_key: devkey
+api_secret: a-laptop-only-livekit-secret-0123456789
+ws_url: ws://127.0.0.1:7880
+redis:
+  address: 127.0.0.1:56380
+sip_port: 5060
+rtp_port: 10000-10019
+use_external_ip: false
+logging:
+  level: info

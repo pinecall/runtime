@@ -18,3 +18,4 @@ build/
 crash.log
 .terraform-check/
 .image-settings.tar
+.local/
