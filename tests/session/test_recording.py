@@ -75,15 +75,33 @@ def test_a_supervisor_and_the_melody_are_laid_in_on_the_right_where_they_sounded
     t = np.arange(int(RATE * seconds)) / RATE
     caller = (0.4 * np.sin(2 * np.pi * 300 * t) * (t < 0.5)).astype(np.float32)
     audio = tmp_path / "audio.ogg"
-    encoded(np.stack([caller, np.zeros_like(caller)]), audio)
-    voice = (8000 * np.sin(2 * np.pi * 500 * t[: RATE // 2])).astype("<i2").tobytes()
+    encoded([np.stack([caller, np.zeros_like(caller)])], audio)
+    voice = tmp_path / "TR_sup.pcm"
+    voice.write_bytes((8000 * np.sin(2 * np.pi * 500 * t[: RATE // 2])).astype("<i2").tobytes())
     clip = tmp_path / "melody.ogg"
     melody = (0.5 * np.sin(2 * np.pi * 700 * t[: RATE // 4])).astype(np.float32)
-    encoded(np.stack([melody, melody]), clip)
-    laid_in(audio, [(0.6, bytearray(voice))], (clip, [(1.3, 1.9)]))
+    encoded([np.stack([melody, melody])], clip)
+    laid_in(audio, [(0.6, voice)], (clip, [(1.3, 1.9)]))
+    assert not voice.exists()
     _, samples = channels_of(audio)
     left, right = samples
     rate = 48000
     assert loud_at(left, rate, 0.05, 0.45) > 10 * loud_at(left, rate, 0.7, 1.0)
     assert loud_at(right, rate, 0.7, 1.0) > 10 * loud_at(right, rate, 0.05, 0.45)
     assert loud_at(right, rate, 1.4, 1.8) > 10 * loud_at(right, rate, 1.15, 1.25)
+
+
+def test_a_melody_that_outlasts_the_file_is_laid_in_past_its_end(tmp_path: Path) -> None:
+    audio = tmp_path / "audio.ogg"
+    encoded([np.zeros((2, RATE), dtype=np.float32)], audio)
+    t = np.arange(RATE // 4) / RATE
+    melody = (0.5 * np.sin(2 * np.pi * 700 * t)).astype(np.float32)
+    clip = tmp_path / "melody.ogg"
+    encoded([np.stack([melody, melody])], clip)
+    laid_in(audio, [], (clip, [(0.5, 3.0)]))
+    _, samples = channels_of(audio)
+    left, right = samples
+    rate = 48000
+    assert 2.9 < samples.shape[1] / rate < 3.1
+    assert loud_at(right, rate, 1.5, 2.9) > 10 * loud_at(right, rate, 0.0, 0.4)
+    assert loud_at(left, rate, 0.0, 2.9) < 0.01

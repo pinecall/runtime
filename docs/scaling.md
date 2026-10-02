@@ -97,7 +97,7 @@ LiveKit, took half of six calls at once, answered as through one.
 |---|---|---|---|
 | egress, one room composite (decode, mix, encode in a process of its own) | ~0.12 vCPU | ~80 MB | yes |
 | egress, one track egress per voice (no transcode, a process per track) | ~0.2 vCPU (0.08–0.12 a track) | ~170 MB a track | yes |
-| the call's own session (livekit's recorder, the voices already decoded there) | ~0.06–0.09 vCPU of the worker | — | yes: the room's other voices and the melody are laid in when it closes |
+| the call's own session (livekit's recorder, the voices already decoded there) | ~0.06–0.09 vCPU of the worker | — | yes: the room's other voices and the melody are laid in when it closes (the file decoded and encoded once more, ~1/40 of its length on a core, nothing held in memory) |
 
 The session records: on a box alone it moves the cost rather than removing it (at six calls the
 worker went from 1.78 to 2.31 cores and the recorder from 0.60 to 0, the box at 3.4 either way),

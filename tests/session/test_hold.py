@@ -54,6 +54,19 @@ async def test_the_melody_keeps_when_it_sounded_for_the_recording_and_nothing_in
     assert 0 < end - start < 1
 
 
+async def test_a_melody_still_playing_when_the_call_ends_counts_up_to_now(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(hold_module, "GRACE_S", 0.01)
+    melody = HoldMusic(Path("hold.ogg"))
+    melody.player = Player()
+    melody.began()
+    await asyncio.sleep(0.05)
+    assert melody.played == []
+    ((start, end),) = melody.sounded()
+    assert 0 < end - start < 1
+
+
 async def test_the_melody_waits_for_the_agent_to_stop_talking(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
