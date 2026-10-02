@@ -21,7 +21,7 @@ EnvironmentFile=/etc/pinecall/box.env
 # LIVEKIT_URL and PINECALL_GATEWAY_URL at the box's address.
 EnvironmentFile=/etc/pinecall/cell.env
 # The bucket recordings go to: a worker machine's disk is no gateway's.
-EnvironmentFile=/etc/pinecall/backup.env
+EnvironmentFile=/etc/pinecall/store.env
 ImportCredential=PINECALL_S3_SECRET_ACCESS_KEY
 # The fleet's agent name and health port, and the calls this machine holds.
 EnvironmentFile=/etc/pinecall/fleet.env

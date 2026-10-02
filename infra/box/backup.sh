@@ -3,7 +3,7 @@
 # the database as pg_dump's custom archive, and the recordings as a tar, each encrypted to the age
 # public key in /etc/pinecall/backup.age.pub, whose private half never reaches the box. A manifest
 # keeps each file's sha256 before encryption, so a restore can prove it decrypted the same bytes.
-# Kept 7 days on the box; with PINECALL_BACKUP_BUCKET and an object store in /etc/pinecall/backup.env
+# Kept 7 days on the box; with PINECALL_BACKUP_BUCKET and an object store in /etc/pinecall/store.env
 # (the operator's, which install.sh never writes; objects.sh), copied to that bucket too; the
 # bucket's lifecycle rule forgets them after 35 days. With the WAL archive on (wal.sh), a base
 # backup too, encrypted the same way: the point a restore to any later minute replays from. It

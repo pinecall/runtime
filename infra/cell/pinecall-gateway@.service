@@ -20,7 +20,7 @@ EnvironmentFile=/etc/pinecall/box.env
 EnvironmentFile=/etc/pinecall/cell.env
 # The operator's object store, when there is one: PINECALL_RECORDINGS_BUCKET moves recordings
 # there, signed with the key's secret, a credential like the others.
-EnvironmentFile=-/etc/pinecall/backup.env
+EnvironmentFile=-/etc/pinecall/store.env
 ImportCredential=PINECALL_S3_SECRET_ACCESS_KEY
 # Named one by one: a credential absent from the store is simply not set.
 ImportCredential=DATABASE_URL

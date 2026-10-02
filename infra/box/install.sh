@@ -190,7 +190,7 @@ if [ -f /etc/pinecall/backup.age.pub ]; then
 else
     systemctl disable --now pinecall-backup.timer 2>/dev/null || true
 fi
-# WAL archiving follows /etc/pinecall/backup.env: on with a bucket, its object store and a key, off
+# WAL archiving follows /etc/pinecall/store.env: on with a bucket, its object store and a key, off
 # without (objects.sh).
 bash "$HERE/wal.sh" apply
 # The four alerts follow /etc/pinecall/alerts.env: evaluated and mailed with it, off without.

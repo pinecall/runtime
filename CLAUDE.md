@@ -88,8 +88,9 @@ beside the runtime (it pushes calls of both worlds to phones and browsers).
 
 Since 2026-10-01 the box's database is not alone: its WAL is archived every minute to S3
 (`pinecall-box-backups-000000000000`, us-east-1, the IAM user `pinecall-box-store` that can only
-touch that bucket; `/etc/pinecall/backup.env`), the nightly backup and base backup go there too
-(35-day lifecycle), and `ssh example-replica` (34.31.81.33, 10.128.15.203) is a streaming
+touch the box's two buckets; `/etc/pinecall/store.env`), the nightly backup and base backup go there
+too (35-day lifecycle); since 2026-10-02 recordings go to `pinecall-box-recordings-000000000000`
+(same store, same key, no lifecycle), and `ssh example-replica` (34.31.81.33, 10.128.15.203) is a streaming
 replica, `box failover` ready (`docs/a-box-in-production.md`, "A replica"). The backup's private
 age key is never on either machine.
 The four alerts (`infra/cell/alerts.yaml`) are evaluated on the box by Prometheus and mailed by

@@ -13,7 +13,7 @@ Environment=PINECALL_RECORDINGS=/var/lib/pinecall/recordings
 EnvironmentFile=/etc/pinecall/box.env
 # The operator's object store, when there is one: PINECALL_RECORDINGS_BUCKET moves recordings
 # there, signed with the key's secret, a credential like the others.
-EnvironmentFile=-/etc/pinecall/backup.env
+EnvironmentFile=-/etc/pinecall/store.env
 ImportCredential=PINECALL_S3_SECRET_ACCESS_KEY
 ImportCredential=DATABASE_URL
 ReadWritePaths=/var/lib/pinecall/recordings

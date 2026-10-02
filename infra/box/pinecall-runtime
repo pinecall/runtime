@@ -5,7 +5,7 @@
 # next release, which the pinecall user installs.
 exec systemd-run --quiet --wait --pipe --collect \
     -p EnvironmentFile=/etc/pinecall/box.env \
-    -p EnvironmentFile=-/etc/pinecall/backup.env \
+    -p EnvironmentFile=-/etc/pinecall/store.env \
     -p ImportCredential=DATABASE_URL -p ImportCredential=PINECALL_VAULT_KEY \
     -p ImportCredential=PINECALL_OPS_KEY -p ImportCredential=LIVEKIT_API_KEY \
     -p ImportCredential=LIVEKIT_API_SECRET -p ImportCredential=PINECALL_S3_SECRET_ACCESS_KEY \

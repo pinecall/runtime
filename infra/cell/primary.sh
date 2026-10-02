@@ -21,7 +21,7 @@
 #                   Postgres, no Redis
 #   primary.sh forget-worker <address>    that undone for one worker machine
 #   primary.sh worker-credentials <world> what a worker machine of that world's fleet runs on (its
-#                   fleet key, the LiveKit pair, the object store's secret, box.env, backup.env,
+#                   fleet key, the LiveKit pair, the object store's secret, box.env, store.env,
 #                   the fleet's env) as a tar on stdout, for `worker.sh join`; refused onto a
 #                   terminal, and refused when recordings stay on this disk
 # The password never crosses a terminal: `systemd-creds decrypt` on this box piped into
@@ -184,7 +184,7 @@ worker-credentials)
         echo "primary.sh worker-credentials <world>: production or sandbox" >&2; exit 2; }
     # A recording stays on the disk of the machine that took the call; the box's gateways serve
     # only their own disk, so a worker machine needs the bucket.
-    grep -qs '^PINECALL_RECORDINGS_BUCKET=.' /etc/pinecall/backup.env || {
+    grep -qs '^PINECALL_RECORDINGS_BUCKET=.' /etc/pinecall/store.env || {
         echo "this box keeps recordings on its own disk: set PINECALL_RECORDINGS_BUCKET first (docs/a-box-in-production.md, \"Recordings, off the disk\")" >&2
         exit 1; }
     out="$(mktemp -d)"
@@ -196,7 +196,7 @@ worker-credentials)
         systemd-creds decrypt --name="$name" "$STORE/$name" - > "$out/$name"
     done
     cp /etc/pinecall/box.env "$out/box.env"
-    cp /etc/pinecall/backup.env "$out/backup.env"
+    cp /etc/pinecall/store.env "$out/store.env"
     cp "/etc/pinecall/fleets/$world.env" "$out/fleet.env"
     tar -C "$out" -cf - .
     ;;
