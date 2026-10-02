@@ -70,13 +70,18 @@ LIVEKIT_PUBLIC_URL=wss://$FIRST
 PINECALL_DB_POOL=$((2 * $(nproc) + 2))
 ENV
 install -m 0644 "$HERE"/fleets/*.env /etc/pinecall/fleets/
-# Each of the box's four workers counts its calls (one per vCPU), never the machine's CPU: a call's
-# first seconds load the turn models in a new process, and a burst read as CPU crossed 0.7 for an
-# instant, LiveKit marked the worker unavailable and never offered those rooms again (measured
-# 2026-10-01: 5 of 10 calls at once got no agent at 20 % CPU; counting, 14 of 15 at 42 %). A call
-# costs ~0.24 vCPU, so four workers at one call per vCPU leave the box room for the rest.
+# Each of the box's four workers counts its calls, never the machine's CPU: a call's first seconds
+# load the turn models in a new process, and a burst read as CPU crossed 0.7 for an instant,
+# LiveKit marked the worker unavailable and never offered those rooms again (measured 2026-10-01:
+# 5 of 10 calls at once got no agent at 20 % CPU; counting, 14 of 15 at 42 %). A call costs the
+# box ~0.5 vCPU with its recording, SIP and LiveKit, and a box of 4 vCPU holds six (infra/lab/,
+# 2026-10-01): 1.5 seats per vCPU, two thirds of them production's.
 for slot in /etc/pinecall/fleets/*-[ab].env; do
-    grep -q '^PINECALL_MAX_JOBS=' "$slot" || echo "PINECALL_MAX_JOBS=$(nproc)" >> "$slot"
+    case "$slot" in
+    */production-*) seats=$(($(nproc) / 2)) ;;
+    *) seats=$(($(nproc) / 4)) ;;
+    esac
+    grep -q '^PINECALL_MAX_JOBS=' "$slot" || echo "PINECALL_MAX_JOBS=$((seats > 0 ? seats : 1))" >> "$slot"
 done
 
 # The box's secrets, drawn here once and never printed; a re-run keeps what exists.

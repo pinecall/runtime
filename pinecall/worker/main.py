@@ -18,7 +18,7 @@ from pinecall.fleet.heartbeat import CORDONED_EXIT, Heartbeats, Load, announced_
 from pinecall.fleet.measures import LastMinute, listening, measures_path
 from pinecall.fleet.roster import HEARTBEAT_S
 from pinecall.process.settings import Settings, load
-from pinecall.providers.build import tts_of
+from pinecall.providers.build import installed, tts_of
 from pinecall.providers.credentials import Pipeline
 from pinecall.session.call import Writing
 from pinecall.session.session import SEAL_S
@@ -46,8 +46,8 @@ DRAIN_S = 10 * 60
 # What a job has to seal once told to stop: livekit's 10 s kills a seal halfway.
 SEALING_S = 60.0
 
-# A new process imports every installed plugin before its first job: ~10 s on a quiet 4-core box,
-# and livekit's own 10 s kills it while three pools warm up at once, then respawns it for ever.
+# A new process warms up while others are busy: livekit's own 10 s kills it while three pools warm
+# up at once on a loaded box, then respawns it for ever.
 INITIALIZE_S = 90.0
 
 
@@ -117,6 +117,11 @@ def prewarm(proc: JobProcess) -> None:
 def server_of(settings: Settings) -> AgentServer:
     """The AgentServer of this worker, registered under its fleet's name."""
     _refuse_an_unregistrable(settings)
+    # Every plugin imported in the worker's own process is one livekit lists in its forkserver's
+    # preload: imported once there, inherited by each call's process. Imported in the call's
+    # process instead, the 44 held its loop 3-5 s on an idle box, up to 70 s on a loaded one,
+    # while the caller waited (infra/lab/, 2026-10-01).
+    installed()
     # URL and pair are handed over: AgentServer reads os.environ, and the .env files are not in it.
     server = AgentServer(
         ws_url=settings.livekit_url,
@@ -208,6 +213,8 @@ async def overflow_job(ctx: JobContext) -> None:
 def overflow_of(settings: Settings, gate: OverflowGate) -> AgentServer:
     """The overflow's AgentServer, under the fleet's name, on any free port."""
     _refuse_an_unregistrable(settings)
+    # Preloaded in the forkserver, as for the worker's own server.
+    installed()
     server = AgentServer(
         ws_url=settings.livekit_url,
         api_key=settings.livekit_api_key,
