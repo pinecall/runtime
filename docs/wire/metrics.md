@@ -175,8 +175,8 @@ Every field livekit-agents 1.8 measures, block by block, with its unit and who m
 
 ## Per day, by vendor and by version
 
-`GET /v1/insights` reads three of the turn's numbers across a day of the scope's calls (the day a
-call started, in UTC), grouped by stage and by the vendor and model the turn's own report names:
+`GET /v1/insights` reads three of the turn's numbers across the window's days of the scope's calls
+(the day a call started, in UTC; one agent's alone when it names one), grouped by stage and by the vendor and model the turn's own report names:
 `stt` is `UserTurnMetrics.transcription_delay` under `stt_metadata`, with the average of the turn's
 `transcript_confidence`; `llm` is `AgentTurnMetrics.llm_node_ttft` under `llm_metadata`; `tts` is
 `AgentTurnMetrics.tts_node_ttfb` under `tts_metadata`. Each row has how many turns reported the

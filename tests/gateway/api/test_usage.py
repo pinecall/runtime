@@ -1,4 +1,4 @@
-"""Tests for the org's meters: the usage feed, one day's insights, and the limits."""
+"""Tests for the org's meters: the usage feed, a window's insights, and the limits."""
 
 from pinecall.domain.names import JsonObject
 from pinecall.domain.org import Quotas
@@ -114,8 +114,11 @@ async def test_a_days_insights_count_the_scopes_calls_and_the_orgs_month(
         empty = await org.get(INSIGHTS, params={"day": "2001-01-01"})
     assert today.status_code == 200
     body = today.json()
-    assert (body["day"], body["timezone"]) == ("1970-01-01", "UTC")
-    assert body["conversations"] == {"today": 1, "yesterday": 0}
+    assert (body["day"], body["days"], body["timezone"]) == ("1970-01-01", 1, "UTC")
+    assert body["conversations"] == {"now": 1, "before": 0}
+    assert (body["judged"], body["passed"], body["escalated"]) == (1, 1, 0)
+    assert body["endings"] == [{"reason": "caller_hung_up", "count": 1}]
+    assert [(day["day"], day["phone"]) for day in body["series"]] == [("1970-01-01", 1)]
     assert body["channels"] == {"phone": 1, "web": 0, "whatsapp": 0}
     assert body["sessions_total"] == 1
     assert body["resolved_rate"] == 1.0
@@ -133,8 +136,34 @@ async def test_a_days_insights_count_the_scopes_calls_and_the_orgs_month(
     }
     assert spend["minutes"] > 0
     assert spend["per_minute_usd"] is not None
-    assert empty.json()["conversations"] == {"today": 0, "yesterday": 0}
+    assert empty.json()["conversations"] == {"now": 0, "before": 0}
     assert empty.json()["stages"] == []
+    await app.close()
+
+
+@postgres
+async def test_a_week_of_one_agent_counts_its_seven_days_against_the_week_before(
+    knocking: Knocking,
+) -> None:
+    app = await an_app(knocking)
+    await a_sealed_call(knocking, TURNS)
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        week = await org.get(INSIGHTS, params={"day": "1970-01-07", "days": 7, "agent": AGENT})
+        later = await org.get(INSIGHTS, params={"day": "1970-01-14", "days": 7})
+        odd = await org.get(INSIGHTS, params={"days": 3})
+    assert week.status_code == 200, week.text
+    body = week.json()
+    assert (body["day"], body["days"], body["conversations"]) == (
+        "1970-01-07",
+        7,
+        {"now": 1, "before": 0},
+    )
+    assert [day["day"] for day in body["series"]][0::6] == ["1970-01-01", "1970-01-07"]
+    assert [day["phone"] for day in body["series"]] == [1, 0, 0, 0, 0, 0, 0]
+    assert [row["stage"] for row in body["stages"]] == ["llm", "stt"]
+    assert later.json()["conversations"] == {"now": 0, "before": 1}
+    assert odd.status_code == 400
+    assert "not a window" in odd.json()["detail"]
     await app.close()
 
 
