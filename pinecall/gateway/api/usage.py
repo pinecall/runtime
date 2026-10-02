@@ -1,4 +1,4 @@
-"""The org's meters: the usage feed, a day's insights, an agent's drift, what the org may use."""
+"""The org's meters: the usage feed, a window's insights, an agent's drift, what the org may use."""
 
 import re
 from datetime import UTC, date, datetime, timedelta
@@ -14,7 +14,7 @@ from pinecall.gateway._deps import ActingDep, CallsKey, GatewayDep, ScopeDep, Us
 from pinecall.log import drift, queries
 from pinecall.log.drift import Side, Tally
 from pinecall.log.facts import A_DAY_S
-from pinecall.log.queries import AgentDay
+from pinecall.log.queries import AgentWindow, WindowDay
 from pinecall.log.reduce import Usage, UsageRow, totals_by_org
 from pinecall.log.store import DEFAULT_LIMIT
 from pinecall.tenancy import admission, people, scopes, usage
@@ -28,6 +28,8 @@ from pinecall.wire.rest.usage import (
     InsightsBudget,
     InsightsChannels,
     InsightsConversations,
+    InsightsDay,
+    InsightsEnding,
     InsightsSpend,
     Limit,
     Limits,
@@ -43,6 +45,13 @@ router = APIRouter()
 TIMEZONE = "UTC"
 
 
+# The windows the console offers, in whole UTC days: today, a week, a month.
+WINDOW_DAYS = (1, 7, 30)
+
+
+NOT_A_WINDOW = "days={days} is not a window: one of 1, 7 or 30"
+
+
 A_VERSION = re.compile(r"v(\d+)")
 
 
@@ -50,6 +59,14 @@ NOT_A_SIDE = "{text!r} is neither a day (YYYY-MM-DD) nor a version (v3)"
 
 
 BOTH_SIDES = "a drift between versions names both: before=v3&after=v4"
+
+
+class InsightsQuery(BaseModel):
+    """What insights count: the window's last day (today), its days, one agent or every one."""
+
+    day: date | None = None
+    days: int = 1
+    agent: str | None = None
 
 
 class DriftQuery(BaseModel):
@@ -79,38 +96,51 @@ async def usage_feed(
     )
 
 
-# The day is the scope's; the budget is the org's across both worlds, since it is one bill.
+# The window is the scope's, or one agent's of it; the budget is the org's across both worlds and
+# its month is the window's last day's, since it is one bill.
 @router.get("/v1/insights")
 async def insights(
-    key: CallsKey, scope: ScopeDep, gateway: GatewayDep, day: date | None = None
+    key: CallsKey,
+    scope: ScopeDep,
+    gateway: GatewayDep,
+    query: Annotated[InsightsQuery, Query()],
 ) -> Insights:
-    """One day of the key's world and scope at a glance, and the month's spend."""
+    """Whole UTC days of the key's world and scope at a glance, and the month's spend."""
+    if query.days not in WINDOW_DAYS:
+        raise DeclarationRefused(NOT_A_WINDOW.format(days=query.days))
+    if query.agent is not None:
+        check_agent(key.bearer, query.agent)
     pool = gateway.connections.pool
-    counted_on = day or datetime.now(UTC).date()
-    counted = await queries.counted_day(pool, scope, _opening(counted_on))
-    spent = await usage.spent_in(pool, key.org, counted_on)
+    last = query.day or datetime.now(UTC).date()
+    first = last - timedelta(days=query.days - 1)
+    start, end = _opening(first), _opening(last) + A_DAY_S
+    counted = await queries.counted_window(pool, scope, start, end, query.agent)
+    spent = await usage.spent_in(pool, key.org, last)
     quotas = await admission.quotas_of(pool, key.org, key.env)
     return Insights(
-        day=counted_on.isoformat(),
+        day=last.isoformat(),
+        days=query.days,
         timezone=TIMEZONE,
-        conversations=InsightsConversations(today=counted.calls, yesterday=counted.yesterday),
+        conversations=InsightsConversations(now=counted.calls, before=counted.before),
         resolved_rate=counted.unescalated / counted.finished if counted.finished else None,
         median_e2e_s=counted.median_e2e,
         spend_usd=counted.spent,
-        channels=InsightsChannels(
-            phone=counted.channels["phone"],
-            web=counted.channels["web"],
-            whatsapp=counted.channels["whatsapp"],
-        ),
+        channels=_channels(counted.channels),
+        judged=counted.judged,
+        passed=counted.passed,
+        escalated=counted.escalated,
+        mean_length_s=counted.mean_length,
+        endings=[InsightsEnding(reason=reason, count=count) for reason, count in counted.endings],
+        series=[_day(day) for day in counted.days],
         sessions_total=counted.total,
         live=counted.live,
         agents=[
             InsightsAgent(
-                slug=agent.slug, today=agent.calls, score=agent.score, spend=_spend(agent)
+                slug=agent.slug, calls=agent.calls, score=agent.score, spend=_spend(agent)
             )
             for agent in counted.agents
         ],
-        stages=await drift.stages_of_day(pool, scope, counted_on),
+        stages=await drift.stages_of_window(pool, scope, first, last, query.agent),
         budget=InsightsBudget(limit_usd=quotas.budget_usd, spent_usd_month=spent),
     )
 
@@ -237,7 +267,23 @@ def _side(side: Side, tallied: Tally) -> DriftSide:
     )
 
 
-def _spend(agent: AgentDay) -> InsightsSpend:
+def _channels(counted: dict[str, int]) -> InsightsChannels:
+    return InsightsChannels(
+        phone=counted["phone"], web=counted["web"], whatsapp=counted["whatsapp"]
+    )
+
+
+def _day(day: WindowDay) -> InsightsDay:
+    return InsightsDay(
+        day=day.day.isoformat(),
+        **day.channels,
+        spend_usd=day.spent,
+        judged=day.judged,
+        passed=day.passed,
+    )
+
+
+def _spend(agent: AgentWindow) -> InsightsSpend:
     total = sum(agent.spend.values())
     return InsightsSpend(
         llm_usd=agent.spend["llm"],

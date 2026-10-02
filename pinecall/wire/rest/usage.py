@@ -1,4 +1,4 @@
-"""The bodies of the org's meters: the usage feed, a day's insights, its drift, and the limits."""
+"""The bodies of the org's meters: the usage feed, a window's insights, its drift, the limits."""
 
 from typing import Literal
 
@@ -55,14 +55,14 @@ class BoxUsagePage(WireModel):
 
 
 class InsightsConversations(WireModel):
-    """How many calls started on the day, and on the day before it."""
+    """How many calls started in the window, and in the window of the same length before it."""
 
-    today: int
-    yesterday: int
+    now: int
+    before: int
 
 
 class InsightsChannels(WireModel):
-    """The day's calls by the door they came in by."""
+    """The window's calls by the door they came in by."""
 
     phone: int
     web: int
@@ -70,7 +70,7 @@ class InsightsChannels(WireModel):
 
 
 class InsightsSpend(WireModel):
-    """What one agent's day cost by stage, in US dollars, and per minute of its ended calls."""
+    """What one agent's window cost by stage, in US dollars, and per minute of its ended calls."""
 
     llm_usd: float
     stt_usd: float
@@ -82,16 +82,16 @@ class InsightsSpend(WireModel):
 
 
 class InsightsAgent(WireModel):
-    """One agent's day: its calls, the share of judgments it held, what it cost by stage."""
+    """One agent's window: its calls, the share of judgments it held, what it cost by stage."""
 
     slug: str
-    today: int
+    calls: int
     score: float | None
     spend: InsightsSpend
 
 
 class InsightsStage(WireModel):
-    """One stage of the day's turns on one vendor and model: how slow, how sure the ears were."""
+    """One stage of the window's turns on one vendor and model: how slow, how sure the ears were."""
 
     stage: Literal["stt", "llm", "tts"]
     vendor: str | None
@@ -109,16 +109,42 @@ class InsightsBudget(WireModel):
     spent_usd_month: float
 
 
-class Insights(WireModel):
-    """GET /v1/insights: one day of the key's world and scope, counted off the call index."""
+class InsightsEnding(WireModel):
+    """One way the window's calls ended, and how many did."""
+
+    reason: str
+    count: int
+
+
+class InsightsDay(WireModel):
+    """One UTC day of the window: its calls by door, what they cost, how their judges answered."""
 
     day: str
+    phone: int
+    web: int
+    whatsapp: int
+    spend_usd: float
+    judged: int
+    passed: int
+
+
+class Insights(WireModel):
+    """GET /v1/insights: whole UTC days of the key's world and scope, counted off the call index."""
+
+    day: str
+    days: int
     timezone: str
     conversations: InsightsConversations
     resolved_rate: float | None
     median_e2e_s: float | None
     spend_usd: float
     channels: InsightsChannels
+    judged: int
+    passed: int
+    escalated: int
+    mean_length_s: float | None
+    endings: list[InsightsEnding]
+    series: list[InsightsDay]
     sessions_total: int
     live: int
     agents: list[InsightsAgent]

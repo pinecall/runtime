@@ -1,20 +1,20 @@
-"""The lists over every call's facts: calls, unsealed ones, threads, an inbox, days, runs."""
+"""The lists over every call's facts: calls, unsealed ones, threads, an inbox, windows, runs."""
 
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, date, datetime
 from typing import LiteralString
+
+from psycopg.rows import DictRow
 
 from pinecall.domain.agent import Versions
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.names import Env
+from pinecall.domain.names import CHANNELS, Env
 from pinecall.domain.scope import Scope
 from pinecall.log.facts import (
     A_DAY_S,
     CALLS_WITH,
     CORNER_OF_CALL,
-    DAY,
-    DAY_BY_AGENT,
-    DAY_MEDIAN_E2E,
     EVER_REACHED,
     FACTS_OF,
     FOUND_COUNT,
@@ -25,6 +25,11 @@ from pinecall.log.facts import (
     THREADS,
     UNSEALED_SPOKEN,
     UNSEALED_WRITTEN,
+    WINDOW,
+    WINDOW_BY_AGENT,
+    WINDOW_BY_DAY,
+    WINDOW_ENDINGS,
+    WINDOW_MEDIAN_E2E,
     CallFacts,
     CallScope,
     facts_of,
@@ -97,8 +102,8 @@ class Unsealed:
 
 
 @dataclass(frozen=True, slots=True)
-class AgentDay:
-    """One agent's day: its calls, the share of judgments it held, what it cost by stage."""
+class AgentWindow:
+    """One agent's window: its calls, the share of judgments it held, what it cost by stage."""
 
     slug: str
     calls: int
@@ -109,17 +114,34 @@ class AgentDay:
 
 
 @dataclass(frozen=True, slots=True)
-class Day:
-    """A scope's day in numbers."""
+class WindowDay:
+    """One UTC day of a window: its calls by door, what they cost, and how their judges answered."""
+
+    day: date
+    channels: dict[str, int]
+    spent: float
+    judged: int
+    passed: int
+
+
+@dataclass(frozen=True, slots=True)
+class Window:
+    """A scope's window of whole UTC days in numbers, and the window of the same length before."""
 
     calls: int
-    yesterday: int
+    before: int
     finished: int
     unescalated: int
+    judged: int
+    passed: int
+    escalated: int
+    mean_length: float | None
     median_e2e: float | None
     spent: float
     channels: dict[str, int]
-    agents: list[AgentDay]
+    endings: list[tuple[str, int]]
+    days: list[WindowDay]
+    agents: list[AgentWindow]
     total: int
     live: int
 
@@ -302,26 +324,37 @@ async def runs_of_persona(
     )
 
 
-async def counted_day(pool: Pool, scope: Scope, start: float) -> Day:
-    """Return the scope's day that begins at start, in numbers."""
-    params = {**asdict(scope), "start": start, "end": start + A_DAY_S}
-    # independent: four counts of one day, each its own snapshot
+# One agent's window when it names one; the whole scope's when it is None.
+async def counted_window(
+    pool: Pool, scope: Scope, start: float, end: float, agent: str | None
+) -> Window:
+    """Return the scope's window from start to end, both on a UTC midnight, in numbers."""
+    params = {**asdict(scope), "start": start, "end": end, "agent": agent, "a_day": A_DAY_S}
+    # independent: five counts of one window, each its own snapshot
     async with pool.connection() as connection:
-        counted = await (await connection.execute(DAY, params)).fetchone()
-        median = await (await connection.execute(DAY_MEDIAN_E2E, params)).fetchone()
-        agents = await (await connection.execute(DAY_BY_AGENT, params)).fetchall()
+        counted = await (await connection.execute(WINDOW, params)).fetchone()
+        median = await (await connection.execute(WINDOW_MEDIAN_E2E, params)).fetchone()
+        agents = await (await connection.execute(WINDOW_BY_AGENT, params)).fetchall()
+        endings = await (await connection.execute(WINDOW_ENDINGS, params)).fetchall()
+        by_day = await (await connection.execute(WINDOW_BY_DAY, params)).fetchall()
     if counted is None:
-        raise DeclarationRefused("a day counts, even an empty one")
-    return Day(
+        raise DeclarationRefused("a window counts, even an empty one")
+    return Window(
         calls=int(counted["calls"]),
-        yesterday=int(counted["yesterday"]),
+        before=int(counted["before"]),
         finished=int(counted["finished"]),
         unescalated=int(counted["unescalated"]),
+        judged=int(counted["judged"]),
+        passed=int(counted["passed"]),
+        escalated=int(counted["escalated"]),
+        mean_length=None if counted["mean_length"] is None else float(counted["mean_length"]),
         median_e2e=None if median is None else median["median"],
         spent=float(counted["spent"]),
-        channels={door: int(counted[door]) for door in ("phone", "web", "whatsapp")},
+        channels={door: int(counted[door]) for door in CHANNELS},
+        endings=[(row["reason"], int(row["count"])) for row in endings],
+        days=_every_day(start, end, {int(row["epoch_day"]): row for row in by_day}),
         agents=[
-            AgentDay(
+            AgentWindow(
                 slug=row["slug"],
                 calls=row["calls"],
                 score=row["score"],
@@ -426,3 +459,24 @@ def _after_the_cursor(cursor: str | None) -> tuple[float | None, str | None]:
 
 def _like_escaped(words: str) -> str:
     return words.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+# Every day of the window has its row, a day nobody called included, so a chart has no holes.
+def _every_day(start: float, end: float, counted: dict[int, DictRow]) -> list[WindowDay]:
+    first, last = int(start // A_DAY_S), int(end // A_DAY_S)
+    return [_day_of(epoch_day, counted.get(epoch_day)) for epoch_day in range(first, last)]
+
+
+def _day_of(epoch_day: int, row: DictRow | None) -> WindowDay:
+    day = datetime.fromtimestamp(epoch_day * A_DAY_S, UTC).date()
+    if row is None:
+        return WindowDay(
+            day=day, channels=dict.fromkeys(CHANNELS, 0), spent=0.0, judged=0, passed=0
+        )
+    return WindowDay(
+        day=day,
+        channels={door: int(row[door]) for door in CHANNELS},
+        spent=float(row["spent"]),
+        judged=int(row["judged"]),
+        passed=int(row["passed"]),
+    )

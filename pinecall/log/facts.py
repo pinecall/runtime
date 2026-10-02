@@ -204,7 +204,15 @@ limit %(limit)s
 """)
 
 
-_ITS_DAY = sql.SQL("head.started_at >= %(start)s and head.started_at < %(end)s")
+_IN_THE_WINDOW = sql.SQL("head.started_at >= %(start)s and head.started_at < %(end)s")
+
+
+# A window's rows: the scope's calls, or one agent's when the window names one.
+_THE_WINDOWS_CALLS = sql.SQL("""
+from call_log_head head left join call_facts f on f.call = head.log
+where head.org = %(org)s and head.env = %(env)s and head.holder = %(holder)s
+  and head.call is not null and (%(agent)s::text is null or head.agent = %(agent)s)
+""")
 
 
 # Unread for the reader: one per spoken call started since they read, one per line the contact
@@ -382,37 +390,46 @@ FOUND_COUNT = sql.SQL("select count(*) as total ") + _MATCHING
 FOUND_PAGE = sql.SQL("select head.log as call ") + _MATCHING + _A_PAGE_BEFORE
 
 
-DAY = sql.SQL("""
+# "before" is the window of the same length right before it. A call is judged once a judge
+# settled, and passed unless a judge said it did not (CallFacts.score).
+WINDOW = (
+    sql.SQL("""
 select
-    count(*) filter (where {day}) as calls,
+    count(*) filter (where {window}) as calls,
     count(*) filter (where head.started_at >= %(start)s - (%(end)s - %(start)s)
-                       and head.started_at < %(start)s) as yesterday,
-    count(*) filter (where {day} and f.ended_at is not null) as finished,
-    count(*) filter (where {day} and f.ended_at is not null and not f.escalated)
+                       and head.started_at < %(start)s) as before,
+    count(*) filter (where {window} and f.ended_at is not null) as finished,
+    count(*) filter (where {window} and f.ended_at is not null and not f.escalated)
         as unescalated,
-    coalesce(sum(f.cost_usd) filter (where {day}), 0) as spent,
-    count(*) filter (where {day} and f.channel = 'phone') as phone,
-    count(*) filter (where {day} and f.channel = 'web') as web,
-    count(*) filter (where {day} and f.channel = 'whatsapp') as whatsapp,
+    count(*) filter (where {window} and f.judged > 0) as judged,
+    count(*) filter (where {window} and f.judged > 0 and f.passed is not false) as passed,
+    count(*) filter (where {window} and f.escalated) as escalated,
+    avg(f.ended_at - head.started_at) filter (where {window} and f.ended_at is not null)
+        as mean_length,
+    coalesce(sum(f.cost_usd) filter (where {window}), 0) as spent,
+    count(*) filter (where {window} and f.channel = 'phone') as phone,
+    count(*) filter (where {window} and f.channel = 'web') as web,
+    count(*) filter (where {window} and f.channel = 'whatsapp') as whatsapp,
     count(*) as total,
     count(*) filter (where not head.sealed) as live
-from call_log_head head left join call_facts f on f.call = head.log
-where head.org = %(org)s and head.env = %(env)s and head.holder = %(holder)s
-  and head.call is not null
-""").format(day=_ITS_DAY)
+""").format(window=_IN_THE_WINDOW)
+    + _THE_WINDOWS_CALLS
+)
 
 
-DAY_MEDIAN_E2E = sql.SQL("""
+WINDOW_MEDIAN_E2E = sql.SQL("""
 select percentile_cont(0.5) within group (order by turn.seconds) as median
 from call_log_head head
 join call_facts f on f.call = head.log
 cross join lateral unnest(f.e2e) as turn(seconds)
 where head.org = %(org)s and head.env = %(env)s and head.holder = %(holder)s
-  and head.call is not null and {day}
-""").format(day=_ITS_DAY)
+  and head.call is not null and (%(agent)s::text is null or head.agent = %(agent)s)
+  and {window}
+""").format(window=_IN_THE_WINDOW)
 
 
-DAY_BY_AGENT = sql.SQL("""
+WINDOW_BY_AGENT = (
+    sql.SQL("""
 select head.agent as slug, count(*) as calls,
        avg(f.held::double precision / f.judged) filter (where f.judged > 0) as score,
        coalesce(sum(f.cost_llm_usd), 0) as llm, coalesce(sum(f.cost_stt_usd), 0) as stt,
@@ -420,12 +437,44 @@ select head.agent as slug, count(*) as calls,
        coalesce(sum(f.cost_platform_usd), 0) as platform,
        coalesce(sum(f.ended_at - head.started_at) filter (where f.ended_at is not null), 0) / 60
            as minutes
-from call_log_head head left join call_facts f on f.call = head.log
-where head.org = %(org)s and head.env = %(env)s and head.holder = %(holder)s
-  and head.call is not null and {day}
+""")
+    + _THE_WINDOWS_CALLS
+    + sql.SQL("""
+  and {window}
 group by head.agent
 order by calls desc, slug
-""").format(day=_ITS_DAY)
+""").format(window=_IN_THE_WINDOW)
+)
+
+
+WINDOW_ENDINGS = (
+    sql.SQL("select f.end_reason as reason, count(*) as count ")
+    + _THE_WINDOWS_CALLS
+    + sql.SQL("""
+  and {window} and f.end_reason is not null
+group by f.end_reason
+order by count desc, reason
+""").format(window=_IN_THE_WINDOW)
+)
+
+
+# Days are cut in UTC, as everywhere: the day of a call is its start's whole days since the epoch.
+WINDOW_BY_DAY = (
+    sql.SQL("""
+select floor(head.started_at / %(a_day)s)::bigint as epoch_day,
+       count(*) filter (where f.channel = 'phone') as phone,
+       count(*) filter (where f.channel = 'web') as web,
+       count(*) filter (where f.channel = 'whatsapp') as whatsapp,
+       coalesce(sum(f.cost_usd), 0) as spent,
+       count(*) filter (where f.judged > 0) as judged,
+       count(*) filter (where f.judged > 0 and f.passed is not false) as passed
+""")
+    + _THE_WINDOWS_CALLS
+    + sql.SQL("""
+  and {window}
+group by epoch_day
+""").format(window=_IN_THE_WINDOW)
+)
 
 
 PERSONA_RUNS_COUNT = sql.SQL("select count(*) as total ") + _THE_PERSONAS_RUNS

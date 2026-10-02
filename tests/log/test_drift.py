@@ -96,7 +96,7 @@ async def test_a_call_is_counted_once_and_judged_again_its_verdicts_are_replaced
 
 
 @postgres
-async def test_each_stage_of_the_day_is_read_by_vendor_and_model_every_version_added(
+async def test_each_stage_of_a_window_is_read_by_vendor_and_model_every_version_added(
     store: Store, an_org: str
 ) -> None:
     turns = [heard(delay, sure, "soniox", "stt-rt-v5") for delay, sure in ((0.2, 0.5), (0.4, 1.0))]
@@ -109,7 +109,7 @@ async def test_each_stage_of_the_day_is_read_by_vendor_and_model_every_version_a
     await sealed_with(
         store, an_org, ACall(scope=elsewhere), [heard(9.0, 0.1, "soniox", "stt-rt-v5")]
     )
-    stages = await drift.stages_of_day(store.pool, Scope(an_org), THE_DAY)
+    stages = await drift.stages_of_window(store.pool, Scope(an_org), THE_DAY, THE_DAY, None)
     rows = [(stage.stage, stage.vendor, stage.model, stage.turns) for stage in stages]
     assert rows == [
         ("llm", "anthropic", "claude-haiku-4-5", 1),
@@ -122,7 +122,9 @@ async def test_each_stage_of_the_day_is_read_by_vendor_and_model_every_version_a
     assert soniox.p95_s == pytest.approx(1.0, rel=0.05)
     assert soniox.confidence == pytest.approx(0.75)
     assert stages[0].median_s == pytest.approx(0.5, rel=0.05)
-    assert await drift.stages_of_day(store.pool, Scope(an_org), date(1970, 1, 2)) == []
+    assert await drift.stages_of_window(store.pool, Scope(an_org), THE_DAY, THE_DAY, "other") == []
+    next_day = date(1970, 1, 2)
+    assert await drift.stages_of_window(store.pool, Scope(an_org), next_day, next_day, None) == []
 
 
 @postgres
