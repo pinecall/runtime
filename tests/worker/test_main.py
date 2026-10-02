@@ -3,11 +3,12 @@
 import time
 
 import pytest
-from livekit.agents import AgentServer
+from livekit.agents import AgentServer, Plugin
 
 from pinecall.domain.errors import SettingsRefused
 from pinecall.log import queries
 from pinecall.process.settings import Settings
+from pinecall.providers.build import installed
 from pinecall.wire.events import CallEnded
 from pinecall.wire.rest.calls import OpenCallRequest
 from pinecall.worker._job import ended_and_sealed, writer_of
@@ -72,6 +73,22 @@ def test_both_servers_give_a_new_process_the_time_the_plugins_take(
     server_of(settings_with())
     overflow_of(settings_with(), OverflowGate())
     assert given == [INITIALIZE_S, INITIALIZE_S]
+
+
+def test_both_servers_register_every_plugin_for_livekits_preload() -> None:
+    preloaded: list[set[str]] = []
+    for build in (
+        lambda: server_of(settings_with()),
+        lambda: overflow_of(settings_with(), OverflowGate()),
+    ):
+        installed.cache_clear()
+        build()
+        assert installed.cache_info().currsize == 1
+        preloaded.append({plugin.package for plugin in Plugin.registered_plugins})
+    for packages in preloaded:
+        assert {
+            f"livekit.plugins.{vendor}" for vendor in ("anthropic", "deepgram", "cartesia")
+        } <= packages
 
 
 # livekit's drain raises at its timeout; the close after it is what seals the calls still up.

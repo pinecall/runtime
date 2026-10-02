@@ -158,6 +158,7 @@ convention = "google"
 "pinecall/cli/_box.py" = ["S603"]
 "pinecall/process/recordings.py" = ["ARG002"]  # the disk answers the bucket's calls, and its paths name no org  # box up runs the box's own commands: argv built from constants and the package's files
 "scripts/**" = ["INP001"]  # the build's tools, loaded by path: no package
+"infra/lab/**" = ["INP001"]  # the load lab's tools, run by path: no package
 # A fake plugin takes the arguments a real one does, and its keys are fakes; livekit's
 # RoomService names its request `list`, and an override keeps the name it overrides.
 "tests/fakes/*.py" = ["PLR0913", "S105", "S106", "A002"]
@@ -174,7 +175,8 @@ reportImplicitOverride = true
 
 [tool.deptry]
 known_first_party = ["pinecall", "tests"]
-extend_exclude = ["tests/rules/fixtures"]
+# The load lab runs on machines of its own with what `uv run --with` gives it, not the package's.
+extend_exclude = ["tests/rules/fixtures", "infra/lab"]
 # The wheel's build hook imports the build backend, which build-system.requires declares.
 per_rule_ignores = { DEP001 = ["hatchling"] }
 

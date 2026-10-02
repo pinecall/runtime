@@ -5,10 +5,9 @@ redis:
   # install.sh writes it in; the file it installs is root's and the media group's alone.
   password: "@REDIS_PASSWORD@"
 sip_port: 5060
-# 200 concurrent calls; closed to all but the carrier by nftables.
-rtp_port:
-  start: 10000
-  end: 10199
+# 200 concurrent calls; closed to all but the carrier by nftables. A scalar: livekit-sip reads a
+# map here as nothing and runs on 10000-20000, which the box does not publish (infra/lab/).
+rtp_port: 10000-10199
 use_external_ip: true
 # An INVITE for a number no trunk lists gets no answer at all: a scanner learns nothing and
 # opens no room.

@@ -65,8 +65,31 @@ CPU reading crosses 0.7 for an instant, LiveKit marks the worker unavailable and
 room again; counting (`PINECALL_MAX_JOBS=20`), 14 of 15 calls got their agent (the fifteenth was
 the 0.7 line) at 42 % of the machine. **A call costs ~0.24 vCPU**, so a worker machine holds about
 `2.9 × vCPU` calls at the line: set `PINECALL_MAX_JOBS` to `vCPU × 4` and the 0.7 line falls there.
-The box's own four workers get one per vCPU each from `install.sh`, which leaves room for what
-else the box runs.
+That is a machine of workers alone. On the box everything shares the cores, so `install.sh` gives
+its four workers 1.5 seats per vCPU between them, two thirds of them production's (a box of
+4 vCPU: two and two in production, one and one in the sandbox), from the box measured whole:
+
+**A box, measured whole.** On 2026-10-01, on a box of production's machine type (4 vCPU:
+Postgres, LiveKit, SIP, egress, two gateways and one worker on it), SIP callers speaking a turn
+every 10 s and the three vendors faked on their own wire on another machine (`infra/lab/`): a
+call costs **~0.5 cores of the box** — ~0.3 the worker, ~0.12 its recording (egress), ~0.1 SIP and
+LiveKit.
+
+| calls at once | box cores | turns the agent answered | first audio p50 / p95 | ring to live p50 |
+|---|---|---|---|---|
+| 2 | 1.6 | 24 of 24 | 1.24 / 1.32 s | 8 s |
+| 4 | 2.5 | 45 of 45 | 1.26 / 1.35 s | 16 s |
+| 6 | 3.5 | 66 of 66 | 1.35 / 1.63 s | 19 s |
+| 8 | 4.0 | 70 of 89 | 1.98 / 3.85 s | 49 s |
+| 10 | 4.0 | 53 of 74; 3 calls never started | 1.88 / 4.37 s | — |
+
+Such a box holds six calls. Ring to live was a number of its own: each call's process imported
+every installed vendor plugin before its pipeline was live (3–5 s on an idle box, and slower with
+the box's load); the worker now imports them in its own process, so LiveKit's forkserver preloads
+them once and every call's process inherits them. A worker killed under that load: its calls end
+drained 21 s later and the other worker tells each caller, as on an idle box. A second
+`livekit-sip` on another machine, on the box's Redis and LiveKit, took half of six calls at once,
+answered as through one.
 
 ## The gateway hears every worker
 

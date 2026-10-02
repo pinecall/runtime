@@ -466,6 +466,21 @@ joined). Measured with `lk load-test`: 400 voice calls at once across two nodes,
 2.25 cores a node. A room never spans nodes; a node lost ends its rooms (the caller hears the
 sentence of a dead worker's call, by LiveKit's webhook) and new rooms land on the others.
 
+### A second SIP node
+
+One `livekit-sip` holds 200 phone calls (its RTP range). A second runs on a machine of its own on
+the box's Redis, where the trunks and dispatch rules are, so every number the box routes is one it
+answers. On the box, `primary.sh allow-gateway <its address>` lets it reach Redis and LiveKit's API
+(the same step as for a LiveKit node). On the SIP machine: the box's `/etc/pinecall/sip.yaml`
+with `ws_url` and `redis.address` at the box's address, `LIVEKIT_API_KEY` and
+`LIVEKIT_API_SECRET` from the box's `media.env`, both files root's alone, and the box's image run
+on the host's network (`podman run --network host -v /etc/pinecall/sip.yaml:/sip/config.yaml:ro
+--env-file …`). Its 5060 is fenced to the carrier's networks as the box's is, and its RTP range
+opened like the box's: two machines may share one range. The carrier spreads calls across both:
+a second origination URI on the trunk, `sip:<the SIP machine's name>:5060`. Measured on
+2026-10-01 (`infra/lab/`): six calls at once, three through each node, all six answered, every
+turn answered, first audio p95 1.65 s, as through one node.
+
 ## 5. What the box runs
 
 From the console's box screens, or the operator's doors with the ops key
