@@ -15,11 +15,11 @@
 #   primary.sh gateway-credentials        what a gateway machine runs on (the box's credentials,
 #                   its URLs pointed at this machine's address, and box.env) as a tar on stdout,
 #                   for `gateway.sh join` on the other machine; refused onto a terminal
-#   primary.sh allow-worker <address>     a worker machine of this cell (infra/cell/worker.sh):
-#                   LiveKit's API published on this machine's address, LiveKit's API and the
-#                   gateways' balancer (8088) fenced to the cell's worker machines alone; no
+#   primary.sh allow-worker <address or range>   a worker machine of this cell (infra/cell/worker.sh),
+#                   or the subnet the fleet loop makes them in (10.100.0.0/24): LiveKit's API and
+#                   the gateways' balancer (8088) fenced to the cell's worker machines alone; no
 #                   Postgres, no Redis
-#   primary.sh forget-worker <address>    that undone for one worker machine
+#   primary.sh forget-worker <address or range>   that undone
 #   primary.sh worker-credentials <world> what a worker machine of that world's fleet runs on (its
 #                   fleet key, the LiveKit pair, the object store's secret, box.env, store.env,
 #                   the fleet's env) as a tar on stdout, for `worker.sh join`; refused onto a
@@ -157,9 +157,9 @@ forget-gateway)
     echo "gateway machine $gateway is out of the cell"
     ;;
 allow-worker)
-    [ -n "${2:-}" ] || { echo "primary.sh allow-worker <worker machine address>" >&2; exit 2; }
+    [ -n "${2:-}" ] || { echo "primary.sh allow-worker <worker machine address or range>" >&2; exit 2; }
     worker="$2"
-    here="$(ip -4 route get "$worker" | sed -n 's/.* src \([0-9.]*\).*/\1/p')"
+    here="$(ip -4 route get "${worker%/*}" | sed -n 's/.* src \([0-9.]*\).*/\1/p')"
     [ -n "$here" ] || { echo "no route from this machine to $worker" >&2; exit 1; }
     install -d /etc/pinecall/nftables.d
     printf 'add element inet pinecall workers { %s }\n' "$worker" >> "$WORKERS"
@@ -176,9 +176,9 @@ allow-worker)
     echo "on it, from a copy of /opt/pinecall/infra: primary.sh worker-credentials <world> | worker.sh join $here <wheel> <world>"
     ;;
 forget-worker)
-    [ -n "${2:-}" ] || { echo "primary.sh forget-worker <worker machine address>" >&2; exit 2; }
+    [ -n "${2:-}" ] || { echo "primary.sh forget-worker <worker machine address or range>" >&2; exit 2; }
     worker="$2"
-    [ -f "$WORKERS" ] && sed -i "/ $worker }/d" "$WORKERS"
+    [ -f "$WORKERS" ] && { grep -vF " $worker }" "$WORKERS" > "$WORKERS.new" || true; mv "$WORKERS.new" "$WORKERS"; }
     nft -f /etc/nftables.conf
     echo "worker machine $worker is out of the cell"
     ;;

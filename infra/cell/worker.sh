@@ -56,7 +56,9 @@ join)
     for file in "$taken"/*; do
         name="$(basename "$file")"
         case "$name" in *.env) continue ;; esac
-        systemd-creds encrypt --name="$name" "$file" "$STORE/$name"
+        # The host's key alone, never the TPM's: a machine made from this one's image has another
+        # TPM, and a credential sealed to this one's could not be opened there.
+        systemd-creds encrypt --with-key=host --name="$name" "$file" "$STORE/$name"
         chmod 0600 "$STORE/$name"
     done
     # The box's names, its object store, the fleet's agent name and health port, and the calls.
