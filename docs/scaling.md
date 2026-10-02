@@ -232,6 +232,12 @@ boots. The loop never cordons or deletes a machine the cloud does not list as
 the fleet's: a worker stood up by hand counts and is never let go. `--once --dry-run` prints one
 tick and touches nothing.
 
+Run on Google Cloud on 2026-10-02 against the sandbox fleet, from a laptop, with no call: a machine
+made from the frozen image in the fleet's own subnet was `accepting` 137 s after the loop asked for
+it, and cordoned and deleted 71 s after the loop was told it was one too many; the box's workers
+were never touched. The subnet, the image and the commands are in
+[../infra/fleet/README.md](../infra/fleet/README.md).
+
 ## The shape of the numbers
 
 ```
