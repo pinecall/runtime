@@ -1,6 +1,36 @@
 # Changelog
 
-## Unreleased
+## 0.1.4 — Workers on machines of their own, the recording made by the call itself, a box measured with real audio (2026-10-02)
+
+- Workers on other machines: `primary.sh allow-worker <address>` on the box (the fence, LiveKit's
+  API and the gateways' balancer at the box's own address, `PINECALL_HERE`), then the fleet's
+  credentials through a pipe into `worker.sh join <box> <wheel> <world> [calls]` on the other
+  machine; `worker.sh release` for a new wheel. A worker machine reaches the box's LiveKit and
+  gateways and nothing else of it. Measured on 8 vCPU: 24 calls at once at 3.5 cores (~0.15 vCPU a
+  call, the recording included), first audio p95 1.3 s, every turn answered; the box spends ~0.1 a
+  call on their media. `docs/scaling.md`, "A machine of workers alone".
+- A call's recording is made by its own session, not by an egress process per call: livekit's
+  recorder for the caller (left) and the agent (right) at 24 kHz, and every other voice of the room
+  — a supervisor who took over, the far end of a warm transfer, the hold melody — laid in on the
+  right where it sounded when the file closes, a stretch at a time. The worker seals it under the
+  call's key and moves it to the bucket before the seal. Egress is no longer asked for anything
+  (track egress was built and measured dearer: ~0.1 vCPU and ~170 MB a track). The lay-in costs
+  ~1/40 of the call's length on a core; a call of half an hour or more with another voice may run
+  past the worker's minute to seal, said on the box page.
+- LiveKit's API is published on the box's own address by `install.sh`, behind the fence, so letting
+  a worker or gateway machine in restarts nothing (a box from before gets one restart, said).
+- The object store's file is `/etc/pinecall/store.env` (was `backup.env`): backups and recordings
+  both read it. A box renames its file once before `make box` or `box upgrade`.
+- The four alerts are evaluated on the box by Prometheus and mailed by Alertmanager
+  (`infra/box/alerts.sh`, `alerts.sh test` proves the path).
+- The box measured whole with real audio and no vendor (`infra/lab/`: the vendors faked on their own
+  wire, SIP callers playing a recording): a 4-vCPU box with everything on it holds 6 calls at once.
+  Three fixes it found: the plugins are preloaded in the worker's forkserver (ring to live 0.1 s, was
+  3–5 s idle and up to 74 s loaded), SIP's RTP range matches the fence, and each world's seats are
+  its own.
+- Insights count a window of 1, 7 or 30 UTC days, of the scope or one agent.
+- A chat's opening is kept, so the gateway holding the app's socket serves it.
+- `replica.sh join` works on a machine made a minute ago.
 
 - The box's workers count their calls (`PINECALL_MAX_JOBS`, one per vCPU each, written by `install.sh`)
   instead of reading the machine's CPU: on CPU, a burst of calls left rooms with no agent, LiveKit never
