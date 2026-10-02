@@ -67,7 +67,7 @@ async def test_on_the_disk_the_file_stays_where_it_was_written_and_erasing_remov
     await disk.store("org_1", "CA_1", audio)
     assert audio.read_bytes() == AUDIO
     assert await disk.fetch("org_1", "CA_1", None) is None
-    assert await disk.erase("org_1", ["CA_1", "CA_never"], {}) == 1
+    assert await disk.erase("org_1", ["CA_1", "CA_never"]) == 1
     assert not audio.parent.exists()
 
 
@@ -124,7 +124,7 @@ async def test_erasing_deletes_each_calls_object_and_a_file_that_never_moved(
     remote.objects["org_2/CA_0/audio.ogg"] = AUDIO
     a_recording(tmp_path, "CA_18")
     kept = Bucket(tmp_path, remote.name, remote.store_on(http))
-    assert await kept.erase("org_1", calls, {}) == 19
+    assert await kept.erase("org_1", calls) == 19
     assert remote.objects == {"org_2/CA_0/audio.ogg": AUDIO}
     assert not (tmp_path / "CA_18").exists()
 
@@ -157,38 +157,5 @@ async def test_erasing_counts_a_call_kept_only_sealed(
 ) -> None:
     remote.objects = {"org_1/CA_1/audio.sealed": b"sealed", "org_1/CA_2/audio.ogg": AUDIO}
     kept = Bucket(tmp_path, remote.name, remote.store_on(http))
-    assert await kept.erase("org_1", ["CA_1", "CA_2", "CA_3"], {}) == 2
+    assert await kept.erase("org_1", ["CA_1", "CA_2", "CA_3"]) == 2
     assert remote.objects == {}
-
-
-async def test_erasing_a_call_kept_by_its_tracks_deletes_each_track_and_the_mix(
-    tmp_path: Path, remote: fake.Bucket, http: httpx.AsyncClient
-) -> None:
-    remote.objects = {
-        "org_1/CA_1/TR_caller.sealed": b"sealed",
-        "org_1/CA_1/TR_agent.sealed": b"sealed",
-        "org_1/CA_1/mix.sealed": b"sealed",
-        "org_1/CA_2/TR_caller.sealed": b"kept",
-    }
-    tmp_path.joinpath("CA_1.TR_late.melody.ogg").write_bytes(AUDIO)
-    kept = Bucket(tmp_path, remote.name, remote.store_on(http))
-    tracks = {"CA_1": ["TR_caller.sealed", "TR_agent.sealed"]}
-    assert await kept.erase("org_1", ["CA_1"], tracks) == 1
-    assert remote.objects == {"org_1/CA_2/TR_caller.sealed": b"kept"}
-    assert not tmp_path.joinpath("CA_1.TR_late.melody.ogg").exists()
-
-
-async def test_a_track_stored_leaves_its_neighbours_on_the_disk_until_they_go_too(
-    tmp_path: Path, remote: fake.Bucket, http: httpx.AsyncClient
-) -> None:
-    directory = tmp_path / "CA_1"
-    directory.mkdir()
-    first, second = directory / "TR_1.sealed", directory / "TR_2.sealed"
-    first.write_bytes(b"one")
-    second.write_bytes(b"two")
-    kept = Bucket(tmp_path, remote.name, remote.store_on(http))
-    await kept.store("org_1", "CA_1", first)
-    assert (first.exists(), second.exists()) == (False, True)
-    await kept.store("org_1", "CA_1", second)
-    assert not directory.exists()
-    assert set(remote.objects) == {"org_1/CA_1/TR_1.sealed", "org_1/CA_1/TR_2.sealed"}

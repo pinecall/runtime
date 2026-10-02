@@ -5,7 +5,7 @@ import hmac
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from urllib.parse import parse_qsl, quote, urlsplit
+from urllib.parse import quote, urlsplit
 
 import httpx
 
@@ -56,8 +56,8 @@ def object_store_of(settings: Settings, http: httpx.AsyncClient) -> ObjectStore 
     return ObjectStore(endpoint, Signing(region, key, secret), http)
 
 
-# https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html. A query (a
-# listing's) is signed sorted and encoded; a request with none signs the empty line.
+# https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html. The store's
+# requests name no query, so the canonical query is the empty line.
 def signature(
     method: str,
     url: str,
@@ -80,7 +80,7 @@ def signature(
         (
             method,
             parts.path or "/",
-            _canonical_query(parts.query),
+            "",
             "".join(f"{name}:{signed[name]}\n" for name in names),
             ";".join(names),
             payload_sha256,
@@ -95,10 +95,3 @@ def signature(
     credential = f"Credential={signing.access_key_id}/{scope}"
     authorization = f"{ALGORITHM} {credential}, SignedHeaders={';'.join(names)}, Signature={proof}"
     return {**signed, "authorization": authorization}
-
-
-def _canonical_query(query: str) -> str:
-    pairs = sorted(parse_qsl(query, keep_blank_values=True))
-    return "&".join(
-        f"{quote(name, safe='-_.~')}={quote(value, safe='-_.~')}" for name, value in pairs
-    )

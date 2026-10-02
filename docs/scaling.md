@@ -91,19 +91,17 @@ worker killed under that load: its calls end drained 21 s later and the other wo
 caller, as on an idle box. A second `livekit-sip` on another machine, on the box's Redis and
 LiveKit, took half of six calls at once, answered as through one.
 
-**The recording, a track at a time (2026-10-02).** The room's recorder (one egress process per
-call that decoded, mixed and re-encoded) cost ~0.12 vCPU a call. Moving it into the call's own
-process (livekit's `RecorderIO`) moved the cost rather than removing it — the worker went from
-1.78 to 2.31 cores at six calls, the box at 3.4 either way — and heard only the caller and the
-agent, never a supervisor who took over or the far end of a transfer. So each audio track of the
-room is now copied by egress as it was sent, no decode and no encode, and the gateway mixes them
-only when someone plays the call ([a-box-in-production.md](a-box-in-production.md), "Recordings,
-off the disk"); egress's share per call is measured in `infra/lab/` before it is written here.
+**The recording moved into the worker (2026-10-02), and the box measured again.** The call's own
+session records now, and the room's recorder is gone; on a box alone that moves the cost rather
+than removing it: at six calls the worker went from 1.78 to 2.31 cores and the recorder from 0.60
+to 0, the box at 3.4 either way (libopus in the call's process costs what it cost in egress's,
+on these cores). With every call live from its first second, the box held six calls with every
+turn answered (66 of 67, first audio p95 3.2 s) and gave at eight (44 of 84). What it buys is the
+next paragraph: the recording goes with the worker, wherever the worker runs.
 
 **A machine of workers alone** (`worker.sh join`, "Workers on other machines" in
 [a-box-in-production.md](a-box-in-production.md)), the same callers and fakes, the box keeping
-the media plane and the gateways, the recording in each call's process (as it was measured) and the
-file in the bucket:
+the media plane and the gateways, the recording in each call's process and the file in the bucket:
 
 | calls at once | worker machine (8 vCPU) | per call | the box (4 vCPU), no worker on it | turns answered | first audio p50 / p95 | ring to live |
 |---|---|---|---|---|---|---|

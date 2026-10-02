@@ -35,16 +35,3 @@ import /etc/caddy/conf.d/*.caddy
 http://127.0.0.1:8088, http://{$PINECALL_HERE}:8088 {
 	import gateways
 }
-
-# LiveKit's webhook, from its container: to the box's own two gateways alone, never a gateway
-# machine of the cell, since the tracks egress wrote are on this box's disk
-# (gateway/ending/recorded.py). The fence opens 8089 to the containers' bridge alone.
-http://host.containers.internal:8089 {
-	reverse_proxy 127.0.0.1:8080 127.0.0.1:8081 {
-		lb_try_duration 10s
-		lb_try_interval 250ms
-		fail_duration 5s
-		health_uri /
-		health_interval 2s
-	}
-}

@@ -13,10 +13,9 @@ room:
   empty_timeout: 60
 logging:
   level: info
-# Every room event, signed with the box's own key, to the box's own gateways (Caddy's site for
-# this container): an agent lost mid-call is how a dead worker is known, and a track's egress
-# ending is how its file, on this box's disk, is sealed. install.sh writes the key's @name@.
+# Every room event, signed with the box's own key, to the gateway at the box's production name:
+# an agent lost mid-call is how a dead worker is known. install.sh writes the two @names@.
 webhook:
   api_key: "@LIVEKIT_API_KEY@"
   urls:
-    - http://host.containers.internal:8089/v1/livekit/webhook
+    - https://@PINECALL_DOMAIN@/v1/livekit/webhook

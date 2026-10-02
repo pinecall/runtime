@@ -423,7 +423,7 @@ class CallRoom:
         data: JsonObject = dict(attributes)
         joined = ParticipantJoined(
             identity=seat.identity,
-            kind=self.kind_of(seat, attributes),
+            kind=self._kind_of(seat, attributes),
             name=seat.name or None,
             attributes=data,
         )
@@ -438,8 +438,7 @@ class CallRoom:
         self.speaking.discard(seat.identity)
 
     # A SIP seat is the caller only if its number is the call's caller; any other was dialled in.
-    def kind_of(self, seat: rtc.Participant, attributes: dict[str, str]) -> ParticipantKind:
-        """Who a seat of the room is to this call: caller, agent, supervisor or a far end."""
+    def _kind_of(self, seat: rtc.Participant, attributes: dict[str, str]) -> ParticipantKind:
         if seat.kind == rtc.ParticipantKind.PARTICIPANT_KIND_AGENT:
             return "agent"
         by_scope = KIND_OF_SCOPE.get(attributes.get(SCOPE_ATTRIBUTE, ""))
@@ -478,7 +477,7 @@ class CallRoom:
     # The caller's tones only: a server's have no seat, another leg is not the caller.
     def _tone(self, tone: rtc.SipDTMF) -> None:
         seat = tone.participant
-        if seat is None or self.kind_of(seat, dict(seat.attributes)) != "caller":
+        if seat is None or self._kind_of(seat, dict(seat.attributes)) != "caller":
             return
         try:
             claim = wire.DtmfReceived.model_validate({"digit": tone.digit, "code": tone.code})

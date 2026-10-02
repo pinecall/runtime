@@ -53,12 +53,11 @@ everything the call says; it keeps nothing after it.
 ## Recordings
 
 A call's recording is sealed where it is kept, on the disk and in the recordings bucket alike.
-When egress has written a track of the call, the box's gateway takes the call's own key (made
-once per call, 256 random bits, kept in `recording_keys` sealed under `PINECALL_VAULT_KEY`), seals
-the track into `<track>.sealed`, removes the plain file, and only then stores it; the mix a
-player is served is made from the sealed tracks and sealed under the same key. No worker holds
-the key, nor the vault's. A call recorded before tracks was sealed by its worker the same way, as
-`audio.sealed`, through `POST /v1/calls/{call}/recording/key`.
+When the recorder's file is written, the worker asks the gateway for the call's own key
+(`POST /v1/calls/{call}/recording/key`, made once per call, 256 random bits, kept in
+`recording_keys` sealed under `PINECALL_VAULT_KEY`), seals the file into `audio.sealed` beside
+it, removes the plain `audio.ogg`, and only then stores it. The worker holds that one key for a
+moment; it never holds the vault's.
 
 The file is AES-256-GCM a chunk at a time (`process/sealed_audio.py`): a header of 16 bytes (the
 format's name and 8 random bytes), then each 64 KiB of the recording sealed on its own, its nonce
