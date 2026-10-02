@@ -1,19 +1,18 @@
-# The first boot of a machine made from the fleet's image: cloud-init wrote the join token the
-# loop gave it (infra/fleet/first-boot) to /etc/pinecall/join.env, and worker.sh enroll spends it
-# at the gateway for the machine's own credentials, sealed here. A machine joined by hand has no
-# such file, and this unit is skipped. The worker's unit waits for it.
+# The first boot of a machine made from the fleet's image: its credentials sealed here by
+# `pinecall-runtime cell enroll`, from the join token cloud-init wrote (infra/fleet/first-boot) or,
+# on Google Cloud, from Secret Manager as the machine's own service account. At every later boot,
+# and on a machine joined by hand, it says so and changes nothing. The worker's unit waits for it.
 # After cloud-init.service, the stage that writes the file and the hostname: cloud-final runs
 # after multi-user.target, and waiting for it made a cycle systemd broke by dropping this unit.
 [Unit]
 Description=Pinecall: a machine of the fleet enrolls at its first boot
-ConditionPathExists=/etc/pinecall/join.env
 Wants=network-online.target
 After=network-online.target cloud-init.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/opt/pinecall/infra/cell/worker.sh enroll
+ExecStart=/opt/pinecall/venv/bin/pinecall-runtime cell enroll
 
 [Install]
 WantedBy=multi-user.target

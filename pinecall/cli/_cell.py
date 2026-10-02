@@ -9,6 +9,9 @@ from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
 
+import httpx
+
+from pinecall.cli import _enroll
 from pinecall.cli._box import INFRA, NO_UV, SYSTEM_PATH, Step, infra_carried, uv_beside
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.process.settings import Settings
@@ -118,6 +121,10 @@ def cell_group(group: argparse.ArgumentParser) -> None:
             verb.add_argument(f"--{named.counted}", type=int, default=None)
         verb.add_argument("--package", default=None, help="instead of pinecall==<this version>")
         verb.set_defaults(run=on_a_machine, cell=named)
+    enrolling = "a fleet machine's first boot: its credentials by a join token or its cloud's store"
+    verbs.add_parser("enroll", help=enrolling).set_defaults(run=enroll_here)
+    publishing = "the box's credentials put in Secret Manager, for its fleet's machines to read"
+    verbs.add_parser("publish-secrets", help=publishing).set_defaults(run=publish_here)
 
 
 # The script writes to stdout what a pipe carries (the credentials' tar), so nothing else does.
@@ -145,6 +152,25 @@ def on_a_machine(_settings: Settings, args: argparse.Namespace) -> int:
         sys.stderr.write(f"→ {step.what}\n")
         sys.stderr.flush()
         subprocess.run(step.argv, check=True, env={**os.environ, "PATH": SYSTEM_PATH})
+    return 0
+
+
+# pinecall-join.service runs it at every boot: a machine enrolled already, or joined by hand, is
+# told so and nothing changes.
+def enroll_here(_settings: Settings, _args: argparse.Namespace) -> int:
+    """This fleet machine's credentials sealed here, once."""
+    _refuse_unless_root("enroll")
+    with httpx.Client(timeout=_enroll.TIMEOUT_S) as http:
+        sys.stdout.write(f"{_enroll.enroll(http)}\n")
+    return 0
+
+
+def publish_here(_settings: Settings, _args: argparse.Namespace) -> int:
+    """The box's credentials in Secret Manager, a version added only where one differs."""
+    _refuse_unless_root("publish-secrets")
+    with httpx.Client(timeout=_enroll.TIMEOUT_S) as http:
+        written = _enroll.publish(http)
+    sys.stdout.write(f"published: {', '.join(written) or 'nothing, every secret was current'}\n")
     return 0
 
 

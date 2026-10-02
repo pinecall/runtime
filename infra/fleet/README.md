@@ -12,6 +12,10 @@ cloud-specific lives anywhere else:
 <script> list             one line per fleet machine: name<TAB>created (ISO 8601)
 ```
 
+On Google Cloud a machine reads its credentials from Secret Manager as its own service account
+(`pinecall-worker-<world>@…`, Terraform's `modules/secrets`; the box publishes them with
+`pinecall-runtime cell publish-secrets`); the join token below is the path for every other cloud.
+
 The image is a worker machine prepared once and frozen **with no credential on it**: the wheel,
 the units, `box.env`, `store.env` and `fleets/<world>.env`. A machine made from it takes the name
 it was given as its hostname and, at its first boot, spends the join token the loop made for it

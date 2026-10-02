@@ -28,6 +28,7 @@ resources a state; the default workspace only.
 | `machine` | one VM from cloud-init, shielded with its vTPM, live-migrated; a machine made already is never replaced for its image or its first boot's data | `pinecall-runtime` (the box), `pinecall-runtime-replica` |
 | `store` | the two private buckets, the box's IAM user and its policy, the alerts' user, SES | `pinecall-box-backups-…` (35-day lifecycle), `pinecall-box-recordings-…` (no lifecycle) |
 | `dns` | the names that point at the box, in Route 53; the zone's other records are other repositories' | `box`, `sandbox`, `notify`, `billing` .pinecall.io |
+| `secrets` | the five secrets a fleet machine runs on (each world's fleet key, the LiveKit pair, the store's secret), declared with no value; a worker identity per world that reads its own fleet key and the three shared ones; the box's identity (`pinecall-fleet`) may read and add versions | `pinecall-worker-production@…`, `pinecall-worker-sandbox@…`; values written by `cell publish-secrets` |
 
 `environments/production/imports.tf` took each of them in on 2026-10-02: 27 resources, made by
 hand before, now `No changes.` on a plan. The rules of the old box (v1, tag `pinecall-v2-box`:
