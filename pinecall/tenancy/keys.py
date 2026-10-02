@@ -17,6 +17,7 @@ from pinecall.domain.person import (
     ROLE_SCOPES,
     SERVER_SCOPES,
     THE_FLEET,
+    THE_JOIN,
     THE_TEAM,
     Key,
     KeyScope,
@@ -156,6 +157,14 @@ FROM api_keys WHERE org = %(org)s ORDER BY created_at, id
 # A second revoke changes nothing and says so.
 REVOKE = """
 UPDATE api_keys SET revoked_at = now() WHERE hash = %(hash)s AND revoked_at IS NULL RETURNING id
+"""
+
+
+# A worker machine's keys go with the machine: its fleet key, and a join token it never spent.
+REVOKE_NAMED = """
+UPDATE api_keys SET revoked_at = now()
+WHERE org = %(org)s AND name = %(name)s AND scopes && %(scopes)s AND revoked_at IS NULL
+RETURNING hash
 """
 
 
@@ -326,6 +335,14 @@ async def revoke(pool: Pool, key_fingerprint: str) -> bool:
     async with pool.connection() as connection:
         revoked = await connection.execute(REVOKE, {"hash": key_fingerprint})
         return await revoked.fetchone() is not None
+
+
+async def revoke_named(pool: Pool, org: str, name: str) -> list[str]:
+    """Stop every fleet key and join token minted for a machine of that name; their fingerprints."""
+    values = {"org": org, "name": name, "scopes": [THE_FLEET, THE_JOIN]}
+    async with pool.connection() as connection:
+        revoked = await connection.execute(REVOKE_NAMED, values)
+        return [str(row["hash"]) for row in await revoked.fetchall()]
 
 
 def world_of(bearer: Bearer, params: str | None, *, at: Env | None = None) -> Env:

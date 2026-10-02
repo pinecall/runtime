@@ -516,7 +516,9 @@ ssh box 'sudo /opt/pinecall/infra/cell/primary.sh worker-credentials production'
 ```
 
 `worker.sh join` seals the fleet key and the LiveKit pair there, installs the runtime, and starts
-one worker of that fleet holding `calls` at once (unset, four per vCPU: on a machine of workers
+one worker of that fleet holding `calls` at once (the fleet loop's machines come from an image made
+with `worker.sh image` instead, which carries no credential, and enroll at their first boot:
+[../infra/fleet/README.md](../infra/fleet/README.md)) (unset, four per vCPU: on a machine of workers
 alone a call costs ~0.2 vCPU, so LiveKit's 0.7 line falls at about three per vCPU; the number is
 counted, never read off the CPU, as "Capacity is counted in calls" in [scaling.md](scaling.md)
 says). A release there is `worker.sh release <wheel>`, after the box's own: the worker drains its

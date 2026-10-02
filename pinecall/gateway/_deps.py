@@ -332,6 +332,10 @@ WorkerKey = Annotated[Acting, Depends(opening("app", "fleet"))]
 FleetKey = Annotated[Acting, Depends(opening("fleet"))]
 
 
+# A worker machine's first boot, with the token the loop made for it: the join door alone.
+JoinKey = Annotated[Acting, Depends(opening("join"))]
+
+
 # The box's runner of a world: it is told every org's hosted apps, and handed what starts them.
 RunnerKey = Annotated[Acting, Depends(opening("runner"))]
 

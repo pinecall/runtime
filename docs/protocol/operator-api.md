@@ -89,11 +89,17 @@ mean is [limits.md](../limits.md).
 ## Keys
 
 - `POST /v1/ops/orgs/{named}/keys {env, label?, scopes?, subject?, name?}`: a key of the org in
-  the world named, `pc_live_` or `pc_test_`, answered this once; every scope but `fleet` and
-  `runner` when `scopes` is left out; `subject` and `name` make it a person's key.
+  the world named, `pc_live_` or `pc_test_`, answered this once; every scope but `fleet`,
+  `runner` and `join` when `scopes` is left out; `subject` and `name` make it a person's key.
 - `GET /v1/ops/orgs/{named}/keys`: every key by fingerprint, the revoked ones said; never a key.
 - `POST /v1/ops/keys/{fingerprint}/revoke`: stops the key from the next request; the row stays, so
   the entries that name it still read.
+- `POST /v1/ops/fleet/join-tokens {fleet, worker}` → `{token, url, expires_at}`: a key of scope
+  `join` named for a machine the fleet loop is about to make, ten minutes, spent at
+  `POST /v1/fleet/join {worker}` for the machine's own fleet key, the LiveKit pair and the store's
+  secret (`infra/fleet/README.md`); 404 when no world's calls go to the fleet.
+- `DELETE /v1/ops/fleet/{worker}/keys`: the machine's fleet key and any join token it never spent
+  revoked, as the loop does when it deletes the machine.
 
 ## Provider keys
 

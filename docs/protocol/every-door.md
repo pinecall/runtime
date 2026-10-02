@@ -120,6 +120,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `POST` | `/v1/evals/voice` | evals | Dispatch the agent into a room, play the persona as a spoken caller, and hang up. |
 | `GET` | `/v1/events` | calls | The org's calls and agents changing, as they change. |
 | `POST` | `/v1/fleet/heartbeat` | fleet | A worker's report; the answer says whether it is cordoned and its fleet full. |
+| `POST` | `/v1/fleet/join` | join | A worker machine's one join: its own fleet key, the LiveKit pair and the store's secret. |
 | `GET` | `/v1/fleet/standing` | fleet | A fleet's workers summed; the overflow opens when it is full. |
 | `GET` | `/v1/hosted` | app | The apps the box hosts for the org in this world, by name. |
 | `DELETE` | `/v1/hosted/{name}` | app | Stop hosting the app: its releases go, and its token is revoked. |
@@ -186,8 +187,10 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/ops/hosted-usage` | operator | The time every org's apps served, both worlds, per UTC day, one month: what bills them. |
 | `GET` | `/v1/ops/events` | operator | Every org's floor at once, each frame saying whose. |
 | `GET` | `/v1/ops/fleet` | operator | Every worker heard from, of both fleets, and each fleet summed over the ones up. |
+| `POST` | `/v1/ops/fleet/join-tokens` | operator | A token good for one join of the fleet by a machine of that name, for ten minutes. |
 | `DELETE` | `/v1/ops/fleet/{worker}/cordon` | operator | Take a worker's cordon back, when it has not left yet. |
 | `POST` | `/v1/ops/fleet/{worker}/cordon` | operator | Cordon a worker of a fleet; the fleet is found by the worker's name when not named. |
+| `DELETE` | `/v1/ops/fleet/{worker}/keys` | operator | Revoke a machine's fleet key and any join token it never spent; the loop does, on delete. |
 | `GET` | `/v1/ops/fleets` | operator | The fleet of workers each world's calls are dispatched to. |
 | `PUT` | `/v1/ops/fleets` | operator | The fleet of each world, replaced whole; the next dispatch reads it. |
 | `POST` | `/v1/ops/keys/{fingerprint}/revoke` | operator | One key stops opening anything from the next request on. |

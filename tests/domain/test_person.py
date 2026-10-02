@@ -64,6 +64,8 @@ def test_the_fleet_scope_is_never_a_default_and_the_words_are_read_or_refused() 
     assert "fleet" in EVERY_SCOPE
     assert "fleet" not in KEY_SCOPES
     assert "runner" in EVERY_SCOPE
+    assert "join" in EVERY_SCOPE
+    assert "join" not in KEY_SCOPES
     assert "runner" not in KEY_SCOPES
     assert key_scopes(["calls", "app", "calls"]) == frozenset({"app", "calls"})
     with pytest.raises(DeclarationRefused, match="'root' is not a key scope"):

@@ -11,7 +11,7 @@ live="Name=instance-state-name,Values=pending,running"
 case "${1:-}" in
   create) aws ec2 run-instances --image-id "$PINECALL_FLEET_AMI" --instance-type "$PINECALL_FLEET_TYPE" \
             --subnet-id "$PINECALL_FLEET_SUBNET" --security-group-ids "$PINECALL_FLEET_SG" \
-            --user-data "$(printf '#!/bin/sh\nhostnamectl set-hostname %s\n' "$2")" \
+            --user-data "$("$(dirname "$0")/first-boot" "$2")" \
             --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$2},{Key=$PINECALL_FLEET_TAG,Value=1}]" \
             --query 'Instances[0].InstanceId' --output text >/dev/null ;;
   delete) ids=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=$2" "$live" \

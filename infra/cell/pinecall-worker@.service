@@ -4,8 +4,10 @@
 # address, the fleet key sealed here by worker.sh join.
 [Unit]
 Description=Pinecall worker, fleet %i
-Wants=network-online.target
-After=network-online.target
+# A machine made from the fleet's image enrolls first (pinecall-join.service); one joined by
+# hand has nothing to wait for, and the unit is skipped.
+Wants=network-online.target pinecall-join.service
+After=network-online.target pinecall-join.service
 
 [Service]
 # Ready once LiveKit registered it and the gateway heard it: `systemctl restart` waits for that,

@@ -189,6 +189,8 @@ async def test_the_fleet_is_listed_cordoned_and_looped_once_in_a_dry_run(
     loop = ("fleet", "loop", "--cloud", str(script), "--seats", "4", "--once", "--dry-run")
     with pytest.raises(DeclarationRefused, match="--grow-at-most is at least 1"):
         await ran(settings, *loop, "--grow-at-most", "0")
+    with pytest.raises(DeclarationRefused, match="--fleet"):
+        await ran(settings, "fleet", "loop", "--cloud", str(script), "--seats", "4", "--once")
 
 
 @postgres
