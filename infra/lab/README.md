@@ -7,14 +7,38 @@ real calls do and bills nothing: the runtime's plugins are the real ones, pointe
 by the providers row. The callers are SIP, from SIPp, with audio. `docs/scaling.md` has what it
 measured.
 
+## One command
+
+```console
+$ make tf-init ENV=lab    # once per checkout
+$ uv run --no-project python infra/lab/measure.py measure --box e2-standard-2 --worker e2-standard-2 --calls 4,6,8,10,12
+```
+
+makes the box and the generator with Terraform (`infra/terraform/environments/lab`: three
+machines of `modules/machine` and a firewall rule between them alone, in the project of its
+`terraform.tfvars`), brings the box up from this checkout's wheel, configures the generator and
+the box as the steps below say (`configure.sh`), makes a worker machine by the same apply and joins
+it with `pinecall-runtime cell join-worker`, ramps each step's calls, prints one row per step —
+calls, the worker machine's cores and per call, the box's cores, turns answered, first audio p50 /
+p95, ring to live, errors — and destroys everything with `terraform destroy`. The verbs apart:
+`up --box <type>` (~20 min, the box and the generator), `run --worker <type> [--box <type>]
+[--calls …] [--seats N]` (a few minutes a step; `--box` resizes the box by the apply, which stops
+and starts it with its disk kept, so several shapes are measured on one `up`), `down`. `--seats`
+unset is the `vCPU × 4` the worker would announce; set it high to find where first audio gives,
+which is what `MAX_JOBS` is then set under. Every secret goes machine to machine through a pipe
+between two ssh processes; nothing is printed. Google's credentials are the gcloud login's, a
+fresh token for each terraform command.
+
 | file | what |
 |---|---|
+| `measure.py` | the lab in one command: the machines by Terraform, the configuration, the steps, the table |
+| `configure.sh` | each machine's configuration, one verb a step, run on it over ssh: `generator`, `box`, `store`, `agent-env`, `agent`, `number` |
 | `fake_vendors.py` | Deepgram Flux (`WS /v2/listen`), Cartesia (`WS /tts/websocket`, `POST /tts/bytes`) and Anthropic (`POST /v1/messages`), each on its own wire, timed like the vendor |
 | `providers.json` | production's stages (Haiku, Flux, Cartesia), each `base_url` at `FAKES_HOST`, no fallbacks: nothing can reach a real vendor |
 | `caller.xml` | one SIPp caller: rings, speaks a turn every 10 s twelve times, hangs up |
 | `caller.py` | writes `caller.pcap`, the turn as RTP: 2.5 s of a voiced tone, 7.5 s of silence |
 
-## Three machines
+## Three machines, by hand
 
 A box of the machine type under test, made by `box up` from the wheel, with `.invalid` names; a
 generator (8 vCPU) for the fakes, the agent and SIPp; and, for SIP × 2, a machine for a second

@@ -26,6 +26,13 @@
   (`measure`) and lets go of the one too many once drained; `infra/fleet/gcp-mig.py` is its
   script, and `pinecall-fleet-loop@<world>` runs it on the box, configured from the box's
   metadata. The box's VM acts as `pinecall-fleet`, which may touch the fleet's machines alone.
+- **The runtime whole on a laptop**: `make local` starts the box's Postgres, Redis and LiveKit in
+  docker (`infra/local/`), migrates and writes `.local/env` once; `make local-gateway` and
+  `make local-worker` run both from the checkout. No cloud account, no key of a box.
+- **The voice lab is Terraform's** (`environments/lab`): `infra/lab/measure.py` makes the box, the
+  generator and the worker machine with `terraform apply` at the sizes under test, resizes the box
+  by the same apply, and destroys all of it with `terraform destroy`; the machines' configuration
+  is `infra/lab/configure.sh`, one verb a step.
 
 ## 0.1.5 — The fleet's image carries no credential: each machine joins on a key of its own (2026-10-02)
 
