@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime
 from hashlib import sha256
 from typing import Literal
@@ -122,10 +122,11 @@ where org = %(org)s and env = %(env)s and holder = %(holder)s and agent = %(agen
 """
 
 
-DAY_STAGES = """
+WINDOW_STAGES = """
 select stage, vendor, model, turns, buckets, confidence_sum, confidence_turns
 from stage_days
-where org = %(org)s and env = %(env)s and holder = %(holder)s and day = %(day)s
+where org = %(org)s and env = %(env)s and holder = %(holder)s
+  and day >= %(first)s and day <= %(last)s and (%(agent)s::text is null or agent = %(agent)s)
 """
 
 
@@ -247,11 +248,14 @@ async def fold(pool: Pool, call: str, entries: Sequence[Entry], score: CallScore
     return True
 
 
-async def stages_of_day(pool: Pool, scope: Scope, day: date) -> list[InsightsStage]:
-    """Every stage of the scope's day by vendor and model, every agent and version added."""
-    params = {"org": scope.org, "env": scope.env, "holder": scope.holder, "day": day}
+# Every agent's when agent is None; its days and versions are added together either way.
+async def stages_of_window(
+    pool: Pool, scope: Scope, first: date, last: date, agent: str | None
+) -> list[InsightsStage]:
+    """Every stage of the scope's days first to last by vendor and model, versions added."""
+    params = {**asdict(scope), "first": first, "last": last, "agent": agent}
     async with pool.connection() as connection:
-        rows = await (await connection.execute(DAY_STAGES, params)).fetchall()
+        rows = await (await connection.execute(WINDOW_STAGES, params)).fetchall()
     merged = _merged_stages(rows)
     return [
         InsightsStage(
