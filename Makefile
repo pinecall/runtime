@@ -23,7 +23,7 @@ T        ?= tests
 ENV      ?= production
 TF        = terraform -chdir=infra/terraform/environments/$(ENV)
 TF_AUTH   = GOOGLE_OAUTH_ACCESS_TOKEN="$$(gcloud auth print-access-token)"
-TF_ROOTS  = infra/terraform/bootstrap infra/terraform/environments/production infra/terraform/environments/lab
+TF_ROOTS  = infra/terraform/bootstrap infra/terraform/environments/production infra/terraform/environments/lab infra/terraform/examples/fleet-aws
 
 check:            ## the rules and every suite that needs no database, on every core; terraform's form
 	uv run pytest -q -n auto
@@ -70,7 +70,7 @@ SEATS    ?= 32
 image:            ## WORLD=…: the fleet's worker image built by Packer, into pinecall-worker-<world>
 	rm -rf dist && uv build --wheel --quiet
 	ssh $(BOX) 'sudo pinecall-runtime cell worker-settings $(WORLD)' > .image-settings.tar
-	$(TF_AUTH) packer build -var project=$(PROJECT) -var world=$(WORLD) -var seats=$(SEATS) \
+	$(TF_AUTH) packer build -only=googlecompute.worker -var project=$(PROJECT) -var world=$(WORLD) -var seats=$(SEATS) \
 	  -var box_address="$$($(TF_AUTH) terraform -chdir=infra/terraform/environments/production output -raw box_internal_address)" \
 	  -var package="$$(ls $(CURDIR)/dist/pinecall-*.whl)" -var settings=$(CURDIR)/.image-settings.tar infra/packer; \
 	  status=$$?; rm -f .image-settings.tar; exit $$status

@@ -1,7 +1,8 @@
-# The fleet's worker image on Google Cloud: a temporary machine made a worker of the world with
+# The fleet's worker image: a temporary machine made a worker of the world with
 # `pinecall-runtime cell image-worker`, from the box's settings and no credential, frozen into the
-# family pinecall-worker-<world>. A machine made from it reads its credentials at its first boot
-# from Secret Manager (`cell enroll`). `make image WORLD=production` runs it (infra/packer/README.md).
+# family pinecall-worker-<world> on Google Cloud or an AMI named pinecall-worker-<world>-<time> on
+# AWS. A machine made from it reads its credentials at its first boot from its cloud's secret
+# store (`cell enroll`). `make image WORLD=production` builds Google's (infra/packer/README.md).
 
 packer {
   required_plugins {
@@ -9,11 +10,23 @@ packer {
       source  = "github.com/hashicorp/googlecompute"
       version = "~> 1.1"
     }
+    amazon = {
+      source  = "github.com/hashicorp/amazon"
+      version = "~> 1.3"
+    }
   }
 }
 
 variable "project" {
-  type = string
+  type        = string
+  description = "Google Cloud's project; unused on AWS."
+  default     = ""
+}
+
+variable "region" {
+  type        = string
+  description = "AWS's region; unused on Google Cloud."
+  default     = "us-east-1"
 }
 
 variable "zone" {
@@ -72,11 +85,48 @@ source "googlecompute" "worker" {
   }
 }
 
+# The same machine on AWS: Canonical's Ubuntu 24.04, the credentials the aws CLI's (~/.aws).
+source "amazon-ebs" "worker" {
+  region        = var.region
+  instance_type = "c7a.large"
+  ssh_username  = "ubuntu"
+  source_ami_filter {
+    owners      = ["099720109477"]
+    most_recent = true
+    filters = {
+      name                = "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"
+      virtualization-type = "hvm"
+    }
+  }
+  user_data_file = "${path.root}/../box/cloud-init.yaml"
+  launch_block_device_mappings {
+    device_name           = "/dev/sda1"
+    volume_size           = 30
+    volume_type           = "gp3"
+    delete_on_termination = true
+  }
+  ami_name = "pinecall-worker-${var.world}-${formatdate("YYYYMMDDhhmmss", timestamp())}"
+  tags = {
+    pinecall = "worker"
+    world    = var.world
+  }
+}
+
 build {
-  sources = ["source.googlecompute.worker"]
+  sources = ["source.googlecompute.worker", "source.amazon-ebs.worker"]
 
   provisioner "shell" {
     inline = ["cloud-init status --wait >/dev/null"]
+  }
+
+  # `cell enroll` reads Secrets Manager through the aws CLI, signed as the instance profile.
+  provisioner "shell" {
+    only = ["amazon-ebs.worker"]
+    inline = [
+      "sudo apt-get install -y -q unzip >/dev/null",
+      "curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscli.zip",
+      "cd /tmp && unzip -q awscli.zip && sudo ./aws/install && rm -rf /tmp/aws /tmp/awscli.zip",
+    ]
   }
 
   provisioner "file" {

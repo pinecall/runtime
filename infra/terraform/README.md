@@ -12,6 +12,7 @@ bootstrap/                the state bucket alone, applied once with local state
 modules/<name>/           what a thing is (one module per concern)
 environments/production/  the root module of production: the modules, its variables, its imports
 environments/lab/         the voice lab: three machines and their firewall rule, made and destroyed by infra/lab/measure.py
+examples/fleet-aws/       a fleet on AWS, the root a box on AWS copies: validated, applied by nobody
 ```
 
 Google's guidance, followed ([root modules](https://docs.cloud.google.com/docs/terraform/best-practices/root-modules)):
@@ -29,6 +30,8 @@ resources a state; the default workspace only.
 | `store` | the two private buckets, the box's IAM user and its policy, the alerts' user, SES | `pinecall-box-backups-…` (35-day lifecycle), `pinecall-box-recordings-…` (no lifecycle) |
 | `dns` | the names that point at the box, in Route 53; the zone's other records are other repositories' | `box`, `sandbox`, `notify`, `billing` .pinecall.io |
 | `fleet-gcp` | a world's worker template (the image family `pinecall-worker-<world>`, no public address, its identity, `pinecall-cloud`/`-world` metadata), the managed group healed on the health port, its autoscaler `ONLY_SCALE_OUT` on the fleet's calls | `pinecall-workers-production`, 0–10 machines, 19 calls each |
+| `fleet-aws` | the same on AWS: a launch template from the AMI Packer builds, an Auto Scaling group grown by target tracking on `Pinecall/fleet_calls`, its scale-in off | none: validated in `examples/fleet-aws` |
+| `secrets-aws` | the five secrets in Secrets Manager, a role and instance profile per world reading its own | none |
 | `secrets` | the five secrets a fleet machine runs on (each world's fleet key, the LiveKit pair, the store's secret), declared with no value; a worker identity per world that reads its own fleet key and the three shared ones; the box's identity (`pinecall-fleet`) may read and add versions | `pinecall-worker-production@…`, `pinecall-worker-sandbox@…`; values written by `cell publish-secrets` |
 
 `environments/lab` holds the voice lab alone (`infra/lab/README.md`): `pinecall-lab-box`, `-gen`

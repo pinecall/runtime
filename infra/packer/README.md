@@ -17,3 +17,8 @@ until the fleet loop lets them go.
 
 The seats are the machine type's, not the build machine's: `--calls` is given as `SEATS` (32 for
 the e2-standard-8 the fleet runs as).
+
+On AWS the same file builds an AMI named `pinecall-worker-<world>-<time>` (`-only=amazon-ebs.worker`,
+the aws CLI's credentials, Canonical's Ubuntu 24.04 on a `c7a.large`), with the aws CLI installed
+for `cell enroll` to read Secrets Manager; `modules/fleet-aws` boots the newest. No box runs on AWS
+yet, so no AMI has been built: `packer validate` is what stands for it.

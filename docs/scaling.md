@@ -239,7 +239,11 @@ deletes. On Google Cloud that is production's way: a managed instance group (Ter
 calls (32 seats at 0.6), and only grows, since a group removing a machine itself gives it 90 s and
 a call may last ten minutes; the loop, `pinecall-fleet-loop@production` on the box, lets go of the
 one too many once drained (abandoned from the group, then deleted: `infra/fleet/gcp-mig.py`). Its
-machines read their credentials from Secret Manager as their own identity. The recipe and why are
+machines read their credentials from Secret Manager as their own identity. On AWS the same is an
+Auto Scaling group (`modules/fleet-aws`) grown by target tracking on CloudWatch's
+`Pinecall/fleet_calls`, its scale-in off, the loop terminating the one too many out of it
+(`infra/fleet/aws-asg.py`), the credentials from Secrets Manager as the instance profile; written
+and validated, never applied: no box runs on AWS. The recipe and why are
 [../infra/fleet/README.md](../infra/fleet/README.md).
 
 Run in production on 2026-10-02, with no call (the demand written by hand at 19 calls, the loop

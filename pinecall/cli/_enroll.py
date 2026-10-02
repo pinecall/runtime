@@ -1,9 +1,12 @@
 """A fleet machine's credentials at its first boot, by a join token or its cloud's secret store."""
 
 import base64
+import json
 import os
 import socket
 import subprocess
+from collections.abc import Callable
+from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
 
@@ -25,6 +28,11 @@ FLAVOR = {"Metadata-Flavor": "Google"}
 
 SECRETS_API = "https://secretmanager.googleapis.com/v1"
 
+# EC2's instance metadata, IMDSv2 alone: a token first, then the instance's tags and region.
+IMDS = "http://169.254.169.254/latest"
+
+IMDS_TTL = {"X-aws-ec2-metadata-token-ttl-seconds": "60"}
+
 TIMEOUT_S = 10.0
 
 # The credentials a worker's unit imports, each with the secret it is kept in on Google Cloud and
@@ -38,6 +46,8 @@ CREDENTIALS = (
 
 WORLDS = ("production", "sandbox")
 
+_STORE_NAMES = {"gcp": "Secret Manager", "aws": "Secrets Manager"}
+
 ENROLLED = "enrolled already: the credentials are sealed here"
 
 BY_HAND = "nothing to enroll by: no join token and no cloud's secrets; a machine joined by hand"
@@ -48,7 +58,19 @@ NO_VERSION = "the secret {name} has no version: the box publishes it (`cell publ
 
 REFUSED = "{what} answered {status}: {detail}"
 
-NOT_ON_GCP = "no metadata server answers here: `cell publish-secrets` runs on a box on Google Cloud"
+NOT_ON_A_CLOUD = (
+    "no metadata server answers here: `cell publish-secrets` runs on a box on Google Cloud or AWS"
+)
+
+
+@dataclass(frozen=True)
+class Cloud:
+    """Which cloud keeps the secrets, how this machine reads its tags there, and where."""
+
+    kind: str
+    tag: Callable[[str], str | None]
+    project: str = ""
+    region: str = ""
 
 
 def enroll(http: httpx.Client) -> str:
@@ -59,11 +81,12 @@ def enroll(http: httpx.Client) -> str:
         given = _by_token(http)
         _shredded(JOIN)
         how = "by its join token, which is spent"
-    elif _metadata(http, "instance/attributes/pinecall-cloud") == "gcp":
-        given = _from_secret_manager(http)
-        how = "from Secret Manager, as its own service account"
     else:
-        return BY_HAND
+        cloud = _cloud(http)
+        if cloud is None or cloud.tag("pinecall-cloud") != cloud.kind:
+            return BY_HAND
+        given = _from_the_store(http, cloud)
+        how = f"from {_STORE_NAMES[cloud.kind]}, as its own identity"
     for name, value in given.items():
         sealed(name, value)
     return f"enrolled as {_hostname()} {how}: {len(given)} credentials sealed here"
@@ -71,18 +94,17 @@ def enroll(http: httpx.Client) -> str:
 
 def publish(http: httpx.Client) -> list[str]:
     """Put each credential the box holds in Secret Manager when it differs; the secrets written."""
-    project = _metadata(http, "project/project-id")
-    if project is None:
-        raise DeclarationRefused(NOT_ON_GCP)
-    token = _token(http)
+    cloud = _cloud(http)
+    if cloud is None:
+        raise DeclarationRefused(NOT_ON_A_CLOUD)
     written: list[str] = []
     for credential, secret, _field in CREDENTIALS:
         for world, path in _sealed_paths(credential):
             name = secret.format(world=world)
             value = _unsealed(credential, path)
-            if _latest(http, token, project, name) == value:
+            if _latest(http, cloud, name) == value:
                 continue
-            _add_version(http, token, project, name, value)
+            _add_version(http, cloud, name, value)
             written.append(name)
     return written
 
@@ -115,16 +137,14 @@ def _by_token(http: httpx.Client) -> dict[str, str]:
     }
 
 
-def _from_secret_manager(http: httpx.Client) -> dict[str, str]:
-    world = _metadata(http, "instance/attributes/pinecall-world")
+def _from_the_store(http: httpx.Client, cloud: Cloud) -> dict[str, str]:
+    world = cloud.tag("pinecall-world")
     if world is None:
         raise DeclarationRefused(NO_WORLD)
-    project = _metadata(http, "project/project-id") or ""
-    token = _token(http)
     found: dict[str, str] = {}
     for credential, secret, _field in CREDENTIALS:
         name = secret.format(world=world)
-        value = _latest(http, token, project, name)
+        value = _latest(http, cloud, name)
         if value is None:
             raise DeclarationRefused(NO_VERSION.format(name=name))
         found[credential] = value
@@ -142,10 +162,33 @@ def _unsealed(name: str, path: Path) -> str:
     return subprocess.run(decrypt, capture_output=True, check=True, text=True).stdout
 
 
-def _latest(http: httpx.Client, token: str, project: str, name: str) -> str | None:
+# Google's on Google Cloud (the machine's token, over HTTP); AWS's through the aws CLI, which signs
+# as the instance profile, a value on its stdin and never in its arguments.
+def _cloud(http: httpx.Client) -> Cloud | None:
+    project = _metadata(http, "project/project-id")
+    if project is not None:
+        return Cloud(
+            kind="gcp",
+            tag=lambda name: _metadata(http, f"instance/attributes/{name}"),
+            project=project,
+        )
+    imds = _imds_token(http)
+    if imds is None:
+        return None
+    region = _imds(http, imds, "meta-data/placement/region") or ""
+    return Cloud(
+        kind="aws",
+        tag=lambda name: _imds(http, imds, f"meta-data/tags/instance/{name}"),
+        region=region,
+    )
+
+
+def _latest(http: httpx.Client, cloud: Cloud, name: str) -> str | None:
+    if cloud.kind == "aws":
+        return _aws_secret(cloud, "get-secret-value", name, None)
     answer = http.get(
-        f"{SECRETS_API}/projects/{project}/secrets/{name}/versions/latest:access",
-        headers={"Authorization": f"Bearer {token}"},
+        f"{SECRETS_API}/projects/{cloud.project}/secrets/{name}/versions/latest:access",
+        headers={"Authorization": f"Bearer {_token(http)}"},
     )
     if answer.status_code == HTTPStatus.NOT_FOUND:
         return None
@@ -158,11 +201,14 @@ def _latest(http: httpx.Client, token: str, project: str, name: str) -> str | No
     return base64.b64decode(answer.json()["payload"]["data"]).decode()
 
 
-def _add_version(http: httpx.Client, token: str, project: str, name: str, value: str) -> None:
+def _add_version(http: httpx.Client, cloud: Cloud, name: str, value: str) -> None:
+    if cloud.kind == "aws":
+        _aws_secret(cloud, "put-secret-value", name, value)
+        return
     data = base64.b64encode(value.encode()).decode()
     answer = http.post(
-        f"{SECRETS_API}/projects/{project}/secrets/{name}:addVersion",
-        headers={"Authorization": f"Bearer {token}"},
+        f"{SECRETS_API}/projects/{cloud.project}/secrets/{name}:addVersion",
+        headers={"Authorization": f"Bearer {_token(http)}"},
         json={"payload": {"data": data}},
     )
     if answer.status_code != HTTPStatus.OK:
@@ -171,6 +217,36 @@ def _add_version(http: httpx.Client, token: str, project: str, name: str, value:
                 what=f"Secret Manager on {name}", status=answer.status_code, detail=_detail(answer)
             )
         )
+
+
+# A secret with no value yet is AWS's ResourceNotFoundException, as a missing one is.
+def _aws_secret(cloud: Cloud, verb: str, name: str, value: str | None) -> str | None:
+    argv = ["aws", "secretsmanager", verb, "--region", cloud.region, "--secret-id", name]
+    if value is not None:
+        argv += ["--secret-string", "file:///dev/stdin"]
+    stdin = None if value is None else value
+    done = subprocess.run(argv, input=stdin, capture_output=True, text=True, check=False)
+    if done.returncode != 0:
+        if "ResourceNotFoundException" in done.stderr:
+            return None
+        detail = done.stderr.strip()[-200:]
+        raise UpstreamFailed(
+            REFUSED.format(what=f"Secrets Manager on {name}", status=done.returncode, detail=detail)
+        )
+    return None if value is not None else str(json.loads(done.stdout)["SecretString"])
+
+
+def _imds_token(http: httpx.Client) -> str | None:
+    try:
+        answer = http.put(f"{IMDS}/api/token", headers=IMDS_TTL, timeout=2.0)
+    except httpx.TransportError:
+        return None
+    return answer.text.strip() if answer.status_code == HTTPStatus.OK else None
+
+
+def _imds(http: httpx.Client, token: str, path: str) -> str | None:
+    answer = http.get(f"{IMDS}/{path}", headers={"X-aws-ec2-metadata-token": token}, timeout=2.0)
+    return answer.text.strip() if answer.status_code == HTTPStatus.OK else None
 
 
 def _metadata(http: httpx.Client, path: str) -> str | None:

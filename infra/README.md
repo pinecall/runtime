@@ -118,7 +118,7 @@ each cloud provides:
 
 | piece | GCP | AWS | your own machines |
 |---|---|---|---|
-| machines for the fleet | `fleet/gcp` | `fleet/aws` | `fleet/hetzner`, or a script of yours |
+| machines for the fleet | a managed instance group (`terraform/modules/fleet-gcp`, `fleet/gcp-mig.py`), or `fleet/gcp` | an Auto Scaling group (`terraform/modules/fleet-aws`, `fleet/aws-asg.py`) | `fleet/hetzner`, or a script of yours |
 | balancer in front of the gateways | a cloud LB, or Caddy | idem | Caddy, HAProxy |
 | Postgres | a VM (this tree), or managed | idem | a VM, its replica in `cell/` |
 | Redis | a VM (this tree), or managed | idem | a VM |
