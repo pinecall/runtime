@@ -41,7 +41,9 @@ generator() {
     secret=$(sudo cat /home/lab/s3.secret)
     printf '{"identities": [{"name": "lab", "credentials": [{"accessKey": "%s", "secretKey": "%s"}],
   "actions": ["Admin", "Read", "Write", "List", "Tagging"]}]}\n' "$user" "$secret" |
-        sudo sh -c 'umask 077; cat > /home/lab/s3.json'
+        sudo tee /home/lab/s3.json >/dev/null
+    # SeaweedFS reads it as its own user, not root: readable, on a machine the lab destroys.
+    sudo chmod 0644 /home/lab/s3.json
     sudo podman run -d --name s3 -p "$gen:$S3_PORT:8333" -v /home/lab/s3.json:/etc/s3.json:ro \
         -v s3data:/data docker.io/chrislusf/seaweedfs server -s3 -s3.config=/etc/s3.json -dir=/data >/dev/null
     for _ in $(seq 60); do curl -s -o /dev/null "$gen:$S3_PORT" && break; sleep 2; done

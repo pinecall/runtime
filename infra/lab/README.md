@@ -68,6 +68,13 @@ generator (8 vCPU) for the fakes, the agent and SIPp; and, for SIP × 2, a machi
 
 ## What fooled the first runs
 
+- The box's SIP and LiveKit announce its **public** address (`use_external_ip`), so the
+  generator's RTP and the worker's media arrive from the lab machines' public addresses, not
+  their internal ones: a firewall rule by tag alone lets the INVITE through and drops every RTP
+  packet. The agent says its greeting, hears nothing, the caller reads as `away`, and livekit-sip
+  closes the call after ~50 s. `environments/lab` opens the media ports to those addresses
+  (`pinecall-lab-media`).
+
 - SIPp 3.7's `rtp_stream` sends 25–33 packets a second per call once there are several (50 is
   right), and every call offers the same media port: the caller's audio arrives broken, reads as
   barge-ins, and half the agent's turns are cut. `play_pcap_audio` holds 50 a second. 3.7 has no
