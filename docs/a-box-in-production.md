@@ -7,6 +7,11 @@ box is made of is in `infra/box/` ([its page](../infra/box/README.md)); every va
 
 ## 1. The machine
 
+On Google Cloud the machine, its address, its firewall rules, the replica, the buckets and the
+names are made by Terraform (`infra/terraform/`, its README: `make tf-plan` / `tf-apply`); what
+follows is what that makes, and what to make by hand anywhere else — another cloud, a server of
+your own, a machine at home.
+
 - **Ubuntu 24.04** (Debian 13 works too: `box up` needs apt and systemd), 4 vCPU, 16 GB, 30 GB of
   disk, a public IPv4. GCP's `e2-standard-4` is what Pinecall runs on.
 - **Two DNS names pointed at it**, production's and the sandbox's (`voice.example.com`,
@@ -177,6 +182,9 @@ change. The journal keeps a month
 (`journald.conf.d/pinecall.conf`, 1 GB at most) and Caddy writes no access log.
 
 ### The object store
+
+(Pinecall's own — the two buckets, the user the box writes with, its policy — are
+`infra/terraform/modules/store`; the access key is made by hand, as below, and never Terraform's.)
 
 What leaves the box's disk — the nightly backup, the WAL archive, the recordings — goes to one
 object store, spoken in S3: AWS S3, Google Cloud Storage through its S3 interoperability, Cloudflare

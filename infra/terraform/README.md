@@ -20,6 +20,20 @@ own prefix), `versions.tf` (providers pinned to a minor), `providers.tf`, `varia
 `terraform.tfvars` (committed: it holds no secret), `.terraform.lock.hcl` committed; a few dozen
 resources a state; the default workspace only.
 
+## What is here
+
+| module | what it holds | production's |
+|---|---|---|
+| `network` | the fleet's subnet (private access to Google's APIs on), the box's four firewall rules by its tag, its static address; the VPC itself is the project's `default`, shared with other machines, and only read | `pinecall-fleet` 10.100.0.0/24; `pinecall-runtime-web`, `-sip` (Twilio's edges alone), `-media`, `pinecall-fleet-to-box`; `pinecall-runtime-ip` |
+| `machine` | one VM from cloud-init, shielded with its vTPM, live-migrated; a machine made already is never replaced for its image or its first boot's data | `pinecall-runtime` (the box), `pinecall-runtime-replica` |
+| `store` | the two private buckets, the box's IAM user and its policy, the alerts' user, SES | `pinecall-box-backups-…` (35-day lifecycle), `pinecall-box-recordings-…` (no lifecycle) |
+| `dns` | the names that point at the box, in Route 53; the zone's other records are other repositories' | `box`, `sandbox`, `notify`, `billing` .pinecall.io |
+
+`environments/production/imports.tf` took each of them in on 2026-10-02: 27 resources, made by
+hand before, now `No changes.` on a plan. The rules of the old box (v1, tag `pinecall-v2-box`:
+`pinecall-web`, `pinecall-sip-signalling`, `pinecall-sip-denied`, `pinecall-media`) are not here:
+they go with that machine when it is archived.
+
 ## Running it
 
 ```console

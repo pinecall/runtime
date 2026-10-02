@@ -93,7 +93,7 @@ beside the runtime (it pushes calls of both worlds to phones and browsers).
 
 Since 2026-10-01 the box's database is not alone: its WAL is archived every minute to S3
 (`pinecall-box-backups-905418191085`, us-east-1, the IAM user `pinecall-box-store` that can only
-touch the box's two buckets; `/etc/pinecall/store.env`), the nightly backup and base backup go there
+touch the box's two buckets — all of it, the VMs and the names Terraform's, `infra/terraform/`; `/etc/pinecall/store.env`), the nightly backup and base backup go there
 too (35-day lifecycle); since 2026-10-02 recordings go to `pinecall-box-recordings-905418191085`
 (same store, same key, no lifecycle), and `ssh pinecall-runtime-replica` (34.31.81.33, 10.128.15.203) is a streaming
 replica, `box failover` ready (`docs/a-box-in-production.md`, "A replica"). The backup's private
