@@ -31,6 +31,8 @@ dependencies = [
   "pyjwt[crypto]>=2.10,<3",
   # Every sealed secret is a Fernet token; passwords are argon2id.
   "av>=15,<19",
+  # A call's recording: the room's other voices and the melody laid in (session/_recording.py).
+  "numpy>=2,<3",
   "cryptography>=46,<51",
   "argon2-cffi>=25.1,<26",
   # A provider's discovery, keys and token endpoint.

@@ -3,6 +3,7 @@
 import asyncio
 import io
 import logging
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -69,6 +70,10 @@ class HoldMusic:
         self.pending: asyncio.Task[None] | None = None
         self.quiet = asyncio.Event()
         self.quiet.set()
+        # When it sounded, by the clock, for the call's recording to lay it in: the player's track
+        # is the room's, not the session's, and the clip is already on this disk.
+        self.played: list[tuple[float, float]] = []
+        self.playing_since: float | None = None
 
     # The player publishes its own track, which the SIP bridge mixes into the phone leg. A
     # player that does not start leaves the call without a melody, and nothing else.
@@ -119,6 +124,7 @@ class HoldMusic:
             return
         melody = AudioConfig(str(self.clip), volume=VOLUME, fade_in=FADE_IN_S, fade_out=FADE_OUT_S)
         self.handle = self.player.play(melody, loop=True)
+        self.playing_since = time.time()
 
     def _stop(self) -> None:
         if self.pending is not None and not self.pending.done():
@@ -127,6 +133,9 @@ class HoldMusic:
         if self.handle is not None:
             self.handle.stop()
             self.handle = None
+        if self.playing_since is not None:
+            self.played.append((self.playing_since, time.time()))
+            self.playing_since = None
 
 
 TOO_LONG = f"a hold melody loops, so {LONGEST_S // 60} minutes at most: this one runs longer"

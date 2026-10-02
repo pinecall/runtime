@@ -217,8 +217,10 @@ access id in `PINECALL_S3_ACCESS_KEY_ID`, the endpoint and `auto` as above, and 
 ### Recordings, off the disk
 
 A recording is the file the call's own session writes under `/var/lib/pinecall/recordings/<call>/`:
-livekit's recorder in the job process, a stereo Ogg Opus with the caller on the left and the agent
-on the right, on one timeline (the hold melody is a track of its own and is not in it). The session
+livekit's recorder in the job process, a stereo Ogg Opus at 24 kHz, the caller on the left and
+every other voice on the right, on one timeline: the agent as it was played, a supervisor who took
+over and the far end of a warm transfer heard from their own tracks while they spoke, and the hold
+melody laid in from its clip where it sounded. The session
 closes it before the call is sealed, and the worker seals it under the call's own key at once
 (`audio.sealed`, the plain file removed; [security/private-values.md](security/private-values.md)).
 With `PINECALL_RECORDINGS_BUCKET` and the object store in `backup.env` (read by the gateway, the

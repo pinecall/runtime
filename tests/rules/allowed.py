@@ -81,6 +81,12 @@ SUPPRESSIONS: tuple[Allowed, ...] = (
         "redis-py's asyncio client takes untyped **kwargs (from_url, publish), an untyped "
         "callback, and hands its messages over as dicts it does not type",
     ),
+    Allowed(
+        "pinecall/session/_recording.py",
+        "pyright: " + "ignore",
+        "livekit's Room emits through a bare Callable; PyAV's add_stream, encode and mux are "
+        "typed loosely",
+    ),
 )
 
 # importlib, getattr on a string.
@@ -126,6 +132,11 @@ NOT_YET_REACHED: tuple[Allowed, ...] = (
 
 # Rule 14: the files that create a task, and who cancels or awaits it.
 TASK_OWNERS: tuple[Allowed, ...] = (
+    Allowed(
+        "pinecall/session/_recording.py",
+        "create_task",
+        "tasks holds one listener a voice; close() cancels and awaits them before the file closes",
+    ),
     Allowed(
         "pinecall/runner/main.py",
         "create_task",

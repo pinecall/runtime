@@ -91,13 +91,18 @@ worker killed under that load: its calls end drained 21 s later and the other wo
 caller, as on an idle box. A second `livekit-sip` on another machine, on the box's Redis and
 LiveKit, took half of six calls at once, answered as through one.
 
-**The recording moved into the worker (2026-10-02), and the box measured again.** The call's own
-session records now, and the room's recorder is gone; on a box alone that moves the cost rather
-than removing it: at six calls the worker went from 1.78 to 2.31 cores and the recorder from 0.60
-to 0, the box at 3.4 either way (libopus in the call's process costs what it cost in egress's,
-on these cores). With every call live from its first second, the box held six calls with every
-turn answered (66 of 67, first audio p95 3.2 s) and gave at eight (44 of 84). What it buys is the
-next paragraph: the recording goes with the worker, wherever the worker runs.
+**Where a call is recorded (2026-10-02).** Three ways, measured on the same lab:
+
+| how | per call | memory | every voice |
+|---|---|---|---|
+| egress, one room composite (decode, mix, encode in a process of its own) | ~0.12 vCPU | ~80 MB | yes |
+| egress, one track egress per voice (no transcode, a process per track) | ~0.2 vCPU (0.08–0.12 a track) | ~170 MB a track | yes |
+| the call's own session (livekit's recorder, the voices already decoded there) | ~0.06–0.09 vCPU of the worker | — | yes: the room's other voices and the melody are laid in when it closes |
+
+The session records: on a box alone it moves the cost rather than removing it (at six calls the
+worker went from 1.78 to 2.31 cores and the recorder from 0.60 to 0, the box at 3.4 either way),
+but it needs no egress at all, it scales with the workers wherever they run, and it is what the
+next paragraph's machine of workers measured with.
 
 **A machine of workers alone** (`worker.sh join`, "Workers on other machines" in
 [a-box-in-production.md](a-box-in-production.md)), the same callers and fakes, the box keeping
