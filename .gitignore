@@ -11,3 +11,9 @@ pinecall/public/
 tests/out/
 .DS_Store
 build/
+# Terraform: the providers and any state kept locally (bootstrap's); the state lives in its bucket.
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+.terraform-check/
