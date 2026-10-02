@@ -67,7 +67,7 @@ console holds the rest.
 
 **A newer version**: `sudo uvx --from pinecall@latest pinecall-runtime box upgrade` — the same steps
 at the names the box already has (`/etc/pinecall/box.env`): the new package's `infra/`, the new
-runtime, its migrations, the restarts. A version of your choosing: `--from pinecall==0.1.4`.
+runtime, its migrations, the restarts. A version of your choosing: `--from pinecall==0.1.5`.
 
 ## 3. Or: the box, from a checkout
 
