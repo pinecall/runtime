@@ -132,6 +132,11 @@ install -m 0644 "$HERE"/containers/* /etc/containers/systemd/
 # The ports a container is published on beyond loopback (infra/cell/primary.sh writes them, for a
 # replica or a gateway machine): appended to the file just installed, since podman 4.9's quadlet
 # reads no .container.d drop-ins.
+# LiveKit's API is published on the box's own address from the start, behind the fence (7880 is
+# dropped from anyone but the gateways and the workers): a worker or gateway machine let in later
+# costs no restart. Postgres and Redis stay on loopback until a machine is allowed to them.
+install -d /etc/pinecall/published
+printf 'PublishPort=%s:7880:7880\n' "$PINECALL_HERE" > /etc/pinecall/published/pinecall-livekit.conf
 # After its loopback PublishPort=, so in [Container].
 for kept in /etc/pinecall/published/*.conf; do
     [ -f "$kept" ] || continue

@@ -165,8 +165,13 @@ allow-worker)
     printf 'add element inet pinecall workers { %s }\n' "$worker" >> "$WORKERS"
     sort -u -o "$WORKERS" "$WORKERS"
     nft -f /etc/nftables.conf
-    # The first time, LiveKit restarts to be published here, and so do SIP and egress with it.
+    # Published here by install.sh since 0.1.4; a box installed before runs LiveKit on loopback
+    # alone until it restarts: once, said, SIP and egress with it.
     published "pinecall-livekit" "$here:7880:7880"
+    if ! ss -Hltn "sport = :7880" | grep -q "$here:7880"; then
+        echo "LiveKit restarts once to be published at $here (SIP and egress with it): a window"
+        systemctl restart pinecall-livekit
+    fi
     echo "worker machine $worker may reach $here:7880 and $here:8088."
     echo "on it, from a copy of /opt/pinecall/infra: primary.sh worker-credentials <world> | worker.sh join $here <wheel> <world>"
     ;;

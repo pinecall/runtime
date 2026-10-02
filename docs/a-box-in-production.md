@@ -67,7 +67,7 @@ console holds the rest.
 
 **A newer version**: `sudo uvx --from pinecall@latest pinecall-runtime box upgrade` — the same steps
 at the names the box already has (`/etc/pinecall/box.env`): the new package's `infra/`, the new
-runtime, its migrations, the restarts. A version of your choosing: `--from pinecall==0.1.3`.
+runtime, its migrations, the restarts. A version of your choosing: `--from pinecall==0.1.4`.
 
 ## 3. Or: the box, from a checkout
 
@@ -503,8 +503,10 @@ It needs the recordings bucket ("Recordings, off the disk"): its disk is no gate
 sudo /opt/pinecall/infra/cell/primary.sh allow-worker <its address>
 ```
 
-opens 7880 and 8088 to that address (LiveKit is published on the box's address the first time,
-which restarts it with SIP and egress: a window). Then, from your laptop, the fleet's credentials
+opens 7880 and 8088 to that address and restarts nothing: LiveKit's API is published on the box's
+own address by `install.sh` since 0.1.4, behind the fence. A box installed before gets one restart
+of LiveKit (SIP and egress with it) here, said as it happens: a window, once. Then, from your
+laptop, the fleet's credentials
 go from one machine to the other through a pipe, never through a terminal:
 
 ```
