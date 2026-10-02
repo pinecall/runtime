@@ -83,7 +83,7 @@ hooks:            ## the pre-commit hook: `make check`
 	git config core.hooksPath .githooks
 
 box:              ## infra/ to the box and install.sh run there: once, and after infra/box changes
-	rsync -a --delete infra/ $(BOX):/tmp/pinecall-infra/
+	rsync -a --delete --delete-excluded --exclude .terraform/ --exclude '*.tfstate*' infra/ $(BOX):/tmp/pinecall-infra/
 	ssh $(BOX) 'sudo rsync -a --delete /tmp/pinecall-infra/ /opt/pinecall/infra/ && sudo /opt/pinecall/infra/box/install.sh $(DOMAINS)'
 
 deploy:           ## the console built in, a wheel, released on the box, the live suite, the journal
