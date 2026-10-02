@@ -20,6 +20,9 @@
 #                   the gateways' balancer (8088) fenced to the cell's worker machines alone; no
 #                   Postgres, no Redis
 #   primary.sh forget-worker <address or range>   that undone
+#   primary.sh worker-settings <world>    what a worker machine of that world's fleet runs on and is
+#                   no secret (box.env, store.env, the fleet's env) as a tar on stdout, for
+#                   `worker.sh image` on the machine the fleet's image is frozen from
 #   primary.sh worker-credentials <world> what a worker machine of that world's fleet runs on (its
 #                   fleet key, the LiveKit pair, the object store's secret, box.env, store.env,
 #                   the fleet's env) as a tar on stdout, for `worker.sh join`; refused onto a
@@ -75,6 +78,12 @@ published() {  # CONTAINER [ADDRESS:PORT:PORT]: published there too (none: on lo
     [ "$(cat "$installed")" = "$before" ] && return
     systemctl daemon-reload
     systemctl restart "$1"
+}
+
+worker_settings_into() {  # DIR WORLD: what a worker machine runs on and is no secret
+    cp /etc/pinecall/box.env "$1/box.env"
+    cp /etc/pinecall/store.env "$1/store.env"
+    cp "/etc/pinecall/fleets/$2.env" "$1/fleet.env"
 }
 
 remote() {  # ADDRESS:PORT add|remove: the gateway machines Caddy sends calls to, beside the box's own
@@ -182,6 +191,15 @@ forget-worker)
     nft -f /etc/nftables.conf
     echo "worker machine $worker is out of the cell"
     ;;
+worker-settings)
+    world="${2:-}"
+    [ -f "/etc/pinecall/fleets/$world.env" ] || {
+        echo "primary.sh worker-settings <world>: production or sandbox" >&2; exit 2; }
+    out="$(mktemp -d)"
+    trap 'rm -rf "$out"' EXIT
+    worker_settings_into "$out" "$world"
+    tar -C "$out" -cf - .
+    ;;
 worker-credentials)
     [ -t 1 ] && { echo "worker-credentials writes secrets: pipe it into worker.sh join" >&2; exit 2; }
     world="${2:-}"
@@ -200,9 +218,7 @@ worker-credentials)
         [ -f "$STORE/$name" ] || continue
         systemd-creds decrypt --name="$name" "$STORE/$name" - > "$out/$name"
     done
-    cp /etc/pinecall/box.env "$out/box.env"
-    cp /etc/pinecall/store.env "$out/store.env"
-    cp "/etc/pinecall/fleets/$world.env" "$out/fleet.env"
+    worker_settings_into "$out" "$world"
     tar -C "$out" -cf - .
     ;;
 gateway-credentials)
@@ -219,6 +235,6 @@ gateway-credentials)
     tar -C "$out" -cf - .
     ;;
 *)
-    echo "primary.sh allow <replica> | forget | allow-gateway <addr> | forget-gateway <addr> | gateway-credentials | allow-worker <addr> | forget-worker <addr> | worker-credentials <world>" >&2
+    echo "primary.sh allow <replica> | forget | allow-gateway <addr> | forget-gateway <addr> | gateway-credentials | allow-worker <addr> | forget-worker <addr> | worker-settings <world> | worker-credentials <world>" >&2
     exit 2 ;;
 esac

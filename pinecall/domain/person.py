@@ -10,7 +10,8 @@ from pinecall.domain.names import AN_ADDRESS, PRODUCTION, Env
 
 # Every gateway door belongs to exactly one scope; `fleet` is the box's worker, resolved per call
 # instead of per key org, and only `keys issue --scope fleet` grants it. `runner` is the box's
-# own too: the process that runs every org's hosted apps, handed their tokens and secrets.
+# own too: the process that runs every org's hosted apps, handed their tokens and secrets. `join`
+# is a worker machine's first boot: one token, one join, minted by the fleet loop.
 type KeyScope = Literal[
     "app",
     "calls",
@@ -28,6 +29,7 @@ type KeyScope = Literal[
     "words",
     "fleet",
     "runner",
+    "join",
 ]
 
 
@@ -101,6 +103,7 @@ EVERY_SCOPE: tuple[KeyScope, ...] = (
     "words",
     "fleet",
     "runner",
+    "join",
 )
 
 
@@ -108,6 +111,9 @@ THE_FLEET: KeyScope = "fleet"
 
 
 THE_RUNNER: KeyScope = "runner"
+
+
+THE_JOIN: KeyScope = "join"
 
 
 HOLDING: KeyScope = "app"
@@ -120,7 +126,7 @@ THE_KEYS: KeyScope = "keys"
 
 
 # Default scopes: every scope except the box's own two.
-KEY_SCOPES: frozenset[KeyScope] = frozenset(EVERY_SCOPE) - {THE_FLEET, THE_RUNNER}
+KEY_SCOPES: frozenset[KeyScope] = frozenset(EVERY_SCOPE) - {THE_FLEET, THE_RUNNER, THE_JOIN}
 
 
 # Doors take the org only from this record, never from the request.

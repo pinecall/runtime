@@ -17,9 +17,11 @@ primary.sh                  on the box: `allow <replica>` / `forget` (the role, 
                             on, as a tar on stdout, for a pipe alone); `allow-worker <address>` /
                             `forget-worker <address>` (LiveKit's API published on the box's address,
                             it and the gateways' balancer fenced to the worker machines; no Postgres,
-                            no Redis); `worker-credentials <world>` (the fleet key, the LiveKit pair,
-                            the object store's secret, for a pipe alone; refused with no
-                            recordings bucket)
+                            no Redis); `worker-settings <world>` (what a worker machine runs on
+                            and is no secret: box.env, store.env, the fleet's env, for
+                            `worker.sh image`); `worker-credentials <world>` (the same with the
+                            fleet key, the LiveKit pair and the object store's secret, for a pipe
+                            alone; refused with no recordings bucket)
 replica.sh                  on the second machine: `join <box address>`, the replication password on stdin
 gateway.sh                  on a gateway machine: `join <box address> <wheel> [processes]`, the
                             credentials on stdin; `release <wheel>`, the gateways one at a time
@@ -27,9 +29,15 @@ pinecall-gateway@.service   a gateway on a machine with no box: the box's unit l
                             the Postgres container, LiveKit at the box's address
 gateway.nft                 a gateway machine's fence: ssh, and port 8090 from the box alone
 worker.sh                   on a worker machine: `join <box address> <wheel> <world> [calls]`, the
-                            credentials on stdin; `release <wheel>`, the worker drained and restarted
+                            credentials on stdin; `image …`, the same from `worker-settings`, no
+                            credential on the disk, for the machine the fleet's image is frozen
+                            from; `enroll`, a machine made from the image spending its join token
+                            at its first boot; `release <wheel>`, the worker drained and restarted
+pinecall-join.service       the first boot of a machine made from the image: `worker.sh enroll`,
+                            skipped on a machine joined by hand (no /etc/pinecall/join.env)
 pinecall-worker@.service    a worker on a machine with no box: the box's unit less the LiveKit,
-                            gateway and fleet key it waits for, both at the box's address
+                            gateway and fleet key it waits for, both at the box's address; it waits
+                            for the enrolment
 worker.nft                  a worker machine's fence: ssh, and nothing else in
 pinecall-postgres.container the standby: the box's image, volume and container name
 alerts.yaml                 the four alerts, as Prometheus rules over the gateway's /metrics

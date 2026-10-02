@@ -21,7 +21,7 @@ from pinecall.fleet.hub import Cloud, Line
 from pinecall.postgres.pool import open_pool
 from pinecall.process.settings import Settings
 from pinecall.tenancy import keys as key_table
-from pinecall.wire.rest.fleet import WorkerStatus
+from pinecall.wire.rest.fleet import JoinTokenRequest, WorkerStatus
 
 type Verb = Callable[[httpx.Client, argparse.Namespace], int]
 
@@ -62,6 +62,10 @@ A_FLEET_KEY = "the {env} fleet"
 A_RUNNER_KEY = "the {env} runner"
 
 NO_GROWTH = "--grow-at-most is at least 1 and --target a share of the seats over 0"
+
+ONE_FLEET = "the loop makes machines for one fleet: name it with --fleet, or look with --dry-run"
+
+JOIN_TOKENS = "/v1/ops/fleet/join-tokens"
 
 
 def init_group(first: argparse.ArgumentParser) -> None:
@@ -488,6 +492,8 @@ def fleet_loop(client: httpx.Client, args: argparse.Namespace) -> int:
     """Every `--every` seconds, one tick: the fleet kept at its target, or a dry run said."""
     if args.grow_at_most < 1 or args.target <= 0:
         raise DeclarationRefused(NO_GROWTH)
+    if args.fleet is None and not args.dry_run:
+        raise DeclarationRefused(ONE_FLEET)
     cloud = Cloud(Path(args.cloud))
     line = Line(
         target=args.target,
@@ -507,10 +513,27 @@ def fleet_loop(client: httpx.Client, args: argparse.Namespace) -> int:
                 sys.stdout, f"  {hub.worded(decision)}{'  (dry run)' if args.dry_run else ''}"
             )
         if not args.dry_run:
-            hub.applied(decided, lambda worker: _cordon(client, worker, on=True), cloud)
+            hub.applied(
+                decided,
+                lambda worker: _cordon(client, worker, on=True),
+                cloud,
+                lambda name: _joining(client, str(args.fleet), name),
+                lambda name: _forgotten(client, name),
+            )
         if args.once:
             return 0
         time.sleep(args.every)
+
+
+# What a machine's first boot is given: a token good for one join, and the door to spend it at.
+def _joining(client: httpx.Client, fleet: str, name: str) -> dict[str, str]:
+    body = JoinTokenRequest(fleet=fleet, worker=name).written()
+    answer = _object(_answered(client.post(JOIN_TOKENS, json=body)))
+    return {"PINECALL_JOIN_TOKEN": str(answer["token"]), "PINECALL_JOIN_URL": str(answer["url"])}
+
+
+def _forgotten(client: httpx.Client, name: str) -> None:
+    _answered(client.delete(f"/v1/ops/fleet/{name}/keys"))
 
 
 def _knocking(verb: Verb) -> Callable[[Settings, argparse.Namespace], int]:

@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- The fleet's image carries no credential. A machine the loop makes spends a join token at its first
+  boot (`POST /v1/fleet/join`, `pinecall-join.service` → `worker.sh enroll`) for a fleet key of its
+  own, the LiveKit pair and the store's secret, sealed to that machine; the loop mints the token
+  (`POST /v1/ops/fleet/join-tokens`: a key of scope `join`, named for the machine, ten minutes, spent
+  once) before each `create` and revokes the machine's keys after each `delete`
+  (`DELETE /v1/ops/fleet/{worker}/keys`). `worker.sh image` prepares the machine the image is frozen
+  from, from `primary.sh worker-settings` (no secret); `infra/fleet/first-boot` is the user-data the
+  three cloud scripts hand over; `fleet loop` requires `--fleet` unless `--dry-run`.
+- The fence lets in a range (`primary.sh allow-worker 10.100.0.0/24`), the subnet the fleet loop
+  makes its machines in; `infra/fleet/gcp` takes `PINECALL_FLEET_SUBNET`.
+
 ## 0.1.4 — Workers on machines of their own, the recording made by the call itself, a box measured with real audio (2026-10-02)
 
 - Workers on other machines: `primary.sh allow-worker <address>` on the box (the fence, LiveKit's

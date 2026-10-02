@@ -197,24 +197,36 @@ def test_the_cloud_is_one_script_with_three_verbs(tmp_path: Path) -> None:
     log = tmp_path / "verbs"
     script = a_script(
         tmp_path,
-        f'echo "$@" >> {log}\n'
+        f'echo "$@${{PINECALL_JOIN_TOKEN:+ with $PINECALL_JOIN_TOKEN at $PINECALL_JOIN_URL}}"'
+        f" >> {log}\n"
         'case "$1" in list) printf "pinecall-worker-1\\t2026-09-28T10:00:00+00:00\\n";; esac',
     )
     cloud = Cloud(script)
     (machine,) = cloud.machines()
     assert machine.name == "pinecall-worker-1"
-    applied([Grow("pinecall-worker-2", ""), Delete("pinecall-worker-1", "")], lambda _: None, cloud)
+    forgotten: list[str] = []
+    applied(
+        [Grow("pinecall-worker-2", ""), Delete("pinecall-worker-1", "")],
+        lambda _: None,
+        cloud,
+        lambda name: {
+            "PINECALL_JOIN_TOKEN": f"a-token-for-{name}",
+            "PINECALL_JOIN_URL": "https://box",
+        },
+        forgotten.append,
+    )
     assert log.read_text().splitlines() == [
         "list",
-        "create pinecall-worker-2",
+        "create pinecall-worker-2 with a-token-for-pinecall-worker-2 at https://box",
         "delete pinecall-worker-1",
     ]
+    assert forgotten == ["pinecall-worker-1"]
 
 
 def test_a_cordon_decision_reaches_the_gateway_and_not_the_cloud(tmp_path: Path) -> None:
     cordoned: list[str] = []
     cloud = Cloud(a_script(tmp_path, "exit 0"))
-    applied([Cordon("pinecall-worker-1", "")], cordoned.append, cloud)
+    applied([Cordon("pinecall-worker-1", "")], cordoned.append, cloud, lambda _: {}, lambda _: None)
     assert cordoned == ["pinecall-worker-1"]
 
 

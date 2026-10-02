@@ -1,9 +1,10 @@
 """The fleet loop: the roster and the cloud read, one tick decided, a machine grown or let go."""
 
 import math
+import os
 import re
 import subprocess
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from fractions import Fraction
@@ -82,6 +83,8 @@ class Delete:
 
 
 # One executable, three verbs: `create <name>`, `delete <name>`, `list` (name<TAB>ISO 8601 time).
+# `create` is given the machine's join token and the door to spend it at in its environment
+# (PINECALL_JOIN_TOKEN, PINECALL_JOIN_URL), for the machine's first boot.
 class Cloud:
     """A cloud driven by one script beside the loop, signed in wherever the loop runs."""
 
@@ -96,8 +99,8 @@ class Cloud:
         listed = self.ran("list")
         return [_machine(line) for line in listed.splitlines() if line.strip()]
 
-    def ran(self, *verb: str) -> str:
-        """One verb run: `create <name>` makes a machine that dials in; `delete <name>` ends it."""
+    def ran(self, *verb: str, given: Mapping[str, str] | None = None) -> str:
+        """One verb run, what `given` names in its environment; `create` makes, `delete` ends."""
         try:
             done = subprocess.run(
                 [str(self.script), *verb],
@@ -105,6 +108,7 @@ class Cloud:
                 text=True,
                 check=False,
                 timeout=A_VERB_MAY_TAKE_S,
+                env=None if given is None else {**os.environ, **given},
             )
         except subprocess.TimeoutExpired as slow:
             raise UpstreamFailed(
@@ -201,16 +205,23 @@ def worded(decision: Decision) -> str:
             return f"delete  {name}: {why}"
 
 
-def applied(decisions: Sequence[Decision], cordon: Callable[[str], None], cloud: Cloud) -> None:
-    """Each decision carried out: a machine made, a worker cordoned, a machine deleted."""
+def applied(
+    decisions: Sequence[Decision],
+    cordon: Callable[[str], None],
+    cloud: Cloud,
+    joining: Callable[[str], Mapping[str, str]],
+    forgotten: Callable[[str], None],
+) -> None:
+    """Each decision done: a machine made with its join, a worker cordoned, one gone, keys too."""
     for decision in decisions:
         match decision:
             case Grow(name=name):
-                cloud.ran("create", name)
+                cloud.ran("create", name, given=joining(name))
             case Cordon(worker=worker):
                 cordon(worker)
             case Delete(name=name):
                 cloud.ran("delete", name)
+                forgotten(name)
 
 
 def printed(out: TextIO, text: str) -> None:

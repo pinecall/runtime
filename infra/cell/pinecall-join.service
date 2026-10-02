@@ -1,0 +1,17 @@
+# The first boot of a machine made from the fleet's image: cloud-init wrote the join token the
+# loop gave it (infra/fleet/first-boot) to /etc/pinecall/join.env, and worker.sh enroll spends it
+# at the gateway for the machine's own credentials, sealed here. A machine joined by hand has no
+# such file, and this unit is skipped. The worker's unit waits for it.
+[Unit]
+Description=Pinecall: a machine of the fleet enrolls at its first boot
+ConditionPathExists=/etc/pinecall/join.env
+Wants=network-online.target
+After=network-online.target cloud-final.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/pinecall/infra/cell/worker.sh enroll
+
+[Install]
+WantedBy=multi-user.target
