@@ -242,6 +242,13 @@ one too many once drained (abandoned from the group, then deleted: `infra/fleet/
 machines read their credentials from Secret Manager as their own identity. The recipe and why are
 [../infra/fleet/README.md](../infra/fleet/README.md).
 
+Run in production on 2026-10-02, with no call (the demand written by hand at 19 calls, the loop
+stopped): the group made `pinecall-worker-production-x3jm` 91 s after it read the metric, and the
+machine, which had no token and no credential, read its world's key from Secret Manager and was
+`accepting` with 32 seats 64 s later; with the loop started again (the real demand, 0), it was
+cordoned, drained and, abandoned from the group, deleted 27 s later, the group back at 0. The box's
+two workers of production were never touched.
+
 Run on Google Cloud on 2026-10-02 against the sandbox fleet, from a laptop, with no call: a machine
 made from an image that holds no credential, in the fleet's own subnet, spent its join token at
 its first boot and was `accepting` 99 s after the loop asked for it, on a fleet key of its own;

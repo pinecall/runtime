@@ -49,8 +49,9 @@ module "box" {
   service_account     = google_service_account.fleet.email
   scopes              = ["cloud-platform"]
   deletion_protection = true
-  # Its identity changed once (2026-10-02): a stop of a minute, in a window with no call open.
-  allow_stopping_for_update = true
+  # Its identity changed once, on 2026-10-02, with this true for that apply: a stop of 97 s, no
+  # call open. False again, so no later apply stops the box unless this line is changed for it.
+  allow_stopping_for_update = false
 }
 
 module "replica" {

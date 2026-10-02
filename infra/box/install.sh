@@ -65,6 +65,12 @@ if [ -f /etc/pinecall/backup.env ] && [ ! -f /etc/pinecall/store.env ]; then
     echo "/etc/pinecall/backup.env is /etc/pinecall/store.env now"
 fi
 
+# The machine's name, kept: an image with no /etc/hostname takes its name from DHCP once the network
+# is up, and a worker that started before is named localhost (seen 2026-10-02, after a stop).
+if [ ! -s /etc/hostname ] && [ "$(hostname -s)" != localhost ]; then
+    hostnamectl set-hostname "$(hostname -s)"
+fi
+
 # What is this box's and not a secret: a name per world, every name Caddy answers to, the
 # gateway's connections to its Postgres, sized to the machine: two per vCPU for the doors, and the
 # writer's two (an e2-standard-4 holds 10); and the address the cell's machines reach it at.
