@@ -1,8 +1,59 @@
 # The fleet's clouds
 
-`pinecall-runtime fleet loop --cloud infra/fleet/<cloud> --seats <n>` keeps a fleet at its target
-([docs/scaling.md](../../docs/scaling.md)). A cloud is one executable with three verbs, and nothing
-cloud-specific lives anywhere else:
+A world's workers on machines of their own, as many as its calls need. There are two ways, and a
+box picks the one its cloud has:
+
+| | Google Cloud (Pinecall's) | any other cloud, a server of your own |
+|---|---|---|
+| makes the machines | a **managed instance group** (Terraform's `modules/fleet-gcp`) from the image family Packer builds | the fleet loop, through a script with three verbs (`create`, `delete`, `list`) |
+| grows the fleet | the group's autoscaler, on the fleet's calls the loop writes to Cloud Monitoring | the loop |
+| lets one go | the loop: cordons the quietest, waits for its calls, abandons it from the group and deletes it | the loop, the same way |
+| a machine's credentials | read at its first boot from Secret Manager, as its own service account | spent at its first boot from a join token the loop made for it |
+| heals one | the group, on the worker's health port | the loop deletes a machine silent for 5 min |
+
+**Why the loop stays on Google Cloud too.** A group removing a machine itself gives it 90 seconds
+to stop, and a call may last ten minutes; so the group only grows (`ONLY_SCALE_OUT`), and the loop
+lets go of the one too many once it holds no call — LiveKit's own advice: scale out early, scale
+in only once drained ([docs](https://docs.livekit.io/deploy/custom/deployments/)).
+
+## On Google Cloud
+
+Everything cloud-side is Terraform's (`infra/terraform/`): the fleet's subnet `10.100.0.0/24` and
+its NAT (a machine has no public address), the rules that let it reach the box's LiveKit and
+gateways and let Google's checkers reach its health port, the secrets and the world's worker
+identity (`modules/secrets`), and the group with its template and autoscaler (`modules/fleet-gcp`).
+The box's VM acts as `pinecall-fleet@…`, which may let go of the fleet's machines alone (a custom
+role conditioned on their names) and write the metric.
+
+```console
+$ make image WORLD=production         # Packer: the worker image into pinecall-worker-production
+$ make tf-apply ENV=production        # the template takes the family's newest image
+```
+
+From then on nothing is done by hand. The box runs `pinecall-fleet-loop@production`
+(`install.sh` enables it from the box's metadata, which Terraform writes): every 15 s it reads the
+roster, writes `custom.googleapis.com/pinecall/fleet_calls{fleet}` (the calls held), and lets go of
+a machine that is one too many. The autoscaler keeps ⌈calls ÷ 19⌉ machines (32 seats × 0.6, under
+the worker's 0.7 line), between `min` and `max` (`environments/production/main.tf`). A machine it
+makes boots from the image, reads its world's fleet key, the LiveKit pair and the store's secret
+from Secret Manager (`pinecall-runtime cell enroll`, run by `pinecall-join.service`), seals them
+to its own vTPM, and its worker registers; the box's own workers of the world count in the
+numbers and are never let go.
+
+A new runtime is a new image: `make image`, and each machine the group makes from then on boots
+it; the ones running keep theirs until the loop lets them go (the group never replaces a machine
+that holds calls: `OPPORTUNISTIC`).
+
+`infra/fleet/gcp-mig.py` is the loop's cloud on Google Cloud (`list`, `delete` = abandon then
+delete, `measure <fleet> <calls>`; `create` is refused: the group grows). It takes the machine's
+own token from the metadata server on the box, the gcloud login's elsewhere, and reads
+`PINECALL_FLEET_PROJECT`, `_ZONE`, `_MIG` (`/etc/pinecall/fleet-loop-<world>.env`).
+
+## Anywhere else
+
+`pinecall-runtime fleet loop --cloud infra/fleet/<cloud> --seats <n> --fleet <fleet>` keeps a
+fleet at its target ([docs/scaling.md](../../docs/scaling.md)). A cloud is one executable with
+three verbs, and nothing cloud-specific lives anywhere else:
 
 ```
 <script> create <name>    a machine from the worker image, labelled the fleet's, named <name>; its
@@ -12,68 +63,36 @@ cloud-specific lives anywhere else:
 <script> list             one line per fleet machine: name<TAB>created (ISO 8601)
 ```
 
-On Google Cloud a machine reads its credentials from Secret Manager as its own service account
-(`pinecall-worker-<world>@…`, Terraform's `modules/secrets`; the box publishes them with
-`pinecall-runtime cell publish-secrets`); the join token below is the path for every other cloud.
-
-The image is a worker machine prepared once and frozen **with no credential on it**: the wheel,
-the units, `box.env`, `store.env` and `fleets/<world>.env`. A machine made from it takes the name
-it was given as its hostname and, at its first boot, spends the join token the loop made for it
-(`POST /v1/fleet/join`, `pinecall-join.service` → `cell/worker.sh enroll`) for a fleet key of its
-own, the LiveKit pair and the store's secret, sealed to that machine alone; then its worker
-starts and heartbeats to the gateway by itself. The token is one key of the box's `api_keys`:
-scope `join`, named for the machine, ten minutes, revoked as it is spent; `delete` revokes the
-machine's fleet key with it (`DELETE /v1/ops/fleet/{worker}/keys`). An image copied, exported or
-kept for years holds nothing that opens anything. The loop runs wherever the cloud's CLI is
-signed in and the box's operator key is in its environment: a laptop, or the box itself.
-
 | script | needs | set |
 |---|---|---|
-| `first-boot` | — | shared by the three: `first-boot <name>` prints the cloud-config a `create` hands over |
-| `gcp` | `gcloud` | `PINECALL_FLEET_PROJECT` (the gcloud default), `_ZONE`, `_IMAGE` (a machine image), `_TYPE`, `_LABEL`, `_SUBNET` (the subnet the box lets in) |
+| `first-boot` | — | shared by the clouds: `first-boot <name>` prints the cloud-config a `create` hands over |
+| `gcp` | `gcloud` | a project with no group: `PINECALL_FLEET_PROJECT` (the gcloud default), `_ZONE`, `_IMAGE` (a machine image), `_TYPE`, `_LABEL`, `_SUBNET` |
 | `aws` | `aws` | `PINECALL_FLEET_AMI`, `_SUBNET`, `_SG` (required), `_TYPE`, `_TAG` |
 | `hetzner` | `hcloud`, `jq` | `PINECALL_FLEET_IMAGE` (required), `_TYPE`, `_LOCATION`, `_LABEL` |
+| `gcp-mig.py` | Python 3 | the Google Cloud group above, with `--grow-at-most 0` |
 
 A cloud of your own is a script with the same three verbs: `--cloud ./yours`.
 
-## An image, and a first run (Google Cloud, done this way on 2026-10-02)
-
-The machines the loop makes need to reach the box, and their addresses are new each time: give the
-fleet a subnet of its own and let that range in once. On the box's network:
-
-```console
-$ gcloud compute networks subnets create pinecall-fleet --network default --region us-central1 \
-    --range 10.100.0.0/24        # outside 10.128.0.0/9 on an auto-mode network
-$ gcloud compute firewall-rules create pinecall-fleet-to-box --network default \
-    --source-ranges 10.100.0.0/24 --target-tags <the box's tag> --allow tcp:7880,tcp:8088
-box$ sudo pinecall-runtime cell allow-worker 10.100.0.0/24
-```
-
-The image is one machine, prepared with `cell image-worker` and frozen: no credential is ever on it.
-Make it the machine type the fleet will use: `cell image-worker` writes the seats as four per vCPU, and every
-copy keeps that number.
+The image is a worker machine prepared once with `pinecall-runtime cell image-worker` (the box's
+`cell worker-settings`, no secret) and frozen **with no credential on it**. A machine made from it
+takes the name it was given as its hostname and, at its first boot, spends the join token the loop
+made for it (`POST /v1/fleet/join`, `cell enroll`) for a fleet key of its own, the LiveKit pair and
+the store's secret, sealed to that machine alone. The token is one key of the box's `api_keys`:
+scope `join`, named for the machine, ten minutes, revoked as it is spent; `delete` revokes the
+machine's fleet key with it (`DELETE /v1/ops/fleet/{worker}/keys`). The loop runs wherever the
+cloud's CLI is signed in and the box's operator key is in its environment.
 
 ```console
-$ gcloud compute instances create pinecall-worker-base --subnet pinecall-fleet \
-    --machine-type e2-standard-8 --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud \
-    --metadata-from-file user-data=infra/box/cloud-init.yaml     # the box's, your ssh key in it
+box$ sudo pinecall-runtime cell allow-worker <the fleet's subnet>
 $ ssh box 'sudo pinecall-runtime cell worker-settings sandbox' |
-    ssh worker-base 'sudo uvx --from pinecall==<the box version> pinecall-runtime cell image-worker <box address> sandbox'
-$ gcloud compute instances stop pinecall-worker-base
-$ gcloud compute machine-images create pinecall-worker-sandbox-015 --source-instance pinecall-worker-base
-$ gcloud compute instances delete pinecall-worker-base
-```
-
-Then the loop, wherever gcloud is signed in, with the box's operator key in its environment (read
-from the box into the variable, never typed) and the world's own name as the gateway: the loop
-knocks there, and so does each machine it makes. `--fleet` names the fleet the machines join.
-
-```console
+    ssh base 'sudo uvx --from pinecall==<the box version> pinecall-runtime cell image-worker <box address> sandbox --calls 32'
+$ # stop the base machine and freeze it with the cloud's own command; then:
 $ export PINECALL_OPS_KEY="$(ssh box 'sudo systemd-creds decrypt --name=PINECALL_OPS_KEY /etc/credstore.encrypted/PINECALL_OPS_KEY -')"
-$ PINECALL_GATEWAY_URL=https://sandbox.example.com PINECALL_FLEET_SUBNET=pinecall-fleet \
-  PINECALL_FLEET_TYPE=e2-standard-8 PINECALL_FLEET_IMAGE=pinecall-worker-sandbox-015 \
-  pinecall-runtime fleet loop --cloud infra/fleet/gcp --seats 32 --fleet pinecall-sandbox --min 3 --max 3
+$ PINECALL_GATEWAY_URL=https://sandbox.example.com pinecall-runtime fleet loop \
+    --cloud infra/fleet/<cloud> --seats 32 --fleet pinecall-sandbox --min 3 --max 6
 ```
 
-`--min` counts every worker the fleet has, the box's own among them (two per world): `--min 3` on a
-box is one machine. A new wheel is a new image (`docs/scaling.md`, "Deploys drain, cordons shrink").
+`--min` counts every worker the fleet has, the box's own among them (two per world). Measured on
+Google Cloud on 2026-10-02 with the join path (the sandbox fleet, a laptop's loop, no call): a
+machine `accepting` 99 s after the loop asked for it, deleted 86 s after its cordon with its key
+revoked.

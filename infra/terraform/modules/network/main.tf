@@ -88,3 +88,37 @@ resource "google_compute_address" "box" {
   address_type = "EXTERNAL"
   network_tier = "PREMIUM"
 }
+
+# A fleet machine has no public address and still reaches its vendors and PyPI: a NAT for the
+# fleet's subnet alone. It costs nothing while the fleet has no machine.
+resource "google_compute_router" "fleet" {
+  name    = "pinecall-fleet"
+  region  = var.region
+  network = data.google_compute_network.vpc.self_link
+}
+
+resource "google_compute_router_nat" "fleet" {
+  name                               = "pinecall-fleet"
+  router                             = google_compute_router.fleet.name
+  region                             = var.region
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "LIST_OF_SUBNETWORKS"
+  subnetwork {
+    name                    = google_compute_subnetwork.fleet.id
+    source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
+  }
+}
+
+# A managed instance group's health check reaches the worker's health port (8082 production's,
+# 8182 the sandbox's) from Google's checkers alone; infra/cell/worker.nft lets the same in.
+resource "google_compute_firewall" "worker_health" {
+  name          = "pinecall-worker-health"
+  network       = data.google_compute_network.vpc.self_link
+  direction     = "INGRESS"
+  source_ranges = ["35.191.0.0/16", "130.211.0.0/22"]
+  target_tags   = ["pinecall-worker"]
+  allow {
+    protocol = "tcp"
+    ports    = ["8082", "8182"]
+  }
+}

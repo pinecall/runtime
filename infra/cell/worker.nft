@@ -1,6 +1,7 @@
 #!/usr/sbin/nft -f
-# A worker machine's fence (worker.sh join installs it): ssh from anyone, nothing else in. A worker
-# dials out to the box's LiveKit and gateways; what comes back is the answer to that.
+# A worker machine's fence (worker.sh join installs it): ssh from anyone, a cloud's health check,
+# nothing else in. A worker dials out to the box's LiveKit and gateways; what comes back is the
+# answer to that.
 
 destroy table inet pinecall
 
@@ -14,5 +15,8 @@ table inet pinecall {
 		# The cloud's DHCP renewals arrive unicast; a lapsed lease takes the machine off the net.
 		udp dport 68 accept
 		tcp dport 22 accept
+		# A managed instance group's health check: Google's checkers, on the worker's health port
+		# (8082 production's, 8182 the sandbox's), and nothing else of the machine.
+		ip saddr { 35.191.0.0/16, 130.211.0.0/22 } tcp dport { 8082, 8182 } accept
 	}
 }

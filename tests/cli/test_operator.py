@@ -187,10 +187,36 @@ async def test_the_fleet_is_listed_cordoned_and_looped_once_in_a_dry_run(
     assert ticked.startswith("fleet: 1 workers up · 1 machines · 4/4 seats held")
     assert "grow    pinecall-worker-2: busy 1.00 over 0.60: 3 seats missing  (dry run)" in ticked
     loop = ("fleet", "loop", "--cloud", str(script), "--seats", "4", "--once", "--dry-run")
-    with pytest.raises(DeclarationRefused, match="--grow-at-most is at least 1"):
-        await ran(settings, *loop, "--grow-at-most", "0")
+    with pytest.raises(DeclarationRefused, match="--grow-at-most is 0"):
+        await ran(settings, *loop, "--grow-at-most", "-1")
     with pytest.raises(DeclarationRefused, match="--fleet"):
         await ran(settings, "fleet", "loop", "--cloud", str(script), "--seats", "4", "--once")
+
+
+@postgres
+async def test_a_cloud_that_grows_the_fleet_is_told_its_calls_and_the_loop_never_grows(
+    knocking: Knocking, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    settings = settings_of(knocking)
+    beat = {
+        "fleet": FLEETS["sandbox"],
+        "worker": "pinecall-worker-sandbox-ab12",
+        "active": 4,
+        "max_jobs": 4,
+        "load": 1.0,
+        "draining": False,
+    }
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/fleet/heartbeat", json=beat)
+    measures = tmp_path / "measures"
+    script = tmp_path / "cloud"
+    script.write_text(f'#!/bin/sh\ncase "$1" in measure) echo "$2 $3" >> {measures};; esac\n')
+    script.chmod(script.stat().st_mode | stat.S_IXUSR)
+    loop = ("fleet", "loop", "--cloud", str(script), "--seats", "4", "--fleet", FLEETS["sandbox"])
+    assert await ran(settings, *loop, "--grow-at-most", "0", "--once") == 0
+    ticked = capsys.readouterr().out
+    assert "grow" not in ticked
+    assert measures.read_text().split() == [FLEETS["sandbox"], "4"]
 
 
 @postgres

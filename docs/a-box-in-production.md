@@ -580,8 +580,10 @@ six dials a minute, two hundred a day, ten minutes a call; `orgs dialling` chang
 ## 8. The fleet
 
 One box holds a fleet per world. When calls outgrow it, workers on other machines join the same
-fleets, and `pinecall-runtime fleet loop` grows and shrinks them through a cloud script
-([scaling.md](scaling.md)).
+fleets: on Google Cloud a managed instance group grows production's on its calls and the box's
+`pinecall-fleet-loop@production` lets go of the one too many (Terraform's `modules/fleet-gcp`);
+anywhere else `pinecall-runtime fleet loop` grows and shrinks them through a cloud script
+([../infra/fleet/README.md](../infra/fleet/README.md), [scaling.md](scaling.md)).
 
 ## When it does not come up
 

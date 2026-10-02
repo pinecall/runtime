@@ -10,6 +10,22 @@
   `infra/` there first. Nobody copies `infra/` by hand or calls a script by its path any more; the
   scripts stay as what the verbs run. `pinecall-runtime --version` says the version to install.
 - The curl examples are gone, from the repository and from the docs site.
+- **The cloud is Terraform's** (`infra/terraform/`): the state in a versioned bucket, one root
+  module per environment, `make tf-plan`/`tf-apply`/`tf-check` (CI runs the last). Production was
+  imported whole — the box and its replica, the fleet's subnet, the firewall rules, the static
+  address, the two buckets with their IAM users and policies, SES, the box's four names in Route 53
+  — and a plan says `No changes.`.
+- **A fleet machine on Google Cloud reads its credentials from Secret Manager** as its own
+  identity: a worker service account per world, five secrets declared with no value
+  (`modules/secrets`), written by the box with `pinecall-runtime cell publish-secrets`.
+  `pinecall-runtime cell enroll` replaces the bash enroll: a join token, or Secret Manager, once.
+- **Production's fleet is a managed instance group** (`modules/fleet-gcp`): the image built by
+  Packer (`make image`, `infra/packer`), no public address (a NAT for the fleet's subnet), healed
+  on the worker's health port, grown by its autoscaler on the fleet's calls; it never shrinks
+  itself. `fleet loop --grow-at-most 0` is the loop of such a cloud: it tells the cloud the calls
+  (`measure`) and lets go of the one too many once drained; `infra/fleet/gcp-mig.py` is its
+  script, and `pinecall-fleet-loop@<world>` runs it on the box, configured from the box's
+  metadata. The box's VM acts as `pinecall-fleet`, which may touch the fleet's machines alone.
 
 ## 0.1.5 — The fleet's image carries no credential: each machine joins on a key of its own (2026-10-02)
 

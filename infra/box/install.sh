@@ -205,6 +205,31 @@ fi
 # WAL archiving follows /etc/pinecall/store.env: on with a bucket, its object store and a key, off
 # without (objects.sh).
 bash "$HERE/wal.sh" apply
+# On Google Cloud, what Terraform put in the box's metadata: each world's fleet loop (its group, its
+# seats) and the credentials its machines read at boot. The metadata server answers nothing off
+# Google Cloud, and nothing here runs.
+metadata() {  # ATTRIBUTE: the instance's metadata attribute, or nothing
+    curl -fs -m 2 -H 'Metadata-Flavor: Google' \
+        "http://metadata.google.internal/computeMetadata/v1/instance/attributes/$1" 2>/dev/null || true
+}
+if [ "$(metadata pinecall-cloud)" = gcp ]; then
+    for world in production sandbox; do
+        loop="$(metadata "pinecall-fleet-loop-$world")"
+        if [ -n "$loop" ]; then
+            printf '%s\n' "$loop" > "/etc/pinecall/fleet-loop-$world.env"
+            systemctl enable "pinecall-fleet-loop@$world" >/dev/null 2>&1
+            systemctl restart "pinecall-fleet-loop@$world" || true
+            echo "the $world fleet loop on, against $(sed -n 's/^PINECALL_FLEET_MIG=//p' "/etc/pinecall/fleet-loop-$world.env")"
+        else
+            systemctl disable --now "pinecall-fleet-loop@$world" >/dev/null 2>&1 || true
+            rm -f "/etc/pinecall/fleet-loop-$world.env"
+        fi
+    done
+    if [ -x /opt/pinecall/venv/bin/pinecall-runtime ]; then
+        /opt/pinecall/venv/bin/pinecall-runtime cell publish-secrets \
+            || echo "the fleet's secrets were not published: the box's identity may not add versions yet" >&2
+    fi
+fi
 # The four alerts follow /etc/pinecall/alerts.env: evaluated and mailed with it, off without.
 bash "$HERE/alerts.sh" apply
 echo "the box stands at $DOMAINS (production $FIRST, sandbox ${SECOND:-$FIRST})"

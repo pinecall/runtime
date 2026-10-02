@@ -163,6 +163,7 @@ convention = "google"
 "pinecall/process/recordings.py" = ["ARG002"]  # the disk answers the bucket's calls, and its paths name no org  # box up runs the box's own commands: argv built from constants and the package's files
 "scripts/**" = ["INP001"]  # the build's tools, loaded by path: no package
 "infra/lab/**" = ["INP001"]  # the load lab's tools, run by path: no package
+"infra/fleet/*.py" = ["INP001", "T201", "S310", "S603", "S607"]  # a fleet loop's cloud: by path, prints, Google's fixed URLs, gcloud
 # A fake plugin takes the arguments a real one does, and its keys are fakes; livekit's
 # RoomService names its request `list`, and an override keeps the name it overrides.
 "tests/fakes/*.py" = ["PLR0913", "S105", "S106", "A002"]

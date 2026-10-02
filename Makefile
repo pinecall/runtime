@@ -47,6 +47,19 @@ tf-plan:          ## ENV=…: what an apply would change; "No changes." is the c
 tf-apply:         ## ENV=…: the change made, after the plan is read and `yes` typed
 	$(TF_AUTH) $(TF) apply -input=false
 
+# The fleet's worker image (infra/packer): the wheel of this checkout, the box's settings for the
+# world (no secret in them), the seats of the machine type the fleet runs as.
+PROJECT  ?= example-project
+WORLD    ?= production
+SEATS    ?= 32
+image:            ## WORLD=…: the fleet's worker image built by Packer, into pinecall-worker-<world>
+	rm -rf dist && uv build --wheel --quiet
+	ssh $(BOX) 'sudo pinecall-runtime cell worker-settings $(WORLD)' > .image-settings.tar
+	$(TF_AUTH) packer build -var project=$(PROJECT) -var world=$(WORLD) -var seats=$(SEATS) \
+	  -var box_address="$$($(TF_AUTH) terraform -chdir=infra/terraform/environments/production output -raw box_internal_address)" \
+	  -var package="$$(ls $(CURDIR)/dist/pinecall-*.whl)" -var settings=$(CURDIR)/.image-settings.tar infra/packer; \
+	  status=$$?; rm -f .image-settings.tar; exit $$status
+
 test: db          ## every suite (or T=tests/log), on the local Postgres and Redis, on every core
 	DATABASE_URL=$(LOCAL_DSN) PINECALL_REDIS_URL=$(LOCAL_REDIS) uv run pytest -q -n auto $(T)
 
@@ -102,4 +115,4 @@ test-box:         ## every suite on the box's database through an ssh tunnel; th
 
 comma := ,
 
-.PHONY: check test db hooks box deploy rollback release logs ssh test-box tf-check tf-init tf-plan tf-apply
+.PHONY: check test db hooks box deploy rollback release logs ssh test-box tf-check tf-init tf-plan tf-apply image

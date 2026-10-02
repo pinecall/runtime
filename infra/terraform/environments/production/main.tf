@@ -3,6 +3,20 @@
 # plan with no changes is the proof that this file says what runs.
 
 locals {
+  # What the box reads off its metadata (infra/box/install.sh): it is on Google Cloud, and the
+  # fleet loop of production runs on it against the managed instance group.
+  box_cloud = {
+    pinecall-cloud = "gcp"
+    pinecall-fleet-loop-production = join("\n", [
+      "PINECALL_FLEET=pinecall",
+      "PINECALL_FLEET_SEATS=32",
+      "PINECALL_FLEET_MAX=10",
+      "PINECALL_FLEET_PROJECT=${var.project}",
+      "PINECALL_FLEET_ZONE=${var.zone}",
+      "PINECALL_FLEET_MIG=pinecall-workers-production",
+    ])
+  }
+
   # The box's own cloud-init, its one line that is the operator's filled with the deploy key. A
   # machine made already never reads it again (modules/machine ignores it after).
   cloud_init = replace(
@@ -31,10 +45,12 @@ module "box" {
   disk_type           = "pd-balanced"
   subnetwork          = "default"
   public_address      = module.network.box_address
-  metadata            = { user-data = local.cloud_init }
-  service_account     = var.box_service_account
-  scopes              = var.box_scopes
+  metadata            = merge({ user-data = local.cloud_init }, local.box_cloud)
+  service_account     = google_service_account.fleet.email
+  scopes              = ["cloud-platform"]
   deletion_protection = true
+  # Its identity changed once (2026-10-02): a stop of a minute, in a window with no call open.
+  allow_stopping_for_update = true
 }
 
 module "replica" {
@@ -69,4 +85,17 @@ module "secrets" {
   source     = "../../modules/secrets"
   project    = var.project
   publishers = ["serviceAccount:${google_service_account.fleet.email}"]
+}
+
+module "fleet" {
+  source            = "../../modules/fleet-gcp"
+  world             = "production"
+  fleet             = "pinecall"
+  zone              = var.zone
+  subnetwork        = module.network.fleet_subnet
+  service_account   = module.secrets.worker_service_accounts["production"]
+  health_port       = 8082
+  min               = 0
+  max               = 10
+  calls_per_machine = 19
 }

@@ -17,3 +17,4 @@ build/
 *.tfstate.*
 crash.log
 .terraform-check/
+.image-settings.tar
