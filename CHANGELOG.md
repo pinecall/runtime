@@ -20,7 +20,7 @@
 - LiveKit's API is published on the box's own address by `install.sh`, behind the fence, so letting
   a worker or gateway machine in restarts nothing (a box from before gets one restart, said).
 - The object store's file is `/etc/pinecall/store.env` (was `backup.env`): backups and recordings
-  both read it. A box renames its file once before `make box` or `box upgrade`.
+  both read it. `box upgrade` (and `install.sh`) moves a box's `backup.env` there, once, and says so.
 - The four alerts are evaluated on the box by Prometheus and mailed by Alertmanager
   (`infra/box/alerts.sh`, `alerts.sh test` proves the path).
 - The box measured whole with real audio and no vendor (`infra/lab/`: the vendors faked on their own
