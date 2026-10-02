@@ -27,7 +27,7 @@ $ make test                    # every suite, on a throwaway Postgres (colima or
 
 `docs/architecture.md` is the map: what each folder does and what it may import.
 `docs/glossary.md` defines the ten words of the domain. `docs/conventions.md` says how a file is
-written. `examples/` walks an inbound number, an outbound call and a chat with curl.
+written.
 
 ## What it is
 
