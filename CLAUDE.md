@@ -22,6 +22,8 @@ make check                        the rules (tests/rules/) and the suites with n
 make test [T=tests/log]           every suite on a local Postgres and Redis (colima; `make db`)
 make deploy BOX=example-box   console built in, wheel on the box, migrations, live tests
 make logs BOX=example-box     the journal of the three units, whole
+make local                        the runtime on this laptop: Postgres, Redis, LiveKit in docker
+make local-gateway / local-worker the gateway and a sandbox worker against it (infra/local)
 make tf-plan ENV=production       what Terraform would change in the cloud; "No changes." is the norm
 make tf-apply ENV=production      the change, after reading the plan and typing yes
 vibesmell check                   the hygiene findings; must say "nothing to fix"

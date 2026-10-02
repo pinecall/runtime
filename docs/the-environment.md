@@ -104,8 +104,15 @@ every suite that needs no database; `make test` starts a Postgres of its own in 
 the image of `infra/postgres/`, the box's Postgres 17 with pgvector and pg_textsearch, on tmpfs,
 durability off) and the box's Redis beside it (nothing kept), and gives every test a schema of its
 own and a prefix of its own on the Redis. `make test-box` runs the same suites on
-the box's database through an ssh tunnel, the DSN never printed. Nothing runs LiveKit locally: a
-call is tried against a box.
+the box's database through an ssh tunnel, the DSN never printed.
+
+The runtime whole runs on a laptop too, with no cloud account: `make local` starts the box's
+Postgres, Redis and LiveKit in docker (`infra/local/compose.yaml`, ports 55433, 56380, 7880),
+migrates the schema and writes `.local/env` once (a vault key, an ops key and the sandbox fleet's
+key drawn there, 0600); `make local-gateway` and `make local-worker` run both from the checkout on
+those settings, and `make local-down` stops the compose. LiveKit's pair there is a laptop-only
+dev pair (`infra/local/livekit.yaml`). A phone needs the SIP bridge (`--profile phone`, Linux
+only) and a carrier that reaches the laptop: [../infra/local/README.md](../infra/local/README.md).
 
 ## A box
 

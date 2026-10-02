@@ -47,6 +47,21 @@ tf-plan:          ## ENV=…: what an apply would change; "No changes." is the c
 tf-apply:         ## ENV=…: the change made, after the plan is read and `yes` typed
 	$(TF_AUTH) $(TF) apply -input=false
 
+# The runtime whole on this laptop (infra/local): the box's services in docker, the gateway and a
+# worker from the checkout, on the settings `make local` wrote to .local/env.
+LOCAL_RUN = set -a; . ./.local/env; set +a; uv run pinecall-runtime
+local:            ## Postgres, Redis and LiveKit in docker, the schema migrated, .local/env written once
+	infra/local/up.sh
+
+local-gateway:    ## the gateway from the checkout on 127.0.0.1:8080, against `make local`
+	$(LOCAL_RUN) gateway
+
+local-worker:     ## a worker of the sandbox fleet from the checkout, against `make local`
+	$(LOCAL_RUN) worker start
+
+local-down:       ## the compose stopped; its Postgres volume and .local/env kept
+	docker compose -f infra/local/compose.yaml down
+
 # The fleet's worker image (infra/packer): the wheel of this checkout, the box's settings for the
 # world (no secret in them), the seats of the machine type the fleet runs as.
 PROJECT  ?= example-project
@@ -115,4 +130,4 @@ test-box:         ## every suite on the box's database through an ssh tunnel; th
 
 comma := ,
 
-.PHONY: check test db hooks box deploy rollback release logs ssh test-box tf-check tf-init tf-plan tf-apply image
+.PHONY: check test db hooks box deploy rollback release logs ssh test-box tf-check tf-init tf-plan tf-apply image local local-gateway local-worker local-down
