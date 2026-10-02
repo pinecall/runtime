@@ -62,7 +62,7 @@ join)
     # The box's names, its object store, the fleet's agent name and health port, and the calls.
     install -d /etc/pinecall
     install -m 0644 "$taken/box.env" /etc/pinecall/box.env
-    install -m 0600 "$taken/backup.env" /etc/pinecall/backup.env
+    install -m 0600 "$taken/store.env" /etc/pinecall/store.env
     { grep -v '^PINECALL_MAX_JOBS=' "$taken/fleet.env"; echo "PINECALL_MAX_JOBS=$calls"; } \
         > /etc/pinecall/fleet.env
     printf 'LIVEKIT_URL=ws://%s:7880\nPINECALL_GATEWAY_URL=http://%s:8088\n' "$box" "$box" \

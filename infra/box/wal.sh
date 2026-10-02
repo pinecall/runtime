@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # The database's write-ahead log archived off the box, for a restore to any minute, as root:
-#   wal.sh apply    archiving on when /etc/pinecall/backup.env names PINECALL_BACKUP_BUCKET and an
+#   wal.sh apply    archiving on when /etc/pinecall/store.env names PINECALL_BACKUP_BUCKET and an
 #                   object store (objects.sh) and the backup key exists, off (as a box without a
 #                   bucket has always been) otherwise;
 #                   Postgres restarts only when that changes. install.sh runs it; so does the
-#                   operator after editing backup.env
+#                   operator after editing store.env
 #   wal.sh ship     every segment Postgres spooled, compressed, encrypted to the backup key and
 #                   copied to <bucket>/wal/ in the object store, then removed; pinecall-wal.timer,
 #                   every 10 s
@@ -56,7 +56,7 @@ apply)
     echo "wal archive $wanted"
     ;;
 ship)
-    [ "$OBJECTS" = on ] || { echo "no bucket and object store in /etc/pinecall/backup.env: the spool keeps its segments" >&2; exit 1; }
+    [ "$OBJECTS" = on ] || { echo "no bucket and object store in /etc/pinecall/store.env: the spool keeps its segments" >&2; exit 1; }
     cd "$SPOOL"
     find . -maxdepth 1 -type f ! -name '*.part' ! -name '*.gz.age' -printf '%f\n' | sort |
         while read -r segment; do
@@ -76,7 +76,7 @@ ship)
 fetch)
     [ -n "${2:-}" ] && [ -f "${3:-}" ] && [ -n "${4:-}" ] ||
         { echo "wal.sh fetch <stamp> <age private key file> '<target time, 2026-09-30 14:05:00+00>'" >&2; exit 2; }
-    [ "$OBJECTS" = on ] || { echo "no bucket and object store in /etc/pinecall/backup.env" >&2; exit 1; }
+    [ "$OBJECTS" = on ] || { echo "no bucket and object store in /etc/pinecall/store.env" >&2; exit 1; }
     stamp="$2"
     secret="$(realpath "$3")"
     target="$4"

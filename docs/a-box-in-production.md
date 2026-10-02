@@ -180,12 +180,12 @@ change. The journal keeps a month
 
 What leaves the box's disk — the nightly backup, the WAL archive, the recordings — goes to one
 object store, spoken in S3: AWS S3, Google Cloud Storage through its S3 interoperability, Cloudflare
-R2, Backblaze B2, a MinIO of your own. It is named in `/etc/pinecall/backup.env` (the operator's
+R2, Backblaze B2, a MinIO of your own. It is named in `/etc/pinecall/store.env` (the operator's
 file, which `install.sh` never writes), and its secret is a sealed credential like the box's
 others, never in that file:
 
 ```sh
-# /etc/pinecall/backup.env
+# /etc/pinecall/store.env
 PINECALL_S3_ENDPOINT=https://s3.eu-west-1.amazonaws.com   # the store's address
 PINECALL_S3_REGION=eu-west-1                              # what the signature names
 PINECALL_S3_ACCESS_KEY_ID=AKIA…                           # the key the box writes with
@@ -223,7 +223,7 @@ over and the far end of a warm transfer heard from their own tracks while they s
 melody laid in from its clip where it sounded. The session
 closes it before the call is sealed, and the worker seals it under the call's own key at once
 (`audio.sealed`, the plain file removed; [security/private-values.md](security/private-values.md)).
-With `PINECALL_RECORDINGS_BUCKET` and the object store in `backup.env` (read by the gateway, the
+With `PINECALL_RECORDINGS_BUCKET` and the object store in `store.env` (read by the gateway, the
 workers and the retention run; restart them after adding it), the worker uploads that file to
 `<bucket>/<org>/<call>/audio.sealed` before it seals the call, and removes it from the disk.
 `GET /v1/calls/{call}/recording` then reads it from the bucket with the player's byte range, so any
@@ -244,7 +244,7 @@ back whole by `pg_restore -f /dev/null` before anything else, and a tar of the r
 before encryption. A box with no key there makes no backup (`install.sh` enables the timer only
 when the key exists); the private key is never on the box: whoever restores holds it. They are
 kept 7 days in `/var/lib/pinecall/backups`; with `PINECALL_BACKUP_BUCKET` and the object store in
-`backup.env`, each night's files are copied to `<bucket>/<stamp>/` too; the bucket's lifecycle
+`store.env`, each night's files are copied to `<bucket>/<stamp>/` too; the bucket's lifecycle
 rule deletes them after 35 days. A store half named (no region, no key id, no sealed secret) is
 said in `journalctl -u pinecall-backup` and the night's files stay on the box. A backup taken
 before an erasure still holds what went: 7 days on the box, 35 in the bucket, which an answer to
@@ -260,8 +260,8 @@ pg_restore --clean --if-exists -d "$DATABASE_URL" db.dump    # on the box being 
 
 ### The WAL archive: a restore to any minute
 
-With the backup bucket and the object store in `backup.env` and the backup key on the box,
-`infra/box/wal.sh apply` (which `install.sh` runs, and the operator runs after editing `backup.env`)
+With the backup bucket and the object store in `store.env` and the backup key on the box,
+`infra/box/wal.sh apply` (which `install.sh` runs, and the operator runs after editing `store.env`)
 turns Postgres's WAL archiving on: `archive_mode`, `archive_timeout = 60s` and an `archive_command` set with `ALTER
 SYSTEM`, and Postgres restarted once, a few seconds, when `archive_mode` changes. Each finished
 segment is copied by Postgres to `/var/lib/pinecall/wal` on the same disk (the spool: Postgres
@@ -285,7 +285,7 @@ the disk fills, the copy fails, Postgres keeps its segments in `pg_wal` on the s
 full disk stops Postgres: the doctor's line is the warning, hours ahead at the box's rate.
 
 **A restore to a point in time**, on the box (or a new `box up` box of the same version, with the
-same `backup.env` and the store's secret sealed; there, add the old box's vault key with
+same `store.env` and the store's secret sealed; there, add the old box's vault key with
 `install.sh vault-add`). The private backup key comes to the box for the restore and leaves after
 it. `<stamp>` is the newest night before the target minute (`sudo bash -c '. /opt/pinecall/infra/box/objects.sh
 && rclone lsf store:$PINECALL_BACKUP_BUCKET/'`):
@@ -373,7 +373,7 @@ sudo uvx --from pinecall==<the box's version> pinecall-runtime box failover
 It refuses a Postgres that is not a standby, promotes it (`pg_promote`), checks it left
 recovery, prints when the last replayed write was (what the failover lost), and prints the rest:
 keep the old box from coming back as a second primary, point the names (and any trunk that names
-the old box's address) at this machine, copy `backup.env` and `backup.age.pub` and seal the store's
+the old box's address) at this machine, copy `store.env` and `backup.age.pub` and seal the store's
 secret, `box up --domains
 …` here, and the doctor. It repoints, stops and deletes nothing itself. `box up` finds the
 database running and keeps the three secrets sealed above; its numbers go back on the SIP service
@@ -391,7 +391,7 @@ endpoint replaces):
 What the drill found: until 2026-10-01 the replica could not have streamed at all — Ubuntu 24.04's
 podman ignores the `.container.d` drop-in that published Postgres toward it (fixed: the publish
 lines are written into the installed container file). And a promoted replica keeps archiving off
-until `backup.env` and the store's secret are copied to it, as step 3 of the failover says.
+until `store.env` and the store's secret are copied to it, as step 3 of the failover says.
 
 ### Two gateways, or more
 

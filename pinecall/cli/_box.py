@@ -72,7 +72,7 @@ Nothing else was changed, repointed or deleted. To serve from it:
          'pinecall-overflow@*' pinecall-postgres
   2. point the box's names, production's and the sandbox's, at this machine, and any carrier
      trunk that reaches the old box by its address
-  3. copy the old box's /etc/pinecall/backup.env and /etc/pinecall/backup.age.pub here, if it
+  3. copy the old box's /etc/pinecall/store.env and /etc/pinecall/backup.age.pub here, if it
      had them, and seal its object store's secret here the same way:
        sudo /opt/pinecall/infra/box/install.sh secret PINECALL_S3_SECRET_ACCESS_KEY
   4. sudo uvx --from pinecall=={version} pinecall-runtime box up --domains <production>,<sandbox>

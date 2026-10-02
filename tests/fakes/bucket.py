@@ -18,7 +18,7 @@ ACCESS_KEY_ID = "PCTESTKEYID"
 
 SECRET_ACCESS_KEY = "made-up-by-this-test/secret"
 
-# What a box names its object store with, as backup.env and the sealed credential give it.
+# What a box names its object store with, as store.env and the sealed credential give it.
 STORE_SETTINGS = {
     "PINECALL_S3_ENDPOINT": ENDPOINT,
     "PINECALL_S3_REGION": REGION,
