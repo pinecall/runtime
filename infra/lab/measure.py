@@ -196,7 +196,9 @@ class Lab:
         rang, started, ring, user, agent, p50, p95, errors = (
             value or "—" for value in self.ssh(BOX, f"{PSQL} {query}", quiet=True).split("|")
         )
-        per = worker_cores / calls if calls else 0.0
+        # Per call that started: a call that never rang costs nothing.
+        live = int(started) if started.isdigit() else 0
+        per = worker_cores / live if live else 0.0
         return (
             f"| {calls} ({started} of {rang} started) | {worker_cores:.2f} cores | {per:.2f} "
             f"| {box_cores:.2f} cores | {agent} of {user} | {p50} / {p95} s | {ring} s | {errors} |"

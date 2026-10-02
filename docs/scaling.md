@@ -121,6 +121,21 @@ about 25 calls before it needs a LiveKit node or a SIP node of its own (above). 
 not move from 8 to 24: the worker machine was never the bottleneck of these calls, the box was
 when the workers shared it.
 
+**Two vCPU on each side** (2026-10-02, `infra/lab/measure.py measure --box e2-standard-2 --worker
+e2-standard-2`, the lab made and destroyed by Terraform): the calls that started all held, but no
+step started more than six calls, whatever was asked, and the cause is not found yet; read the
+rows as what six calls cost, not as where two vCPU stop.
+
+| asked | started | worker machine (2 vCPU) | per call | the box (2 vCPU), no worker on it | turns answered | first audio p50 / p95 |
+|---|---|---|---|---|---|---|
+| 8 | 5 | 1.35 cores | ~0.27 | 0.86 cores | 56 of 56 | 1.27 / 1.37 s |
+| 10 | 6 | 1.60 cores | ~0.27 | 1.01 cores | 67 of 67 | 1.33 / 1.80 s |
+| 12 | 6 | 1.57 cores | ~0.26 | 0.97 cores | 67 of 67 | 1.36 / 1.68 s |
+
+On two vCPU a call costs the worker ~0.27 vCPU (more than on eight: the job processes' start and
+the event loop weigh more on fewer cores) and the box ~0.16; six calls already put the worker
+near 0.8 of the machine, so a 2-vCPU worker machine is not the shape to run a fleet on.
+
 ## The gateway hears every worker
 
 Every five seconds a worker posts its heartbeat, `{fleet, worker, active, max_jobs, load,

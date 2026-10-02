@@ -231,8 +231,10 @@ if [ "$(metadata pinecall-cloud)" = gcp ]; then
             rm -f "/etc/pinecall/fleet-loop-$world.env"
         fi
     done
+    # As root, so it writes no bytecode: a root-owned __pycache__ in the venv broke the next
+    # release on 2026-10-02 (uv could not remove it, after removing the old package).
     if [ -x /opt/pinecall/venv/bin/pinecall-runtime ]; then
-        /opt/pinecall/venv/bin/pinecall-runtime cell publish-secrets \
+        PYTHONDONTWRITEBYTECODE=1 /opt/pinecall/venv/bin/pinecall-runtime cell publish-secrets \
             || echo "the fleet's secrets were not published: the box's identity may not add versions yet" >&2
     fi
 fi
