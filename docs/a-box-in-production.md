@@ -503,7 +503,8 @@ It needs the recordings bucket ("Recordings, off the disk"): its disk is no gate
 sudo /opt/pinecall/infra/cell/primary.sh allow-worker <its address>
 ```
 
-opens 7880 and 8088 to that address and restarts nothing: LiveKit's API is published on the box's
+opens 7880 and 8088 to that address — or to a range, the subnet the fleet loop makes its machines
+in (`allow-worker 10.100.0.0/24`, once) — and restarts nothing: LiveKit's API is published on the box's
 own address by `install.sh` since 0.1.4, behind the fence. A box installed before gets one restart
 of LiveKit (SIP and egress with it) here, said as it happens: a window, once. Then, from your
 laptop, the fleet's credentials

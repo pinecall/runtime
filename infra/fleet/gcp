@@ -8,11 +8,14 @@ set -euo pipefail
 : "${PINECALL_FLEET_IMAGE:=pinecall-worker}"
 : "${PINECALL_FLEET_TYPE:=e2-standard-4}"
 : "${PINECALL_FLEET_LABEL:=pinecall-fleet}"
+# The subnet the box lets in (`primary.sh allow-worker <its range>`); unset, the zone's default.
+: "${PINECALL_FLEET_SUBNET:=}"
 cloud() { gcloud --project "$PINECALL_FLEET_PROJECT" --quiet "$@"; }
 case "${1:-}" in
   create) cloud compute instances create "$2" --zone "$PINECALL_FLEET_ZONE" \
             --source-machine-image "$PINECALL_FLEET_IMAGE" --machine-type "$PINECALL_FLEET_TYPE" \
-            --labels "$PINECALL_FLEET_LABEL=1" --format none ;;
+            --labels "$PINECALL_FLEET_LABEL=1" ${PINECALL_FLEET_SUBNET:+--subnet "$PINECALL_FLEET_SUBNET"} \
+            --format none ;;
   delete) cloud compute instances delete "$2" --zone "$PINECALL_FLEET_ZONE" ;;
   list)   cloud compute instances list --filter "labels.$PINECALL_FLEET_LABEL=1" \
             --format "csv[no-heading,separator='	'](name,creationTimestamp)" ;;
