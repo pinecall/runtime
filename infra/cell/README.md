@@ -2,9 +2,10 @@
 
 The machines beside the box: a streaming replica of its Postgres, so the database outlives the
 box (promoted by `pinecall-runtime box failover`, made the box by `box up`), and machines that run
-gateways and nothing else, so the control plane grows past one machine. The procedures, and what
-was measured: `docs/a-box-in-production.md`, "A replica, and failing over to it" and "Gateways on
-other machines".
+gateways and nothing else, so the control plane grows past one machine, and machines that run one
+world's workers and nothing else, so the calls grow past one machine. The procedures, and what was
+measured: `docs/a-box-in-production.md`, "A replica, and failing over to it", "Gateways on other
+machines" and "Workers on other machines".
 
 ```
 primary.sh                  on the box: `allow <replica>` / `forget` (the role, the slot, pg_hba,
@@ -13,13 +14,23 @@ primary.sh                  on the box: `allow <replica>` / `forget` (the role, 
                             role pinecall, Postgres, Redis and LiveKit's API published on the box's
                             address and fenced to the cell's gateway machines, Caddy sending them
                             calls); `gateway-credentials` (the credentials a gateway machine runs
-                            on, as a tar on stdout, for a pipe alone)
+                            on, as a tar on stdout, for a pipe alone); `allow-worker <address>` /
+                            `forget-worker <address>` (LiveKit's API published on the box's address,
+                            it and the gateways' balancer fenced to the worker machines; no Postgres,
+                            no Redis); `worker-credentials <world>` (the fleet key, the LiveKit pair,
+                            the object store's secret, for a pipe alone; refused with no
+                            recordings bucket)
 replica.sh                  on the second machine: `join <box address>`, the replication password on stdin
 gateway.sh                  on a gateway machine: `join <box address> <wheel> [processes]`, the
                             credentials on stdin; `release <wheel>`, the gateways one at a time
 pinecall-gateway@.service   a gateway on a machine with no box: the box's unit less the migration and
                             the Postgres container, LiveKit at the box's address
 gateway.nft                 a gateway machine's fence: ssh, and port 8090 from the box alone
+worker.sh                   on a worker machine: `join <box address> <wheel> <world> [calls]`, the
+                            credentials on stdin; `release <wheel>`, the worker drained and restarted
+pinecall-worker@.service    a worker on a machine with no box: the box's unit less the LiveKit,
+                            gateway and fleet key it waits for, both at the box's address
+worker.nft                  a worker machine's fence: ssh, and nothing else in
 pinecall-postgres.container the standby: the box's image, volume and container name
 alerts.yaml                 the four alerts, as Prometheus rules over the gateway's /metrics
 ```

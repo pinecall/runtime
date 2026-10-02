@@ -61,12 +61,6 @@ class Settings(BaseModel):
         alias="LIVEKIT_PUBLIC_URL",
         description="The LiveKit URL a browser is told to join. Unset, it hears LIVEKIT_URL.",
     )
-    # The egress service records the room composite; only the doctor knocks here.
-    egress_url: str = Field(
-        "http://127.0.0.1:7980",
-        alias="PINECALL_EGRESS_URL",
-        description="Where the box's recorder answers its health check.",
-    )
     # A box has a name per world: the request's Host says which world it is for.
     domain: str | None = Field(
         None,
