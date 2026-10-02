@@ -15,6 +15,15 @@
 #   primary.sh gateway-credentials        what a gateway machine runs on (the box's credentials,
 #                   its URLs pointed at this machine's address, and box.env) as a tar on stdout,
 #                   for `gateway.sh join` on the other machine; refused onto a terminal
+#   primary.sh allow-worker <address>     a worker machine of this cell (infra/cell/worker.sh):
+#                   LiveKit's API published on this machine's address, LiveKit's API and the
+#                   gateways' balancer (8088) fenced to the cell's worker machines alone; no
+#                   Postgres, no Redis
+#   primary.sh forget-worker <address>    that undone for one worker machine
+#   primary.sh worker-credentials <world> what a worker machine of that world's fleet runs on (its
+#                   fleet key, the LiveKit pair, the object store's secret, box.env, backup.env,
+#                   the fleet's env) as a tar on stdout, for `worker.sh join`; refused onto a
+#                   terminal, and refused when recordings stay on this disk
 # The password never crosses a terminal: `systemd-creds decrypt` on this box piped into
 # `replica.sh join` on the other (docs/a-box-in-production.md).
 set -euo pipefail
@@ -31,6 +40,7 @@ PUBLISHED=/etc/pinecall/published
 CONTAINERS=/etc/containers/systemd
 FENCE=/etc/pinecall/nftables.d/replica.nft
 GATEWAYS=/etc/pinecall/nftables.d/gateways.nft
+WORKERS=/etc/pinecall/nftables.d/workers.nft
 REMOTE=/etc/pinecall/gateways.env
 # Where a gateway machine's Caddy listens, on its own address, for the box's Caddy.
 GATEWAY_PORT=8090
@@ -146,6 +156,50 @@ forget-gateway)
     remote "$gateway:$GATEWAY_PORT" remove
     echo "gateway machine $gateway is out of the cell"
     ;;
+allow-worker)
+    [ -n "${2:-}" ] || { echo "primary.sh allow-worker <worker machine address>" >&2; exit 2; }
+    worker="$2"
+    here="$(ip -4 route get "$worker" | sed -n 's/.* src \([0-9.]*\).*/\1/p')"
+    [ -n "$here" ] || { echo "no route from this machine to $worker" >&2; exit 1; }
+    install -d /etc/pinecall/nftables.d
+    printf 'add element inet pinecall workers { %s }\n' "$worker" >> "$WORKERS"
+    sort -u -o "$WORKERS" "$WORKERS"
+    nft -f /etc/nftables.conf
+    # The first time, LiveKit restarts to be published here, and so do SIP and egress with it.
+    published "pinecall-livekit" "$here:7880:7880"
+    echo "worker machine $worker may reach $here:7880 and $here:8088."
+    echo "on it, from a copy of /opt/pinecall/infra: primary.sh worker-credentials <world> | worker.sh join $here <wheel> <world>"
+    ;;
+forget-worker)
+    [ -n "${2:-}" ] || { echo "primary.sh forget-worker <worker machine address>" >&2; exit 2; }
+    worker="$2"
+    [ -f "$WORKERS" ] && sed -i "/ $worker }/d" "$WORKERS"
+    nft -f /etc/nftables.conf
+    echo "worker machine $worker is out of the cell"
+    ;;
+worker-credentials)
+    [ -t 1 ] && { echo "worker-credentials writes secrets: pipe it into worker.sh join" >&2; exit 2; }
+    world="${2:-}"
+    [ -f "/etc/pinecall/fleets/$world.env" ] || {
+        echo "primary.sh worker-credentials <world>: production or sandbox" >&2; exit 2; }
+    # A recording stays on the disk of the machine that took the call; the box's gateways serve
+    # only their own disk, so a worker machine needs the bucket.
+    grep -qs '^PINECALL_RECORDINGS_BUCKET=.' /etc/pinecall/backup.env || {
+        echo "this box keeps recordings on its own disk: set PINECALL_RECORDINGS_BUCKET first (docs/a-box-in-production.md, \"Recordings, off the disk\")" >&2
+        exit 1; }
+    out="$(mktemp -d)"
+    trap 'rm -rf "$out"' EXIT
+    systemd-creds decrypt --name=PINECALL_WORKER_KEY \
+        "/etc/pinecall/fleets/$world.credstore/PINECALL_WORKER_KEY" - > "$out/PINECALL_WORKER_KEY"
+    for name in LIVEKIT_API_KEY LIVEKIT_API_SECRET PINECALL_S3_SECRET_ACCESS_KEY; do
+        [ -f "$STORE/$name" ] || continue
+        systemd-creds decrypt --name="$name" "$STORE/$name" - > "$out/$name"
+    done
+    cp /etc/pinecall/box.env "$out/box.env"
+    cp /etc/pinecall/backup.env "$out/backup.env"
+    cp "/etc/pinecall/fleets/$world.env" "$out/fleet.env"
+    tar -C "$out" -cf - .
+    ;;
 gateway-credentials)
     [ -t 1 ] && { echo "gateway-credentials writes secrets: pipe it into gateway.sh join" >&2; exit 2; }
     here="$(ip -4 route get 1.1.1.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p')"
@@ -160,6 +214,6 @@ gateway-credentials)
     tar -C "$out" -cf - .
     ;;
 *)
-    echo "primary.sh allow <replica> | forget | allow-gateway <addr> | forget-gateway <addr> | gateway-credentials" >&2
+    echo "primary.sh allow <replica> | forget | allow-gateway <addr> | forget-gateway <addr> | gateway-credentials | allow-worker <addr> | forget-worker <addr> | worker-credentials <world>" >&2
     exit 2 ;;
 esac

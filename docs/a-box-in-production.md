@@ -483,6 +483,43 @@ a second origination URI on the trunk, `sip:<the SIP machine's name>:5060`. Meas
 2026-10-01 (`infra/lab/`): six calls at once, three through each node, all six answered, every
 turn answered, first audio p95 1.65 s, as through one node.
 
+### Workers on other machines
+
+Past what one box holds in calls (six on 4 vCPU, measured below), one world's workers run on
+machines of their own; the box keeps Postgres, Redis, LiveKit, SIP, the gateways and the other
+world's workers. A worker machine reaches the box's LiveKit and the gateways' balancer (8088, at
+the box's own address, `PINECALL_HERE` in `box.env`) and nothing else of it: no Postgres, no Redis.
+It needs the recordings bucket ("Recordings, off the disk"): its disk is no gateway's, and
+`worker-credentials` refuses a box that keeps recordings on its own. On the box, once per machine:
+
+```
+sudo /opt/pinecall/infra/cell/primary.sh allow-worker <its address>
+```
+
+opens 7880 and 8088 to that address (LiveKit is published on the box's address the first time,
+which restarts it with SIP and egress: a window). Then, from your laptop, the fleet's credentials
+go from one machine to the other through a pipe, never through a terminal:
+
+```
+ssh box 'sudo /opt/pinecall/infra/cell/primary.sh worker-credentials production' |
+  ssh worker-machine 'sudo <a copy of infra>/cell/worker.sh join <box address> <wheel> production [calls]'
+```
+
+`worker.sh join` seals the fleet key and the LiveKit pair there, installs the runtime, and starts
+one worker of that fleet holding `calls` at once (unset, four per vCPU: on a machine of workers
+alone a call costs ~0.2 vCPU, so LiveKit's 0.7 line falls at about three per vCPU; the number is
+counted, never read off the CPU, as "Capacity is counted in calls" in [scaling.md](scaling.md)
+says). A release there is `worker.sh release <wheel>`, after the box's own: the worker drains its
+calls, the fleet's other machines take new ones meanwhile. `primary.sh forget-worker <address>`
+closes the fence to a machine that is gone. The box's own workers of that world may stay (a box
+of 4 vCPU keeps two seats each) or be stopped, as its cores are needed.
+
+Measured on 2026-10-02 (`infra/lab/`: an e2-standard-8 of workers, the box an e2-standard-4, SIP
+callers, the vendors faked): 24 calls at once on the worker machine, 3.5 cores (~0.15 a call, the
+recording included), first audio p95 1.3 s and every turn answered, each call live 0.1 s after it
+rang; the box spent 1.8 cores on their media and their log. `worker.sh release` took 26 s with the
+worker idle. The table is in [scaling.md](scaling.md), "A machine of workers alone".
+
 ## 5. What the box runs
 
 From the console's box screens, or the operator's doors with the ops key

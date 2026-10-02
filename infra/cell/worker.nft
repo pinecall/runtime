@@ -1,0 +1,18 @@
+#!/usr/sbin/nft -f
+# A worker machine's fence (worker.sh join installs it): ssh from anyone, nothing else in. A worker
+# dials out to the box's LiveKit and gateways; what comes back is the answer to that.
+
+destroy table inet pinecall
+
+table inet pinecall {
+	chain input {
+		type filter hook input priority filter; policy drop;
+		iif "lo" accept
+		ct state established,related accept
+		ct state invalid drop
+		icmp type echo-request accept
+		# The cloud's DHCP renewals arrive unicast; a lapsed lease takes the machine off the net.
+		udp dport 68 accept
+		tcp dport 22 accept
+	}
+}

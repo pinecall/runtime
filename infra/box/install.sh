@@ -59,15 +59,16 @@ nft -f /etc/nftables.conf
 install -d /etc/systemd/journald.conf.d
 install -m 0644 "$HERE/journald.conf.d/pinecall.conf" /etc/systemd/journald.conf.d/pinecall.conf
 
-# What is this box's and not a secret: a name per world, every name Caddy answers to, and the
+# What is this box's and not a secret: a name per world, every name Caddy answers to, the
 # gateway's connections to its Postgres, sized to the machine: two per vCPU for the doors, and the
-# writer's two (an e2-standard-4 holds 10).
+# writer's two (an e2-standard-4 holds 10); and the address the cell's machines reach it at.
 cat > /etc/pinecall/box.env <<ENV
 PINECALL_DOMAIN=$FIRST
 PINECALL_SANDBOX_DOMAIN=$SECOND
 PINECALL_DOMAINS=${DOMAINS//,/, }
 LIVEKIT_PUBLIC_URL=wss://$FIRST
 PINECALL_DB_POOL=$((2 * $(nproc) + 2))
+PINECALL_HERE=$(ip -4 route get 1.1.1.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p')
 ENV
 install -m 0644 "$HERE"/fleets/*.env /etc/pinecall/fleets/
 # Each of the box's four workers counts its calls, never the machine's CPU: a call's first seconds

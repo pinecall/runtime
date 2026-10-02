@@ -70,10 +70,10 @@ its four workers 1.5 seats per vCPU between them, two thirds of them production'
 4 vCPU: two and two in production, one and one in the sandbox), from the box measured whole:
 
 **A box, measured whole.** On 2026-10-01, on a box of production's machine type (4 vCPU:
-Postgres, LiveKit, SIP, egress, two gateways and one worker on it), SIP callers speaking a turn
-every 10 s and the three vendors faked on their own wire on another machine (`infra/lab/`): a
-call costs **~0.5 cores of the box** — ~0.3 the worker, ~0.12 its recording (egress), ~0.1 SIP and
-LiveKit.
+Postgres, LiveKit, SIP, the room's recorder of the time (egress), two gateways and one worker on
+it), SIP callers speaking a turn every 10 s and the three vendors faked on their own wire on
+another machine (`infra/lab/`): a call costs **~0.5 cores of the box** — ~0.3 the worker, ~0.12
+its recording, ~0.1 SIP and LiveKit.
 
 | calls at once | box cores | turns the agent answered | first audio p50 / p95 | ring to live p50 |
 |---|---|---|---|---|
@@ -86,10 +86,35 @@ LiveKit.
 Such a box holds six calls. Ring to live was a number of its own: each call's process imported
 every installed vendor plugin before its pipeline was live (3–5 s on an idle box, and slower with
 the box's load); the worker now imports them in its own process, so LiveKit's forkserver preloads
-them once and every call's process inherits them. A worker killed under that load: its calls end
-drained 21 s later and the other worker tells each caller, as on an idle box. A second
-`livekit-sip` on another machine, on the box's Redis and LiveKit, took half of six calls at once,
-answered as through one.
+them once and every call's process inherits them (measured the next day: 0.1 s, at any load). A
+worker killed under that load: its calls end drained 21 s later and the other worker tells each
+caller, as on an idle box. A second `livekit-sip` on another machine, on the box's Redis and
+LiveKit, took half of six calls at once, answered as through one.
+
+**The recording moved into the worker (2026-10-02), and the box measured again.** The call's own
+session records now, and the room's recorder is gone; on a box alone that moves the cost rather
+than removing it: at six calls the worker went from 1.78 to 2.31 cores and the recorder from 0.60
+to 0, the box at 3.4 either way (libopus in the call's process costs what it cost in egress's,
+on these cores). With every call live from its first second, the box held six calls with every
+turn answered (66 of 67, first audio p95 3.2 s) and gave at eight (44 of 84). What it buys is the
+next paragraph: the recording goes with the worker, wherever the worker runs.
+
+**A machine of workers alone** (`worker.sh join`, "Workers on other machines" in
+[a-box-in-production.md](a-box-in-production.md)), the same callers and fakes, the box keeping
+the media plane and the gateways, the recording in each call's process and the file in the bucket:
+
+| calls at once | worker machine (8 vCPU) | per call | the box (4 vCPU), no worker on it | turns answered | first audio p50 / p95 | ring to live |
+|---|---|---|---|---|---|---|
+| 8 | 1.5 cores | 0.19 | 1.5 cores | 96 of 96 | 1.23 / 1.30 s | 0.1 s |
+| 16 | 2.8 cores | 0.17 | 2.3 cores | 185 of 208 | 1.23 / 1.30 s | 0.1 s |
+| 24 | 3.5 cores | 0.15 | 1.8 cores | 274 of 274 | 1.23 / 1.30 s | 0.1 s |
+
+**A call costs ~0.15–0.19 vCPU of a worker machine, its recording included**, so `vCPU × 4` seats
+(32 on 8 vCPU) is ~60 % of the machine, under the 0.7 line; and the box, holding SIP, LiveKit,
+the gateways and Postgres for those calls, spends ~0.1 a call: a 4-vCPU box carries the media of
+about 25 calls before it needs a LiveKit node or a SIP node of its own (above). First audio did
+not move from 8 to 24: the worker machine was never the bottleneck of these calls, the box was
+when the workers shared it.
 
 ## The gateway hears every worker
 
@@ -225,6 +250,8 @@ The control plane, measured on 2026-10-01 with `pinecall-runtime load` from a ma
 | a gateway machine killed for two minutes | 1 200 calls: 6 778 opened and sealed, 0 refused, 0 wrong, 0 billed twice | — |
 | the media plane: two LiveKit nodes on one Redis | `lk load-test`, voice rooms of two audio publishers and one subscriber, rooms spread across both nodes: 400 at once, 0 packets lost, 2.25 cores a node | ~5–6 cores of SFU (~90 calls a core) |
 | a worker on node 1 taking a room on node 2 | the agent dispatched to rooms created on either node: every job assigned and joined (livekit 1.13.7) | — |
+| a machine of workers alone, the recording in the call's process (2026-10-02) | 24 calls on 8 vCPU: 3.5 cores, first audio p95 1.3 s, every turn answered | ~150 vCPU of workers (vCPU × 4 seats a machine) |
+| the box as the media plane alone | 24 calls: 1.8 cores of SIP, LiveKit, gateways and Postgres | ~0.1 a call: a 4-vCPU box carries ~25 before a second media node |
 
 What this says of a cell: Postgres grows by about 1.4 cores per 1 000 calls at once, so a cell of
 100 000 would need some 140 cores of one database, which no one machine holds; a cell is sized

@@ -29,7 +29,9 @@ import /etc/caddy/conf.d/*.caddy
 	}
 }
 
-# The box's own workers knock here, on loopback, not at a public name: the same two gateways.
-http://127.0.0.1:8088 {
+# The box's own workers knock here, on loopback, not at a public name: the same two gateways. The
+# cell's worker machines knock at the box's own address (PINECALL_HERE), which the fence opens to
+# them alone (infra/cell/primary.sh allow-worker).
+http://127.0.0.1:8088, http://{$PINECALL_HERE}:8088 {
 	import gateways
 }
