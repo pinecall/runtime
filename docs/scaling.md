@@ -233,9 +233,10 @@ the fleet's: a worker stood up by hand counts and is never let go. `--once --dry
 tick and touches nothing.
 
 Run on Google Cloud on 2026-10-02 against the sandbox fleet, from a laptop, with no call: a machine
-made from the frozen image in the fleet's own subnet was `accepting` 137 s after the loop asked for
-it, and cordoned and deleted 71 s after the loop was told it was one too many; the box's workers
-were never touched. The subnet, the image and the commands are in
+made from an image that holds no credential, in the fleet's own subnet, spent its join token at
+its first boot and was `accepting` 99 s after the loop asked for it, on a fleet key of its own;
+told it was one too many, the loop cordoned it, deleted it 86 s later and revoked that key. The
+box's workers were never touched. The subnet, the image and the commands are in
 [../infra/fleet/README.md](../infra/fleet/README.md).
 
 ## The shape of the numbers
