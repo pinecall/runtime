@@ -216,11 +216,13 @@ access id in `PINECALL_S3_ACCESS_KEY_ID`, the endpoint and `auto` as above, and 
 
 ### Recordings, off the disk
 
-A recording is the file egress writes under `/var/lib/pinecall/recordings/<call>/`, sealed by
-the worker under the call's own key as soon as it is written (`audio.sealed`, the plain file
-removed; [security/private-values.md](security/private-values.md)). With
-`PINECALL_RECORDINGS_BUCKET` and the object store in `backup.env` (read by the gateway, the workers
-and the retention run; restart them after adding it), the worker uploads that file to
+A recording is the file the call's own session writes under `/var/lib/pinecall/recordings/<call>/`:
+livekit's recorder in the job process, a stereo Ogg Opus with the caller on the left and the agent
+on the right, on one timeline (the hold melody is a track of its own and is not in it). The session
+closes it before the call is sealed, and the worker seals it under the call's own key at once
+(`audio.sealed`, the plain file removed; [security/private-values.md](security/private-values.md)).
+With `PINECALL_RECORDINGS_BUCKET` and the object store in `backup.env` (read by the gateway, the
+workers and the retention run; restart them after adding it), the worker uploads that file to
 `<bucket>/<org>/<call>/audio.sealed` before it seals the call, and removes it from the disk.
 `GET /v1/calls/{call}/recording` then reads it from the bucket with the player's byte range, so any
 gateway serves it and it outlives the machine that took the call. A recording whose upload failed

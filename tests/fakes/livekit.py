@@ -1,5 +1,6 @@
 """LiveKit as the suites see it: seats, a room, the SIP and rooms doors of a server, a player."""
 
+import asyncio
 import base64
 import hashlib
 import time
@@ -7,6 +8,7 @@ import types
 from collections.abc import Mapping
 from typing import override
 
+import numpy as np
 from livekit import api, rtc
 from livekit.agents.voice.background_audio import (
     AudioConfig,
@@ -14,7 +16,7 @@ from livekit.agents.voice.background_audio import (
     BackgroundAudioPlayer,
     PlayHandle,
 )
-from livekit.agents.voice.io import AudioOutput, AudioOutputCapabilities
+from livekit.agents.voice.io import AudioInput, AudioOutput, AudioOutputCapabilities
 from livekit.api.agent_dispatch_service import AgentDispatchService
 from livekit.api.room_service import RoomService
 from livekit.api.sip_service import SipService
@@ -401,6 +403,34 @@ class Player(BackgroundAudioPlayer):
         handle = PlayHandle()
         self.handles.append(handle)
         return handle
+
+
+def tone(hertz: float, seconds: float, rate: int = 48000) -> list[rtc.AudioFrame]:
+    """A tone cut in the 20 ms frames a room delivers: what a caller or an agent says."""
+    samples = rate // 50
+    t = np.arange(int(rate * seconds)) / rate
+    pcm = (8000 * np.sin(2 * np.pi * hertz * t)).astype(np.int16)
+    return [
+        rtc.AudioFrame(pcm[i : i + samples].tobytes(), rate, 1, samples)
+        for i in range(0, len(pcm), samples)
+    ]
+
+
+class Microphone(AudioInput):
+    """The caller's leg: its frames, one every 20 ms as a room delivers them, then nothing."""
+
+    def __init__(self, frames: list[rtc.AudioFrame]) -> None:
+        """A leg that will say these frames."""
+        super().__init__(label="microphone")
+        self.frames = list(frames)
+
+    @override
+    async def __anext__(self) -> rtc.AudioFrame:
+        """The next frame, in its own time; the end once all were said."""
+        if not self.frames:
+            raise StopAsyncIteration
+        await asyncio.sleep(self.frames[0].duration)
+        return self.frames.pop(0)
 
 
 class Speaker(AudioOutput):

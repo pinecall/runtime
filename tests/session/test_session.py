@@ -5,6 +5,7 @@ import time
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+import av
 import pytest
 from livekit import rtc
 from livekit.agents import (
@@ -74,12 +75,13 @@ from pinecall.wire.commands import (
     WhisperVerb,
 )
 from pinecall.wire.events import CreditsExhausted
+from pinecall.wire.metrics import ModelUsage
 from pinecall.wire.parts import AgentConfig as Declared
 from pinecall.wire.parts import Supervisor, ToolResult
 from pinecall.wire.parts import ToolSpec as WiredTool
 from tests.conftest import postgres
 from tests.fakes.acme import ACME, seat
-from tests.fakes.livekit import Player, Server, Speaker
+from tests.fakes.livekit import Microphone, Player, Server, Speaker, tone
 from tests.fakes.livekit import Room as AnOfflineRoom
 from tests.session.conftest import (
     THE_CALLER,
@@ -955,6 +957,37 @@ async def test_a_caller_cutting_in_mid_sentence_leaves_no_task_of_ours_behind_th
 
 def test_an_agent_that_declared_nothing_and_holds_nothing_asks_for_nothing() -> None:
     assert keyterms(NOBODY, {}) == []
+
+
+# ── the recording ──
+
+
+@postgres
+async def test_a_spoken_calls_recording_is_whole_before_the_seal_names_it(
+    box: Box, tmp_path: Path
+) -> None:
+    assert box.log.call is not None
+    audio = tmp_path / "audio.ogg"
+    channels_at_the_seal: list[int] = []
+
+    async def seal(usage: list[ModelUsage], outcome: str) -> None:
+        with av.open(str(audio)) as container:
+            channels_at_the_seal.append(container.streams.audio[0].channels)
+        await box.seal(usage, outcome)
+
+    platform = Platform(
+        append_many=box.log.append_many, tool=box.tool, lookup=box.lookup, seal=seal
+    )
+    stages = Pipeline(llm=Running(ACME, "k"), stt=Running(ACME, "k"), tts=Running(ACME, "k"))
+    session = voice_session(
+        Call(context_of(box.log.call, "phone"), NOBODY, platform, audio), stages
+    )
+    session.live.input.audio = Microphone(tone(300, 0.2))
+    session.live.output.audio = Speaker()
+    await session.start()
+    assert session.recorder is not None
+    await session.close()
+    assert channels_at_the_seal == [2]
 
 
 # ── the line ──

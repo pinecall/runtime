@@ -1,8 +1,7 @@
-"""Tests for the recording of a call's room, and where it is kept once written."""
+"""Tests for where a call's recording is written, and where it is kept once closed."""
 
 import base64
 import logging
-import stat
 from http import HTTPStatus
 from pathlib import Path
 
@@ -12,7 +11,7 @@ import pytest
 from pinecall.fleet.client import GatewayClient
 from pinecall.process.sealed_audio import Span, new_key, on_disk, opened, recorded_size
 from pinecall.process.settings import Settings
-from pinecall.worker._recorder import recording_path, stored
+from pinecall.worker._recorder import recording_path, stored, written
 from tests.fakes.bucket import STORE_SETTINGS, Bucket
 
 AUDIO = b"OggS a call"
@@ -20,12 +19,19 @@ AUDIO = b"OggS a call"
 KEY = new_key()
 
 
-def test_a_call_gets_a_directory_of_its_own_the_recorder_may_write_in(tmp_path: Path) -> None:
+def test_a_call_gets_a_directory_of_its_own(tmp_path: Path) -> None:
     audio = recording_path(tmp_path, "call_1")
     assert audio == tmp_path / "call_1" / "audio.ogg"
-    mode = (tmp_path / "call_1").stat().st_mode
-    assert mode & stat.S_ISGID
-    assert mode & stat.S_IWGRP
+    assert audio.parent.is_dir()
+
+
+def test_a_call_that_ended_before_its_session_recorded_has_no_file(tmp_path: Path) -> None:
+    audio = recording_path(tmp_path, "call_1")
+    assert not written(audio)
+    audio.write_bytes(b"")
+    assert not written(audio)
+    audio.write_bytes(AUDIO)
+    assert written(audio)
 
 
 def reaching(monkeypatch: pytest.MonkeyPatch, remote: Bucket) -> None:
