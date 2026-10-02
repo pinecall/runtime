@@ -1,6 +1,5 @@
 """LiveKit as the suites see it: seats, a room, the SIP and rooms doors of a server, a player."""
 
-import asyncio
 import base64
 import hashlib
 import time
@@ -8,7 +7,6 @@ import types
 from collections.abc import Mapping
 from typing import override
 
-import numpy as np
 from livekit import api, rtc
 from livekit.agents.voice.background_audio import (
     AudioConfig,
@@ -16,11 +14,19 @@ from livekit.agents.voice.background_audio import (
     BackgroundAudioPlayer,
     PlayHandle,
 )
-from livekit.agents.voice.io import AudioInput, AudioOutput, AudioOutputCapabilities
+from livekit.agents.voice.io import AudioOutput, AudioOutputCapabilities
 from livekit.api.agent_dispatch_service import AgentDispatchService
+from livekit.api.egress_service import EgressService
 from livekit.api.room_service import RoomService
 from livekit.api.sip_service import SipService
 from livekit.protocol.agent_dispatch import AgentDispatch, CreateAgentDispatchRequest
+from livekit.protocol.egress import (
+    EgressInfo,
+    ListEgressRequest,
+    ListEgressResponse,
+    StopEgressRequest,
+    TrackEgressRequest,
+)
 from livekit.protocol.models import ListUpdate
 from livekit.protocol.room import (
     DeleteRoomRequest,
@@ -348,6 +354,34 @@ class Dispatcher(AgentDispatchService):
         return AgentDispatch(room=req.room, agent_name=req.agent_name, metadata=req.metadata)
 
 
+class Egress(EgressService):
+    """The egress door: each track asked of it kept, one refused when told, the ones still on."""
+
+    started: list[TrackEgressRequest]
+    stopped: list[str]
+    refused: set[str]
+    active: list[EgressInfo]
+
+    @override
+    async def start_track_egress(self, start: TrackEgressRequest) -> EgressInfo:
+        """Keep the track asked for; refuse the ones the test named."""
+        if start.track_id in self.refused:
+            raise api.TwirpError("resource_exhausted", "no egress has room", status=503)
+        self.started.append(start)
+        return EgressInfo(egress_id=f"EG_{start.track_id}", room_name=start.room_name)
+
+    @override
+    async def stop_egress(self, stop: StopEgressRequest) -> EgressInfo:
+        """Keep the egress stopped."""
+        self.stopped.append(stop.egress_id)
+        return EgressInfo(egress_id=stop.egress_id)
+
+    @override
+    async def list_egress(self, list: ListEgressRequest) -> ListEgressResponse:
+        """The egresses the test said are still on."""
+        return ListEgressResponse(items=self.active)
+
+
 class Server(api.LiveKitAPI):
     """livekit's server client, its three doors a test's."""
 
@@ -364,6 +398,9 @@ class Server(api.LiveKitAPI):
         self.rooms.requests, self.rooms.existing, self.rooms.people = [], {}, set()
         self.dispatcher = Dispatcher.__new__(Dispatcher)
         self.dispatcher.made, self.dispatcher.refusal = [], None
+        self.recorder = Egress.__new__(Egress)
+        self.recorder.started, self.recorder.stopped = [], []
+        self.recorder.refused, self.recorder.active = set(), []
 
     @property
     @override
@@ -382,6 +419,12 @@ class Server(api.LiveKitAPI):
     def agent_dispatch(self) -> AgentDispatchService:
         """The dispatch door."""
         return self.dispatcher
+
+    @property
+    @override
+    def egress(self) -> EgressService:
+        """The egress door."""
+        return self.recorder
 
 
 class Player(BackgroundAudioPlayer):
@@ -403,34 +446,6 @@ class Player(BackgroundAudioPlayer):
         handle = PlayHandle()
         self.handles.append(handle)
         return handle
-
-
-def tone(hertz: float, seconds: float, rate: int = 48000) -> list[rtc.AudioFrame]:
-    """A tone cut in the 20 ms frames a room delivers: what a caller or an agent says."""
-    samples = rate // 50
-    t = np.arange(int(rate * seconds)) / rate
-    pcm = (8000 * np.sin(2 * np.pi * hertz * t)).astype(np.int16)
-    return [
-        rtc.AudioFrame(pcm[i : i + samples].tobytes(), rate, 1, samples)
-        for i in range(0, len(pcm), samples)
-    ]
-
-
-class Microphone(AudioInput):
-    """The caller's leg: its frames, one every 20 ms as a room delivers them, then nothing."""
-
-    def __init__(self, frames: list[rtc.AudioFrame]) -> None:
-        """A leg that will say these frames."""
-        super().__init__(label="microphone")
-        self.frames = list(frames)
-
-    @override
-    async def __anext__(self) -> rtc.AudioFrame:
-        """The next frame, in its own time; the end once all were said."""
-        if not self.frames:
-            raise StopAsyncIteration
-        await asyncio.sleep(self.frames[0].duration)
-        return self.frames.pop(0)
 
 
 class Speaker(AudioOutput):
@@ -483,7 +498,12 @@ class Speaking(rtc.RemoteParticipant):
         """The seat, with its tracks."""
         owned = participant_pb2.OwnedParticipant(
             handle=handle_pb2.FfiOwnedHandle(id=0),
-            info=participant_pb2.ParticipantInfo(sid=seated.sid, identity=seated.identity),
+            info=participant_pb2.ParticipantInfo(
+                sid=seated.sid,
+                identity=seated.identity,
+                kind=seated.kind,  # pyright: ignore[reportArgumentType]
+                attributes=dict(seated.attributes),
+            ),
         )
         super().__init__(owned)
         self.tracks = {track.sid: track for track in tracks}

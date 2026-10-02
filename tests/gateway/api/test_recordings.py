@@ -6,14 +6,19 @@ from pathlib import Path
 
 import httpx
 import pytest
+from livekit.protocol.egress import EgressInfo
 
 from pinecall.domain.call import CallContext
+from pinecall.domain.names import RecordedTrack
 from pinecall.gateway.app import app
 from pinecall.process.sealed_audio import seal_file
+from pinecall.tenancy import recording_keys, recording_tracks
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
 from tests.conftest import AGENT, Knocking, postgres
 from tests.fakes.bucket import ACCESS_KEY_ID, ENDPOINT, REGION, SECRET_ACCESS_KEY, Bucket
+from tests.fakes.livekit import Server
 from tests.gateway.api.conftest import a_call
+from tests.process.test_mixing import a_track, loud, sides_of
 
 AUDIO = b"OggS" + bytes(range(60)) * 3000
 
@@ -145,3 +150,48 @@ async def test_a_sealed_recording_in_the_bucket_is_read_by_ranges_and_opened(
                 f"/v1/calls/{context.call}/recording", headers={"range": "bytes=100000-100009"}
             )
     assert (part.status_code, part.content) == (206, AUDIO[100000:100010])
+
+
+@postgres
+async def test_a_call_recorded_by_its_tracks_plays_their_mix_once_every_track_landed(
+    knocking: Knocking, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context = a_call(knocking)
+    org, call = knocking.org.id, context.call
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+        sealing = SealCallRequest(usage=[], outcome="booked", recording=f"{org}/{call}/")
+        await worker.post(f"/v1/calls/{call}/sealed", json=sealing.written())
+    connections = knocking.gateway.connections
+    settings = connections.settings.model_copy(update={"recordings_root": str(tmp_path)})
+    monkeypatch.setattr(
+        app.state,
+        "gateway",
+        replace(knocking.gateway, connections=replace(connections, settings=settings)),
+    )
+    key = await recording_keys.key_for(connections.pool, connections.vault, org, call)
+    assert key is not None
+    sides: tuple[tuple[str, RecordedTrack, float], ...] = (
+        ("TR_caller", "caller", 0.0),
+        ("TR_agent", "agent", 0.5),
+    )
+    for name, kind, at in sides:
+        plain = a_track(tmp_path / f"{name}.ogg", 300 if kind == "caller" else 500, 0.4)
+        seal_file(plain, tmp_path / call / f"{name}.sealed", key)
+        landed = recording_tracks.Track(f"{name}.sealed", kind, 100.0 + at, 101.0 + at)
+        await recording_tracks.landed(connections.pool, call, landed)
+    server = connections.server
+    assert isinstance(server, Server)
+    server.recorder.active = [EgressInfo(egress_id="EG_TR_agent", room_name=call)]
+    async with knocking.http(knocking.app["sandbox"]) as tenant:
+        landing = await tenant.get(f"/v1/calls/{call}/recording")
+        server.recorder.active = []
+        played = await tenant.get(f"/v1/calls/{call}/recording")
+    assert landing.status_code == 409
+    assert played.status_code == 200
+    assert (tmp_path / call / "mix.sealed").exists()
+    heard = tmp_path / "heard.ogg"
+    heard.write_bytes(played.content)
+    left, right = sides_of(heard)
+    assert loud(left, 0.05, 0.35) > 10 * loud(left, 0.55, 0.85)
+    assert loud(right, 0.55, 0.85) > 10 * loud(right, 0.05, 0.35)

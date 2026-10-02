@@ -6,7 +6,6 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
-from pathlib import Path
 
 from livekit.agents.utils import aio
 
@@ -219,18 +218,10 @@ class Platform:
 class Call:
     """One call's state that outlives a turn, and the entries the app's commands write."""
 
-    def __init__(
-        self,
-        context: CallContext,
-        config: AgentConfig,
-        platform: Platform,
-        recording: Path | None = None,
-    ) -> None:
+    def __init__(self, context: CallContext, config: AgentConfig, platform: Platform) -> None:
         """A call nobody has spoken on yet, every declared tool open."""
         self.context = context
         self.config = config
-        # Where its session records its audio: none for a written call or one the agent keeps none.
-        self.recording = recording
         self.turn_policy = policy_for(config.language)
         self.platform = platform
         self.writing = Writing(platform.append_many, context.call)

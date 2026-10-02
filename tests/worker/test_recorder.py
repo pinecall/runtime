@@ -1,124 +1,111 @@
-"""Tests for where a call's recording is written, and where it is kept once closed."""
+"""Tests for a call's room recorded a track at a time: each audio track asked of egress once."""
 
-import base64
+import asyncio
 import logging
-from http import HTTPStatus
+from collections.abc import AsyncIterator
 from pathlib import Path
 
-import httpx
 import pytest
+from livekit import rtc
+from livekit.rtc._proto import handle_pb2, track_pb2
 
-from pinecall.fleet.client import GatewayClient
-from pinecall.process.sealed_audio import Span, new_key, on_disk, opened, recorded_size
-from pinecall.process.settings import Settings
-from pinecall.worker._recorder import recording_path, stored, written
-from tests.fakes.bucket import STORE_SETTINGS, Bucket
-
-AUDIO = b"OggS a call"
-
-KEY = new_key()
-
-
-def test_a_call_gets_a_directory_of_its_own(tmp_path: Path) -> None:
-    audio = recording_path(tmp_path, "call_1")
-    assert audio == tmp_path / "call_1" / "audio.ogg"
-    assert audio.parent.is_dir()
+from pinecall.domain.agent import AgentConfig
+from pinecall.domain.scope import SCOPE_ATTRIBUTE
+from pinecall.log.logs import Log
+from pinecall.log.store import Store
+from pinecall.session.call import Call
+from pinecall.session.room import CallRoom
+from pinecall.worker._recorder import MELODY_TRACK, Tracks, prefix_of, track_file
+from tests.conftest import AGENT, postgres
+from tests.fakes.acme import seat
+from tests.fakes.livekit import Room, Server, Speaking, microphone
+from tests.session.conftest import Box, context_of
 
 
-def test_a_call_that_ended_before_its_session_recorded_has_no_file(tmp_path: Path) -> None:
-    audio = recording_path(tmp_path, "call_1")
-    assert not written(audio)
-    audio.write_bytes(b"")
-    assert not written(audio)
-    audio.write_bytes(AUDIO)
-    assert written(audio)
+@pytest.fixture
+def box(store: Store, call: str) -> Box:
+    """The platform around one call, on the test's own log."""
+    return Box(Log(store, call, AGENT))
 
 
-def reaching(monkeypatch: pytest.MonkeyPatch, remote: Bucket) -> None:
-    """Every client the worker opens reaches the fake bucket."""
-    real = httpx.AsyncClient
-    monkeypatch.setattr(httpx, "AsyncClient", lambda: real(transport=remote.transport()))
+@pytest.fixture
+async def server() -> AsyncIterator[Server]:
+    """The SFU's server client, its doors the test's, closed at the end."""
+    opened = Server()
+    yield opened
+    await opened.aclose()
 
 
-def settings_with(root: Path, bucket: str | None) -> Settings:
-    named = {} if bucket is None else {"PINECALL_RECORDINGS_BUCKET": bucket, **STORE_SETTINGS}
-    return Settings.model_validate({"PINECALL_RECORDINGS": str(root), **named})
+def a_publication(
+    sid: str, name: str, kind: int = track_pb2.KIND_AUDIO
+) -> rtc.RemoteTrackPublication:
+    """A track of the room, as livekit hands one to its listeners."""
+    info = track_pb2.TrackPublicationInfo(sid=sid, name=name, kind=kind)  # pyright: ignore[reportArgumentType]
+    owned = track_pb2.OwnedTrackPublication(handle=handle_pb2.FfiOwnedHandle(id=0), info=info)
+    return rtc.RemoteTrackPublication(owned)
 
 
-def gateway_answering(status: int) -> GatewayClient:
-    """A gateway whose key door answers with the status: the key, or a refusal."""
+def recording(box: Box, server: Server, room: Room, root: Path) -> Tracks:
+    """The track recorder of a spoken call in that room."""
+    assert box.log.call is not None
+    call = Call(
+        context_of(box.log.call, "phone"), AgentConfig(slug="clinica-norte"), box.platform()
+    )
 
-    def answer(request: httpx.Request) -> httpx.Response:
-        assert (request.method, request.url.path) == ("POST", "/v1/calls/CA_1/recording/key")
-        if status != HTTPStatus.OK:
-            return httpx.Response(status, json={"detail": "no"})
-        return httpx.Response(status, json={"key": base64.urlsafe_b64encode(KEY).decode()})
+    async def answered(_to: str) -> object:
+        raise AssertionError
 
-    transport = httpx.MockTransport(answer)
-    return GatewayClient(httpx.AsyncClient(base_url="http://gateway.test", transport=transport))
-
-
-async def opened_whole(path: Path) -> bytes:
-    sealed = await on_disk("CA_1", path)
-    assert sealed is not None
-    span = Span(0, recorded_size(sealed.size) - 1)
-    return b"".join([piece async for piece in opened(sealed, KEY, span)])
+    where = CallRoom(call, room, server, trunks=answered, claim=answered)  # pyright: ignore[reportArgumentType]
+    return Tracks(server, where, root)
 
 
-async def test_a_written_recording_is_sealed_under_the_calls_key_and_moves_to_the_bucket(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+async def settled(tracks: Tracks) -> None:
+    """Every ask sent."""
+    await asyncio.gather(*tracks.tasks)
+
+
+def test_a_track_lands_flat_in_the_root_named_for_its_call_and_kind(tmp_path: Path) -> None:
+    assert track_file(tmp_path, "CA_1", "TR_1", "caller") == tmp_path / "CA_1.TR_1.caller.ogg"
+    assert prefix_of("org_1", "CA_1") == "org_1/CA_1/"
+
+
+@postgres
+async def test_every_audio_track_in_the_room_is_asked_of_egress_once_and_named_for_who_it_is(
+    box: Box, server: Server, tmp_path: Path
 ) -> None:
-    gateway = gateway_answering(HTTPStatus.OK)
-    remote = Bucket()
-    reaching(monkeypatch, remote)
-    audio = recording_path(tmp_path, "CA_1")
-    audio.write_bytes(AUDIO)
-    kept = await stored(settings_with(tmp_path, remote.name), gateway, "org_1", "CA_1", audio)
-    assert kept == audio.with_name("audio.sealed")
-    assert list(remote.objects) == ["org_1/CA_1/audio.sealed"]
-    assert AUDIO not in remote.objects["org_1/CA_1/audio.sealed"]
-    assert not audio.parent.exists()
-    tmp_path.joinpath("opened.sealed").write_bytes(remote.objects["org_1/CA_1/audio.sealed"])
-    assert await opened_whole(tmp_path / "opened.sealed") == AUDIO
+    supervisor = Speaking(
+        seat("sup", attributes={SCOPE_ATTRIBUTE: "supervise"}), a_publication("TR_sup", "mic")
+    )
+    room = Room(box.log.call or "", microphone("caller"), supervisor)
+    tracks = recording(box, server, room, tmp_path)
+    tracks.start()
+    room.emit("local_track_published", a_publication("TR_agent", "roomio_audio"), None)
+    room.emit("local_track_published", a_publication("TR_melody", MELODY_TRACK), None)
+    room.emit("local_track_published", a_publication("TR_agent", "roomio_audio"), None)
+    room.emit("local_track_published", a_publication("TR_cam", "cam", track_pb2.KIND_VIDEO), None)
+    await settled(tracks)
+    named = {start.track_id: Path(start.file.filepath).name for start in server.recorder.started}
+    call = box.log.call
+    assert named == {
+        "TR_caller": f"{call}.TR_caller.caller.ogg",
+        "TR_sup": f"{call}.TR_sup.supervisor.ogg",
+        "TR_agent": f"{call}.TR_agent.agent.ogg",
+        "TR_melody": f"{call}.TR_melody.melody.ogg",
+    }
+    assert {start.room_name for start in server.recorder.started} == {call}
 
 
-async def test_a_box_without_a_bucket_keeps_the_sealed_recording_where_it_was_written(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@postgres
+async def test_a_track_egress_refuses_is_said_and_the_others_are_recorded_and_stopped(
+    box: Box, server: Server, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    gateway = gateway_answering(HTTPStatus.OK)
-    remote = Bucket()
-    reaching(monkeypatch, remote)
-    audio = recording_path(tmp_path, "CA_1")
-    audio.write_bytes(AUDIO)
-    kept = await stored(settings_with(tmp_path, None), gateway, "org_1", "CA_1", audio)
-    assert (kept.exists(), audio.exists(), remote.asked) == (True, False, [])
-    assert await opened_whole(kept) == AUDIO
-
-
-async def test_a_gateway_that_seals_no_recording_leaves_it_as_it_was_written_and_says_so(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    gateway = gateway_answering(HTTPStatus.NOT_FOUND)
-    remote = Bucket()
-    reaching(monkeypatch, remote)
-    audio = recording_path(tmp_path, "CA_1")
-    audio.write_bytes(AUDIO)
+    server.recorder.refused = {"TR_caller"}
+    room = Room(box.log.call or "", microphone("caller"))
+    tracks = recording(box, server, room, tmp_path)
     with caplog.at_level(logging.WARNING):
-        kept = await stored(settings_with(tmp_path, remote.name), gateway, "org_1", "CA_1", audio)
-    assert kept == audio
-    assert remote.objects == {"org_1/CA_1/audio.ogg": AUDIO}
-    assert "the recording of CA_1 is kept as it was written" in caplog.text
-
-
-async def test_a_bucket_that_refuses_leaves_the_recording_on_the_disk_and_says_so(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    gateway = gateway_answering(HTTPStatus.OK)
-    remote = Bucket(refusal=503)
-    reaching(monkeypatch, remote)
-    audio = recording_path(tmp_path, "CA_1")
-    audio.write_bytes(AUDIO)
-    with caplog.at_level(logging.WARNING):
-        kept = await stored(settings_with(tmp_path, remote.name), gateway, "org_1", "CA_1", audio)
-    assert await opened_whole(kept) == AUDIO
-    assert "the recording of CA_1 stays on this disk" in caplog.text
+        tracks.start()
+        room.emit("local_track_published", a_publication("TR_agent", "roomio_audio"), None)
+        await settled(tracks)
+    assert "the track TR_caller of" in caplog.text
+    await tracks.stop()
+    assert server.recorder.stopped == ["EG_TR_agent"]

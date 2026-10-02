@@ -118,7 +118,7 @@ unset redis_password
 # LiveKit signs its webhook with the box's key, by name; the name is no secret (every token
 # says it), and livekit-server reads this file when it starts.
 livekit_key="$(systemd-creds decrypt --name=LIVEKIT_API_KEY "$STORE/LIVEKIT_API_KEY" -)"
-sed -e "s|@LIVEKIT_API_KEY@|$livekit_key|" -e "s|@PINECALL_DOMAIN@|$FIRST|" "$HERE/livekit.yaml" \
+sed -e "s|@LIVEKIT_API_KEY@|$livekit_key|" "$HERE/livekit.yaml" \
     > /etc/pinecall/livekit.yaml
 chmod 0644 /etc/pinecall/livekit.yaml
 unset livekit_key
