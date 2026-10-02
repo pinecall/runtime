@@ -42,20 +42,19 @@ $ gcloud compute networks subnets create pinecall-fleet --network default --regi
     --range 10.100.0.0/24        # outside 10.128.0.0/9 on an auto-mode network
 $ gcloud compute firewall-rules create pinecall-fleet-to-box --network default \
     --source-ranges 10.100.0.0/24 --target-tags <the box's tag> --allow tcp:7880,tcp:8088
-box$ sudo /opt/pinecall/infra/cell/primary.sh allow-worker 10.100.0.0/24
+box$ sudo pinecall-runtime cell allow-worker 10.100.0.0/24
 ```
 
-The image is one machine, prepared with `worker.sh image` and frozen: no credential is ever on it.
-Make it the machine type the fleet will use: `image` writes the seats as four per vCPU, and every
+The image is one machine, prepared with `cell image-worker` and frozen: no credential is ever on it.
+Make it the machine type the fleet will use: `cell image-worker` writes the seats as four per vCPU, and every
 copy keeps that number.
 
 ```console
 $ gcloud compute instances create pinecall-worker-base --subnet pinecall-fleet \
     --machine-type e2-standard-8 --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud \
     --metadata-from-file user-data=infra/box/cloud-init.yaml     # the box's, your ssh key in it
-$ ssh box 'sudo tar -C /opt/pinecall -c infra' | ssh worker-base 'sudo mkdir -p /opt/pinecall && sudo tar -C /opt/pinecall -x'
-$ ssh box 'sudo /opt/pinecall/infra/cell/primary.sh worker-settings sandbox' |
-    ssh worker-base 'sudo /opt/pinecall/infra/cell/worker.sh image <box address> pinecall==0.1.5 sandbox'
+$ ssh box 'sudo pinecall-runtime cell worker-settings sandbox' |
+    ssh worker-base 'sudo uvx --from pinecall==<the box version> pinecall-runtime cell image-worker <box address> sandbox'
 $ gcloud compute instances stop pinecall-worker-base
 $ gcloud compute machine-images create pinecall-worker-sandbox-015 --source-instance pinecall-worker-base
 $ gcloud compute instances delete pinecall-worker-base

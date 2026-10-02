@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Operators run it as `sudo uvx --from pinecall==<version> pinecall-runtime cell join-worker …`
+# (join-worker, image-worker, release-worker), which first copies the package's infra/ here.
 # A machine of the cell that runs one world's workers and nothing else, as root on it, from a copy
 # of the box's /opt/pinecall/infra (the box keeps Postgres, Redis, LiveKit, SIP and the gateways):
 #   worker.sh join <box address> <wheel or pinecall==version> <world> [calls]

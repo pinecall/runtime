@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Every machine of the cell is a `pinecall-runtime cell` verb, as the box is `box up`: on the box
+  `cell allow-replica`, `allow-gateway`, `allow-worker` (an address or the fleet's range), their
+  `forget-…`, `gateway-credentials`, `worker-settings` and `worker-credentials`; on the machine,
+  `sudo uvx --from pinecall==<version> pinecall-runtime cell join-worker | image-worker |
+  release-worker | join-gateway | release-gateway | join-replica`, which copies the package's
+  `infra/` there first. Nobody copies `infra/` by hand or calls a script by its path any more; the
+  scripts stay as what the verbs run. `pinecall-runtime --version` says the version to install.
+- The curl examples are gone, from the repository and from the docs site.
+
 ## 0.1.5 — The fleet's image carries no credential: each machine joins on a key of its own (2026-10-02)
 
 - The fleet's image carries no credential. A machine the loop makes spends a join token at its first

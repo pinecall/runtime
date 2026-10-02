@@ -7,6 +7,7 @@ import sys
 import time
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from importlib.metadata import version
 from pathlib import Path
 from types import FrameType
 from typing import override
@@ -20,6 +21,7 @@ from pinecall.channels import whatsapp
 from pinecall.cli import (
     _archive,
     _box,
+    _cell,
     _drift,
     _facts,
     _load,
@@ -230,6 +232,8 @@ def doctor(settings: Settings, _args: argparse.Namespace) -> int:
 def verbs() -> argparse.ArgumentParser:
     """The parser of every group and verb, each bound to the function that runs it."""
     verbs = argparse.ArgumentParser(prog="pinecall-runtime")
+    # What a machine joining the cell installs to match the box: `pinecall==<this>`.
+    verbs.add_argument("--version", action="version", version=version("pinecall"))
     under = verbs.add_subparsers(required=True)
     under.add_parser("gateway", help="the gateway, both worlds").set_defaults(run=gateway)
     worker_verbs = under.add_parser("worker", help="a worker of the fleet PINECALL_FLEET names")
@@ -289,6 +293,7 @@ def verbs() -> argparse.ArgumentParser:
     )
     _operator.init_group(under.add_parser("init", help="the first org and person, on a fresh box"))
     _box.box_group(under.add_parser("box", help="this machine made a box, from the package itself"))
+    _cell.cell_group(under.add_parser("cell", help="the machines beside the box, let in, joined"))
     _operator.orgs_group(under.add_parser("orgs", help="the tenants"))
     _operator.routes_group(under.add_parser("routes", help="which agent answers a number"))
     _operator.fleet_group(under.add_parser("fleet", help="the workers heard from"))

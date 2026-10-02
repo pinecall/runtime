@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import importlib.metadata
 from functools import partial
 from pathlib import Path
 
@@ -38,6 +39,15 @@ def test_a_verb_nobody_declared_is_refused_with_the_list() -> None:
     with pytest.raises(SystemExit) as refused:
         main(["nothing"])
     assert refused.value.code == 2
+
+
+def test_the_version_is_said_as_a_machine_joining_the_cell_installs_it(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as printed:
+        main(["--version"])
+    assert printed.value.code == 0
+    assert capsys.readouterr().out.strip() == importlib.metadata.version("pinecall")
 
 
 def test_the_gateway_refuses_to_bind_anything_but_loopback() -> None:

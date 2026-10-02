@@ -167,16 +167,7 @@ def steps_of(domains: str, package: str, infra: Path, uv: Path) -> list[Step]:
             {"DEBIAN_FRONTEND": "noninteractive"},
         ),
         Step("the firewall on at boot", ("systemctl", "enable", "--now", "nftables")),
-        *(
-            ()
-            if uv == BIN / "uv"
-            else (
-                Step(
-                    "uv beside the runtime",
-                    ("install", "-D", "-m", "755", str(uv), str(BIN / "uv")),
-                ),
-            )
-        ),
+        *uv_beside(uv),
         Step("the box's files", ("rsync", "-a", "--delete", f"{infra}/", f"{INFRA}/")),
         Step("the box installed", ("bash", str(INFRA / "box" / "install.sh"), names)),
         Step(
@@ -186,6 +177,24 @@ def steps_of(domains: str, package: str, infra: Path, uv: Path) -> list[Step]:
         ),
         Step("the venv the deploy account's", ("chown", "-R", "deploy:deploy", str(OPT / "venv"))),
     ]
+
+
+# The scripts run the uv beside the runtime; one already there is not copied onto itself.
+def uv_beside(uv: Path) -> tuple[Step, ...]:
+    """The step that puts this uv beside the runtime, or none when it is that one."""
+    if uv == BIN / "uv":
+        return ()
+    beside = ("install", "-D", "-m", "755", str(uv), str(BIN / "uv"))
+    return (Step("uv beside the runtime", beside),)
+
+
+def infra_carried() -> Path:
+    """The infra/ this install of pinecall carries; refused when it carries none."""
+    carried = resources.files("pinecall") / "infra"
+    path = Path(str(carried))
+    if not (path / "box" / "install.sh").is_file():
+        raise DeclarationRefused(NO_INFRA)
+    return path
 
 
 def domains_in(box_env: str) -> str:
@@ -202,7 +211,7 @@ def _made(domains: str, backup_key: str | None, package: str) -> int:
     uv = shutil.which("uv", path=SYSTEM_PATH)
     if uv is None:
         raise DeclarationRefused(NO_UV)
-    infra = _infra_carried()
+    infra = infra_carried()
     if backup_key is not None:
         BACKUP_KEY.parent.mkdir(parents=True, exist_ok=True)
         BACKUP_KEY.write_text(f"{backup_key}\n")
@@ -215,14 +224,6 @@ def _made(domains: str, backup_key: str | None, package: str) -> int:
     first = domains.split(",", 1)[0].strip()
     sys.stdout.write(NEXT.format(first=first, backups=backups))
     return 0
-
-
-def _infra_carried() -> Path:
-    carried = resources.files("pinecall") / "infra"
-    path = Path(str(carried))
-    if not (path / "box" / "install.sh").is_file():
-        raise DeclarationRefused(NO_INFRA)
-    return path
 
 
 def _domains_kept() -> str:

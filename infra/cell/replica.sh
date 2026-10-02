@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Operators run it as `sudo uvx --from pinecall==<version> pinecall-runtime cell join-replica …`
+# (join-replica), which first copies the package's infra/ here.
 # A second machine made a streaming replica of the box's Postgres, as root on it, from a copy of
 # the box's /opt/pinecall/infra:
 #   replica.sh join <box address>   the replication password read from stdin and sealed here,

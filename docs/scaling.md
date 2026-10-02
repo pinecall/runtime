@@ -16,9 +16,9 @@ table at the end). Stop at the first one that holds your peak.
 | a box | `sudo uvx --from pinecall pinecall-runtime box up --domains <prod>,<sandbox>` on Ubuntu 24.04 | two gateways, Postgres, LiveKit, two workers per world |
 | more calls at once | workers on more machines: the fleet loop asks your cloud for them ([../infra/fleet/README.md](../infra/fleet/README.md)) | ~16 calls a 4-vCPU worker machine; workers are 93 % of the cores a call costs |
 | more gateway processes | on a bigger box: `systemctl enable --now pinecall-gateway@8880` (not 8082–8085) and its address in Caddy's `(gateways)` | ~330 calls a gateway core |
-| gateways off the box | on the box `primary.sh allow-gateway <machine>`; then `primary.sh gateway-credentials \| ssh <machine> gateway.sh join <box> <wheel>` ([a-box-in-production.md](a-box-in-production.md), "Gateways on other machines") | a gateway machine killed under 1 200 calls lost none |
+| gateways off the box | on the box `pinecall-runtime cell allow-gateway <machine>`; then `cell gateway-credentials \| ssh <machine> uvx --from pinecall==<version> pinecall-runtime cell join-gateway <box>` ([a-box-in-production.md](a-box-in-production.md), "Gateways on other machines") | a gateway machine killed under 1 200 calls lost none |
 | more media | a second LiveKit node on the box's Redis (same page, "A second LiveKit node") | ~90 voice calls a core, 0 packets lost at 400 |
-| Postgres that outlives the box | `primary.sh allow <replica>` and `replica.sh join` ([../infra/cell/README.md](../infra/cell/README.md)) | drilled: promoted in 17 s with no write lost, a box again in under 3 min; a restore to any minute in 79 s |
+| Postgres that outlives the box | `pinecall-runtime cell allow-replica <replica>` and `cell join-replica <box>` on it ([../infra/cell/README.md](../infra/cell/README.md)) | drilled: promoted in 17 s with no write lost, a box again in under 3 min; a restore to any minute in 79 s |
 | past ~15 000–20 000 calls | a second cell: another box and its machines, an org living in one | Postgres grows ~1.4 cores per 1 000 calls; one database is one cell |
 
 ## Three planes, each grows on its own
@@ -104,7 +104,7 @@ worker went from 1.78 to 2.31 cores and the recorder from 0.60 to 0, the box at 
 but it needs no egress at all, it scales with the workers wherever they run, and it is what the
 next paragraph's machine of workers measured with.
 
-**A machine of workers alone** (`worker.sh join`, "Workers on other machines" in
+**A machine of workers alone** (`pinecall-runtime cell join-worker`, "Workers on other machines" in
 [a-box-in-production.md](a-box-in-production.md)), the same callers and fakes, the box keeping
 the media plane and the gateways, the recording in each call's process and the file in the bucket:
 
