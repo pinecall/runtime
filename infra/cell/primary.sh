@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# The box's side of a replica, as root on the box:
+# The box's side of the cell's machines, as root on the box; operators run it as
+# `pinecall-runtime cell <verb>` (pinecall/cli/_cell.py names each verb's primary.sh verb):
 #   primary.sh allow <replica address>   the role `replicator` (its password drawn here once and
 #                   sealed as PINECALL_REPLICATION_PASSWORD), the slot `pinecall_replica`, the
 #                   replica's line in pg_hba.conf, Postgres published on this machine's address
@@ -153,7 +154,7 @@ allow-gateway)
     published "pinecall-livekit" "$here:7880:7880"
     remote "$gateway:$GATEWAY_PORT" add
     echo "gateway machine $gateway may reach $here:5432, :6379 and :7880; Caddy sends it calls."
-    echo "on it, from a copy of /opt/pinecall/infra: primary.sh gateway-credentials | gateway.sh join $here <wheel>"
+    echo "then, from a laptop: ssh <box> sudo pinecall-runtime cell gateway-credentials | ssh <it> sudo uvx --from pinecall==<the box's version> pinecall-runtime cell join-gateway $here"
     ;;
 forget-gateway)
     [ -n "${2:-}" ] || { echo "primary.sh forget-gateway <gateway machine address>" >&2; exit 2; }
@@ -182,7 +183,7 @@ allow-worker)
         systemctl restart pinecall-livekit
     fi
     echo "worker machine $worker may reach $here:7880 and $here:8088."
-    echo "on it, from a copy of /opt/pinecall/infra: primary.sh worker-credentials <world> | worker.sh join $here <wheel> <world>"
+    echo "then, from a laptop: ssh <box> sudo pinecall-runtime cell worker-credentials <world> | ssh <it> sudo uvx --from pinecall==<the box's version> pinecall-runtime cell join-worker $here <world>"
     ;;
 forget-worker)
     [ -n "${2:-}" ] || { echo "primary.sh forget-worker <worker machine address or range>" >&2; exit 2; }

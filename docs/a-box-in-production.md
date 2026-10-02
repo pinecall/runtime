@@ -337,36 +337,36 @@ puts back what stood before step 3.
 
 A second machine in the box's own network (Ubuntu 24.04, the box's size) holds a streaming
 replica of its Postgres: every committed write reaches it within a second, so a box that is lost
-loses at most that. The files are `infra/cell/` ([its page](../infra/cell/README.md)), shipped in
-the package beside `infra/box/`. Setting one up, from a laptop that reaches both (`box` and
-`replica` are ssh aliases; `10.128.0.5` is the box's private address, `10.128.0.7` the replica's):
+loses at most that. Every step is a `pinecall-runtime cell` verb ([the-runtime-cli.md](the-runtime-cli.md),
+"`cell`"), which runs the scripts the package carries (`infra/cell/`, [its page](../infra/cell/README.md)).
+Setting one up, from a laptop that reaches both (`box` and `replica` are ssh aliases; `10.128.0.5`
+is the box's private address, `10.128.0.7` the replica's; the replica made with
+`infra/box/cloud-init.yaml`, so uv is on it):
 
 ```sh
 # The box lets the replica stream: the role and its password (drawn and sealed on the box), the
 # slot, its pg_hba line, and Postgres published on 10.128.0.5 and fenced to 10.128.0.7 alone.
 # The first time, Postgres restarts once: a few seconds.
-ssh box sudo /opt/pinecall/infra/cell/primary.sh allow 10.128.0.7
-# The box's files on the replica, then the replica joins; each secret goes from one machine's store
-# to the other's through the pipe, never onto a screen.
-ssh box 'sudo tar -C /opt/pinecall -c infra' | ssh replica 'sudo mkdir -p /opt/pinecall && sudo tar -C /opt/pinecall -x'
+ssh box sudo pinecall-runtime cell allow-replica 10.128.0.7
+# The replica joins at the box's version: the package's files copied there, the password sealed
+# there; each secret goes from one machine's store to the other's through the pipe, never onto a
+# screen.
 ssh box sudo -n systemd-creds decrypt --name=PINECALL_REPLICATION_PASSWORD \
     /etc/credstore.encrypted/PINECALL_REPLICATION_PASSWORD - \
-  | ssh replica sudo /opt/pinecall/infra/cell/replica.sh join 10.128.0.5
+  | ssh replica sudo uvx --from pinecall==<version> pinecall-runtime cell join-replica 10.128.0.5
 # What the promoted database is served with: its password, the vault key its sealed rows open
 # with, and the ops key. `box up` there keeps all three.
 for name in DATABASE_URL PINECALL_VAULT_KEY PINECALL_OPS_KEY; do
   ssh box sudo -n systemd-creds decrypt --name=$name /etc/credstore.encrypted/$name - \
     | ssh replica sudo /opt/pinecall/infra/box/install.sh secret $name
 done
-# uv on the replica, for `box failover` and `box up`.
-ssh replica 'curl -LsSf https://astral.sh/uv/install.sh | sudo env UV_INSTALL_DIR=/usr/local/bin sh'
 ```
 
-`replica.sh join` ends by printing `streaming from 10.128.0.5, received up to …`; on the box,
+`cell join-replica` ends by printing `streaming from 10.128.0.5, received up to …`; on the box,
 `sudo podman exec pinecall-postgres psql -U pinecall -d pinecall -c 'SELECT client_addr, state,
 replay_lag FROM pg_stat_replication'` shows it `streaming`. The slot keeps at most 10 GB of WAL
 for a replica that stops reading; past that Postgres drops it and the replica joins again.
-`primary.sh forget` undoes the box's side (a retired replica must not hold a slot).
+`cell forget-replica` undoes the box's side (a retired replica must not hold a slot).
 
 **Failing over**, when the box is lost. The target is **RTO 15 minutes**, from the decision to
 calls answered at the same names. On the replica:
@@ -434,7 +434,7 @@ Past what one box's cores hold, gateways run on machines of their own beside it;
 Postgres, Redis, LiveKit, SIP and the workers. On the box, once per gateway machine:
 
 ```
-sudo /opt/pinecall/infra/cell/primary.sh allow-gateway <its address>
+sudo pinecall-runtime cell allow-gateway <its address>
 ```
 
 lets that address alone reach Postgres (5432), Redis (6379) and LiveKit's API (7880) on the box's
@@ -443,14 +443,15 @@ address, writes its `pg_hba` line, and adds it to the gateways Caddy sends calls
 other through a pipe, never through a terminal:
 
 ```
-ssh box 'sudo /opt/pinecall/infra/cell/primary.sh gateway-credentials' |
-  ssh gateway-machine 'sudo <a copy of infra>/cell/gateway.sh join <box address> <wheel> 4'
+ssh box 'sudo pinecall-runtime cell gateway-credentials' |
+  ssh gateway-machine 'sudo uvx --from pinecall==<version> pinecall-runtime cell join-gateway <box address> --processes 4'
 ```
 
-`gateway.sh join` seals them on the gateway machine, installs the runtime, starts four gateways on
-loopback and that machine's Caddy on its own address, port 8090, fenced to the box. A release there
-is `gateway.sh release <wheel>`, after the box's own (the box migrates; a gateway machine never
-does). Redis asks a password of everyone since 2026-10-01: a box installed before gets it from
+`<version>` is the box's own (`sudo pinecall-runtime --version` on it). `cell join-gateway` copies the package's files there, seals the credentials, installs the runtime
+at that version, starts four gateways on loopback (unset, one per two vCPUs) and that machine's
+Caddy on its own address, port 8090, fenced to the box. A release there is
+`sudo uvx --from pinecall==<version> pinecall-runtime cell release-gateway`, after the box's own
+(the box migrates; a gateway machine never does). Redis asks a password of everyone since 2026-10-01: a box installed before gets it from
 `install.sh` and takes it on `sudo systemctl restart pinecall-redis`, which restarts LiveKit, SIP
 and egress: a window.
 
@@ -468,7 +469,7 @@ recordings in the bucket ("Recordings, off the disk").
 LiveKit runs as a cluster on the box's Redis: a node on another machine is the same image with
 `redis.address` at the box (its password in `REDIS_PASSWORD`, as the box's LiveKit has it),
 `rtc.node_ip` its own address, and the same `LIVEKIT_KEYS`; the box's fence lets it reach Redis
-once `primary.sh allow-gateway <its address>` has run. A room is placed on any node by load, and a
+once `pinecall-runtime cell allow-gateway <its address>` has run. A room is placed on any node by load, and a
 worker registered on one node takes rooms on the other (measured 2026-10-01 on livekit 1.13.7:
 eight rooms created on the second node with the sandbox agent dispatched, every job assigned and
 joined). Measured with `lk load-test`: 400 voice calls at once across two nodes, 0 packets lost,
@@ -479,7 +480,7 @@ sentence of a dead worker's call, by LiveKit's webhook) and new rooms land on th
 
 One `livekit-sip` holds 200 phone calls (its RTP range). A second runs on a machine of its own on
 the box's Redis, where the trunks and dispatch rules are, so every number the box routes is one it
-answers. On the box, `primary.sh allow-gateway <its address>` lets it reach Redis and LiveKit's API
+answers. On the box, `pinecall-runtime cell allow-gateway <its address>` lets it reach Redis and LiveKit's API
 (the same step as for a LiveKit node). On the SIP machine: the box's `/etc/pinecall/sip.yaml`
 with `ws_url` and `redis.address` at the box's address, `LIVEKIT_API_KEY` and
 `LIVEKIT_API_SECRET` from the box's `media.env`, both files root's alone, and the box's image run
@@ -500,7 +501,7 @@ It needs the recordings bucket ("Recordings, off the disk"): its disk is no gate
 `worker-credentials` refuses a box that keeps recordings on its own. On the box, once per machine:
 
 ```
-sudo /opt/pinecall/infra/cell/primary.sh allow-worker <its address>
+sudo pinecall-runtime cell allow-worker <its address>
 ```
 
 opens 7880 and 8088 to that address — or to a range, the subnet the fleet loop makes its machines
@@ -511,25 +512,26 @@ laptop, the fleet's credentials
 go from one machine to the other through a pipe, never through a terminal:
 
 ```
-ssh box 'sudo /opt/pinecall/infra/cell/primary.sh worker-credentials production' |
-  ssh worker-machine 'sudo <a copy of infra>/cell/worker.sh join <box address> <wheel> production [calls]'
+ssh box 'sudo pinecall-runtime cell worker-credentials production' |
+  ssh worker-machine 'sudo uvx --from pinecall==<version> pinecall-runtime cell join-worker <box address> production'
 ```
 
-`worker.sh join` seals the fleet key and the LiveKit pair there, installs the runtime, and starts
-one worker of that fleet holding `calls` at once (the fleet loop's machines come from an image made
-with `worker.sh image` instead, which carries no credential, and enroll at their first boot:
+`<version>` is the box's own. `cell join-worker` copies the package's files there, seals the fleet key and the LiveKit pair,
+installs the runtime at that version, and starts one worker of that fleet holding `--calls` at
+once (the fleet loop's machines come from an image made with `cell image-worker` instead, which
+carries no credential, and enroll at their first boot:
 [../infra/fleet/README.md](../infra/fleet/README.md)) (unset, four per vCPU: on a machine of workers
 alone a call costs ~0.2 vCPU, so LiveKit's 0.7 line falls at about three per vCPU; the number is
 counted, never read off the CPU, as "Capacity is counted in calls" in [scaling.md](scaling.md)
-says). A release there is `worker.sh release <wheel>`, after the box's own: the worker drains its
-calls, the fleet's other machines take new ones meanwhile. `primary.sh forget-worker <address>`
-closes the fence to a machine that is gone. The box's own workers of that world may stay (a box
+says). A release there is `sudo uvx --from pinecall==<version> pinecall-runtime cell release-worker`,
+after the box's own: the worker drains its calls, the fleet's other machines take new ones
+meanwhile. `pinecall-runtime cell forget-worker <address>` closes the fence to a machine that is gone. The box's own workers of that world may stay (a box
 of 4 vCPU keeps two seats each) or be stopped, as its cores are needed.
 
 Measured on 2026-10-02 (`infra/lab/`: an e2-standard-8 of workers, the box an e2-standard-4, SIP
 callers, the vendors faked): 24 calls at once on the worker machine, 3.5 cores (~0.15 a call, the
 recording included), first audio p95 1.3 s and every turn answered, each call live 0.1 s after it
-rang; the box spent 1.8 cores on their media and their log. `worker.sh release` took 26 s with the
+rang; the box spent 1.8 cores on their media and their log. `cell release-worker` took 26 s with the
 worker idle. The table is in [scaling.md](scaling.md), "A machine of workers alone".
 
 ## 5. What the box runs

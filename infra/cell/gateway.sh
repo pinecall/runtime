@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Operators run it as `sudo uvx --from pinecall==<version> pinecall-runtime cell join-gateway …`
+# (join-gateway, release-gateway), which first copies the package's infra/ here.
 # A machine of the cell that runs gateways and nothing else, as root on it, from a copy of the
 # box's /opt/pinecall/infra (the box keeps Postgres, Redis, LiveKit and the workers):
 #   gateway.sh join <box address> <wheel or pinecall==version> [processes]

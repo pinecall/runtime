@@ -12,6 +12,7 @@ writes an agent, nothing there issues a key.
 | `gateway` · `worker` · `runner` · `doctor` · `providers` | this machine: its settings, its database, its LiveKit |
 | `migrate` · `sessions` · `memory` · `retention` · `traceback` · `facts` · `vault` | Postgres, straight, over `DATABASE_URL` (`vault` with `PINECALL_VAULT_KEY` too) |
 | `box up` · `box upgrade` | this machine as root: it made a box from the package itself |
+| `cell` | this machine as root: on the box, its side of a machine beside it; on that machine, the machine joined from the package |
 | `init` · `orgs` · `keys` · `routes` · `fleet` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` and `keys runner` alone are minted on the database, before any gateway answers |
 | `load` | a running gateway's sandbox, over the worker's own call doors with the sandbox fleet's key (`PINECALL_WORKER_KEY`) |
 
@@ -36,9 +37,42 @@ root; the names already point at the machine. `--backup-key age1…` writes
 `/etc/pinecall/backup.age.pub` and turns the nightly backup on; without it there is none.
 `--package` installs a wheel's path or another `pinecall==` instead. `box upgrade` is `box up`
 with the names the box has (`/etc/pinecall/box.env`): run from `uvx --from pinecall@latest`, it
-brings the box to that version. `box failover`, on the machine `infra/cell/replica.sh` made a replica, promotes its
+brings the box to that version. `box failover`, on the machine `cell join-replica` made a replica, promotes its
 Postgres and prints what to repoint; it repoints nothing itself ([a-box-in-production.md](a-box-in-production.md)). On a box, `/usr/local/bin/pinecall-runtime` runs any verb with the
 box's settings and sealed credentials: `sudo pinecall-runtime doctor`, `sudo pinecall-runtime init …`.
+
+## `cell`
+
+The machines beside the box: a replica of its Postgres, machines of gateways, machines of workers.
+Each is two halves, the box letting it in and the machine joining, and each half is a verb. The
+box's verbs run the scripts `box up` installed there (`/opt/pinecall/infra/cell/primary.sh`, the
+version the box runs); a machine's verbs, run through `uvx --from pinecall==<version>` on a machine
+that has nothing of Pinecall yet, copy the package's own `infra/` to `/opt/pinecall/infra` and run
+its script. The version is the box's: `sudo pinecall-runtime --version` on it. Secrets go from the
+box's verb to the machine's through a pipe, never through a terminal: a verb that writes a tar of
+them refuses a terminal for its stdout, and the machine's verb reads it on stdin.
+
+| on the box | does |
+|---|---|
+| `cell allow-replica <address>` · `forget-replica` | the replica's role, slot and `pg_hba` line, Postgres published toward it and fenced to it alone; undone |
+| `cell allow-gateway <address>` · `forget-gateway <address>` | a gateway machine let reach Postgres, Redis and LiveKit's API, and added to the gateways Caddy sends calls to; undone. A second LiveKit or SIP node is let in the same way |
+| `cell gateway-credentials` | the credentials a gateway machine runs on, as a tar on stdout |
+| `cell allow-worker <address or range>` · `forget-worker …` | a worker machine, or the subnet the fleet loop makes its machines in (`10.100.0.0/24`), let reach LiveKit's API and the gateways' balancer, nothing else; undone. Restarts nothing |
+| `cell worker-settings <world>` | what a worker of that world runs on and is no secret (the box's names, the object store, the fleet's file), as a tar: for the machine an image is made from |
+| `cell worker-credentials <world>` | the same with the fleet's key, the LiveKit pair and the store's secret; refused on a box that keeps recordings on its own disk |
+
+| on the machine joined | does |
+|---|---|
+| `cell join-worker <box address> <world> [--calls N]` | one worker of the world's fleet, its credentials on stdin and sealed there; `--calls` unset is four per vCPU |
+| `cell image-worker <box address> <world> [--calls N]` | the same machine prepared from `worker-settings`, its worker enabled and not started, no credential on it: stopped and frozen, it is the fleet's image ([../infra/fleet/README.md](../infra/fleet/README.md)) |
+| `cell release-worker` | the runtime brought to this version; the worker drains its calls and restarts |
+| `cell join-gateway <box address> [--processes N]` | gateways on loopback and the machine's Caddy on port 8090, fenced to the box; `--processes` unset is one per two vCPUs |
+| `cell release-gateway` | the runtime brought to this version, its gateways restarted one at a time |
+| `cell join-replica <box address>` | a streaming replica, the replication password on stdin: what `box failover` promotes |
+
+Every machine's verb takes `--package <wheel path or pinecall==version>` to install another than
+the one it runs from. The procedures, step by step, are [a-box-in-production.md](a-box-in-production.md):
+"A replica", "Gateways on other machines", "Workers on other machines".
 
 ## `init`
 

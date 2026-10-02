@@ -7,6 +7,12 @@ world's workers and nothing else, so the calls grow past one machine. The proced
 measured: `docs/a-box-in-production.md`, "A replica, and failing over to it", "Gateways on other
 machines" and "Workers on other machines".
 
+Nobody runs these scripts by their path: each is a `pinecall-runtime cell` verb
+(`docs/the-runtime-cli.md`, "`cell`"). On the box the verb runs the copy `box up` installed; on a
+machine joining, `uvx --from pinecall==<version> pinecall-runtime cell join-…` first copies the
+package's `infra/` to `/opt/pinecall/infra`, then runs its script. The page below is what each
+script does, for whoever changes one.
+
 ```
 primary.sh                  on the box: `allow <replica>` / `forget` (the role, the slot, pg_hba,
                             Postgres published toward the replica and fenced to it alone);
@@ -19,7 +25,7 @@ primary.sh                  on the box: `allow <replica>` / `forget` (the role, 
                             it and the gateways' balancer fenced to the worker machines; no Postgres,
                             no Redis); `worker-settings <world>` (what a worker machine runs on
                             and is no secret: box.env, store.env, the fleet's env, for
-                            `worker.sh image`); `worker-credentials <world>` (the same with the
+                            `cell image-worker`); `worker-credentials <world>` (the same with the
                             fleet key, the LiveKit pair and the object store's secret, for a pipe
                             alone; refused with no recordings bucket)
 replica.sh                  on the second machine: `join <box address>`, the replication password on stdin
