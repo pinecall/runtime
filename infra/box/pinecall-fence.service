@@ -10,4 +10,7 @@ Type=oneshot
 WorkingDirectory=/opt/pinecall
 EnvironmentFile=/etc/pinecall/box.env
 ImportCredential=DATABASE_URL
+# Root writes no bytecode into the deploy account's venv: a root-owned __pycache__ there stops the
+# next release half-way (2026-09-30, and again on 2026-10-03 from this very unit).
+Environment=PYTHONDONTWRITEBYTECODE=1
 ExecStart=/opt/pinecall/venv/bin/pinecall-fence apply
