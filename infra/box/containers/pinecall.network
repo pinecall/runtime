@@ -1,3 +1,0 @@
-# The bridge the containers find each other on by name; nothing outside the host reaches it.
-[Network]
-NetworkName=pinecall

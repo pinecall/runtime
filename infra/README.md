@@ -1,155 +1,59 @@
-# infra — what runs where, and how it grows
+# infra: Pinecall on Kubernetes
 
-One package, `pinecall`, is every process: the gateway, a worker, the overflow, the runner, the
-operator's CLI. What changes from one box to a fleet of thousands of machines is only **how many
-of each run, and where**. This page is the map; each piece has its own page for the details.
+The runtime on a Kubernetes cluster, from nothing, on Google Cloud. Terraform makes everything in
+the cloud (the cluster and its pools, the registry, the address, the firewall, the names, the
+secrets, the operators the chart relies on); one Helm chart runs the runtime on it. Nothing is
+made by hand and nothing is built on a laptop.
 
-## A call, and who talks to whom
+| path | what |
+|---|---|
+| `terraform/bootstrap` | the bucket every other root module keeps its state in, made once with local state |
+| `terraform/environments/<world-pair>` | one cluster: `staging` today, each phase proven there before production |
+| `terraform/modules/gke` | a cluster: zonal, two node pools (core; workers, sized by the cluster autoscaler alone), Workload Identity |
+| `terraform/modules/registry` · `build` | where images live, and the identity Cloud Build builds them as |
+| `terraform/modules/secrets` | the runtime's secrets, drawn once into Secret Manager, and the identity External Secrets reads them as |
+| `terraform/modules/addons` | CloudNativePG, External Secrets and KEDA, each its pinned chart |
+| `terraform/modules/edge` | the global address, the firewall (media open, 5060 to the carriers alone) and both names in Route 53 |
+| `images/pinecall/` | the runtime's image: one for every process, each a `pinecall-runtime` verb (`make image`) |
+| `images/postgres/` | the cluster's Postgres: CloudNativePG's operand image with pg_textsearch on it |
+| `images/suite/` | every suite, run as a Job inside a cluster (`make suite`) |
+| `images/cloudbuild.yaml` | how an image is built: by Cloud Build, as the builds' own identity |
+| `manifests/postgres.yaml` | the cluster's Postgres under CloudNativePG |
+| `manifests/suite.yaml` | the suites' Job, with a Redis made for the run |
+| `charts/pinecall/` | the runtime: two gateways, each world's workers (a few on the core node, the rest scaled by KEDA on the gateway's own number), the overflow, LiveKit and SIP on their node's network, Redis, the migrations, the fleets' keys, the nightly retention, the Ingress with Google's certificate |
+| `values/<world-pair>.yaml` | a release's names, its secrets' project and prefix, its address |
+| `lab/` | calls with real audio and the vendors faked, against staging, measured (`terraform/modules/lab` is its generator) |
+| `local/` | the runtime on a laptop, and the Postgres image of the suites (`make local`, `make db`) |
+| `models/` | the open stack: three model servers on one GPU and the providers row that points a box at them |
+| `seed/prices.csv` | the list prices a box's rates start from (`pinecall-runtime providers prices`) |
 
-```
-  phone · browser · WhatsApp
-          │  audio (SIP, WebRTC)
-          ▼
- ┌──────────────────┐  audio   ┌────────────────────────────────────────┐
- │ LiveKit + SIP    │◄────────►│ WORKER — one process per call          │
- │ the room         │          │ hears (STT) · thinks (LLM) · speaks (TTS)│
- └──────────────────┘          │ writes every turn to the call's log ──┐ │
-         ▲ "take room X"       └───────────────────────────────────────┼─┘
-         │                                                             │ HTTP
- ┌───────┴─────────────────────────────────────────────────────────────▼──┐
- │ GATEWAY — the API: opens the call, keeps its log, hands tools to the   │
- │ org's app over its socket, serves the console and the SDKs, seals it   │
- │        │                      │                                        │
- │        ▼                      ▼                                        │
- │   POSTGRES (the truth)    REDIS (the live signal; LiveKit's too)       │
- └────────────────────────────────────────────────────────────────────────┘
-```
+## From nothing to a release
 
-Audio never crosses the gateway: a worker is heavy (about half a core per call), the gateway is
-light per call. The log is written before anything is published, and every reader resumes from
-it by `seq`: that one rule is what lets everything below be several instead of one.
+With gcloud signed in on the project, and the zone of the two names on Route 53 (`~/.aws`):
 
-## Today: one box
-
-```
- ┌─ one VM ─────────────────────────────────────────────────────────────┐
- │  Caddy ─► gateway ─► Postgres · Redis                                │
- │  LiveKit · SIP · egress                                              │
- │  worker@production · worker@sandbox · overflow@production            │
- │  apps/  the orgs' hosted apps run on a machine of their own          │
- └──────────────────────────────────────────────────────────────────────┘
-```
-
-`pinecall-runtime box up` makes it from the package on an empty machine ([box/README.md](box/README.md),
-[../docs/a-box-in-production.md](../docs/a-box-in-production.md)). Everything a call needs is there.
-
-## Growing: the same box, workers on many machines
-
-```
- ┌─ the box ────────────────┐         ┌─ worker machines ─────────────────┐
- │ gateway · Postgres       │◄──HTTP──│ worker 1 … worker W                │
- │ Redis · LiveKit · SIP    │◄──WS────│ each holds its world's fleet key,  │
- │ fleet loop               │──create─►│ registers, heartbeats, takes calls │
- └──────────────────────────┘ delete  └───────────────────────────────────┘
+```console
+$ terraform -chdir=infra/terraform/bootstrap init && terraform -chdir=infra/terraform/bootstrap apply   # once
+$ make tf-init ENV=staging
+$ make tf-plan ENV=staging          # read it; the plan is saved
+$ make tf-apply ENV=staging         # exactly the plan read
+$ gcloud container clusters get-credentials pinecall-staging --zone us-central1-c
+$ gcloud builds submit infra/images/postgres --config infra/images/cloudbuild.yaml \
+    --service-account "$(terraform -chdir=infra/terraform/environments/staging output -raw build_service_account)" \
+    --substitutions _IMAGE="$(terraform -chdir=infra/terraform/environments/staging output -raw registry)/postgres:17.11-pgvector0.8.6-pgtextsearch1.4.0"
+$ make image                        # the runtime at this commit
+$ make deploy ENV=staging           # Postgres, the chart at that image, then the live suite
+$ make suite ENV=staging            # every suite inside the cluster
 ```
 
-A worker keeps no state: it asks the gateway for everything and can be anywhere that reaches it.
-Capacity is counted in **calls**, one seat each, never in CPU. The **fleet loop** keeps each
-world's fleet at its target by creating and cordoning machines
-([../docs/scaling.md](../docs/scaling.md)); the cloud is one script with three verbs
-([fleet/README.md](fleet/README.md): `gcp`, `aws`, `hetzner`, or yours). Built and in use.
+`make deploy` runs the migrations before anything new starts (a pre-upgrade hook), mints each
+world's fleet key once at install, waits for every workload, and knocks at the production name.
+The secrets never leave Secret Manager but into the pods' environment; the values file holds no
+secret.
 
-## At scale: a cell
+## Proven
 
-```
-              ┌─────────────────────────────────┐
-              │ balancer — any gateway, any request│
-              └────┬──────────┬──────────┬────────┘
-             ┌─────▼───┐ ┌────▼────┐ ┌───▼─────┐
-             │gateway 1│ │gateway 2│ │gateway N│   no state of their own
-             └────┬────┘ └────┬────┘ └────┬────┘
-                  └───────────┼───────────┘
-          ┌───────────────────┼─────────────────────┐
-          ▼                   ▼                     ▼
-   ┌────────────┐      ┌────────────┐        ┌──────────────┐
-   │ POSTGRES   │      │ REDIS      │        │ the orgs'    │
-   │ primary +  │      │ who holds  │        │ apps (sockets)│
-   │ replica,   │      │ what, what │        └──────────────┘
-   │ WAL archive│      │ just moved │
-   └────────────┘      └────────────┘
-   ┌─ media ────────────────┐   ┌─ workers ──────────────────┐
-   │ LiveKit 1 … M          │◄─►│ machine 1 … W               │
-   │ SIP 1 … K              │   │ grown by the fleet loop     │
-   └────────────────────────┘   └────────────────────────────┘
-```
-
-A **cell** is a whole Pinecall in one region: the gateways, one Postgres, one Redis, the media
-nodes and the fleet. An org lives in exactly one cell, so nothing crosses cells during a call, a
-cell that fails takes out its share and no more, and an org that must keep its data in Europe
-lives in a European cell. Past what one cell holds, the platform grows by cells, with a small
-directory saying which org lives where.
-
-What has to be true for gateways to be several: nothing a request needs may live in one
-process's memory. The truth is in Postgres already; what is live (which gateway holds an agent's
-socket, which call just wrote an entry, an org's calls at once) goes to Redis as a signal that may
-be lost, because a reader that misses it reads the log. **Next**: this is being built now; today
-the gateway is one process.
-
-## How each plane grows
-
-| plane | unit | grows when | shrinks by | today |
-|---|---|---|---|---|
-| workers | a machine of N seats | seats busy over the target (60 %) | a cordon: takes no call, finishes its own, exits | built, the fleet loop |
-| gateways | a process, then a machine | requests a second per process; append p99 | the balancer stops sending; it drains its streams | next: N stateless gateways, then the loop moves them too |
-| media | a LiveKit node, a SIP node | rooms per node, packet loss; channels per trunk | a node's limit; the carrier's routing | next, per cell |
-| Postgres | one primary | never sideways: a bigger machine, or a new cell | — | primary + replica + restore to any minute |
-| Redis | one | never: it is a signal, not a store | — | one, LiveKit's |
-| cells | a whole Pinecall | a cell's measured ceiling is in sight | — | designed, not built |
-
-One loop drives the three planes that grow: it reads what the gateway knows (`/v1/ops/fleets`,
-`/metrics`), decides in one pure function, and calls the cloud's script. Scaling in never cuts a
-call: a worker is cordoned and leaves when empty; a gateway is taken off the balancer and drains;
-a media node stops taking rooms.
-
-## On any cloud
-
-The runtime does not know where it runs: a machine with Ubuntu, podman and the package. What
-each cloud provides:
-
-| piece | GCP | AWS | your own machines |
-|---|---|---|---|
-| machines for the fleet | a managed instance group (`terraform/modules/fleet-gcp`, `fleet/gcp-mig.py`), or `fleet/gcp` | an Auto Scaling group (`terraform/modules/fleet-aws`, `fleet/aws-asg.py`) | `fleet/hetzner`, or a script of yours |
-| balancer in front of the gateways | a cloud LB, or Caddy | idem | Caddy, HAProxy |
-| Postgres | a VM (this tree), or managed | idem | a VM, its replica in `cell/` |
-| Redis | a VM (this tree), or managed | idem | a VM |
-| object store: backups, WAL, recordings | any S3 endpoint (GCS through its S3 keys) | S3 | MinIO, or the disk |
-| media | VMs with public addresses: audio is UDP and skips the balancer | idem | idem |
-
-Nothing in this tree names a cloud but the fleet scripts. The object store is spoken in S3 to
-whatever answers it; unset, the box keeps everything on its disk.
-
-## When something dies
-
-| dies | the caller | how it comes back |
-|---|---|---|
-| a worker | one sentence and a call back offered | LiveKit's webhook tells the gateway; the call is sealed as drained |
-| a gateway (with several) | nothing | another takes the next request; readers resume from the log |
-| Redis | the call goes on; live readers catch up from the log | it reconnects |
-| Postgres | the cell stops until the replica is promoted | `box failover`, restore to any minute from the WAL archive |
-| a LiveKit node | its calls hear the sentence; new ones land elsewhere | the node's rooms are gone with it |
-| a whole cell | its orgs, nobody else | a cell is one region on purpose: no active-active |
-
-## The folders
-
-```
-apps/       the machine that runs the orgs' hosted apps, one gVisor container each: apps/README.md
-box/        the box: cloud-init, install.sh, release.sh, the systemd units, the containers of the
-            media plane, Caddy, nftables: box/README.md
-cell/       the second machine that holds a streaming replica of the box's Postgres: cell/README.md
-fleet/      one executable per cloud, three verbs (create, delete, list): fleet/README.md
-models/     the open stack: three model servers on one GPU, and the row that points a box at them
-postgres/   the image of the box's Postgres 17 with pgvector and pg_textsearch
-```
-
-Nothing runs on a laptop but the suites' Postgres. A call is tried against a box, and
-the box's secrets are drawn on it and sealed there, never in this tree.
+On 2026-10-03, on staging: every suite, 3 113 tests, green inside the cluster against Postgres
+17.11 under CloudNativePG 1.30.1, pgvector 0.8.6 and pg_textsearch 1.4.0 preloaded, the runtime
+connecting as the database's owner, no superuser. The chart released: two gateways, LiveKit and
+SIP on the core node's network, each world's two core workers registered with LiveKit under their
+own names, the overflow, and KEDA reading the gateway's number (0, no scaled worker).

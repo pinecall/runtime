@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# The lab's generator configured, one verb a step, run on it by measure.py over gcloud ssh:
+#   setup                    the vendors faked (port 8700), the caller's audio, the agent installed
+#   agent <url>              the tenant's agent under `pinecall start --prod`, until it connects;
+#                            the org's key on stdin
+#   number <public> <number> the number routed to the agent, hooked from the generator's public
+#                            address alone (a carrier reaches the cluster from the internet)
+# A secret comes on stdin and is never an argument or a line printed.
+set -euo pipefail
+
+FAKES_PORT=8700
+AGENT_FRAMEWORK=0.9.13
+
+setup() {
+    sudo useradd -m -s /bin/bash lab 2>/dev/null || true
+    sudo chmod 755 /home/lab
+    sudo tar xzf /tmp/lab.tgz -C /home/lab && sudo chown -R lab:lab /home/lab
+    sudo systemctl stop fake-vendors lab-agent 2>/dev/null || true
+    sudo systemctl reset-failed fake-vendors lab-agent 2>/dev/null || true
+    cd /home/lab
+    sudo -u lab uv run -q --with numpy python caller.py
+    sudo systemd-run --unit=fake-vendors --uid=lab --working-directory=/home/lab \
+        -p LimitNOFILE=1048576 --setenv=PATH=/usr/local/bin:/usr/bin:/bin \
+        uv run --with aiohttp --with numpy python fake_vendors.py "$FAKES_PORT" >/dev/null
+    cd /home/lab/agent
+    printf '{"name":"lab","private":true,"type":"module","dependencies":{"pinecall":"%s"}}' \
+        "$AGENT_FRAMEWORK" | sudo -u lab tee package.json >/dev/null
+    sudo -u lab npm install --silent >/dev/null 2>&1
+    for _ in $(seq 30); do curl -s -o /dev/null "127.0.0.1:$FAKES_PORT" && break; sleep 2; done
+    echo "generator ready"
+}
+
+# The key reaches the file by the pipe alone.
+agent() {
+    local url=$1
+    { printf 'PINECALL_KEY='; grep -o -m1 'pc_live_[A-Za-z0-9_.-]*'; echo "PINECALL_URL=$url"; } |
+        sudo sh -c 'umask 077; cat > /home/lab/agent/.env; chown lab:lab /home/lab/agent/.env'
+    sudo systemctl stop lab-agent 2>/dev/null || true
+    sudo systemctl reset-failed lab-agent 2>/dev/null || true
+    sudo systemd-run --unit=lab-agent --uid=lab --working-directory=/home/lab/agent \
+        -p Restart=on-failure -p RestartSec=3 \
+        -p EnvironmentFile=/home/lab/agent/.env --setenv=PATH=/usr/local/bin:/usr/bin:/bin \
+        /home/lab/agent/node_modules/.bin/pinecall start --prod >/dev/null
+    for _ in $(seq 60); do sudo journalctl -u lab-agent -o cat | grep -q connected && break; sleep 2; done
+    sudo journalctl -u lab-agent -o cat | grep -q connected || {
+        sudo journalctl -u lab-agent -o cat | tail -20
+        echo "the agent did not connect"
+        exit 1
+    }
+    echo "agent connected"
+}
+
+number() {
+    local public=$1 number=$2 status
+    printf '{"number": "%s", "agent": "clinica-norte", "hooked": true, "networks": ["%s/32"]}\n' \
+        "$number" "$public" > /tmp/number.json
+    status=$(sudo sh -c 'set -a; . /home/lab/agent/.env; set +a; curl -s -o /tmp/number.out -w "%{http_code}" \
+        -X POST -H "Authorization: Bearer $PINECALL_KEY" -H "pinecall-env: production" \
+        -H "content-type: application/json" "$PINECALL_URL/v1/numbers" -d @/tmp/number.json')
+    case "$status" in
+        2*) echo "number $status" ;;
+        409) echo "number routed already" ;;
+        *) echo "number $status: $(cat /tmp/number.out)"; exit 1 ;;
+    esac
+}
+
+verb=${1:-}
+shift || true
+case "$verb" in
+    setup | agent | number) "$verb" "$@" ;;
+    *) echo "generator.sh setup|agent <url>|number <public> <number>" >&2; exit 2 ;;
+esac

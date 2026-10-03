@@ -1,85 +1,85 @@
-# The credentials a fleet machine runs on, kept where Google Cloud hands them to a machine's own
-# identity: the world's fleet key, the LiveKit pair, the object store's secret. Declared here; their
-# versions (the values) are written by the box (`pinecall-runtime cell publish-secrets`) and never
-# by Terraform, so no value is ever in the state.
+# A cluster's own secrets, drawn here once in the shapes the runtime reads, kept in Secret Manager, and synced into the cluster by External Secrets
+# Operator acting as an identity that reads these alone (Workload Identity). They are in Terraform's
+# state, which is the private, versioned bucket of bootstrap/; nothing prints them.
+
+# A Fernet key: 32 random bytes, URL-safe base64 with its padding.
+resource "random_id" "vault" {
+  byte_length = 32
+}
+
+resource "random_id" "ops" {
+  byte_length = 24
+}
+
+resource "random_id" "livekit_key" {
+  byte_length = 6
+}
+
+resource "random_password" "livekit_secret" {
+  length  = 43
+  special = false
+}
+
+resource "random_id" "redis" {
+  byte_length = 24
+}
 
 locals {
-  names = concat(
-    [for world in var.worlds : "pinecall-fleet-key-${world}"],
-    ["livekit-api-key", "livekit-api-secret", "pinecall-s3-secret-access-key"],
-  )
-}
-
-resource "google_project_service" "secret_manager" {
-  service            = "secretmanager.googleapis.com"
-  disable_on_destroy = false
-}
-
-resource "google_secret_manager_secret" "credential" {
-  for_each  = toset(local.names)
-  secret_id = each.value
-  labels = {
-    pinecall = "box"
+  values = {
+    "vault-key"          = "${random_id.vault.b64_url}="
+    "ops-key"            = "pc_ops_${random_id.ops.hex}"
+    "livekit-api-key"    = "API${random_id.livekit_key.hex}"
+    "livekit-api-secret" = random_password.livekit_secret.result
+    "redis-password"     = random_id.redis.hex
   }
+}
+
+resource "google_secret_manager_secret" "this" {
+  for_each  = local.values
+  secret_id = "pinecall-${var.name}-${each.key}"
   replication {
     auto {}
   }
-  depends_on = [google_project_service.secret_manager]
 }
 
-# What a fleet machine of a world acts as: it reads that world's fleet key and the three the
-# worlds share, nothing else, and writes its metrics and logs.
-resource "google_service_account" "worker" {
-  for_each     = toset(var.worlds)
-  account_id   = "pinecall-worker-${each.value}"
-  display_name = "Pinecall ${each.value} worker machines: read their credentials at boot"
+resource "google_secret_manager_secret_version" "this" {
+  for_each    = local.values
+  secret      = google_secret_manager_secret.this[each.key].id
+  secret_data = each.value
 }
 
-locals {
-  shared = ["livekit-api-key", "livekit-api-secret", "pinecall-s3-secret-access-key"]
-  reads = {
-    for pair in flatten([
-      for world in var.worlds : [
-        for name in concat(["pinecall-fleet-key-${world}"], local.shared) : { world = world, name = name }
-      ]
-    ]) : "${pair.world} ${pair.name}" => pair
-  }
+# External Secrets Operator's identity in the cluster reads these secrets and nothing else.
+resource "google_service_account" "sync" {
+  account_id   = "pinecall-${var.name}-secrets"
+  display_name = "Pinecall ${var.name}: External Secrets Operator"
 }
 
-resource "google_secret_manager_secret_iam_member" "worker_reads" {
-  for_each  = local.reads
-  secret_id = google_secret_manager_secret.credential[each.value.name].id
+resource "google_secret_manager_secret_iam_member" "sync" {
+  for_each  = local.values
+  secret_id = google_secret_manager_secret.this[each.key].id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.worker[each.value.world].email}"
+  member    = "serviceAccount:${google_service_account.sync.email}"
 }
 
-resource "google_project_iam_member" "worker_writes" {
-  for_each = {
-    for pair in setproduct(var.worlds, ["roles/monitoring.metricWriter", "roles/logging.logWriter"]) :
-    "${pair[0]} ${pair[1]}" => { world = pair[0], role = pair[1] }
-  }
-  project = var.project
-  role    = each.value.role
-  member  = "serviceAccount:${google_service_account.worker[each.value.world].email}"
+resource "google_service_account_iam_member" "sync" {
+  service_account_id = google_service_account.sync.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project}.svc.id.goog[external-secrets/external-secrets]"
 }
 
-# The box compares before it adds (`publish-secrets` writes a version only where one differs).
-resource "google_secret_manager_secret_iam_member" "box_publishes" {
-  for_each = {
-    for pair in setproduct(keys(google_secret_manager_secret.credential), var.publishers) :
-    "${pair[0]} ${pair[1]}" => { secret = pair[0], member = pair[1] }
-  }
-  secret_id = google_secret_manager_secret.credential[each.value.secret].id
-  role      = "roles/secretmanager.secretVersionManager"
-  member    = each.value.member
+variable "project" {
+  type = string
 }
 
-resource "google_secret_manager_secret_iam_member" "box_reads" {
-  for_each = {
-    for pair in setproduct(keys(google_secret_manager_secret.credential), var.publishers) :
-    "${pair[0]} ${pair[1]}" => { secret = pair[0], member = pair[1] }
-  }
-  secret_id = google_secret_manager_secret.credential[each.value.secret].id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = each.value.member
+variable "name" {
+  type        = string
+  description = "staging or production: the secrets are pinecall-<name>-*."
+}
+
+output "sync_service_account" {
+  value = google_service_account.sync.email
+}
+
+output "secret_prefix" {
+  value = "pinecall-${var.name}-"
 }

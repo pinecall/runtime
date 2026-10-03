@@ -18,7 +18,7 @@ caller → carrier → INVITE to <box>:5060 → livekit-sip → room call-… �
 | plane | who | what it knows | what it never knows |
 |---|---|---|---|
 | the carrier | Twilio, Telnyx, a PBX, a national carrier | the number, and the SIP address its calls go to | the agent, the org's name |
-| the SIP service | `livekit-sip`, on the box (`infra/box/sip.yaml`) | one inbound trunk per fence: the numbers it admits and the networks it admits them from; one dispatch rule per org and world | the agent: a rule names the world's fleet, nothing more |
+| the SIP service | `livekit-sip`, in the cluster on its node's own network (`infra/charts/pinecall/templates/sip.yaml`) | one inbound trunk per fence: the numbers it admits and the networks it admits them from; one dispatch rule per org and world | the agent: a rule names the world's fleet, nothing more |
 | the gateway | the box's gateway and Postgres | the `routes` row: org, number, agent, world, how it was written | the call's audio |
 
 A call is dispatched to the fleet of its number's world; the worker that takes it asks the gateway
@@ -44,11 +44,11 @@ registers to it and sends the calls on as above.
 flood guard then refuses the honest calls with the rest, so the box admits SIP from carriers'
 signalling edges alone, twice:
 
-1. **nftables on the box** (`infra/box/nftables.conf`, in `raw` prerouting because the SIP
-   container's port is DNAT'd and never crosses `input`): Twilio's networks are typed there; the
-   networks of the other carriers the operator admits, and the addresses he approved, are added
-   every minute by `pinecall-fence apply` into `nftables.d/carriers.nft`. On a GCP box the
-   cloud's firewall stands in front with the same list, Terraform's, and a deny for everyone else.
+1. **The cloud's firewall** in front of the SIP node (`infra/terraform/modules/edge`): 5060 open
+   to the networks Terraform's `sip_sources` names, and denied to everyone else. The networks it
+   should name are Twilio's, the other carriers' the operator admits and the addresses he
+   approved, the list the console's box screen shows (`GET /v1/ops/carriers`, its `fence`); a
+   change to it reaches the rule by a Terraform change.
 2. **The trunk on livekit-sip**: a number is admitted by one inbound trunk, which lists the
    networks it may come from. An INVITE for a number no trunk lists gets no answer at all
    (`hide_inbound_port`): a scanner learns nothing and opens no room.
@@ -141,13 +141,13 @@ the gateway admits every routed number again with the fence it has now, takes a 
 org's trunks when nothing approved fences it, deletes nothing else, and never touches a carrier.
 The operator's approval or refusal of a network does the same for that org at once.
 
-One livekit-sip holds 200 calls (its RTP range). A second runs on a machine of its own on the box's
-Redis, so it answers every number the box routes; the carrier spreads calls across both with a
-second origination URI ([a-box-in-production.md](a-box-in-production.md), "A second SIP node").
+One livekit-sip holds 200 calls (its RTP range). A second, on the box's Redis, answers every
+number the box routes too, and the carrier spreads calls across both with a second origination
+URI; the chart runs one.
 
 ## Pricing a leg
 
-A phone leg is priced from `infra/box/prices.csv`, by the longest prefix of
+A phone leg is priced from `infra/seed/prices.csv`, by the longest prefix of
 `<carrier>-<inbound|outbound>/<number>`, minutes begun billed whole. The prices carried are
 Twilio's; a leg through another carrier is recorded with its minutes and priced at nothing until
 its rows are added.

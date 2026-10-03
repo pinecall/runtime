@@ -9,14 +9,9 @@ calls, one Python package, one wheel, on LiveKit. It runs Pinecall's own product
 [pinecall/agents](https://github.com/pinecall/agents) (TypeScript) or the Ruby SDK, and talk to
 this runtime over the wire `pinecall/wire/` declares. Nothing here is imported by an agent.
 
-On a machine with Ubuntu 24.04 and its names pointed at it, the runtime makes it a box by itself:
-
-```console
-$ curl -LsSf https://astral.sh/uv/install.sh | sudo env UV_INSTALL_DIR=/usr/local/bin sh
-$ sudo uvx --from pinecall pinecall-runtime box up --domains voice.example.com,sandbox.example.com
-```
-
-`docs/from-zero.md` takes it from there to a caller heard. To work on the runtime itself:
+A box is the runtime on a Kubernetes cluster: Terraform makes the cluster on Google Cloud and a
+Helm chart runs it, all of it in `infra/` ([infra/README.md](infra/README.md)).
+`docs/from-zero.md` takes it from nothing to a caller heard. To work on the runtime itself:
 
 ```console
 $ git clone https://github.com/pinecall/runtime && cd runtime
@@ -96,8 +91,8 @@ you run.
 
 ## Where to start reading
 
-- `docs/from-zero.md` walks a box to its first call; `docs/a-box-in-production.md` is what a
-  box keeps, backs up and forgets.
+- `docs/from-zero.md` walks a box to its first call; `infra/README.md` is the cluster it runs
+  on, from nothing.
 - `docs/protocol/gateway-api.md` is every door a tenant's code knocks at, and
   `docs/protocol/every-door.md` all of them in one table.
 - `docs/protocol/numbers.md` is the phone side: carriers, numbers, dials and their guards.
@@ -111,7 +106,8 @@ you run.
 make check      the rules and the suites that need no database
 make test       every suite, on a local Postgres in colima (T=tests/log for one folder)
 make hooks      install the pre-commit hook (runs `make check`)
-make deploy     the console built in, a wheel, released on the box, the live suite, the journal
+make image      the runtime's image, built by Cloud Build from this checkout
+make deploy     the chart released on a cluster at that image, then the live suite (ENV=staging)
 ```
 
 Python 3.12 and uv; colima for the suites that need Postgres (`make db`). Nothing runs LiveKit

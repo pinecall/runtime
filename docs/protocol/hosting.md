@@ -6,7 +6,7 @@ and the box keeps them as a **release**. Every door here takes a key that opens 
 the world the request names: an app hosted in production is not hosted in the sandbox.
 
 The box's **runner** of that world installs each release and starts it, one gVisor container
-each, on a machine that is not the box ([../../infra/apps/README.md](../../infra/apps/README.md));
+each, on a machine of its own, outside the box's cluster;
 `GET /v1/hosted` says which release serves and why the newest failed. What the process is started
 with is the org's secrets, its token and the world's address, and the command is always
 `pinecall start` (`--prod` in production): a hosted project is a Node project with `pinecall` in

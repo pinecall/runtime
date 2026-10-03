@@ -1,11 +1,11 @@
-# What a box runs beside the runtime, on a laptop: Postgres (the box's image), Redis, LiveKit in
+# What a box runs beside the runtime, on a laptop: Postgres (`postgres/`), Redis, LiveKit in
 # dev mode and, on Linux, LiveKit's SIP. The gateway and a worker run from the checkout
 # (`make local-gateway`, `make local-worker`). `make local` brings this up; infra/local/README.md.
 name: pinecall-local
 
 services:
   postgres:
-    build: ../postgres
+    build: ./postgres
     image: pinecall/postgres:17-pgvector0.8.6-pgtextsearch1.4.0
     environment:
       POSTGRES_USER: pinecall

@@ -1,0 +1,119 @@
+# Each world's workers. On the core node, a few small ones: the calls of a quiet hour cost nothing
+# more. On the workers pool, the ones KEDA scales from none on the gateway's own number
+# (GET /v1/ops/fleet/{fleet}/wanted, fleet/demand.py, counting the core's seats first); the cluster autoscaler makes a node for each and takes it away once it is empty.
+# A worker told to stop drains its calls, up to ten minutes: Kubernetes waits fifteen.
+{{- range $world, $core := .Values.workers.core }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-core-{{ $world }}
+spec:
+  replicas: {{ $core.replicas }}
+  selector: { matchLabels: { app: worker, world: {{ $world }}, pool: core } }
+  strategy:
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  template:
+    metadata: { labels: { app: worker, world: {{ $world }}, pool: core } }
+    spec:
+      nodeSelector: { pinecall.io/pool: core }
+      terminationGracePeriodSeconds: 900
+      containers:
+        - name: worker
+          image: {{ include "pinecall.image" $ }}
+          args: ["worker", "start"]
+          env:
+            {{- include "pinecall.env" $ | nindent 12 }}
+            {{- include "pinecall.workerEnv" (dict "root" $ "world" $world "seats" $core.seats) | nindent 12 }}
+            # Small workers beside the box's services: one warm process each, not one per CPU.
+            - name: PINECALL_IDLE_PROCESSES
+              value: "1"
+          startupProbe:
+            httpGet: { path: /, port: 8082 }
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: 8082 }
+          volumeMounts:
+            - { name: recordings, mountPath: /var/lib/pinecall/recordings }
+          resources:
+            requests: { cpu: 150m, memory: 768Mi }
+      volumes:
+        - { name: recordings, emptyDir: {} }
+{{- end }}
+{{- range $world, $scaled := .Values.workers.scaled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-scaled-{{ $world }}
+# No replicas here: KEDA owns them, and a release that named them would undo its last decision.
+spec:
+  selector: { matchLabels: { app: worker, world: {{ $world }}, pool: workers } }
+  template:
+    metadata: { labels: { app: worker, world: {{ $world }}, pool: workers } }
+    spec:
+      nodeSelector: { pinecall.io/pool: workers }
+      tolerations:
+        - { key: pinecall.io/pool, operator: Equal, value: workers, effect: NoSchedule }
+      terminationGracePeriodSeconds: 900
+      containers:
+        - name: worker
+          image: {{ include "pinecall.image" $ }}
+          args: ["worker", "start"]
+          env:
+            {{- include "pinecall.env" $ | nindent 12 }}
+            {{- include "pinecall.workerEnv" (dict "root" $ "world" $world "seats" $scaled.seats) | nindent 12 }}
+          startupProbe:
+            httpGet: { path: /, port: 8082 }
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: 8082 }
+          volumeMounts:
+            - { name: recordings, mountPath: /var/lib/pinecall/recordings }
+          # One per node of the pool: an e2-standard-8 holds 32 calls at ~60 % (docs/scaling.md).
+          resources:
+            requests: { cpu: "6", memory: 12Gi }
+      volumes:
+        - { name: recordings, emptyDir: {} }
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: worker-scaled-{{ $world }}
+spec:
+  secretTargetRef:
+    - { parameter: token, name: pinecall, key: PINECALL_OPS_KEY }
+---
+# The gateway computes how many; KEDA keeps the Deployment at it: up at once, down one at a time,
+# never sooner than ten minutes after the last change, each going only once its calls end.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-scaled-{{ $world }}
+spec:
+  scaleTargetRef: { name: worker-scaled-{{ $world }} }
+  minReplicaCount: 0
+  maxReplicaCount: {{ $scaled.most }}
+  pollingInterval: 15
+  cooldownPeriod: 600
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0
+        scaleDown:
+          stabilizationWindowSeconds: 600
+          policies: [{ type: Pods, value: 1, periodSeconds: 300 }]
+  triggers:
+    - type: metrics-api
+      metricType: AverageValue
+      authenticationRef: { name: worker-scaled-{{ $world }} }
+      metadata:
+        # KEDA asks from its own namespace: the gateway's Service by its whole name.
+        url: {{ printf "http://pinecall-gateway.%s.svc.cluster.local:8080/v1/ops/fleet/%s/wanted?scaled=worker-scaled-%s-&seats=%v&most=%v" $.Release.Namespace (index $.Values.fleets $world) $world $scaled.seats $scaled.most | quote }}
+        valueLocation: wanted
+        targetValue: "1"
+        authMode: bearer
+{{- end }}

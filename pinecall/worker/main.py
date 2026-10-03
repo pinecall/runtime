@@ -111,7 +111,7 @@ def server_of(settings: Settings) -> AgentServer:
     # Every plugin imported in the worker's own process is one livekit lists in its forkserver's
     # preload: imported once there, inherited by each call's process. Imported in the call's
     # process instead, the 44 held its loop 3-5 s on an idle box, up to 70 s on a loaded one,
-    # while the caller waited (infra/lab/, 2026-10-01).
+    # while the caller waited (the load lab, 2026-10-01).
     installed()
     # URL and pair are handed over: AgentServer reads os.environ, and the .env files are not in it.
     server = AgentServer(

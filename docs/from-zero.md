@@ -1,34 +1,35 @@
 # From zero: a box, an org, an agent answering
 
 The order you meet everything in, from nothing to a caller heard. Each step names the page that
-is its reference. The runtime runs on a box, not on a laptop: a laptop writes agents and knocks at
-a box.
+is its reference. The runtime runs on a box, a Kubernetes cluster in the cloud, not on a laptop: a
+laptop writes agents and knocks at a box.
 
 ## 1. A box
 
-A machine with Ubuntu 24.04 (4 vCPU, 16 GB, a public IP), and its two names — production's and
-the sandbox's — already pointed at it in DNS, so Caddy can take their certificates. Then, on it:
+A box is the runtime on a cluster: Terraform makes the cluster on Google Cloud (its node pools,
+address, firewall, names and secrets) and a Helm chart runs the gateways, the workers, LiveKit,
+SIP, Redis and Postgres on it, all of it in the repository's `infra/`. Your box is an environment
+of your own: a copy of `infra/terraform/environments/staging` and of `infra/values/staging.yaml`
+with your project and your two names, production's and the sandbox's. Then, from a checkout, with
+gcloud signed in:
 
 ```console
-$ curl -LsSf https://astral.sh/uv/install.sh | sudo env UV_INSTALL_DIR=/usr/local/bin sh
-$ sudo uvx --from pinecall pinecall-runtime box up --domains voice.example.com,sandbox.example.com
+$ make tf-init tf-plan ENV=<yours>     # read the plan before anything is made
+$ make tf-apply ENV=<yours>
+$ make image
+$ make deploy ENV=<yours>
 ```
 
-`box up` makes the machine a box from the package itself, no checkout: the system's packages
-(podman, Caddy, nftables, age), the containers (Postgres, LiveKit, its SIP and egress, Redis), the
-firewall, the box's secrets drawn and sealed and never printed, the runtime from PyPI at the same
-version, its migrations and its units, and the doctor. `--backup-key age1…` turns the nightly
-encrypted backup on, to a key whose private half stays with you; without it there is none. Run it
-again, or `sudo uvx --from pinecall@latest pinecall-runtime box upgrade`, and the box is brought to
-that version with its names and secrets kept. On the box, `sudo pinecall-runtime <verb>` runs any
-operator verb with the box's own credentials ([the-runtime-cli.md](the-runtime-cli.md)).
+`tf-apply` makes the cloud's side and draws the box's secrets into Secret Manager, never printed;
+`image` builds the runtime's image from the checkout, on Google's machines; `deploy` runs the
+migrations, releases the chart at that image, waits for every workload and knocks at the box's
+production name. The whole walk, and what each piece is: [../infra/README.md](../infra/README.md).
+Every operator verb runs from the laptop against the gateway, with the box's ops key
+([the-runtime-cli.md](the-runtime-cli.md)).
 
 The box then needs a vendor for each stage with a key it holds: the providers row
 (`/v1/ops/providers`, `/v1/ops/provider-keys/{vendor}`, or the console's Box screens). On your own
 GPU, with open models and no cloud vendor at all: [the-open-stack.md](the-open-stack.md).
-
-Pinecall's own box is made the other way, from this repository, so a change is deployed before it
-is released: `make box`, `make deploy` ([a-box-in-production.md](a-box-in-production.md)).
 
 ## 2. The first org and the first person
 

@@ -17,34 +17,31 @@ Our own knobs carry `PINECALL_`. The vendors' keys are not variables: see
 are a property of each row and of each key (`pc_live_`, `pc_test_`), never two instances. What
 keeps a test call off a production process is the worker pool: each world has its own fleet of
 workers, and the gateway dispatches a call to the fleet of its world. A variable marked *(the
-unit's)* is written per worker unit, never in the box's `box.env`.
+pod's)* is set per worker Deployment by the chart (`infra/charts/pinecall`), never for the
+gateway.
 
 | | |
 |---|---|
 | `LIVEKIT_URL` · `LIVEKIT_API_KEY` · `LIVEKIT_API_SECRET` | the media plane both processes talk to. The secret also signs call tokens |
 | `LIVEKIT_PUBLIC_URL` | the URL a browser is told to join, when it differs |
 | `DATABASE_URL` | Postgres 17 with pgvector and pg_textsearch: the one stateful service. One database for both worlds |
-| `PINECALL_REDIS_URL` | the Redis the gateways tell each other what just happened on (`redis://:password@host:port/db`; on a box a sealed credential, the password drawn by `install.sh`, which LiveKit, SIP and egress use too): what a call just wrote, who holds what. Lossy by design and never a record: a reader that misses a message resumes from Postgres. Unset, the gateway is alone on its box and keeps all of it in its own memory, as it always has; set and not answering, the gateway starts and serves all the same, and says so in its log. On a box it is LiveKit's Redis, database 1 (`infra/box/pinecall-gateway.service`) |
-| `PINECALL_DB_POOL` | the connections the gateway holds open to Postgres, 10 unless set: two are its log writer's own, open for the process's life, one per lane, so an append never waits for a door and a door never waits for an append; the doors share the rest. A box writes it into `box.env` at install, sized to the machine: two per vCPU, plus the writer's two. On each one a statement is cancelled at 30 s and a transaction left idle is ended at 60 s; a request that finds every connection taken for 2 s is answered `503`, and so is a statement cancelled at its timeout (a worker retries a `5xx`). What is long on purpose runs with neither timeout: the migrations, an erasure, an export, the nightly retention and a knowledge base's push |
+| `PINECALL_REDIS_URL` | the Redis the gateways tell each other what just happened on (`redis://:password@host:port/db`; in a cluster built from the secret `pinecall-<world>-redis-password`, which LiveKit and SIP use too): what a call just wrote, who holds what. Lossy by design and never a record: a reader that misses a message resumes from Postgres. Unset, the gateway is alone on its box and keeps all of it in its own memory, as it always has; set and not answering, the gateway starts and serves all the same, and says so in its log. In a cluster it is LiveKit's Redis, database 1 (`charts/pinecall/templates/secrets.yaml`) |
+| `PINECALL_DB_POOL` | the connections the gateway holds open to Postgres, 10 unless set: two are its log writer's own, open for the process's life, one per lane, so an append never waits for a door and a door never waits for an append; the doors share the rest. On each one a statement is cancelled at 30 s and a transaction left idle is ended at 60 s; a request that finds every connection taken for 2 s is answered `503`, and so is a statement cancelled at its timeout (a worker retries a `5xx`). What is long on purpose runs with neither timeout: the migrations, an erasure, an export, the nightly retention and a knowledge base's push |
 | `PINECALL_WORKER_KEY` | the key the worker knocks with. On a box the fleet's; on a laptop an org's own key, and the worker serves that org |
-| `PINECALL_RUNNER_KEY` · `PINECALL_RUNNER_ROOT` · `PINECALL_RUNNER_ENVIRONMENTS` · `PINECALL_RUNNER_IMAGE` · `PINECALL_RUNNER_RUNTIME` | the runner's: the key of its world (`keys runner`), where it unpacks each release (`/var/lib/pinecall/runner`), where it writes each container's environment — the org's secrets — a tmpfs the unit mounts (`/run/pinecall-runner`), the image every hosted app runs in (`docker.io/library/node:24-slim`), and the OCI runtime (`runsc`, gVisor; `crun` only for code you wrote yourself). It reads `PINECALL_GATEWAY_URL` for the box it serves: that world's public address, since it never runs on the box ([../infra/apps/README.md](../infra/apps/README.md)) |
+| `PINECALL_RUNNER_KEY` · `PINECALL_RUNNER_ROOT` · `PINECALL_RUNNER_ENVIRONMENTS` · `PINECALL_RUNNER_IMAGE` · `PINECALL_RUNNER_RUNTIME` | the runner's: the key of its world (`keys runner`), where it unpacks each release (`/var/lib/pinecall/runner`), where it writes each container's environment — the org's secrets — a tmpfs the unit mounts (`/run/pinecall-runner`), the image every hosted app runs in (`docker.io/library/node:24-slim`), and the OCI runtime (`runsc`, gVisor; `crun` only for code you wrote yourself). It reads `PINECALL_GATEWAY_URL` for the box it serves: that world's public address, since it runs on a machine of its own, never in the cluster |
 | `PINECALL_OPS_KEY` | the box's own key to `/v1/ops/*`. Unset, only a person the box made an operator opens those doors |
 | `PINECALL_VAULT_KEY` | **required by the gateway**: the Fernet key every sealed secret is under (an org's vendor keys, the box's, SMTP, SSO, the carrier). A gateway without it does not start. To rotate: a comma-separated list, the new key first; a secret seals under the first and opens under whichever sealed it |
 | `PINECALL_ROLE` | what this box runs: `all` · `hub` · `worker`; the doctor asks after what it has |
-| `PINECALL_GATEWAY_URL` | the gateway on loopback: what it binds, and what a worker's job asks; on a worker machine of the cell, the box's balancer at its address (`http://<box>:8088`) |
-| `PINECALL_GATEWAY_LISTEN` · `PINECALL_TRUSTED_PROXIES` · `PINECALL_METRICS_FROM` *(a pod's)* | in a Kubernetes pod (infra-v2): where the gateway binds (`0.0.0.0:8080`; unset, the URL's loopback, behind Caddy), the addresses or networks whose `X-Forwarded-For` it believes (unset, `127.0.0.1`: Caddy's; a cluster's, the load balancer's ranges), and the ones `/metrics` answers (unset, loopback; a cluster's, the pods' network), a forwarded request never |
-| `PINECALL_HERE` *(the box's Caddy's)* | the box's own address, written by `install.sh` into `box.env`: where the cell's worker machines reach the gateways' balancer (8088), which the fence opens to them alone. The runtime never reads it |
-| `PINECALL_MAX_JOBS` *(the unit's)* · `PINECALL_APP` · `PINECALL_AGENT` | what a worker takes, and for whom: it reports `0.7 × calls ÷ slots` to LiveKit, whose full is 0.7, so LiveKit offers it calls until every one of these is taken. Unset, load is gated on CPU, refused at 0.7 |
-| `PINECALL_JOIN_URL` · `PINECALL_JOIN_TOKEN` *(a fleet machine's first boot)* | written by cloud-init to `/etc/pinecall/join.env` from what the fleet loop gave `create` (`infra/fleet/first-boot`): where to spend the join token and the token, one join, ten minutes. `pinecall-join.service` spends and shreds them; never in a unit's environment |
-| `PINECALL_FLEET` *(the unit's)* | the fleet this worker unit joins: the name it registers under with LiveKit, `pinecall` unless set, spelled like a slug, never empty. Which fleet each world's calls go to is the `fleets` row of `box_settings` (`{"production": "pinecall", "sandbox": "pinecall-sandbox"}` unless the operator changes it), so a box runs one unit per world, or more per world to grow |
-| `PINECALL_FLEET_SEATS` · `PINECALL_FLEET_MAX` · `PINECALL_FLEET_PROJECT` · `PINECALL_FLEET_ZONE` · `PINECALL_FLEET_MIG` *(the fleet loop's unit)* | on a box on Google Cloud, `/etc/pinecall/fleet-loop-<world>.env`, written by `install.sh` from the box's metadata (Terraform's): the seats of a fleet machine, the most machines, and the managed instance group the loop makes machines in and lets them go from (`infra/fleet/gcp-mig.py`) |
-| `PINECALL_IDLE_PROCESSES` *(the unit's)* | job processes the worker keeps warm. Unset, livekit's own: one per CPU. Set on the box only, where four workers share its cores; a machine of workers alone never takes it from the box |
+| `PINECALL_GATEWAY_URL` | the gateway: on a laptop its loopback address, what it binds; what a worker's job asks, in a pod the gateways' Service (`http://pinecall-gateway:8080`) |
+| `PINECALL_GATEWAY_LISTEN` · `PINECALL_TRUSTED_PROXIES` · `PINECALL_METRICS_FROM` *(a pod's)* | in a Kubernetes pod (`infra/charts`): where the gateway binds (`0.0.0.0:8080`; unset, the URL's loopback), the addresses or networks whose `X-Forwarded-For` it believes (unset, `127.0.0.1`: Caddy's; a cluster's, the load balancer's ranges), and the ones `/metrics` answers (unset, loopback; a cluster's, the pods' network), a forwarded request never |
+| `PINECALL_MAX_JOBS` *(the pod's)* · `PINECALL_APP` · `PINECALL_AGENT` | what a worker takes, and for whom: it reports `0.7 × calls ÷ slots` to LiveKit, whose full is 0.7, so LiveKit offers it calls until every one of these is taken. Unset, load is gated on CPU, refused at 0.7 |
+| `PINECALL_FLEET` *(the pod's)* | the fleet this worker unit joins: the name it registers under with LiveKit, `pinecall` unless set, spelled like a slug, never empty. Which fleet each world's calls go to is the `fleets` row of `box_settings` (`{"production": "pinecall", "sandbox": "pinecall-sandbox"}` unless the operator changes it), so a cluster runs the workers of each world as Deployments of their own (`fleets` in the chart's values) |
+| `PINECALL_IDLE_PROCESSES` *(the pod's)* | job processes the worker keeps warm. Unset, livekit's own: one per CPU. Set to 1 on the core node's workers, which share its cores with the box's services; a scaled worker, alone on its node, leaves it unset |
 | `PINECALL_WORKER_NAME` · `PINECALL_WORKER_HTTP_PORT` · `PINECALL_WORKER_HTTP_HOST` · `PINECALL_OVERFLOW_SAYS` | its name in the roster (unset: the hostname), its health port (8082) and the address it binds (unset, loopback; a pod's, `0.0.0.0` for its probes), and the overflow agent's one sentence |
-| `NOTIFY_SOCKET` *(systemd's)* | set by systemd on a `Type=notify` unit: the worker says `READY=1` there once LiveKit registered it and the gateway answered its heartbeat, and a `systemctl restart` returns then |
+| `NOTIFY_SOCKET` *(systemd's)* | set by systemd on a `Type=notify` unit: the worker says `READY=1` there once LiveKit registered it and the gateway answered its heartbeat. Unset in a pod, whose start is its startup probe on the health port, livekit's own |
 | `PINECALL_RECORDINGS` | where a kept recording lands. **Whether** audio is kept is the agent's own setting |
-| `PINECALL_S3_ENDPOINT` · `PINECALL_S3_REGION` · `PINECALL_S3_ACCESS_KEY_ID` · `PINECALL_S3_SECRET_ACCESS_KEY` | the object store what leaves the disk goes to: any S3-compatible endpoint (AWS S3, Google Cloud Storage by HMAC key, R2, B2, MinIO), the region its signature names, and the key the box writes with. On a box the first three are in `/etc/pinecall/store.env` and the secret is a sealed credential, never in a file; examples per store in [a-box-in-production.md](a-box-in-production.md). A runtime given a recordings bucket and not all four does not start, and says which are missing |
-| `PINECALL_RECORDINGS_BUCKET` | the bucket of that store a finished recording moves to, as `<org>/<call>/audio.ogg` (on a box, in `/etc/pinecall/store.env`). Unset, recordings stay on the disk as they always have |
-| `PINECALL_BACKUP_BUCKET` *(the box's scripts')* | the bucket the nightly backup and the WAL archive go to, read by `infra/box/backup.sh` and `wal.sh`, never by the runtime |
+| `PINECALL_S3_ENDPOINT` · `PINECALL_S3_REGION` · `PINECALL_S3_ACCESS_KEY_ID` · `PINECALL_S3_SECRET_ACCESS_KEY` | the object store what leaves the disk goes to: any S3-compatible endpoint (AWS S3, Google Cloud Storage by HMAC key, R2, B2, MinIO), the region its signature names, and the key the box writes with. A runtime given a recordings bucket and not all four does not start, and says which are missing |
+| `PINECALL_RECORDINGS_BUCKET` | the bucket of that store a finished recording moves to, as `<org>/<call>/audio.ogg`. Unset, recordings stay on the disk as they always have |
 | `PINECALL_WAL_SPOOL` | the box's WAL spool, whose backlog `doctor`'s `archive` line reads through Postgres (unset, `/var/lib/pinecall/wal`); empty in a cluster, whose Postgres archives through its operator and has no spool: the line then reads the archiver alone |
 | `PINECALL_SMTP_URL` · `PINECALL_MAIL_FROM` | the box's own mail (`smtp://user:pass@host:587`, or `smtps://…:465`) and who its letters are from. A mailbox stored at `PUT /v1/ops/mail` wins over these, and an org's own over both. A URL that does not read is said in the log at start, and the box posts nothing of its own |
 | `PINECALL_DOMAIN` · `PINECALL_SANDBOX_DOMAIN` | the box's name per world: production's, where the public and a carrier reach it, and the sandbox's, a second name of the same box. The name a request comes in by is its world: the console served at `sandbox.example` is the sandbox's, `pinecall-env` may only agree, and a number imported in a world points its carrier at that world's name. A sign-in, a password or an invitation link, and the SSO callback, carry the name the request came in by; a Host that is none of the box's names gets production's. A box given one name serves both worlds at it, and the console there is production's. Neither set, nothing imports |
@@ -103,10 +100,10 @@ of it is read from code.
 
 A checkout and `uv sync` is the whole of it for writing the runtime: `make check` runs the rules and
 every suite that needs no database; `make test` starts a Postgres of its own in colima (`make db`:
-the image of `infra/postgres/`, the box's Postgres 17 with pgvector and pg_textsearch, on tmpfs,
-durability off) and the box's Redis beside it (nothing kept), and gives every test a schema of its
-own and a prefix of its own on the Redis. `make test-box` runs the same suites on
-the box's database through an ssh tunnel, the DSN never printed.
+the image of `infra/local/postgres/`, Postgres 17 with pgvector and pg_textsearch, on tmpfs,
+durability off) and a Redis beside it (nothing kept), and gives every test a schema of its own and
+a prefix of its own on the Redis. `make suite` runs the same suites inside a cluster, against its
+Postgres under CloudNativePG.
 
 The runtime whole runs on a laptop too, with no cloud account: `make local` starts the box's
 Postgres, Redis and LiveKit in docker (`infra/local/compose.yaml`, ports 55433, 56380, 7880),
@@ -116,12 +113,12 @@ those settings, and `make local-down` stops the compose. LiveKit's pair there is
 dev pair (`infra/local/livekit.yaml`). A phone needs the SIP bridge (`--profile phone`, Linux
 only) and a carrier that reaches the laptop: [../infra/local/README.md](../infra/local/README.md).
 
-## A box
+## A cluster
 
-Everything a box needs at birth is `infra/box/`: `cloud-init.yaml` for the first boot and
-`install.sh` once, which draws the box's own secrets (the LiveKit pair, the database password,
-`PINECALL_VAULT_KEY`, `PINECALL_OPS_KEY`) and seals them with `systemd-creds`. A unit reads its
-secrets as credentials, by path, so a verb typed at a shell on the box reads a box that does not
-exist; the operator's verbs run from a laptop against the gateway, with the ops key. The whole
-walk, from a VM to the first call: [a-box-in-production.md](a-box-in-production.md); the box's files:
-[../infra/box/README.md](../infra/box/README.md).
+Everything a runtime needs in the cloud is `infra/`: Terraform makes the cluster, its node pools,
+the registry, the address, the firewall, the names and the secrets (drawn there, kept in Secret
+Manager: the LiveKit pair, the Redis password, `PINECALL_VAULT_KEY`, `PINECALL_OPS_KEY`), and the
+chart runs the gateways, the workers, LiveKit, SIP and Redis, with Postgres under CloudNativePG.
+External Secrets hands each pod its secrets as environment, never a file in the image; the
+operator's verbs run from a laptop against the gateway, with the ops key. The whole walk, from
+nothing to the suites and a release: [../infra/README.md](../infra/README.md).

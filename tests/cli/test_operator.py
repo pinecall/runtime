@@ -2,14 +2,12 @@
 
 import asyncio
 import json
-import re
-import stat
 from pathlib import Path
 
 import pytest
 
 from pinecall.cli.main import main, verbs
-from pinecall.domain.errors import DeclarationRefused, GatewayRefused, PinecallError
+from pinecall.domain.errors import GatewayRefused, PinecallError
 from pinecall.process.settings import Settings
 from tests.conftest import AGENT, BOX_DOMAIN, FLEETS, Knocking, postgres
 from tests.gateway.api.test_ops import THE_OPS_KEY, with_an_ops_key
@@ -153,8 +151,8 @@ async def test_routes_are_typed_listed_seeded_and_forgotten(
 
 
 @postgres
-async def test_the_fleet_is_listed_cordoned_and_looped_once_in_a_dry_run(
-    knocking: Knocking, capsys: pytest.CaptureFixture[str], tmp_path: Path
+async def test_the_fleet_is_listed_and_a_worker_cordoned_and_let_be(
+    knocking: Knocking, capsys: pytest.CaptureFixture[str]
 ) -> None:
     settings = settings_of(knocking)
     beat = {
@@ -174,28 +172,6 @@ async def test_the_fleet_is_listed_cordoned_and_looped_once_in_a_dry_run(
     assert "full" in listed
     assert await ran(settings, "fleet", "cordon", "pinecall-worker-1") == 0
     assert await ran(settings, "fleet", "uncordon", "pinecall-worker-1") == 0
-    capsys.readouterr()
-    script = tmp_path / "cloud"
-    listing = 'printf "pinecall-worker-1\\t2026-09-28T10:00:00+00:00\\n"'
-    script.write_text(f'#!/bin/sh\ncase "$1" in list) {listing};; esac\n')
-    script.chmod(script.stat().st_mode | stat.S_IXUSR)
-    assert (
-        await ran(
-            settings, "fleet", "loop", "--cloud", str(script), "--seats", "4", "--once", "--dry-run"
-        )
-        == 0
-    )
-    ticked = capsys.readouterr().out
-    assert ticked.startswith("fleet: 1 workers up · 1 machines · 4/4 seats held")
-    assert re.search(
-        r"grow    pinecall-worker-\d{12}-1: busy 1\.00 over 0\.60: 3 seats missing  \(dry run\)",
-        ticked,
-    )
-    loop = ("fleet", "loop", "--cloud", str(script), "--seats", "4", "--once", "--dry-run")
-    with pytest.raises(DeclarationRefused, match="--grow-at-most is 1 or more"):
-        await ran(settings, *loop, "--grow-at-most", "0")
-    with pytest.raises(DeclarationRefused, match="--fleet"):
-        await ran(settings, "fleet", "loop", "--cloud", str(script), "--seats", "4", "--once")
 
 
 @postgres

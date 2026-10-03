@@ -1,27 +1,25 @@
-"""The operator's verbs over the box's own doors: init, orgs, keys, routes and the fleet."""
+"""The operator's verbs over the runtime's own doors: init, orgs, keys, routes and the fleet."""
 
 import argparse
 import asyncio
 import contextlib
 import json
 import sys
-import time
 from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
 
-from pinecall.domain.errors import DeclarationRefused, GatewayRefused, PinecallError
+from pinecall.domain.errors import GatewayRefused, PinecallError
 from pinecall.domain.names import Json, JsonObject, parse_env
 from pinecall.domain.org import DEFAULT_ORG, QUOTAS
 from pinecall.domain.person import ROLES, THE_FLEET, THE_RUNNER
-from pinecall.fleet import hub, roster
-from pinecall.fleet.hub import Cloud, Line
+from pinecall.fleet import roster
 from pinecall.postgres.pool import open_pool
 from pinecall.process.settings import Settings
 from pinecall.tenancy import keys as key_table
-from pinecall.wire.rest.fleet import JoinTokenRequest, WorkerStatus
+from pinecall.wire.rest.fleet import WorkerStatus
 
 type Verb = Callable[[httpx.Client, argparse.Namespace], int]
 
@@ -60,12 +58,6 @@ A_FLEET_KEY = "the {env} fleet"
 
 
 A_RUNNER_KEY = "the {env} runner"
-
-NO_GROWTH = "--grow-at-most is 1 or more, and --target a share of the seats over 0"
-
-ONE_FLEET = "the loop makes machines for one fleet: name it with --fleet, or look with --dry-run"
-
-JOIN_TOKENS = "/v1/ops/fleet/join-tokens"
 
 
 def init_group(first: argparse.ArgumentParser) -> None:
@@ -170,7 +162,7 @@ def routes_group(group: argparse.ArgumentParser) -> None:
 
 
 def fleet_group(group: argparse.ArgumentParser) -> None:
-    """`fleet`: the workers heard from, a cordon, and the loop."""
+    """`fleet`: the workers heard from, and a cordon."""
     under = group.add_subparsers(required=True)
     listing = under.add_parser("list", help="the roster")
     listing.add_argument("--fleet", default=None)
@@ -179,26 +171,6 @@ def fleet_group(group: argparse.ArgumentParser) -> None:
         one_verb = under.add_parser(verb)
         one_verb.add_argument("worker")
         one_verb.set_defaults(run=_knocking(runner))
-    loop = under.add_parser("loop", help="the fleet kept at its target, tick by tick")
-    loop.add_argument(
-        "--cloud", required=True, help="the script: create <name>, delete <name>, list"
-    )
-    loop.add_argument("--seats", type=int, required=True, help="PINECALL_MAX_JOBS of the image")
-    loop.add_argument("--fleet", default=None, help="one fleet alone; unset, every worker")
-    loop.add_argument("--target", type=float, default=Line.target)
-    loop.add_argument("--min", type=int, default=Line.at_least)
-    loop.add_argument("--max", type=int, default=Line.at_most)
-    loop.add_argument(
-        "--grow-at-most",
-        dest="grow_at_most",
-        type=int,
-        default=Line.grow_at_most,
-        help="the most machines one tick asks for",
-    )
-    loop.add_argument("--every", type=float, default=15.0)
-    loop.add_argument("--once", action="store_true")
-    loop.add_argument("--dry-run", dest="dry_run", action="store_true")
-    loop.set_defaults(run=_knocking(fleet_loop))
 
 
 # Printed to stdout once, where the unit that mints it seals it: never to a terminal on a box.
@@ -490,56 +462,6 @@ def fleet_uncordon(client: httpx.Client, args: argparse.Namespace) -> int:
     return 0
 
 
-# Stateless between ticks: the roster is the gateway's and the machines the cloud's, so a loop
-# restarted resumes where the numbers are.
-def fleet_loop(client: httpx.Client, args: argparse.Namespace) -> int:
-    """Every `--every` seconds, one tick: the fleet kept at its target, or a dry run said."""
-    if args.grow_at_most < 1 or args.target <= 0:
-        raise DeclarationRefused(NO_GROWTH)
-    if args.fleet is None and not args.dry_run:
-        raise DeclarationRefused(ONE_FLEET)
-    cloud = Cloud(Path(args.cloud))
-    line = Line(
-        target=args.target,
-        at_least=args.min,
-        at_most=args.max,
-        seats_per_worker=args.seats,
-        grow_at_most=args.grow_at_most,
-    )
-    while True:
-        now = time.time()
-        seats = [seat for seat in _seats(client) if args.fleet is None or seat.fleet == args.fleet]
-        machines = cloud.machines()
-        decided = hub.decide(seats, machines, line, now)
-        hub.printed(sys.stdout, hub.status_line(seats, machines, line, now, decided))
-        for decision in decided:
-            hub.printed(
-                sys.stdout, f"  {hub.worded(decision)}{'  (dry run)' if args.dry_run else ''}"
-            )
-        if not args.dry_run:
-            hub.applied(
-                decided,
-                lambda worker: _cordon(client, worker, on=True),
-                cloud,
-                lambda name: _joining(client, str(args.fleet), name),
-                lambda name: _forgotten(client, name),
-            )
-        if args.once:
-            return 0
-        time.sleep(args.every)
-
-
-# What a machine's first boot is given: a token good for one join, and the door to spend it at.
-def _joining(client: httpx.Client, fleet: str, name: str) -> dict[str, str]:
-    body = JoinTokenRequest(fleet=fleet, worker=name).written()
-    answer = _object(_answered(client.post(JOIN_TOKENS, json=body)))
-    return {"PINECALL_JOIN_TOKEN": str(answer["token"]), "PINECALL_JOIN_URL": str(answer["url"])}
-
-
-def _forgotten(client: httpx.Client, name: str) -> None:
-    _answered(client.delete(f"/v1/ops/fleet/{name}/keys"))
-
-
 def _knocking(verb: Verb) -> Callable[[Settings, argparse.Namespace], int]:
     def run(settings: Settings, args: argparse.Namespace) -> int:
         if not settings.ops_key:
@@ -595,11 +517,6 @@ def _member_by_email(client: httpx.Client, org: str, email: str) -> JsonObject:
         if str(member["email"]).lower() == email.strip().lower():
             return member
     raise GatewayRefused(f"nobody in {org} has the address {email}", answered=404)
-
-
-def _seats(client: httpx.Client) -> list[WorkerStatus]:
-    listed = _object(_answered(client.get("/v1/ops/fleet")))
-    return [WorkerStatus.model_validate(row) for row in _list(listed["workers"])]
 
 
 def _cordon(client: httpx.Client, worker: str, *, on: bool) -> None:

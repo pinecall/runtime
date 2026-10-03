@@ -68,8 +68,6 @@ voice-big = ["livekit-agents[aws,azure,google,speechmatics]>=1.8.3,<2"]
 
 [project.scripts]
 pinecall-runtime = "pinecall.cli.main:main"
-# The fence's root helper, every minute: its own entry, so it imports none of the gateway.
-pinecall-fence = "pinecall.cli._fence:main"
 
 [project.urls]
 Homepage = "https://github.com/pinecall/runtime"
@@ -157,17 +155,11 @@ convention = "google"
 "tests/**" = ["D103", "INP001", "PLR2004", "S101"]
 "**/__init__.py" = ["D104"]  # rule 1: every __init__.py is empty
 "tests/rules/**" = ["S603", "S607"]  # the rules run the checkers as subprocesses
-"pinecall/fleet/hub.py" = ["S603"]
-"pinecall/runner/_podman.py" = ["S603", "S108"]  # podman's argv, from constants and the gateway's names; /tmp is a mount inside the container  # the cloud is the operator's own script, run by the path they gave
-"pinecall/cli/_box.py" = ["S603"]
-"pinecall/cli/_cell.py" = ["S603"]  # the package's own scripts, by their path under /opt/pinecall/infra
-"pinecall/cli/_fence.py" = ["S603"]  # nft, by its absolute path, on the box's own configuration
-"pinecall/cli/_enroll.py" = ["S603"]  # systemd-creds, by its name, sealing what the box or the cloud gave
-"pinecall/process/recordings.py" = ["ARG002"]  # the disk answers the bucket's calls, and its paths name no org  # box up runs the box's own commands: argv built from constants and the package's files
+"pinecall/runner/_podman.py" = ["S603", "S108"]  # podman's argv, from constants and the gateway's names; /tmp is a mount inside the container
+"pinecall/process/recordings.py" = ["ARG002"]  # the disk answers the bucket's calls, and its paths name no org
 "scripts/**" = ["INP001"]  # the build's tools, loaded by path: no package
-"infra/lab/**" = ["INP001"]  # the load lab's tools, run by path: no package
-"infra/lab/measure.py" = ["T201", "S108", "S603", "S607"]  # prints its table; /tmp is the lab machine's; gcloud, terraform, uv
-"infra/fleet/*.py" = ["INP001", "T201", "S310", "S603", "S607"]  # a fleet loop's cloud: by path, prints, Google's fixed URLs, gcloud
+"infra/lab/**" = ["INP001"]  # the voice lab's tools, run by path: no package
+"infra/lab/measure.py" = ["T201", "S108", "S310", "S603", "S607", "ANN401"]  # prints its table; /tmp is the generator's; https to the gateway; gcloud, kubectl, terraform; the doors' JSON
 # A fake plugin takes the arguments a real one does, and its keys are fakes; livekit's
 # RoomService names its request `list`, and an override keeps the name it overrides.
 "tests/fakes/*.py" = ["PLR0913", "S105", "S106", "A002"]
@@ -184,7 +176,7 @@ reportImplicitOverride = true
 
 [tool.deptry]
 known_first_party = ["pinecall", "tests"]
-# The load lab runs on machines of its own with what `uv run --with` gives it, not the package's.
+# The voice lab runs on a machine of its own with what `uv run --with` gives it, not the package's.
 extend_exclude = ["tests/rules/fixtures", "infra/lab"]
 # The wheel's build hook imports the build backend, which build-system.requires declares.
 per_rule_ignores = { DEP001 = ["hatchling"] }

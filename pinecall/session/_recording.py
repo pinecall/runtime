@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # livekit's recorder wraps the session's audio in and out and places both on one timeline: the
 # caller on the left, the agent on the right, encoded in a thread of this process. Egress did the
 # same work in a process of its own per call (~0.12 vCPU, ~80 MB), and a track egress per voice
-# costs more still (~0.1 vCPU and ~170 MB a track, infra/lab/ 2026-10-02): the voices are already
+# costs more still (~0.1 vCPU and ~170 MB a track, the load lab 2026-10-02): the voices are already
 # decoded here, so the recording is made here. A supervisor who takes over and the far end of a
 # transfer are the room's, not the session's: each is heard from its own track while it speaks and
 # spooled beside the file, and with the hold melody (from its clip, where it sounded) they are laid
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # so the file is whole when the summary names it.
 
 # The agent's voice comes at 24 kHz and a phone at 8: 48 keeps nothing more (~10 % of a worker's
-# cores less, infra/lab/).
+# cores less, the load lab).
 RATE = 24000
 
 # Opus takes whole frames of 20 ms (480 samples at RATE).

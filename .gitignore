@@ -10,17 +10,16 @@ dist/
 pinecall/public/
 tests/out/
 .DS_Store
-build/
-# Terraform: the providers and any state kept locally (bootstrap's); the state lives in its bucket.
+/build/
+# Terraform: the providers and any state kept locally; the state lives in its bucket.
 .terraform/
 *.tfstate
 *.tfstate.*
 crash.log
 .terraform-check/
-.image-settings.tar
 .local/
 .lab/
-# `pinecall-runtime fence export` on the box: the carriers' and the orgs' approved networks, which
-# are the orgs' and never published with this repository.
-infra/terraform/environments/*/carrier_signalling.auto.tfvars.json
-.image-v2/
+.image/
+.suite/
+# A saved plan (`make tf-plan`): what `make tf-apply` applies, never committed.
+infra/terraform/environments/*/plan

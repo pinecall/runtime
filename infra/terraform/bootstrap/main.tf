@@ -17,7 +17,7 @@ provider "google" {
 
 variable "project" {
   type        = string
-  description = "The Google Cloud project the box runs in."
+  description = "The Google Cloud project the clusters run in."
 }
 
 variable "region" {

@@ -1,0 +1,33 @@
+# The gateways' signals to one another and LiveKit's own state between its nodes: nothing to keep
+# across a restart, so no disk.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pinecall-redis
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: pinecall-redis } }
+  template:
+    metadata: { labels: { app: pinecall-redis } }
+    spec:
+      nodeSelector: { pinecall.io/pool: core }
+      containers:
+        - name: redis
+          image: {{ .Values.media.redis }}
+          args: ["sh", "-c", 'exec redis-server --requirepass "$REDIS_PASSWORD" --save "" --appendonly no']
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: pinecall, key: REDIS_PASSWORD } }
+          ports: [{ containerPort: 6379 }]
+          readinessProbe:
+            exec: { command: ["sh", "-c", 'redis-cli --no-auth-warning -a "$REDIS_PASSWORD" ping'] }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pinecall-redis
+spec:
+  selector: { app: pinecall-redis }
+  ports: [{ port: 6379 }]

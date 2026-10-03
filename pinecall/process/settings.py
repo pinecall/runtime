@@ -110,7 +110,7 @@ class Settings(BaseModel):
         description="The bucket a finished recording moves to, under its org. Unset: the disk.",
     )
 
-    # The box's WAL spool (infra/box/wal.sh): archive_command copies each segment there and a timer
+    # The box's WAL spool: archive_command copies each segment there and a timer
     # ships it. A cluster's Postgres archives through its operator, and has no spool to read.
     wal_spool: str | None = Field(
         "/var/lib/pinecall/wal",
@@ -151,7 +151,7 @@ class Settings(BaseModel):
         description="The instance's gateway: where it binds, on loopback, and what a worker asks.",
     )
     # A box's gateway binds PINECALL_GATEWAY_URL's loopback address, behind Caddy; a pod's binds
-    # its own network, behind the cluster's load balancer, and says so here (infra-v2).
+    # its own network, behind the cluster's load balancer, and says so here (infra/charts).
     gateway_listen: str | None = Field(
         None,
         alias="PINECALL_GATEWAY_LISTEN",

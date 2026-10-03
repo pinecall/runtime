@@ -1,31 +1,18 @@
-"""Tests for the fleet doors: the heartbeat and the roster."""
+"""Tests for the fleet doors: the heartbeat and LiveKit's word on a room's people."""
 
 import json
 import time
 
 from livekit import api
 
-from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.log.store import Claim
 from pinecall.wire.rest.fleet import HeartbeatRequest
-from tests.conftest import (
-    AGENT,
-    FLEETS,
-    LIVEKIT_KEY,
-    Knocking,
-    a_worker_heard,
-    postgres,
-)
+from tests.conftest import AGENT, LIVEKIT_KEY, Knocking, a_worker_heard, postgres
 from tests.fakes.livekit import Server, signed
 from tests.gateway.api.conftest import a_call
-from tests.gateway.api.test_ops import THE_OPS_KEY, with_an_ops_key
 
 WEBHOOK = "/v1/livekit/webhook"
-
-JOIN_TOKENS = "/v1/ops/fleet/join-tokens"
-
-JOIN = "/v1/fleet/join"
 
 
 @postgres
@@ -108,57 +95,3 @@ async def test_an_event_livekit_did_not_sign_is_refused_and_changes_nothing(
         wrong = await livekit.post(WEBHOOK, content=body, headers={"Authorization": forged})
     assert (unsigned.status_code, wrong.status_code) == (403, 403)
     assert server.dispatcher.made == []
-
-
-def a_beat(worker: str) -> JsonObject:
-    """One idle heartbeat of a machine of the sandbox fleet."""
-    beat = HeartbeatRequest(
-        fleet=FLEETS["sandbox"], worker=worker, active=0, max_jobs=32, load=0.0, draining=False
-    )
-    return beat.written()
-
-
-@postgres
-async def test_a_join_token_is_spent_once_for_a_machines_own_fleet_key(knocking: Knocking) -> None:
-    with_an_ops_key(knocking)
-    async with knocking.http(THE_OPS_KEY) as operator:
-        minted = await operator.post(
-            JOIN_TOKENS, json={"fleet": FLEETS["sandbox"], "worker": "pinecall-worker-7"}
-        )
-        unknown = await operator.post(JOIN_TOKENS, json={"fleet": "nobodys", "worker": "w"})
-    assert (minted.status_code, unknown.status_code) == (200, 404)
-    token = minted.json()
-    assert token["token"].startswith("pc_test_")
-    assert token["url"].startswith("http")
-    async with knocking.http(token["token"]) as machine:
-        wrong = await machine.post(JOIN, json={"worker": "pinecall-worker-8"})
-        joined = await machine.post(JOIN, json={"worker": "pinecall-worker-7"})
-        again = await machine.post(JOIN, json={"worker": "pinecall-worker-7"})
-        no_heartbeat = await machine.post("/v1/fleet/heartbeat", json=a_beat("pinecall-worker-7"))
-    assert (wrong.status_code, joined.status_code) == (403, 200)
-    assert (again.status_code, no_heartbeat.status_code) == (401, 401)
-    given = joined.json()
-    assert (given["fleet"], given["livekit_api_key"]) == (FLEETS["sandbox"], LIVEKIT_KEY)
-    assert given["worker_key"].startswith("pc_test_")
-    async with knocking.http(given["worker_key"]) as worker:
-        heard = await worker.post("/v1/fleet/heartbeat", json=a_beat("pinecall-worker-7"))
-        no_join = await worker.post(JOIN, json={"worker": "pinecall-worker-7"})
-    assert (heard.status_code, no_join.status_code) == (200, 403)
-
-
-@postgres
-async def test_a_machines_keys_go_with_the_machine(knocking: Knocking) -> None:
-    with_an_ops_key(knocking)
-    async with knocking.http(THE_OPS_KEY) as operator:
-        minted = await operator.post(
-            JOIN_TOKENS, json={"fleet": FLEETS["sandbox"], "worker": "pinecall-worker-9"}
-        )
-    async with knocking.http(minted.json()["token"]) as machine:
-        joined = await machine.post(JOIN, json={"worker": "pinecall-worker-9"})
-    worker_key = joined.json()["worker_key"]
-    async with knocking.http(THE_OPS_KEY) as operator:
-        forgotten = await operator.delete("/v1/ops/fleet/pinecall-worker-9/keys")
-        again = await operator.delete("/v1/ops/fleet/pinecall-worker-9/keys")
-    async with knocking.http(worker_key) as worker:
-        gone = await worker.post("/v1/fleet/heartbeat", json=a_beat("pinecall-worker-9"))
-    assert (forgotten.status_code, again.status_code, gone.status_code) == (204, 204, 401)

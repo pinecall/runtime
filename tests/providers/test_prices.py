@@ -174,8 +174,8 @@ def test_the_change_names_what_is_new_changed_the_same_and_only_on_the_box() -> 
     )
 
 
-def test_the_prices_file_the_box_ships_with_reads_whole() -> None:
-    shipped = Path(__file__).parents[2] / "infra" / "box" / "prices.csv"
+def test_the_prices_file_the_repository_ships_reads_whole() -> None:
+    shipped = Path(__file__).parents[2] / "infra" / "seed" / "prices.csv"
     rates = rates_from_csv(shipped.read_text(encoding="utf-8"))
     assert rates["flux-general-multi"].audio_seconds == 0.00013
     assert rates["claude-haiku-4-5"].output == 5.0

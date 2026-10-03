@@ -30,7 +30,7 @@ ACCOUNTS = "https://api.twilio.com/2010-04-01"
 TIMEOUT_S = 30.0
 
 
-# livekit-sip listens here (infra/box/sip.yaml), and nftables opens it to the carrier alone.
+# livekit-sip listens here, and the fence opens it to the carrier alone.
 SIP_PORT = 5060
 
 

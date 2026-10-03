@@ -1,0 +1,38 @@
+# livekit-sip on the core node's own network: 5060 and the RTP ports are the node's (the firewall,
+# by Terraform, opens them); LiveKit publishes no chart for it, so it is this one. Its config holds
+# the API pair and Redis's password: a Secret (secrets.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pinecall-sip
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: pinecall-sip } }
+  template:
+    metadata:
+      labels: { app: pinecall-sip }
+      # Its config is a Secret External Secrets writes from secrets.yaml's template: a change to the
+      # template rolls the pod, as a release should; a rotated value is a rotation of its own.
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector: { pinecall.io/pool: core }
+      terminationGracePeriodSeconds: 600
+      containers:
+        - name: sip
+          image: {{ .Values.media.sip }}
+          args: ["--config", "/sip/config.yaml"]
+          readinessProbe:
+            httpGet: { path: /, port: 8081 }
+          volumeMounts:
+            - { name: config, mountPath: /sip, readOnly: true }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+      volumes:
+        - name: config
+          secret:
+            secretName: pinecall-media
+            items: [{ key: sip.yaml, path: config.yaml }]
