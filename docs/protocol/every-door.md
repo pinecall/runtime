@@ -180,6 +180,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/numbers/available` | numbers | What the org's Twilio accounts own, and which of it this world imported. |
 | `POST` | `/v1/numbers/buy` | numbers | Buy a number on the box's account and hook it, counted against the world's stock. |
 | `DELETE` | `/v1/numbers/{number}` | numbers | Let the number go: its route and its admission; the account keeps it. |
+| `GET` | `/v1/numbers/{number}/path` | numbers | What a call to the number goes through now: its carrier, the fence, the world, the agent. |
 | `PUT` | `/v1/numbers/{number}/env` | numbers | Move the number into the other world: its row and the two rules. |
 | `GET` | `/v1/ops/admission` | operator | What a newborn org is given in each world; nothing limited on a box that never said. |
 | `PUT` | `/v1/ops/admission` | operator | What a newborn org is given, replaced whole. |

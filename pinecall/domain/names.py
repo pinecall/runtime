@@ -33,6 +33,10 @@ type Direction = Literal["inbound", "outbound"]
 type RouteOrigin = Literal["bought", "imported", "hooked", "typed"]
 
 
+# What one step of a call's way to an agent does now: works, waits on someone, or stops the call.
+type StepState = Literal["ok", "waiting", "broken"]
+
+
 # e.g. clinica-norte: an agent's slug, and an org's.
 A_SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 

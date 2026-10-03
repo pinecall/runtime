@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import Field
 
 from pinecall.domain.call import Route
-from pinecall.domain.names import Channel, Env, RouteOrigin
+from pinecall.domain.names import Channel, Env, RouteOrigin, StepState
 from pinecall.wire.frames import WireModel
 from pinecall.wire.parts import (
     Projection,
@@ -119,6 +119,30 @@ class NumberRow(WireModel):
 
     route: Route
     origin: RouteOrigin
+    # What a call to it does now, read off the tables (GET /v1/numbers/{number}/path says why).
+    rings: StepState = "ok"
+    # When a call to it last reached the box; null when none ever did.
+    last_call_at: float | None = None
+    # The carrier of the box's catalog a hooked number comes through.
+    via: str | None = None
+
+
+class PathStep(WireModel):
+    """One step of a call's way to its agent, what it does now, and what would make it work."""
+
+    step: Literal["carrier", "fence", "world", "agent"]
+    state: StepState
+    says: str
+    fix: str | None = None
+
+
+class NumberPath(WireModel):
+    """GET /v1/numbers/{number}/path: the four steps, the worst of them, and the last call."""
+
+    number: str
+    steps: list[PathStep]
+    rings: StepState
+    last_call_at: float | None
 
 
 class ImportNumberResponse(WireModel):

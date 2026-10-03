@@ -102,13 +102,22 @@ the managed numbers alone: `429` before Twilio is asked. `404` when Twilio has n
 there, `503` when the box holds no Twilio account. `?dry_run=true` names the number it would buy
 and buys nothing.
 
-## The org's numbers — `GET /v1/numbers`
+## The org's numbers — `GET /v1/numbers`, `GET /v1/numbers/{number}/path`
 
-One row per number in the key's world, oldest first: `{route, origin}`. `route` is the number, its
-channel, the agent and the world; `origin` is how the row was written — `bought` (by the box),
-`imported` (from one of the org's accounts), `hooked` (the org pointed the number at the box
-itself) or `typed` (by the box's operator, who can route a number into any org). A row the org
-did not write is how it learns the operator did; importing the number again makes it the org's.
+One row per number in the key's world, oldest first: `{route, origin, rings, last_call_at, via}`.
+`route` is the number, its channel, the agent and the world; `origin` is how the row was written —
+`bought` (by the box), `imported` (from one of the org's accounts), `hooked` (the org pointed the
+number at the box itself) or `typed` (by the box's operator, who can route a number into any org).
+A row the org did not write is how it learns the operator did; importing the number again makes it
+the org's. `via` is the catalog carrier a hooked number comes through. `last_call_at` is when a
+call to the number last reached the box (kept at most once a minute), null when none ever did.
+
+`rings` is what a call to it does now: `ok`, `waiting` (on its first call, or on the operator's
+approval of a network) or `broken` (nobody runs its agent, another org's older row answers it),
+read off the tables without asking any carrier. `GET /v1/numbers/{number}/path` says why: four
+steps, each `{step, state, says, fix}` — the carrier (a Twilio number asks Twilio whether it is
+still attached to the trunk pointed here), the fence, the world's rule, the agent — with the worst
+of them as `rings` and `last_call_at`; `404` for a number the org has not in the key's world.
 
 ## Letting one go, moving one — `DELETE /v1/numbers/{number}`, `PUT /v1/numbers/{number}/env`
 
