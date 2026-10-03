@@ -9,7 +9,9 @@
   another after 12 s, and to the fleet's overflow after three. Outbound calls, simulated callers
   and the sentence of a worker gone go the same way. The overflow is `<fleet>/overflow`, always
   open; its gate and `GET /v1/fleet/standing` are gone. `fleet list` and `/metrics` say the rooms
-  waiting for a worker. A box needs LiveKit's webhook to place calls.
+  waiting for a worker; each offer is a line in the gateway's journal with the worker and why, and
+  `doctor`'s `offers` line names rooms no gateway swept. A box needs LiveKit's webhook to place
+  calls.
 - **The hosted apps' machine is Terraform's too** (`module "apps"`, imported with no change):
   nothing of the runtime's cloud is made by hand any more.
 - **A worker that counts its calls takes every one of them.** It reported `calls ÷ slots` to

@@ -255,7 +255,10 @@ the fleet's overflow (`<fleet>/overflow`, below): the caller hears one sentence 
 written. Any gateway sweeps the rooms every 3 s; an offer is taken by the update that finds the
 count it read, so two gateways never offer one room twice. `fleet list` says each fleet's rooms
 waiting for a worker in the last ten minutes, and `/metrics` as `pinecall_fleet{what="waiting"}`:
-a number that is not 0 is a call that LiveKit or a worker dropped.
+a number that is not 0 is a call that LiveKit or a worker dropped. Each offer is a line in the
+gateway's journal, `room <call>: offered to <fleet>/<worker>: 3 seats free, heard 2 s ago`, so
+`make logs | grep <call>` says who took a call and why; `doctor`'s `offers` line names a room kept
+past a minute, which only a box with no gateway sweeping leaves.
 
 ## Full, at the door
 

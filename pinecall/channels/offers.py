@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from livekit import api
 
 from pinecall.channels import rooms
-from pinecall.channels._chooser import chosen
+from pinecall.channels._chooser import chosen, free_seats
 from pinecall.channels.rooms import Dispatch
 from pinecall.fleet.roster import Roster, overflow_name
 from pinecall.postgres.pool import Pool
@@ -23,6 +23,12 @@ OFFERS = 3
 
 # The rooms counted as waiting for a worker: the ones a caller joined in the last ten minutes.
 WAITING_COUNTED_S = 600.0
+
+# Every room is done with by its third offer and a sweep after it: one kept a minute is a room no
+# gateway is sweeping.
+UNSWEPT_AFTER_S = 60.0
+
+UNSWEPT = "{n} rooms a caller joined over a minute ago were never let go: no gateway sweeps them"
 
 # The first sight stands: a second webhook for the same room changes nothing.
 OPENED = """
@@ -59,7 +65,11 @@ FORGOTTEN = "DELETE FROM offers WHERE room = %(room)s"
 
 AGED = "DELETE FROM offers WHERE seen_at < %(before)s"
 
-OFFERED_AGAIN = "room %s: no worker opened it in %.0f s; offered to %s (offer %d)"
+KEPT_SINCE = "SELECT count(*) AS kept FROM offers WHERE seen_at < %(before)s"
+
+OFFERED = "room %s: offered to %s: %s"
+
+OFFERED_AGAIN = "room %s: no worker opened it in %.0f s; offered to %s (offer %d): %s"
 
 TO_THE_OVERFLOW = "room %s: %s; the overflow says the sentence"
 
@@ -101,13 +111,15 @@ class Offering:
         if not await claimed(self.pool, offer, target, now):
             return None
         await rooms.dispatched(self.server, offer.room, target, rooms.read_dispatch(offer.dispatch))
-        if why is not None:
+        if target == overflow_name(offer.fleet):
             await forgotten(self.pool, offer.room)
             logger.warning(TO_THE_OVERFLOW, offer.room, why)
         elif offer.offers > 0:
             logger.warning(
-                OFFERED_AGAIN, offer.room, OFFERED_AGAIN_AFTER_S, target, offer.offers + 1
+                OFFERED_AGAIN, offer.room, OFFERED_AGAIN_AFTER_S, target, offer.offers + 1, why
             )
+        else:
+            logger.info(OFFERED, offer.room, target, why)
         return target
 
 
@@ -158,8 +170,19 @@ async def aged_out(pool: Pool, before: float) -> None:
         await connection.execute(AGED, {"before": before})
 
 
-# The overflow when the offers ran out or no worker has a seat; why, so the log says it.
-async def _target(pool: Pool, roster: Roster, offer: Offer, now: float) -> tuple[str, str | None]:
+async def examined(pool: Pool, now: float) -> str | None:
+    """What doctor says of the offers: the rooms kept past every offer, or None."""
+    async with pool.connection() as connection:
+        row = await (
+            await connection.execute(KEPT_SINCE, {"before": now - UNSWEPT_AFTER_S})
+        ).fetchone()
+    kept = 0 if row is None else row["kept"]
+    return UNSWEPT.format(n=kept) if kept else None
+
+
+# The worker chosen, or the overflow when the offers ran out or no worker has a seat; and why,
+# so the log says it.
+async def _target(pool: Pool, roster: Roster, offer: Offer, now: float) -> tuple[str, str]:
     if offer.offers >= OFFERS:
         return overflow_name(offer.fleet), f"no worker opened it in {OFFERS} offers"
     flying = await in_flight(pool, now - OFFERED_AGAIN_AFTER_S)
@@ -167,4 +190,5 @@ async def _target(pool: Pool, roster: Roster, offer: Offer, now: float) -> tuple
     seat = chosen(roster.of(offer.fleet, now), flying, now, not_these=tried)
     if seat is None or seat.agent_name is None:
         return overflow_name(offer.fleet), "no worker of the fleet has a seat"
-    return seat.agent_name, None
+    free = free_seats(seat, flying)
+    return seat.agent_name, f"{free} seats free, heard {now - seat.seen_at:.0f} s ago"
