@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **A call whose caller dropped ends**, whatever the reason they left. livekit's session closes on
+  the caller leaving only when they hung up, the room was deleted or they were rejected; a browser
+  whose connection timed out was waited for, and with a supervisor watching the room never emptied:
+  on 2026-10-03 a call held its worker's seat for over half an hour after its visitor was gone. A
+  caller who does not come back within 20 s, LiveKit's own wait for a room's last person, now ends
+  the call as `caller_hung_up`, the room deleted with it.
 - **The fleet loop is the one thing that sizes a fleet.** Production's managed instance group had an
   autoscaler too, grown on the fleet's calls the loop wrote to Cloud Monitoring: it counted the
   calls the box's own workers held, asked for a machine at the first call, and the loop let it go

@@ -383,6 +383,56 @@ async def test_the_person_leaving_after_a_warm_transfer_ends_the_call(
     await where.call.writing.close(1.0)
 
 
+# ── the caller gone ──
+
+# What a browser's dropped connection reaches the agent as (production, 2026-10-03).
+DROPPED = rtc.DisconnectReason.Value("CONNECTION_TIMEOUT")
+
+SUPERVISING = {"pinecall.scope": "supervise"}
+
+
+def _caller_dropped() -> rtc.RemoteParticipant:
+    return seat("sip_caller", kind=SIP, attributes={CALLER_NUMBER: THE_CALLER}, reason=DROPPED)
+
+
+# livekit waits for a caller whose connection dropped; a supervisor watching keeps the room up.
+@postgres
+async def test_a_caller_who_dropped_and_never_came_back_ends_the_call_once(
+    box: Box, server: Server, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(room_module, "CALLER_RETURNS_S", 0.01)
+    where, offline, _ = _room(box, server)
+    ended: list[bool] = []
+    where.when_the_caller_is_gone(lambda: ended.append(True))
+    where.watch()
+    offline.emit("participant_connected", seat("ana", attributes=SUPERVISING))
+    offline.emit("participant_disconnected", seat("ana", attributes=SUPERVISING))
+    offline.emit("participant_disconnected", _caller_dropped())
+    await asyncio.sleep(0.05)
+    assert ended == [True]
+    where.stop()
+    await where.call.writing.close(1.0)
+
+
+@postgres
+async def test_a_caller_back_in_time_keeps_the_call_and_stopping_forgets_the_wait(
+    box: Box, server: Server, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(room_module, "CALLER_RETURNS_S", 0.02)
+    where, offline, _ = _room(box, server)
+    ended: list[bool] = []
+    where.when_the_caller_is_gone(lambda: ended.append(True))
+    where.watch()
+    offline.emit("participant_disconnected", _caller_dropped())
+    offline.emit("participant_connected", _caller_seat())
+    await asyncio.sleep(0.05)
+    offline.emit("participant_disconnected", _caller_dropped())
+    where.stop()
+    await asyncio.sleep(0.05)
+    assert ended == []
+    await where.call.writing.close(1.0)
+
+
 # ── the other verbs ──
 
 
