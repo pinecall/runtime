@@ -388,6 +388,10 @@ CloudNativePG stops it, a smart shutdown that waits up to 180 s for its clients:
 open connections went on serving and every call in flight was written whole, no new connection
 opened for three minutes, and the database was back at 3 min 4 s.
 
+Down, the same night with no call after 23:11 UTC: KEDA let the second scaled worker go at 23:17:53
+and the last at 23:28:11, ten minutes apart as its window says; the cluster autoscaler deleted the
+first empty node at 23:30 and marked the second at 23:38, the workers pool back to zero nodes.
+
 ## The shape of the numbers
 
 ```
