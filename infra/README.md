@@ -56,4 +56,8 @@ On 2026-10-03, on staging: every suite, 3 113 tests, green inside the cluster ag
 17.11 under CloudNativePG 1.30.1, pgvector 0.8.6 and pg_textsearch 1.4.0 preloaded, the runtime
 connecting as the database's owner, no superuser. The chart released: two gateways, LiveKit and
 SIP on the core node's network, each world's two core workers registered with LiveKit under their
-own names, the overflow, and KEDA reading the gateway's number (0, no scaled worker).
+own names, the overflow, and KEDA reading the gateway's number (0, no scaled worker). With
+calls, the same day, by the lab: 24 of 24 and 32 of 32 started, every turn answered, KEDA growing
+to two scaled workers and the autoscaler to two nodes; a worker node reset under 16 calls, 16 of
+16 started; a release during 16 calls, none cut; Postgres's pod deleted under 8, every call written
+whole. The table and what it says of the core node: `docs/scaling.md`, "The burst".

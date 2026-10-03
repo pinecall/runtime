@@ -366,9 +366,27 @@ each pod let go drains its calls first (KEDA's `ScaledObject`, `charts/pinecall/
 workers.yaml`). A pod with no node to go to waits for the cluster autoscaler, which makes a node of
 the pool for it and removes a node once it is empty; nothing else sizes the pool, and its ceiling
 is Terraform's (`workers_max`). The ceiling of the pods is `workers.scaled.<world>.most` in the
-chart's values. On staging the number and KEDA reading it are proven with no call (KEDA ready,
-the number 0, no scaled pod); the same with calls, up and down, is the next proof before
-production.
+chart's values.
+
+Measured on staging on 2026-10-03, with the lab (`infra/lab/`: SIP callers with real audio from a
+machine of their own, through the cluster's SIP node and LiveKit, the vendors faked on their own
+wire), production's world, a turn every 10 s for two minutes, calls placed one a second:
+
+| the step | started | turns answered | first audio p50 / p95 | scaled workers · nodes after |
+|---|---|---|---|---|
+| 4, on a cluster at rest | 3 of 4: the fourth reached the overflow | 33 of 33 | 1.32 / 2.22 s | 1 · 1 (KEDA asked for one at the third call) |
+| 24 | 24 of 24 | 288 of 288 | 1.24 / 1.32 s | 2 · 2 |
+| 32 | 32 of 32 | 383 of 383 | 1.24 / 1.38 s | 2 · 2 |
+| 16, the node of the scaled worker holding the most calls reset at once at the 8th | 16 of 16, none to the overflow; the calls on that node heard the sentence and ended drained | 120 of 122 | 1.25 / 1.34 s | 2 · 2 |
+| 16, a release of a new image (`make deploy`) while they were up | 16 of 16, none drained | every caller turn | 1.23 / 1.31 s | — |
+| 8, Postgres's pod deleted 40 s in | 8 of 8, 0 errors | every caller turn | — | — |
+
+A scaled worker spent 0.25–0.31 cores a call. The core node's workers are the weak spot: at three
+calls they spent 0.56 cores a call and LiveKit's VAD ran slower than real time beside the box's
+services on a 4-vCPU node, with first audio's p95 at 2.2 s. Postgres, deleted, stopped as
+CloudNativePG stops it, a smart shutdown that waits up to 180 s for its clients: the gateways'
+open connections went on serving and every call in flight was written whole, no new connection
+opened for three minutes, and the database was back at 3 min 4 s.
 
 ## The shape of the numbers
 
