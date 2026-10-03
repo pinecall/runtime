@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **The runtime runs in Kubernetes pods** (infra-v2), with the box's behaviour unchanged unless
+  said: `PINECALL_GATEWAY_LISTEN` binds a pod's gateway on its network and
+  `PINECALL_TRUSTED_PROXIES` names the load balancer it believes (a box keeps loopback and Caddy);
+  `PINECALL_METRICS_FROM` lets a cluster's Prometheus scrape `/metrics`, never a forwarded
+  request; `PINECALL_WORKER_HTTP_HOST` opens the worker's health port to a pod's probes; and
+  `GET /v1/ops/fleet/{fleet}/wanted` tells KEDA how many scaled workers the fleet wants, by the
+  loop's own line, counting the core's seats first. `PINECALL_WAL_SPOOL` names the box's WAL
+  spool `doctor` reads (a cluster's Postgres archives through its operator, with none, and the
+  application connects there as no superuser).
 - **A chat in a room ends after ten minutes without a message.** It was the one call with no
   ceiling, and a visitor who left pinecall.io's chat open held a production seat for over an hour
   on 2026-10-03. It ends as `timeout`, the ten minutes the voice ceiling has.

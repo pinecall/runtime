@@ -7,11 +7,13 @@ from functools import partial
 from pathlib import Path
 
 import pytest
+import uvicorn
 from cryptography.fernet import Fernet
 
 from pinecall.cli import main as cli
 from pinecall.cli._operator import fleet_key, runner_key
 from pinecall.cli.main import (
+    Stopping,
     doctor,
     gateway,
     main,
@@ -54,6 +56,29 @@ def test_the_gateway_refuses_to_bind_anything_but_loopback() -> None:
     settings = Settings.model_validate({"PINECALL_GATEWAY_URL": "http://0.0.0.0:8080"})
     with pytest.raises(PinecallError, match="loopback"):
         gateway(settings, argparse.Namespace())
+
+
+# A pod's gateway says where it binds, and believes the proxies it names, not loopback's.
+def test_a_pods_gateway_binds_what_it_is_told_and_believes_its_load_balancer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    served: list[uvicorn.Config] = []
+
+    def kept(server: Stopping, *_given: object) -> None:
+        served.append(server.config)
+
+    monkeypatch.setattr(Stopping, "run", kept)
+    pod = {
+        "PINECALL_GATEWAY_LISTEN": "10.111.0.9:8080",
+        "PINECALL_TRUSTED_PROXIES": "35.191.0.0/16",
+    }
+    assert gateway(Settings.model_validate(pod), argparse.Namespace()) == 0
+    (config,) = served
+    assert (config.host, config.port, config.forwarded_allow_ips) == (
+        "10.111.0.9",
+        8080,
+        "35.191.0.0/16",
+    )
 
 
 def test_the_doctor_says_each_missing_thing_and_exits_one(

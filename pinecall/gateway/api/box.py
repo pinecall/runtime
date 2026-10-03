@@ -18,6 +18,7 @@ from pinecall.domain.errors import Conflict, NotAvailable, NotFound
 from pinecall.domain.names import PRODUCTION, Env
 from pinecall.domain.scope import Scope
 from pinecall.fleet import worlds
+from pinecall.fleet.hub import Line, wanted_scaled
 from pinecall.fleet.roster import STALE_AFTER_S
 from pinecall.fleet.worlds import Fleets
 from pinecall.gateway import _streams
@@ -66,6 +67,7 @@ from pinecall.wire.rest.ops import (
     BoxSignInResponse,
     CarrierNetworkRow,
     FenceOpening,
+    FleetDemand,
     FleetListed,
     NumberCameIn,
     PutBrandRequest,
@@ -440,6 +442,23 @@ async def refuse_carrier_network(
 
 
 # ── the fleet ──
+
+
+# KEDA's metrics-api scaler reads `wanted` and keeps the scaled Deployment at it (infra-v2/charts):
+# the loop's line, the one rule, computed where the roster is.
+@router.get("/v1/ops/fleet/{fleet}/wanted")
+async def wanted_workers(
+    fleet: str,
+    gateway: GatewayDep,
+    scaled: Annotated[str, Query(min_length=1)],
+    seats: Annotated[int, Query(gt=0)],
+    most: Annotated[int, Query(gt=0)] = Line.at_most,
+) -> FleetDemand:
+    """How many workers whose names start with `scaled` the fleet wants, each of `seats` seats."""
+    line = Line(at_least=0, at_most=most, seats_per_worker=seats)
+    now = time.time()
+    wanted, active, capacity = wanted_scaled(gateway.roster.of(fleet, now), scaled, line, now)
+    return FleetDemand(fleet=fleet, wanted=wanted, active=active, seats=capacity)
 
 
 @router.get("/v1/ops/fleet")

@@ -194,6 +194,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/ops/events` | operator | Every org's floor at once, each frame saying whose. |
 | `GET` | `/v1/ops/fleet` | operator | Every worker heard from, of both fleets, and each fleet summed over the ones up. |
 | `POST` | `/v1/ops/fleet/join-tokens` | operator | A token good for one join of the fleet by a machine of that name, for ten minutes. |
+| `GET` | `/v1/ops/fleet/{fleet}/wanted` | operator | How many workers whose names start with `scaled` the fleet wants, each of `seats` seats. |
 | `DELETE` | `/v1/ops/fleet/{worker}/cordon` | operator | Take a worker's cordon back, when it has not left yet. |
 | `POST` | `/v1/ops/fleet/{worker}/cordon` | operator | Cordon a worker of a fleet; the fleet is found by the worker's name when not named. |
 | `DELETE` | `/v1/ops/fleet/{worker}/keys` | operator | Revoke a machine's fleet key and any join token it never spent; the loop does, on delete. |

@@ -1,5 +1,6 @@
 """`GET /metrics`: what the gateway counted and holds, as Prometheus text, on loopback alone."""
 
+import ipaddress
 import time
 
 import psycopg
@@ -15,12 +16,14 @@ from pinecall.process.metrics import family, histogram
 
 router = APIRouter()
 
-LOOPBACK = frozenset({"127.0.0.1", "::1"})
 
 # Caddy sets it on every request it passes on: a request that carries it came from off the box.
 FORWARDED = "x-forwarded-for"
 
-NOT_HERE = "/metrics answers on the box's loopback alone: curl http://127.0.0.1:8080/metrics there"
+NOT_HERE = (
+    "/metrics answers the addresses PINECALL_METRICS_FROM names (the box's loopback unless said), "
+    "never a forwarded request: curl http://127.0.0.1:8080/metrics on the box"
+)
 
 TEXT_FORMAT = "text/plain; version=0.0.4; charset=utf-8"
 
@@ -32,16 +35,28 @@ from pg_stat_replication
 """
 
 
-# No key: the address is the fence, and a scraper on the box holds none.
+# No key: the address is the fence, and a scraper on the box or in the cluster holds none. A
+# request through the load balancer always carries X-Forwarded-For, and is refused whatever it says.
 @router.get("/metrics", include_in_schema=False)
 async def read_metrics(request: Request, gateway: GatewayDep) -> PlainTextResponse:
     """What the gateway counted since it started and what it holds now, in Prometheus's text."""
-    if client_of(request) not in LOOPBACK or FORWARDED in request.headers:
+    allowed = gateway.connections.settings.metrics_from
+    if not from_any(client_of(request), allowed) or FORWARDED in request.headers:
         raise NotAllowed(NOT_HERE)
     now = time.time()
     replicas = await _replicas(gateway)
     waiting = await _waiting(gateway, now)
     return PlainTextResponse(_measures_of(gateway, now, replicas, waiting), media_type=TEXT_FORMAT)
+
+
+def from_any(client: str, networks: str) -> bool:
+    """Whether the address is one of the comma-separated addresses or networks."""
+    try:
+        address = ipaddress.ip_address(client)
+    except ValueError:
+        return False
+    named = (part.strip() for part in networks.split(",") if part.strip())
+    return any(address in ipaddress.ip_network(network, strict=False) for network in named)
 
 
 # A database that cannot say leaves the family empty: the scrape still answers.

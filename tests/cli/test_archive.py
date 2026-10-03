@@ -63,6 +63,16 @@ def test_a_spool_the_bucket_has_not_emptied_in_five_minutes_is_trouble() -> None
     )
 
 
+# Whatever the server archives with: the laptop's Postgres archives nothing, a cluster's
+# operator archives everything; with no spool named, no file of the server is listed.
 @postgres
-async def test_a_database_that_archives_nothing_reads_as_off(pool: Pool) -> None:
-    assert await archive_of(pool) == Archive("off", None, None, None, 0, None)
+async def test_the_archive_is_the_servers_own_mode_and_no_spool_is_read_unless_named(
+    pool: Pool,
+) -> None:
+    async with pool.connection() as connection:
+        row = await (
+            await connection.execute("SELECT current_setting('archive_mode') AS mode")
+        ).fetchone()
+    assert row is not None
+    archive = await archive_of(pool, None)
+    assert (archive.mode, archive.waiting, archive.oldest) == (row["mode"], 0, None)

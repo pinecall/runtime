@@ -5,9 +5,6 @@ from datetime import datetime
 
 from pinecall.postgres.pool import Pool
 
-# infra/box/wal.sh: archive_command copies each segment here, pinecall-wal.timer empties it.
-SPOOL = "/var/lib/pinecall/wal"
-
 # The timer ships every 10 s: five minutes of segments waiting is a bucket that does not answer.
 SHIPPED_WITHIN_S = 300
 
@@ -55,14 +52,18 @@ class Archive:
     oldest: datetime | None
 
 
-async def archive_of(pool: Pool) -> Archive:
-    """Read the archiver's state and, when it is on, the spool's backlog."""
+# A box ships its WAL through a spool (PINECALL_WAL_SPOOL), read here through Postgres; a cluster's
+# operator archives with none, and its spool is unset: the archiver's state alone is read.
+async def archive_of(pool: Pool, spool: str | None) -> Archive:
+    """Read the archiver's state and, when it is on and a spool is named, the spool's backlog."""
     # independent: two reads of the archiver's state, each its own snapshot
     async with pool.connection() as connection:
         row = await (await connection.execute(ARCHIVER)).fetchone()
         if row is None or row["mode"] == "off":
             return Archive("off", None, None, None, 0, None)
-        spooled = await (await connection.execute(SPOOLED, {"spool": SPOOL})).fetchone()
+        spooled = None
+        if spool:
+            spooled = await (await connection.execute(SPOOLED, {"spool": spool})).fetchone()
     return Archive(
         mode=row["mode"],
         last_archived=row["last_archived_time"],

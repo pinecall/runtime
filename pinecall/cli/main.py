@@ -53,7 +53,10 @@ logger = logging.getLogger(__name__)
 LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
 
 
-NOT_LOOPBACK = "PINECALL_GATEWAY_URL binds {host}: the gateway listens on loopback, behind Caddy"
+NOT_LOOPBACK = (
+    "PINECALL_GATEWAY_URL binds {host}: a box's gateway listens on loopback, behind Caddy "
+    "(a pod's says PINECALL_GATEWAY_LISTEN)"
+)
 
 
 # A stream never ends on its own: told nothing, a stop waits out uvicorn's grace and cuts it.
@@ -82,14 +85,11 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 
 def gateway(settings: Settings, _args: argparse.Namespace) -> int:
-    """Serve the gateway on the loopback address PINECALL_GATEWAY_URL names."""
-    bound = urlparse(settings.gateway_url)
-    host, port = bound.hostname or "127.0.0.1", bound.port or 8080
-    if host not in LOOPBACK:
-        raise PinecallError(NOT_LOOPBACK.format(host=host))
-    # Caddy is the one proxy, on this machine: its X-Forwarded-* are believed from loopback only.
+    """Serve the gateway: on its URL's loopback on a box, on PINECALL_GATEWAY_LISTEN in a pod."""
+    host, port = _listening(settings)
+    # The one proxy in front is believed alone: Caddy on loopback, or a cluster's load balancer.
     config = uvicorn.Config(
-        app, host=host, port=port, proxy_headers=True, forwarded_allow_ips="127.0.0.1"
+        app, host=host, port=port, proxy_headers=True, forwarded_allow_ips=settings.trusted_proxies
     )
     Stopping(config).run()
     return 0
@@ -305,6 +305,19 @@ def verbs() -> argparse.ArgumentParser:
     return verbs
 
 
+# A box's gateway binds loopback and nothing else, Caddy being its one door; a pod's binds what
+# PINECALL_GATEWAY_LISTEN names, the cluster's load balancer being its door.
+def _listening(settings: Settings) -> tuple[str, int]:
+    if settings.gateway_listen is not None:
+        host, _, port = settings.gateway_listen.rpartition(":")
+        return host, int(port)
+    bound = urlparse(settings.gateway_url)
+    host, port = bound.hostname or "127.0.0.1", bound.port or 8080
+    if host not in LOOPBACK:
+        raise PinecallError(NOT_LOOPBACK.format(host=host))
+    return host, port
+
+
 async def _behind(settings: Settings) -> tuple[str, ...]:
     pool = await open_pool(settings.database_url)
     try:
@@ -447,7 +460,7 @@ async def _archived(settings: Settings) -> tuple[str | None, str]:
     except PinecallError as refused:
         return str(refused), ""
     try:
-        archive = await _archive.archive_of(pool)
+        archive = await _archive.archive_of(pool, settings.wal_spool)
     finally:
         await pool.close()
     return _archive.archive_finding(archive, datetime.now(UTC))

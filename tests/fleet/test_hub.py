@@ -19,6 +19,7 @@ from pinecall.fleet.hub import (
     new_names,
     printed,
     status_line,
+    wanted_scaled,
     worded,
 )
 from pinecall.wire.rest.fleet import WorkerStatus
@@ -240,3 +241,35 @@ def test_a_script_that_fails_or_is_missing_is_said_in_its_own_words(tmp_path: Pa
     unreadable = Cloud(a_script(tmp_path, 'printf "x\\tnot-a-time\\n"'))
     with pytest.raises(UpstreamFailed, match="ISO 8601"):
         unreadable.machines()
+
+
+# ── what Kubernetes asks: the scaled workers a cluster's fleet wants ──
+
+SCALED = "worker-burst-"
+
+
+def test_calls_the_core_holds_ask_for_no_scaled_worker() -> None:
+    core = [a_seat("worker-core-a", active=1, max_jobs=2), a_seat("worker-core-b", max_jobs=2)]
+    line = Line(at_least=0, seats_per_worker=32)
+    assert wanted_scaled(core, SCALED, line, NOW) == (0, 1, 4)
+
+
+def test_a_busy_core_asks_for_the_scaled_workers_its_calls_need() -> None:
+    core = [
+        a_seat("worker-core-a", active=2, max_jobs=2),
+        a_seat("worker-core-b", active=2, max_jobs=2),
+    ]
+    line = Line(at_least=0, seats_per_worker=32)
+    assert wanted_scaled(core, SCALED, line, NOW) == (1, 4, 4)
+    many = [*core, a_seat(f"{SCALED}1", active=30, max_jobs=32)]
+    assert wanted_scaled(many, SCALED, line, NOW)[0] == 2
+
+
+def test_a_quiet_fleet_lets_one_go_and_holds_inside_the_slack() -> None:
+    line = Line(at_least=0, seats_per_worker=32)
+    two = [a_seat(f"{SCALED}1", active=1, max_jobs=32), a_seat(f"{SCALED}2", max_jobs=32)]
+    assert wanted_scaled(two, SCALED, line, NOW)[0] == 1
+    # 16 calls on one of 32 is 0.5: under the target, over target - slack, so the one stays.
+    half = [a_seat(f"{SCALED}1", active=16, max_jobs=32)]
+    assert wanted_scaled(half, SCALED, line, NOW)[0] == 1
+    assert wanted_scaled([a_seat(f"{SCALED}1", max_jobs=32)], SCALED, line, NOW)[0] == 0
