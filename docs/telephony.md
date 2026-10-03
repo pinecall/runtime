@@ -47,7 +47,7 @@ signalling edges alone, twice:
 1. **nftables on the box** (`infra/box/nftables.conf`, in `raw` prerouting because the SIP
    container's port is DNAT'd and never crosses `input`): Twilio's networks are typed there; the
    networks of the other carriers the operator admits, and the addresses he approved, are added
-   every minute by `pinecall-runtime fence apply` into `nftables.d/carriers.nft`. On a GCP box the
+   every minute by `pinecall-fence apply` into `nftables.d/carriers.nft`. On a GCP box the
    cloud's firewall stands in front with the same list, Terraform's, and a deny for everyone else.
 2. **The trunk on livekit-sip**: a number is admitted by one inbound trunk, which lists the
    networks it may come from. An INVITE for a number no trunk lists gets no answer at all

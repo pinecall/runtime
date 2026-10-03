@@ -158,7 +158,7 @@ waits for the operator: `GET /v1/ops/carrier-networks?state=waiting|approved|ref
 follow at once (a number fenced by nothing approved is taken off them). A network wider than a
 `/24`, or not public, never reaches the list: `PUT /v1/carrier` and `POST /v1/numbers` refuse it.
 
-The fence is written by `pinecall-runtime fence apply`, as root, every minute
+The fence is written by `pinecall-fence apply`, as root, every minute
 (`pinecall-fence.timer`): the admitted carriers' networks and the approved ones, each checked again
 (none wider than a `/16` from the catalog or a `/24` from an org), into
 `/etc/pinecall/nftables.d/carriers.nft`, which `nftables.conf` reads beside Twilio's own set; the

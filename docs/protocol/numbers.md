@@ -177,7 +177,7 @@ the stranger fence, and the trunk inline in the answer.
 
 livekit-sip listens on 5060, and the box opens it to the signalling networks of the carriers its
 operator admits and to the addresses he approved, and to nothing else: Twilio's are typed into
-`infra/box/nftables.conf`, the rest are written every minute by `pinecall-runtime fence apply`
+`infra/box/nftables.conf`, the rest are written every minute by `pinecall-fence apply`
 (as root, `pinecall-fence.timer`) from the catalog and the approvals. On a GCP box the cloud's own
 firewall stands in front and is Terraform's ([operator-api.md](operator-api.md)).
 

@@ -10,4 +10,4 @@ Type=oneshot
 WorkingDirectory=/opt/pinecall
 EnvironmentFile=/etc/pinecall/box.env
 ImportCredential=DATABASE_URL
-ExecStart=/opt/pinecall/venv/bin/pinecall-runtime fence apply
+ExecStart=/opt/pinecall/venv/bin/pinecall-fence apply
