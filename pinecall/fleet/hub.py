@@ -159,6 +159,34 @@ def decide(
     return decided
 
 
+# A cluster's workers that scale (their names start with `scaled`) are sized by Kubernetes, which
+# asks this number: the loop's own line, counting the seats of the workers that do not scale (a
+# core node's) first, so a call they hold asks for no machine. Grow to what brings busy under the
+# target; let one go only when busy stays under target - slack without it; else hold. Absolute, so
+# a pod still booting, not yet heard, is never asked for twice.
+def wanted_scaled(
+    seats: Sequence[WorkerStatus], scaled: str, line: Line, now: float
+) -> tuple[int, int, int]:
+    """How many scaled workers the fleet wants now, its calls, and the seats it holds."""
+    counted = [seat for seat in seats if heard_lately(seat, now) and seat.max_jobs is not None]
+    holding = [seat for seat in counted if not seat.cordoned]
+    active = sum(seat.active for seat in counted)
+    fixed = sum(seat.max_jobs or 0 for seat in holding if not seat.worker.startswith(scaled))
+    current = sum(1 for seat in holding if seat.worker.startswith(scaled))
+    each = line.seats_per_worker
+    needed = math.ceil(Fraction(active) / Fraction(str(line.target))) - fixed
+    grown = max(0, math.ceil(Fraction(needed) / each)) if needed > 0 else 0
+    capacity = fixed + current * each
+    if grown > current:
+        return min(grown, line.at_most), active, capacity
+    left = fixed + (current - 1) * each
+    # With no call one may always go; with calls, only if the seats left keep busy under the slack.
+    quiet = active == 0 or (left > 0 and active / left < line.target - line.slack)
+    if current > max(grown, line.at_least) and quiet:
+        return current - 1, active, capacity
+    return current, active, capacity
+
+
 # A name is a machine everywhere: its worker's heartbeats, a cordon, its keys, its LiveKit name.
 # One used before carries the last machine's cordon and its silence onto the next, which the loop
 # then deletes as cordoned and gone; so no name is used twice, each the time it was asked for.

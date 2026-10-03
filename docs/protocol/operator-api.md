@@ -179,6 +179,12 @@ from in the last 30 s; `waiting` is the fleet's rooms with a caller no worker op
 ten minutes, offered by the gateway ([scaling.md](../scaling.md), "Who takes a call"). `POST /v1/ops/fleet/{worker}/cordon?fleet=` and `DELETE …/cordon`: the
 worker is told on its next heartbeat, takes no new call, finishes what it holds and leaves;
 `404` for a name nobody has. The loop that grows and shrinks a fleet is [scaling.md](../scaling.md).
+`GET /v1/ops/fleet/{fleet}/wanted?scaled=<name prefix>&seats=<n>[&most=<n>]` → `{fleet, wanted,
+active, seats}`: in a Kubernetes cluster, how many workers whose names start with `scaled` (the
+Deployment KEDA scales) the fleet wants, by the loop's own line — busy over 0.6 grows, one goes
+only when busy stays under 0.45 without it — counting first the seats of the workers that do not
+scale (a core node's), so calls they hold ask for none. Absolute: a pod still booting is never asked
+for twice. `422` without `scaled` and `seats`.
 
 `POST /v1/livekit/webhook` is LiveKit's own door, not the operator's: `livekit.yaml` sends it every
 room event, signed with the box's LiveKit key (`Authorization: <token>`, the body's sha256 in the

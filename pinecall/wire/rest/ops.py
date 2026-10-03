@@ -270,6 +270,16 @@ class FleetListed(WireModel):
     totals: list[FleetTotals]
 
 
+class FleetDemand(WireModel):
+    """GET /v1/ops/fleet/{fleet}/wanted: how many scaled workers the fleet wants, for KEDA."""
+
+    fleet: str
+    wanted: int
+    # The fleet's calls and the seats its workers hold now, for whoever reads why.
+    active: int
+    seats: int
+
+
 class BoxEvent(WireModel):
     """One frame of GET /v1/ops/events: an entry of some org's floor, whose, and in which world."""
 

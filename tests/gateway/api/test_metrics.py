@@ -5,6 +5,7 @@ import time
 import httpx
 
 from pinecall.domain.names import JsonObject
+from pinecall.gateway.api.metrics import from_any
 from pinecall.wire.rest.calls import OpenCallRequest
 from tests.conftest import AGENT, Knocking, postgres
 from tests.gateway.api.conftest import a_call
@@ -105,7 +106,17 @@ async def test_a_request_that_came_through_the_proxy_is_refused(knocking: Knocki
         forwarded = await outside.get("/metrics", headers={"x-forwarded-for": "203.0.113.9"})
         from_the_box = await outside.get("/metrics", headers={"x-forwarded-for": "127.0.0.1"})
     assert (forwarded.status_code, from_the_box.status_code) == (403, 403)
-    assert "loopback alone" in forwarded.json()["detail"]
+    assert "never a forwarded request" in forwarded.json()["detail"]
+
+
+# A cluster's Prometheus scrapes from the pods' network, which the setting names; anyone else is
+# refused, and a forwarded request whatever its address.
+def test_metrics_answer_the_networks_named_and_nothing_else() -> None:
+    pods = "127.0.0.1,::1,10.111.0.0/16"
+    assert from_any("10.111.4.7", pods)
+    assert from_any("::1", pods)
+    assert not from_any("10.112.0.3", pods)
+    assert not from_any("unknown", pods)
 
 
 # A failing minute beside a sound one: the sound one takes the calls the other is not counted for.

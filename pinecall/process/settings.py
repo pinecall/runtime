@@ -110,6 +110,14 @@ class Settings(BaseModel):
         description="The bucket a finished recording moves to, under its org. Unset: the disk.",
     )
 
+    # The box's WAL spool (infra/box/wal.sh): archive_command copies each segment there and a timer
+    # ships it. A cluster's Postgres archives through its operator, and has no spool to read.
+    wal_spool: str | None = Field(
+        "/var/lib/pinecall/wal",
+        alias="PINECALL_WAL_SPOOL",
+        description="The box's WAL spool doctor reads the backlog of; empty in a cluster.",
+    )
+
     # ── the object store ──
     # Any S3-compatible endpoint: AWS, Google Cloud Storage by HMAC key, R2, B2, a MinIO.
     s3_endpoint: str | None = Field(
@@ -142,6 +150,23 @@ class Settings(BaseModel):
         alias="PINECALL_GATEWAY_URL",
         description="The instance's gateway: where it binds, on loopback, and what a worker asks.",
     )
+    # A box's gateway binds PINECALL_GATEWAY_URL's loopback address, behind Caddy; a pod's binds
+    # its own network, behind the cluster's load balancer, and says so here (infra-v2).
+    gateway_listen: str | None = Field(
+        None,
+        alias="PINECALL_GATEWAY_LISTEN",
+        description="host:port a pod's gateway binds (0.0.0.0:8080); unset, the URL's loopback.",
+    )
+    trusted_proxies: str = Field(
+        "127.0.0.1",
+        alias="PINECALL_TRUSTED_PROXIES",
+        description="Addresses or networks whose X-Forwarded-For the gateway believes.",
+    )
+    metrics_from: str = Field(
+        "127.0.0.1,::1",
+        alias="PINECALL_METRICS_FROM",
+        description="Addresses or networks /metrics answers; never a forwarded request.",
+    )
     agent: str | None = Field(
         None, alias="PINECALL_AGENT", description="The agent a job that names none is for."
     )
@@ -154,6 +179,11 @@ class Settings(BaseModel):
         8082,
         alias="PINECALL_WORKER_HTTP_PORT",
         description="Where the worker's own health server binds, on loopback.",
+    )
+    worker_http_host: str = Field(
+        "127.0.0.1",
+        alias="PINECALL_WORKER_HTTP_HOST",
+        description="The health server's address: loopback on a box, 0.0.0.0 for a pod's probes.",
     )
     worker_name: str | None = Field(
         None,

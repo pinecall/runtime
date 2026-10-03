@@ -122,7 +122,7 @@ def server_of(settings: Settings) -> AgentServer:
         shutdown_process_timeout=SEALING_S,
         initialize_process_timeout=INITIALIZE_S,
         # livekit's default health port, 8081, is the SIP service's on the box.
-        host="127.0.0.1",
+        host=settings.worker_http_host,
         port=settings.worker_http_port,
         setup_fnc=prewarm,
         # LiveKit's own line stands, on both of its sides; Load reports on its scale.
