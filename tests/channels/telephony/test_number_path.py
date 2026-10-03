@@ -79,7 +79,7 @@ async def test_a_peers_number_waits_on_the_operator_until_its_network_is_approve
     await approved(line, "pbx", PEER_NETWORK)
     admitted = await number_path.path_of(line.connections, await recorded(line), running=True)
     assert admitted.steps[1] == number_path.PathStep(
-        "fence", "ok", "Admitted from your PBX's 1 networks"
+        "fence", "ok", "Admitted from your PBX's networks"
     )
 
 
