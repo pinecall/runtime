@@ -6,6 +6,7 @@ import pytest
 from livekit.agents import AgentServer, Plugin
 
 from pinecall.domain.errors import SettingsRefused
+from pinecall.fleet import heartbeat
 from pinecall.log import queries
 from pinecall.process.settings import Settings
 from pinecall.providers.build import installed
@@ -57,7 +58,7 @@ def test_a_worker_registers_under_its_own_name_in_its_fleet(
 
     monkeypatch.setattr(AgentServer, "rtc_session", recorded)
     server_of(settings_with(PINECALL_WORKER_NAME="w-7"))
-    assert named == ["pinecall-sandbox/w-7"]
+    assert named == [f"pinecall-sandbox/w-7.{heartbeat.STARTED}"]
 
 
 def test_both_servers_give_a_new_process_the_time_the_plugins_take(

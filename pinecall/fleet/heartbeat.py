@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import socket
+import time
 from collections.abc import Callable
 from dataclasses import fields
 
@@ -20,6 +21,13 @@ logger = logging.getLogger(__name__)
 
 
 NO_MEASURE = "livekit's load_fnc option no longer carries a measure of its own"
+
+
+# A worker that starts again under the same name (a pod's container, after its node was reset)
+# registers anew while LiveKit may hold the last process's dead socket for 15-20 minutes and offer
+# it calls. This process's start, to the second, keeps the two apart; the roster keys by the
+# worker's name, so the gateway offers only the newest registration.
+STARTED = f"{time.time():.0f}"
 
 
 A_SLOT_AT_LEAST = "a worker holds at least one call: PINECALL_MAX_JOBS={max_jobs}"
@@ -163,10 +171,10 @@ def worker_name_of(settings: Settings) -> str:
 
 
 # Its own name, not the fleet's: LiveKit offers a job only to the workers registered under the
-# name a dispatch carries, so the gateway reaches this worker and no other (docs/scaling.md).
+# name a dispatch carries, so the gateway reaches this process and no other (docs/scaling.md).
 def agent_name_of(settings: Settings) -> str:
-    """The name the worker registers under with LiveKit: its fleet's, then its own."""
-    return agent_name(settings.fleet, worker_name_of(settings))
+    """The name the worker registers under with LiveKit: its fleet's, its own, its start."""
+    return f"{agent_name(settings.fleet, worker_name_of(settings))}.{STARTED}"
 
 
 # livekit's own CPU average, read off its options' default rather than its private class.
