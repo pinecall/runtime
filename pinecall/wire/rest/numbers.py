@@ -125,6 +125,8 @@ class NumberRow(WireModel):
     last_call_at: float | None = None
     # The carrier of the box's catalog a hooked number comes through.
     via: str | None = None
+    # The org's account the number lives in (GET /v1/carriers names it); null for one with none.
+    account: str | None = None
 
 
 class PathStep(WireModel):
