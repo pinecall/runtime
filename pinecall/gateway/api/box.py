@@ -29,6 +29,7 @@ from pinecall.gateway.api.org import mailbox_of
 from pinecall.gateway.api.providers import credentials_of, installed_vendor
 from pinecall.gateway.api.sso_login import NO_BOX_WIDE
 from pinecall.gateway.api.usage import usage_row_response, usage_totals
+from pinecall.gateway.dispatching import offers
 from pinecall.log import queries
 from pinecall.log.reduce import totals_by_org
 from pinecall.log.store import DEFAULT_LIMIT, Store
@@ -448,11 +449,15 @@ async def list_fleet(gateway: GatewayDep) -> FleetListed:
     now = time.time()
     named = await worlds.fleets(gateway.connections.pool)
     fleets = list(dict.fromkeys((named.production, named.sandbox)))
+    waiting = await offers.waiting(gateway.connections.pool, now - offers.WAITING_COUNTED_S)
+    totals = [gateway.roster.totals(fleet, now) for fleet in fleets]
     return FleetListed(
         now=now,
         stale_after_s=STALE_AFTER_S,
         workers=[seat for fleet in fleets for seat in gateway.roster.of(fleet, now)],
-        totals=[gateway.roster.totals(fleet, now) for fleet in fleets],
+        totals=[
+            total.model_copy(update={"waiting": waiting.get(total.fleet, 0)}) for total in totals
+        ],
     )
 
 

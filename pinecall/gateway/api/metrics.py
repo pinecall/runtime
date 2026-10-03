@@ -10,6 +10,7 @@ from pinecall.domain.errors import NotAllowed
 from pinecall.fleet.roster import heard_lately, worker_state
 from pinecall.gateway._deps import GatewayDep, client_of
 from pinecall.gateway._gateway import Gateway
+from pinecall.gateway.dispatching import offers
 from pinecall.process.metrics import family, histogram
 
 router = APIRouter()
@@ -37,8 +38,10 @@ async def read_metrics(request: Request, gateway: GatewayDep) -> PlainTextRespon
     """What the gateway counted since it started and what it holds now, in Prometheus's text."""
     if client_of(request) not in LOOPBACK or FORWARDED in request.headers:
         raise NotAllowed(NOT_HERE)
+    now = time.time()
     replicas = await _replicas(gateway)
-    return PlainTextResponse(_measures_of(gateway, time.time(), replicas), media_type=TEXT_FORMAT)
+    waiting = await _waiting(gateway, now)
+    return PlainTextResponse(_measures_of(gateway, now, replicas, waiting), media_type=TEXT_FORMAT)
 
 
 # A database that cannot say leaves the family empty: the scrape still answers.
@@ -51,7 +54,17 @@ async def _replicas(gateway: Gateway) -> list[tuple[str, float]]:
     return [(str(row["replica"]), float(row["lag"])) for row in rows]
 
 
-def _measures_of(gateway: Gateway, now: float, replicas: list[tuple[str, float]]) -> str:
+# The rooms with a caller no worker opened yet, per fleet: a call LiveKit or a worker dropped.
+async def _waiting(gateway: Gateway, now: float) -> dict[str, int]:
+    try:
+        return await offers.waiting(gateway.connections.pool, now - offers.WAITING_COUNTED_S)
+    except psycopg.Error:
+        return {}
+
+
+def _measures_of(
+    gateway: Gateway, now: float, replicas: list[tuple[str, float]], waiting: dict[str, int]
+) -> str:
     """Every family this gateway exposes, in the text format."""
     counted = gateway.counters
     pool = gateway.connections.pool.get_stats()
@@ -125,7 +138,7 @@ def _measures_of(gateway: Gateway, now: float, replicas: list[tuple[str, float]]
             ),
             family(
                 "pinecall_fleet",
-                "Each fleet as its workers' heartbeats say: workers, seats, calls held, accepting.",
+                "Each fleet: workers, seats, calls held, accepting; rooms waiting for a worker.",
                 "gauge",
                 [
                     ({"fleet": total.fleet, "what": what}, value)
@@ -135,6 +148,7 @@ def _measures_of(gateway: Gateway, now: float, replicas: list[tuple[str, float]]
                         ("seats", total.seats),
                         ("busy", total.active),
                         ("accepting", total.accepting),
+                        ("waiting", waiting.get(total.fleet, 0)),
                     )
                 ],
             ),

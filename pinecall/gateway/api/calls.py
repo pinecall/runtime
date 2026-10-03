@@ -49,6 +49,7 @@ from pinecall.gateway._served import (
 from pinecall.gateway._sockets import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registration
 from pinecall.gateway._streams import frame, paced, streamed, wants_sse
 from pinecall.gateway.calls.binding import attach
+from pinecall.gateway.dispatching import offers
 from pinecall.gateway.ending.seal import remembered, sealed
 from pinecall.log import openings, queries
 from pinecall.log.readers import Filter, parse_filter, project_entry, project_state
@@ -197,6 +198,8 @@ async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) 
     # Asked again by a worker whose gateway died with the answer: the same call, one ringing.
     again = await openings.opening_of(gateway.connections.pool, context.call) is not None
     await gateway.logs.store.claim(context.call, body.agent, scope.org, Claim(scope, versions))
+    # A worker opened the room's call: nothing is left to offer it to another.
+    await offers.forgotten(gateway.connections.pool, context.call)
     await openings.kept(gateway.connections.pool, scope.org, context, config)
     await gateway.prompts.keep(gateway.connections.pool, scope.org, config.knowledge or "")
     owner = None if found is None else found.owner

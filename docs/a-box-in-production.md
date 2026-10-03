@@ -136,7 +136,7 @@ through Caddy, which marks every request it passes on with `X-Forwarded-For`. Th
 | `pinecall_pool_requests_total` · `pinecall_pool_wait_seconds_total` | connections asked of the pool, and the time spent waiting for one: their rates' ratio is the mean wait |
 | `pinecall_writer_waiting` | appends queued for the log's writer and not in a transaction yet: past a few hundred, the database is behind the calls |
 | `pinecall_held{what}` | live log readers, app sockets and calls served, now |
-| `pinecall_fleet{fleet,what}` | each fleet as its heartbeats say: workers, seats, busy, accepting |
+| `pinecall_fleet{fleet,what}` | each fleet as its heartbeats say: workers, seats, busy, accepting; and `waiting`, its rooms with a caller no worker opened in the last ten minutes |
 | `pinecall_vendor_failing{vendor}` | 1 for each vendor over its error line (half the calls handed it in two minutes saw it fail), as this gateway saw; its calls step over to their fallbacks |
 | `pinecall_replication_lag_seconds{replica}` | how far behind each standby is in replaying the primary's WAL, from `pg_stat_replication`; empty with no replica |
 | `pinecall_spend_unusual{org}` | how many times its usual day (the trailing four weeks' mean) an org's calls cost today, for each org over three times it; the same is `spend.unusual` on the agent's log, once a day |

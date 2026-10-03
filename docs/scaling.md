@@ -229,6 +229,27 @@ past it counts them all. Such a worker reads `failing` in `fleet list` and in `/
 roster: the worker keeps its seats with LiveKit, and a worker that stays past the line is the
 operator's to cordon. A worker of an older release carries no minute and is never past the line.
 
+## Who takes a call
+
+LiveKit's own dispatcher offers a job once, to a worker drawn by the load each last reported,
+and remembers nothing: a worker that declines, or a dead one LiveKit still lists (up to 20 minutes
+for a machine that vanished, above), leaves the caller in silence
+(livekit-server `pkg/service/agentservice.go`, `selectWorkerWeightedByLoad`; `pkg/agent/client.go`,
+no retry). The gateway knows more, every worker's seats, calls and last heartbeat, five seconds old
+at most, so the gateway chooses.
+
+A room a caller joined is kept in `offers` until a worker opens its call
+(`gateway/dispatching/`). The gateway offers it to the worker of the fleet heard in the last 12 s
+with the most seats free, counting the calls offered to it and not opened yet, by its LiveKit name
+(`<fleet>/<worker>`, above): no other worker can take it. A room no worker opened 12 s after its
+offer is offered to another (LiveKit waits 10 s on a worker that does not answer; a live one opens a
+call in about 2 s). After three offers, or when no worker of the fleet has a seat, the room goes to
+the fleet's overflow (`<fleet>/overflow`, below): the caller hears one sentence and a call back is
+written. Any gateway sweeps the rooms every 3 s; an offer is taken by the update that finds the
+count it read, so two gateways never offer one room twice. `fleet list` says each fleet's rooms
+waiting for a worker in the last ten minutes, and `/metrics` as `pinecall_fleet{what="waiting"}`:
+a number that is not 0 is a call that LiveKit or a worker dropped.
+
 ## Full, at the door
 
 When every worker of a fleet is at the line, the token door answers `503`, writes `fleet.full` on
