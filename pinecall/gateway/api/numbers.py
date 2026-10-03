@@ -128,8 +128,8 @@ async def drop_carrier(key: NumbersKey, gateway: GatewayDep, account: AccountAsk
 async def list_numbers(key: NumbersKey, gateway: GatewayDep) -> list[NumberRow]:
     """The org's numbers in the key's world, and the agent each reaches."""
     return [
-        NumberRow(route=route)
-        for route in await routes.of_org(gateway.connections.pool, key.org, key.env)
+        NumberRow(route=record.route, origin=record.origin)
+        for record in await routes.records_of(gateway.connections.pool, key.org, key.env)
     ]
 
 
@@ -210,7 +210,7 @@ async def move_number(
 ) -> NumberRow:
     """Move the number into the other world: its row and the two rules."""
     moved = await numbers.move(gateway.connections, key.org, parse_e164(number), body.env)
-    return NumberRow(route=moved)
+    return NumberRow(route=moved.route, origin=moved.origin)
 
 
 @router.get("/v1/carrier/outbound")

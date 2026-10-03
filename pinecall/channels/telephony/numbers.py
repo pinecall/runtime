@@ -10,6 +10,7 @@ from livekit.protocol.sip import (
 )
 
 from pinecall.channels import routes, whatsapp
+from pinecall.channels.routes import RouteRecord
 from pinecall.channels.telephony import sip
 from pinecall.channels.telephony._twilio import (
     Twilio,
@@ -27,7 +28,7 @@ from pinecall.domain.errors import (
     NotFound,
     UpstreamFailed,
 )
-from pinecall.domain.names import Channel, Env, parse_e164
+from pinecall.domain.names import Channel, Env, RouteOrigin, parse_e164
 from pinecall.domain.scope import Scope
 from pinecall.fleet import worlds
 from pinecall.process.connections import Connections
@@ -103,6 +104,7 @@ class Survey:
     """Everything a hook needs, read before anything is written."""
 
     route: Route
+    origin: RouteOrigin
     fence: Fence | None
     account: str | None
     networks: tuple[str, ...]
@@ -188,17 +190,19 @@ async def release(connections: Connections, org: str, number: str, env: Env) -> 
         )
 
 
-async def move(connections: Connections, org: str, number: str, env: Env) -> Route:
+async def move(connections: Connections, org: str, number: str, env: Env) -> RouteRecord:
     """Move the number into the other world: its row and the two rules, the trunk untouched."""
-    route = await routes.of_number(connections.pool, org, number)
-    if route is None:
+    record = await routes.record_of(connections.pool, org, number)
+    if record is None:
         raise NotFound(NO_ROUTE.format(number=number, env="either world"))
+    route = record.route
     if route.env == env:
-        return route
+        return record
+    moved = replace(record, route=replace(route, env=env))
     # A WhatsApp number is on no trunk: its world is its row alone.
     if route.channel != "phone":
         await routes.moved(connections.pool, org, number, env)
-        return replace(route, env=env)
+        return moved
     fleets = await worlds.fleets(connections.pool)
     trunks = [
         trunk.sip_trunk_id
@@ -214,7 +218,7 @@ async def move(connections: Connections, org: str, number: str, env: Env) -> Rou
         connections.server, WorldRule(org, env, worlds.fleet_of(fleets, env)), trunks, number
     )
     await routes.moved(connections.pool, org, number, env)
-    return replace(route, env=env)
+    return moved
 
 
 # A SIP peer owns what it owns and nobody here can list it: its import takes the number typed.
@@ -284,6 +288,7 @@ async def _survey_import(connections: Connections, wanted: NumberImport) -> Surv
         raise DeclarationRefused(KEY_WITHOUT_PEER.format(kind=carrier.account.kind))
     survey = Survey(
         route=route,
+        origin="hooked" if carrier is None else "imported",
         fence=fence_of(org, number, carrier, wanted.networks)
         if wanted.channel == "phone"
         else None,
@@ -316,6 +321,7 @@ async def _survey_purchase(connections: Connections, wanted: NumberPurchase) -> 
     fleets = await worlds.fleets(connections.pool)
     survey = Survey(
         route=route,
+        origin="bought",
         fence=fence_of(org, for_sale, None, ()),
         account=None,
         networks=(),
@@ -394,7 +400,13 @@ async def _write_hook(connections: Connections, survey: Survey) -> None:
         trunk_id = await sip.admit(connections.server, survey.fence, survey.trunk, number)
         world = WorldRule(route.org, route.env, survey.fleet)
         await sip.rule_in(connections.server, world, [trunk_id], number)
-    await routes.put(connections.pool, route, account=survey.account, networks=survey.networks)
+    await routes.put(
+        connections.pool,
+        route,
+        origin=survey.origin,
+        account=survey.account,
+        networks=survey.networks,
+    )
 
 
 def _steps(survey: Survey, *, done: bool) -> list[str]:

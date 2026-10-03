@@ -36,7 +36,7 @@ async def a_whatsapp_line(knocking: Knocking, env: Env = "sandbox") -> None:
         knocking.gateway.connections.pool, knocking.gateway.connections.vault, "whatsapp", meta
     )
     route = Route(org=knocking.org.id, agent=AGENT, channel="whatsapp", number=OUR_NUMBER, env=env)
-    await routes.put(knocking.gateway.connections.pool, route, account=None)
+    await routes.put(knocking.gateway.connections.pool, route, origin="hooked", account=None)
 
 
 async def an_app(knocking: Knocking, env: Env = "sandbox") -> ClientConnection:
