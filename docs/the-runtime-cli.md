@@ -10,7 +10,7 @@ writes an agent, nothing there issues a key.
 | group | speaks to |
 |---|---|
 | `gateway` · `worker` · `runner` · `doctor` · `providers` | this machine: its settings, its database, its LiveKit |
-| `migrate` · `sessions` · `memory` · `retention` · `traceback` · `facts` · `vault` | Postgres, straight, over `DATABASE_URL` (`vault` with `PINECALL_VAULT_KEY` too) |
+| `migrate` · `sessions` · `memory` · `retention` · `traceback` · `facts` · `vault` · `fence` | Postgres, straight, over `DATABASE_URL` (`vault` with `PINECALL_VAULT_KEY` too; `fence apply` writes nftables as root) |
 | `box up` · `box upgrade` | this machine as root: it made a box from the package itself |
 | `cell` | this machine as root: on the box, its side of a machine beside it; on that machine, the machine joined from the package |
 | `init` · `orgs` · `keys` · `routes` · `fleet` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` and `keys runner` alone are minted on the database, before any gateway answers |
@@ -127,6 +127,20 @@ world's runner the same way ([protocol/hosting.md](protocol/hosting.md)).
 routes list [--org] [--env] · routes add <number> <agent> [--channel phone|whatsapp] [--org] [--env]
 routes rm <number> [--org] · routes seed [--file infra/seed/routes.json]
 ```
+
+## `fence`
+
+```
+fence apply · fence export
+```
+
+The networks 5060 opens to beyond Twilio's: the carriers the operator admits and the addresses
+he approved ([telephony.md](telephony.md), "The fence, twice"). `apply` writes them into
+`/etc/pinecall/nftables.d/carriers.nft` and has nftables read it, checking each network again;
+`pinecall-fence.timer` runs it every minute as root through `pinecall-fence`, the same verbs on
+an entry point that imports none of the gateway. `export` prints the whole list Twilio's included
+as `{"carrier_signalling": [...]}`, the tfvars Terraform's cloud firewall reads
+(`infra/terraform/environments/production/carrier_signalling.auto.tfvars.json`, never committed).
 
 ## `fleet`
 
