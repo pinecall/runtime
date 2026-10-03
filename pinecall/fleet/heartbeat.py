@@ -95,10 +95,12 @@ class Heartbeats:
         """What this worker holds now, and what its calls did in the last minute."""
         active = len(self.server.active_jobs)
         last = self.minute.of(asyncio.get_running_loop().time())
+        # The name only once LiveKit registered it: before, a call offered to it waits for nobody.
+        registered = self.server.id != UNREGISTERED
         return HeartbeatRequest(
             fleet=self.fleet,
             worker=self.name,
-            agent_name=self.agent_name,
+            agent_name=self.agent_name if registered else None,
             active=active,
             max_jobs=self.max_jobs,
             load=self.gateways_load(active),
