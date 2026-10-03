@@ -8,7 +8,9 @@ from dataclasses import replace
 import httpx
 import pytest
 
-from pinecall.domain.call import CallContext
+from pinecall.channels import routes
+from pinecall.channels.routes import RouteWrite
+from pinecall.domain.call import CallContext, new_call_id
 from pinecall.domain.names import JsonObject
 from pinecall.domain.person import KEY_SCOPES
 from pinecall.domain.scope import Scope
@@ -26,7 +28,7 @@ from tests.conftest import (
     received_until,
     sent,
 )
-from tests.gateway.api.conftest import a_call, an_app, first_data
+from tests.gateway.api.conftest import A_NUMBER, a_call, an_app, first_data
 
 
 async def a_logged_call(knocking: Knocking, *names: str) -> CallContext:
@@ -61,6 +63,27 @@ async def test_a_call_the_worker_opens_rings_on_the_socket_holding_its_agent(
     }
     ringing = await received(app)
     assert (ringing.type, ringing.call) == ("call.ringing", context.call)
+    await app.close()
+
+
+@postgres
+async def test_a_phone_call_the_worker_opens_marks_its_number_as_reached_once_a_minute(
+    knocking: Knocking,
+) -> None:
+    app = await an_app(knocking)
+    context = a_call(knocking)
+    pool = knocking.gateway.connections.pool
+    await routes.put(pool, context.route, RouteWrite("imported"))
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
+        first = await routes.record_of(pool, knocking.org.id, A_NUMBER)
+        again = replace(context, call=new_call_id())
+        await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=again).written())
+    second = await routes.record_of(pool, knocking.org.id, A_NUMBER)
+    assert first is not None
+    assert second is not None
+    assert first.last_call_at is not None
+    assert second.last_call_at == first.last_call_at
     await app.close()
 
 

@@ -7,6 +7,7 @@ import httpx
 from pinecall.channels.telephony._twilio import Twilio, twilio_of, verify
 from pinecall.channels.telephony.carrier_catalog import BOX_CARRIER, known_carrier
 from pinecall.domain.errors import Conflict, DeclarationRefused
+from pinecall.tenancy import carrier_networks
 from pinecall.tenancy.carriers import (
     Account,
     Carrier,
@@ -99,6 +100,19 @@ def declared_networks(carrier: Carrier) -> tuple[str, ...] | None:
             return tuple(carrier.account.addresses)
         case TwilioAccount() | WhatsappAccount():
             return None
+
+
+def own_networks(
+    declared: tuple[str, ...] | None, approved: tuple[str, ...]
+) -> tuple[tuple[str, ...] | None, tuple[str, ...]]:
+    """Of the networks named for a fence, the approved ones (None: it named none) and the rest."""
+    if declared is None:
+        return None, ()
+    named = tuple(carrier_networks.written(network) for network in declared)
+    return (
+        tuple(network for network in named if network in approved),
+        tuple(network for network in named if network not in approved),
+    )
 
 
 def missing_to_dial(carrier: Carrier) -> list[str]:

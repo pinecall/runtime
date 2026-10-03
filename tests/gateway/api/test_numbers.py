@@ -11,6 +11,7 @@ from pinecall.tenancy import vault
 from tests.conftest import AGENT, BOX_DOMAIN, Knocking, issued, postgres, received_until, sent
 from tests.fakes.livekit import Server
 from tests.fakes.twilio import Twilio
+from tests.gateway.api.conftest import an_app
 
 A_NUMBER = "+13617334133"
 HER_PHONE = "+59899000001"
@@ -97,6 +98,33 @@ async def test_a_peers_networks_wait_for_the_operator_and_a_wide_one_is_refused(
     assert wide.status_code == 400
     assert brought.json()["networks"] == [{"network": "45.60.12.7/32", "state": "waiting"}]
     assert listed["carriers"][0]["networks"][0]["state"] == "waiting"
+
+
+@postgres
+async def test_each_number_says_if_it_rings_now_and_its_path_says_why(
+    knocking: Knocking, twilio: Twilio
+) -> None:
+    twilio.owns(A_NUMBER)
+    wanted = {"number": A_NUMBER, "agent": AGENT, "channel": "phone"}
+    async with knocking.http(knocking.app["production"]) as console:
+        await console.put("/v1/carrier", json=account_body(twilio))
+        await console.post("/v1/numbers", json=wanted)
+        nobody = (await console.get("/v1/numbers")).json()
+        app = await an_app(knocking, env="production")
+        running = (await console.get("/v1/numbers")).json()
+        path = (await console.get(f"/v1/numbers/{A_NUMBER}/path")).json()
+        missing = await console.get("/v1/numbers/+13617334199/path")
+    await app.close()
+    assert (nobody[0]["rings"], nobody[0]["last_call_at"]) == ("broken", None)
+    assert running[0]["rings"] == "ok"
+    assert [(step["step"], step["state"]) for step in path["steps"]] == [
+        ("carrier", "ok"),
+        ("fence", "ok"),
+        ("world", "ok"),
+        ("agent", "ok"),
+    ]
+    assert path["rings"] == "ok"
+    assert missing.status_code == 404
 
 
 @postgres

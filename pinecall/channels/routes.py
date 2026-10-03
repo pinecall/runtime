@@ -48,11 +48,18 @@ WHERE agent = %(agent)s AND org <> %(org)s
 RETURNING number
 """
 STAYED = "SELECT number FROM routes WHERE agent = %(agent)s AND org <> %(org)s ORDER BY number"
+# A number rung all day is written once a minute, never once a call.
+CALLED = """
+UPDATE routes SET last_call_at = now()
+WHERE org = %(org)s AND number = %(number)s
+  AND (last_call_at IS NULL OR last_call_at < now() - interval '1 minute')
+"""
 # A row with what the table keeps beside it: how it was written, the kind of the account its
 # number lives in, and the org whose row answers the number (the oldest, as AT reads it).
 RECORDS = """
 SELECT routes.org, routes.number, routes.agent, routes.channel, routes.env, routes.managed,
-       routes.origin, routes.via, carriers.kind AS carrier,
+       routes.origin, routes.via, routes.last_call_at, routes.account, routes.networks,
+       carriers.kind AS carrier,
        (SELECT first.org FROM routes AS first
         WHERE first.channel = routes.channel AND first.number = routes.number
         ORDER BY first.added_at LIMIT 1) AS answering
@@ -85,10 +92,20 @@ class RouteRecord:
     # The org whose row answers the number: the route's own, or an older row of another org.
     answering: str
     via: str | None = None
+    # When a call to the number last reached the box; None when none ever did.
+    last_call_at: float | None = None
+    # The org's account the number lives in, and a hooked number's own networks.
+    account: str | None = None
+    networks: tuple[str, ...] = ()
 
 
 ON_THE_BOX = RECORDS + "ORDER BY routes.number, routes.channel, routes.added_at"
 OF_NUMBER_RECORD = RECORDS + "WHERE routes.org = %(org)s AND routes.number = %(number)s"
+PHONES_OF_ORG = (
+    RECORDS
+    + "WHERE routes.org = %(org)s AND routes.channel = 'phone' AND routes.number IS NOT NULL "
+    + "ORDER BY routes.added_at, routes.number"
+)
 OF_ORG_RECORDS = (
     RECORDS
     + "WHERE routes.org = %(org)s AND routes.env = %(env)s ORDER BY routes.added_at, routes.number"
@@ -129,6 +146,13 @@ async def records_of(pool: Pool, org: str, env: Env) -> list[RouteRecord]:
     return [_record(row) for row in rows]
 
 
+async def phones_of(pool: Pool, org: str) -> list[RouteRecord]:
+    """The org's phone numbers in both worlds, oldest first, with what the table keeps."""
+    async with pool.connection() as connection:
+        rows = await (await connection.execute(PHONES_OF_ORG, {"org": org})).fetchall()
+    return [_record(row) for row in rows]
+
+
 async def record_of(pool: Pool, org: str, number: str) -> RouteRecord | None:
     """The org's route at this number, whatever world it is in, with what the table keeps."""
     params = {"org": org, "number": number}
@@ -160,6 +184,12 @@ async def put(pool: Pool, route: Route, written: RouteWrite) -> None:
     }
     async with pool.connection() as connection:
         await connection.execute(PUT, row)
+
+
+async def called(pool: Pool, org: str, number: str) -> None:
+    """Note that a call to the org's number reached the box now."""
+    async with pool.connection() as connection:
+        await connection.execute(CALLED, {"org": org, "number": number})
 
 
 async def remove(pool: Pool, org: str, number: str) -> bool:
@@ -211,4 +241,7 @@ def _record(row: DictRow) -> RouteRecord:
         carrier=row["carrier"],
         answering=row["answering"],
         via=row["via"],
+        last_call_at=None if row["last_call_at"] is None else row["last_call_at"].timestamp(),
+        account=row["account"],
+        networks=tuple(str(network) for network in row["networks"] or ()),
     )

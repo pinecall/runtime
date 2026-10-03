@@ -25,6 +25,7 @@ from pinecall.channels.telephony.carrier import (
     declared_networks,
     fence_of,
     meta_of,
+    own_networks,
 )
 from pinecall.channels.telephony.carrier_catalog import known_carrier
 from pinecall.channels.telephony.sip import WorldRule, domain_of, rule_name
@@ -320,10 +321,9 @@ async def _survey_import(connections: Connections, wanted: NumberImport) -> Surv
         raise DeclarationRefused(KEY_WITHOUT_PEER.format(kind=carrier.account.kind))
     networks = tuple(carrier_networks.checked(network) for network in wanted.networks)
     approved = await carrier_networks.approved(connections.pool, org)
-    named = (networks or None) if carrier is None else declared_networks(carrier)
-    declared = None if named is None else tuple(carrier_networks.written(n) for n in named)
+    declared = (networks or None) if carrier is None else declared_networks(carrier)
     source = number if carrier is None else carrier.id
-    own = None if declared is None else tuple(n for n in declared if n in approved.get(source, ()))
+    own, waiting = own_networks(declared, approved.get(source, ()))
     survey = Survey(
         route=route,
         origin="hooked" if carrier is None else "imported",
@@ -335,7 +335,7 @@ async def _survey_import(connections: Connections, wanted: NumberImport) -> Surv
         fleet=worlds.fleet_of(fleets, env),
         domain=domain,
         via=wanted.via,
-        waiting=() if declared is None else tuple(n for n in declared if n not in (own or ())),
+        waiting=waiting,
     )
     control = None if carrier is None else control_of(connections.http, carrier)
     if control is not None and wanted.channel == "phone":

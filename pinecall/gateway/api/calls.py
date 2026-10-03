@@ -11,6 +11,7 @@ from fastapi import APIRouter, Header, Query, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from pinecall.channels import routes
 from pinecall.domain.agent import AgentConfig, Versions
 from pinecall.domain.call import CallContext
 from pinecall.domain.errors import (
@@ -184,6 +185,9 @@ async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) 
     context = body.context
     keys.check_agent(key.bearer, body.agent)
     scope = _call_corner(key, context)
+    # The carrier, the fence and the world rule worked, whatever is refused below.
+    if context.direction == "inbound" and context.route.number is not None:
+        await routes.called(gateway.connections.pool, scope.org, context.route.number)
     await _unclaimed_or_in(gateway, context.call, scope)
     await _spent(gateway, context, scope, body.agent)
     ceiling = await _deps.admit_call(gateway, scope, body.agent)

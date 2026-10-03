@@ -20,11 +20,11 @@ from livekit.protocol.sip import (
     SIPDispatchRuleInfo,
     SIPInboundTrunkInfo,
 )
-from psycopg.rows import DictRow
 
-from pinecall.channels import rooms
+from pinecall.channels import rooms, routes
 from pinecall.channels.rooms import Dispatch
-from pinecall.channels.telephony.carrier import Fence, declared_networks, fence_of
+from pinecall.channels.routes import RouteRecord
+from pinecall.channels.telephony.carrier import Fence, declared_networks, fence_of, own_networks
 from pinecall.domain.errors import NotAvailable
 from pinecall.domain.names import Env
 from pinecall.fleet import worlds
@@ -44,13 +44,8 @@ NO_DOMAIN = "this box has no PINECALL_DOMAIN: a carrier has nowhere to send a ca
 REBUILT = "SIP rebuilt from the tables: %d numbers stand, %d orgs refused"
 
 
-TO_REBUILD = """
-SELECT org, number, env, account, networks, via FROM routes
-WHERE channel = 'phone' AND number IS NOT NULL ORDER BY org, added_at, number
-"""
-OF_ORG = """
-SELECT org, number, env, account, networks, via FROM routes
-WHERE channel = 'phone' AND number IS NOT NULL AND org = %(org)s ORDER BY added_at, number
+ROUTED_ORGS = """
+SELECT DISTINCT org FROM routes WHERE channel = 'phone' AND number IS NOT NULL ORDER BY org
 """
 
 
@@ -210,9 +205,9 @@ async def renumber_rule(
 async def rebuild(connections: Connections) -> Rebuilt:
     """Admit every routed phone number again on the SFU, with its fence and its world's rule."""
     async with connections.pool.connection() as connection:
-        rows = await (await connection.execute(TO_REBUILD)).fetchall()
+        rows = await (await connection.execute(ROUTED_ORGS)).fetchall()
     readmitted, refused = 0, list[str]()
-    for org in dict.fromkeys(str(row["org"]) for row in rows):
+    for org in (str(row["org"]) for row in rows):
         try:
             readmitted += await readmit(connections, org)
         except (api.TwirpError, httpx.HTTPError):
@@ -225,8 +220,6 @@ async def rebuild(connections: Connections) -> Rebuilt:
 # After the operator approves or refuses a network: the org's trunks follow what is approved now.
 async def readmit(connections: Connections, org: str) -> int:
     """Admit the org's phone numbers again with the fences they have now; how many stand."""
-    async with connections.pool.connection() as connection:
-        rows = await (await connection.execute(OF_ORG, {"org": org})).fetchall()
     fleets = await worlds.fleets(connections.pool)
     carriers = {
         carrier.id: carrier
@@ -234,30 +227,34 @@ async def readmit(connections: Connections, org: str) -> int:
     }
     approved = await carrier_networks.approved(connections.pool, org)
     admitted = 0
-    for row in rows:
-        fence = _fence_now(row, carriers.get(row["account"] or ""), approved)
-        number = str(row["number"])
+    for record in await routes.phones_of(connections.pool, org):
+        number = str(record.route.number)
+        fence = fence_now(record, carriers.get(record.account or ""), approved)
         if fence is None:
             await _unlisted(connections.server, org, number)
             continue
         trunk = await trunk_named(connections.server, fence.trunk)
         trunk_id = await admit(connections.server, fence, trunk, number)
-        world = WorldRule(org, row["env"], worlds.fleet_of(fleets, row["env"]))
-        await rule_in(connections.server, world, [trunk_id], number)
+        env = record.route.env
+        await rule_in(
+            connections.server,
+            WorldRule(org, env, worlds.fleet_of(fleets, env)),
+            [trunk_id],
+            number,
+        )
         admitted += 1
     return admitted
 
 
-def _fence_now(
-    row: DictRow, carrier: Carrier | None, approved: dict[str, tuple[str, ...]]
+def fence_now(
+    record: RouteRecord, carrier: Carrier | None, approved: dict[str, tuple[str, ...]]
 ) -> Fence | None:
-    org, number = str(row["org"]), str(row["number"])
-    networks = tuple(str(network) for network in row["networks"] or ())
-    named = (networks or None) if carrier is None else declared_networks(carrier)
-    declared = None if named is None else tuple(carrier_networks.written(n) for n in named)
+    """The fence a routed number has with what is approved now; None while nothing fences it."""
+    number = str(record.route.number)
+    declared = (record.networks or None) if carrier is None else declared_networks(carrier)
     source = number if carrier is None else carrier.id
-    own = None if declared is None else tuple(n for n in declared if n in approved.get(source, ()))
-    return fence_of(org, number, carrier, row["via"], own)
+    own, _ = own_networks(declared, approved.get(source, ()))
+    return fence_of(record.route.org, number, carrier, record.via, own)
 
 
 async def _unlisted(server: api.LiveKitAPI, org: str, number: str) -> None:

@@ -7,12 +7,12 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from pinecall.channels import routes
-from pinecall.channels.telephony import carrier_catalog, dialing, numbers, sip
+from pinecall.channels.telephony import carrier_catalog, dialing, number_path, numbers, sip
 from pinecall.channels.telephony.carrier import declared_networks, verify_account
 from pinecall.channels.telephony.dialing import Placement
 from pinecall.channels.telephony.numbers import NumberImport, NumberPurchase
 from pinecall.domain.call import today_in
-from pinecall.domain.errors import Conflict, NotAvailable
+from pinecall.domain.errors import Conflict, NotAvailable, NotFound
 from pinecall.domain.names import parse_e164
 from pinecall.domain.scope import Scope
 from pinecall.gateway._deps import (
@@ -25,6 +25,7 @@ from pinecall.gateway._deps import (
     WorkerKey,
     asked_by,
 )
+from pinecall.gateway._gateway import Gateway
 from pinecall.tenancy import carrier_networks, carriers, consents, keys, tokens
 from pinecall.tenancy.carrier_networks import NetworkAsk
 from pinecall.tenancy.carriers import Carrier
@@ -49,12 +50,17 @@ from pinecall.wire.rest.numbers import (
     LegTrunkResponse,
     MoveNumberRequest,
     NetworkRow,
+    NumberPath,
     NumberRow,
     OutboundStatus,
     OwnedNumberRow,
+    PathStep,
     ProvisionOutboundResponse,
     RecordConsent,
 )
+
+NO_SUCH_NUMBER = "the org answers at no {number} in the {env}"
+
 
 router = APIRouter()
 
@@ -161,10 +167,42 @@ async def drop_carrier(key: NumbersKey, gateway: GatewayDep, account: AccountAsk
 @router.get("/v1/numbers")
 async def list_numbers(key: NumbersKey, gateway: GatewayDep) -> list[NumberRow]:
     """The org's numbers in the key's world, and the agent each reaches."""
+    records = await routes.records_of(gateway.connections.pool, key.org, key.env)
+    running_agents = _running(gateway, Scope(org=key.org, env=key.env))
+    rings = await number_path.rings_of(
+        gateway.connections, records, lambda record: record.route.agent in running_agents
+    )
     return [
-        NumberRow(route=record.route, origin=record.origin)
-        for record in await routes.records_of(gateway.connections.pool, key.org, key.env)
+        NumberRow(
+            route=record.route,
+            origin=record.origin,
+            rings=ringing,
+            last_call_at=record.last_call_at,
+            via=record.via,
+        )
+        for record, ringing in zip(records, rings, strict=True)
     ]
+
+
+@router.get("/v1/numbers/{number}/path")
+async def number_path_of(number: str, key: NumbersKey, gateway: GatewayDep) -> NumberPath:
+    """What a call to the number goes through now: its carrier, the fence, the world, the agent."""
+    record = await routes.record_of(gateway.connections.pool, key.org, parse_e164(number))
+    if record is None or record.route.env != key.env:
+        raise NotFound(NO_SUCH_NUMBER.format(number=number, env=key.env))
+    running_agents = _running(gateway, Scope(org=key.org, env=key.env))
+    found = await number_path.path_of(
+        gateway.connections, record, running=record.route.agent in running_agents
+    )
+    return NumberPath(
+        number=str(record.route.number),
+        steps=[
+            PathStep(step=step.step, state=step.state, says=step.says, fix=step.fix)
+            for step in found.steps
+        ],
+        rings=found.rings,
+        last_call_at=record.last_call_at,
+    )
 
 
 @router.get("/v1/numbers/available")
@@ -389,6 +427,11 @@ async def import_do_not_call(
         gateway.connections.pool, where, body.numbers, given
     )
     return DoNotCallImported(added=added, refused=refused)
+
+
+def _running(gateway: Gateway, scope: Scope) -> set[str]:
+    """The agents a process holds in the org's world now, in any of its scopes."""
+    return {registration.slug for registration in gateway.sockets.holding(scope, every_corner=True)}
 
 
 def _carrier_row(carrier: Carrier, asks: list[NetworkAsk]) -> CarrierRow:
