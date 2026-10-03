@@ -22,10 +22,12 @@ it with `pinecall-runtime cell join-worker`, ramps each step's calls, prints one
 calls, the worker machine's cores and per call, the box's cores, turns answered, first audio p50 /
 p95, ring to live, errors — and destroys everything with `terraform destroy`. The verbs apart:
 `up --box <type>` (~20 min, the box and the generator), `run --worker <type> [--box <type>]
-[--calls …] [--seats N]` (a few minutes a step; `--box` resizes the box by the apply, which stops
+[--calls …] [--seats N] [--rate N]` (a few minutes a step; `--box` resizes the box by the apply, which stops
 and starts it with its disk kept, so several shapes are measured on one `up`), `down`. `--seats`
 unset is the `vCPU × 4` the worker would announce; set it high to find where first audio gives,
-which is what `MAX_JOBS` is then set under. Every secret goes machine to machine through a pipe
+which is what `MAX_JOBS` is then set under. `--rate` is the calls placed a second (1 unset):
+LiveKit's server reads a worker's load as reported every 2.5 s, so a faster burst on its last
+slots is the edge to measure. Every secret goes machine to machine through a pipe
 between two ssh processes; nothing is printed. Google's credentials are the gcloud login's, a
 fresh token for each terraform command.
 

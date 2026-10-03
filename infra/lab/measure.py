@@ -76,11 +76,12 @@ def main() -> None:
         verb.add_argument("--worker", required=True, help="the worker machine's type")
         verb.add_argument("--calls", default="4,6,8,10,12", help="each step's calls at once")
         verb.add_argument("--seats", type=int, default=None, help="unset: four per vCPU")
+        verb.add_argument("--rate", type=int, default=1, help="calls placed a second")
     run.add_argument("--box", default=None, help="resize the box to this type first")
     measure.add_argument("--box", default="e2-standard-4", help="the box's machine type")
     under.add_parser("down", help="every lab machine destroyed")
     args = verbs.parse_args()
-    lab = Lab()
+    lab = Lab(getattr(args, "rate", 1))
     if args.verb in ("up", "measure"):
         lab.up(args.box)
     if args.verb in ("run", "measure"):
@@ -93,8 +94,9 @@ def main() -> None:
 class Lab:
     """The lab's machines, as the lab's Terraform root holds them, reached through gcloud."""
 
-    def __init__(self) -> None:
-        """The root initialized; nothing made yet."""
+    def __init__(self, rate: int) -> None:
+        """The root initialized; nothing made yet; each step places `rate` calls a second."""
+        self.rate = rate
         self.wheel: Path | None = None
         self.where: tuple[str, ...] = ()
         terraform("init", "-input=false")
@@ -176,13 +178,13 @@ class Lab:
         self.applied(box_type, None)
 
     def step(self, calls: int, box: str, gen: str) -> str:
-        """That many calls at once, one a second, kept up; the row the step reads."""
+        """That many calls at once, placed at the lab's rate, kept up; the row the step reads."""
         progress(f"{calls} calls at once")
         t0 = float(self.ssh(BOX, "date +%s", quiet=True))
         sipp = (
             f"cd /home/lab && sudo rm -f caller_*; sudo timeout {CALL_S + calls + 150} sipp "
-            f"{box}:5060 -sf caller.xml -s {NUMBER} -i {gen} -mi {gen} -m {calls} -l {calls} -r 1 "
-            "-max_socket 100000 -nostdin >/dev/null 2>&1; true"
+            f"{box}:5060 -sf caller.xml -s {NUMBER} -i {gen} -mi {gen} -m {calls} -l {calls} "
+            f"-r {self.rate} -max_socket 100000 -nostdin >/dev/null 2>&1; true"
         )
         caller = self.background(GEN, sipp)
         time.sleep(calls + SETTLED_S)
