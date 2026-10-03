@@ -7,8 +7,9 @@
 #                            once the machine exists; it boots, reads its credentials from Secret
 #                            Manager and registers
 #   delete <name>            the machine deleted out of the group, the call returning once it is
-#                            gone: the loop does it once the worker drained (a group that removed
-#                            a machine itself would give it 90 s, and a call may take ten minutes)
+#                            gone; one the group no longer lists is left as it is. The loop does it
+#                            once the worker drained (a group that removed a machine itself would
+#                            give it 90 s, and a call may take ten minutes)
 #   list                     the group's machines: name<TAB>created (ISO 8601)
 # The group has no autoscaler: the loop is the one thing that changes its size (modules/fleet-gcp).
 # Set: PINECALL_FLEET_PROJECT (the metadata server's project unless set), PINECALL_FLEET_ZONE,
@@ -26,7 +27,6 @@ from typing import Any
 METADATA = "http://metadata.google.internal/computeMetadata/v1"
 COMPUTE = "https://compute.googleapis.com/compute/v1"
 NOT_FOUND = 404
-BAD_REQUEST = 400
 # An operation's wait answers within two minutes, done or not; making a machine takes under one.
 WAITS = 3
 
@@ -73,11 +73,11 @@ def created(name: str) -> None:
 
 
 def deleted(name: str) -> None:
-    """The machine deleted out of the group, back once it is gone; one gone already is left."""
+    """The machine out of the group, back once gone; one the group no longer lists is left."""
+    if name not in {listed for listed, _ in machines()}:
+        return
     instance = f"zones/{_setting('PINECALL_FLEET_ZONE')}/instances/{name}"
-    begun = _call("POST", f"{_group()}/deleteInstances", {"instances": [instance]}, missing_ok=True)
-    if begun:
-        _done(begun)
+    _done(_call("POST", f"{_group()}/deleteInstances", {"instances": [instance]}))
 
 
 def _done(operation: dict[str, Any]) -> None:
@@ -140,10 +140,7 @@ def _call(method: str, url: str, body: object, *, missing_ok: bool = False) -> d
             text = answer.read().decode()
     except urllib.error.HTTPError as refused:
         detail = refused.read().decode()
-        gone = refused.code == NOT_FOUND or (
-            refused.code == BAD_REQUEST and "not a member" in detail
-        )
-        if missing_ok and gone:
+        if missing_ok and refused.code == NOT_FOUND:
             return {}
         where = url.rsplit("/v1/", maxsplit=1)[-1]
         sys.exit(f"gcp-mig.py: {method} {where} answered {refused.code}: {detail[:400]}")
