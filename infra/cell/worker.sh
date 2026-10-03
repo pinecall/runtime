@@ -60,11 +60,14 @@ prepared() {  # DIR BOX PACKAGE WORLD CALLS: the machine made a worker of the wo
     systemd-sysusers
     systemd-tmpfiles --create /etc/tmpfiles.d/pinecall.conf
     # The box's names, its object store, the fleet's agent name and health port, and the calls.
+    # The box's own count of warm processes is for workers sharing its cores: a machine of
+    # workers alone keeps livekit's, one per CPU, or a burst waits ~3 s a call for a process and
+    # livekit counts each wait as a slot taken (one warm process on 8 vCPU started 29 of 32).
     install -d /etc/pinecall
     install -m 0644 "$taken/box.env" /etc/pinecall/box.env
     install -m 0600 "$taken/store.env" /etc/pinecall/store.env
-    { grep -v '^PINECALL_MAX_JOBS=' "$taken/fleet.env"; echo "PINECALL_MAX_JOBS=$calls"; } \
-        > /etc/pinecall/fleet.env
+    { grep -v -e '^PINECALL_MAX_JOBS=' -e '^PINECALL_IDLE_PROCESSES=' "$taken/fleet.env"
+      echo "PINECALL_MAX_JOBS=$calls"; } > /etc/pinecall/fleet.env
     printf 'LIVEKIT_URL=ws://%s:7880\nPINECALL_GATEWAY_URL=http://%s:8088\n' "$box" "$box" \
         > /etc/pinecall/cell.env
     [ -x "$VENV/bin/python" ] || "$UV" venv --python /usr/bin/python3.12 "$VENV"
