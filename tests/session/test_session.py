@@ -46,7 +46,7 @@ from pinecall.session import hold as hold_module
 from pinecall.session import text
 from pinecall.session._hearing import keyterms
 from pinecall.session._prompt import A_RELEASE
-from pinecall.session.call import CLOSING, Call, Platform, ToolUse
+from pinecall.session.call import Call, Platform, ToolUse
 from pinecall.session.hold import HoldMusic
 from pinecall.session.room import CALLER_NUMBER, CallRoom, Trunk
 from pinecall.session.session import SAY_GOODBYE_FIRST, Session
@@ -74,7 +74,6 @@ from pinecall.wire.commands import (
     TransferVerb,
     WhisperVerb,
 )
-from pinecall.wire.events import CreditsExhausted
 from pinecall.wire.metrics import ModelUsage
 from pinecall.wire.parts import AgentConfig as Declared
 from pinecall.wire.parts import Supervisor, ToolResult
@@ -715,55 +714,6 @@ async def test_an_agent_turn_carries_its_report_whole_and_whether_it_was_cut_off
     assert turn.data["metrics"] == {"llm_node_ttft": 0.3}
 
 
-# ── the time a call is given ──
-
-
-@postgres
-async def test_a_limit_under_two_minutes_is_told_at_its_half_and_ends_at_the_limit(
-    box: Box, store: Store, call: str
-) -> None:
-    session = a_session(box, NOBODY, ["Vamos cerrando"])
-    await session.start()
-    await session.keep_time(1, exhausted=None)
-    await session.close()
-    params = model_of(session).requests
-    assert CLOSING in str([getattr(item, "text_content", "") for item in params[0].items])
-    ended = next(entry for entry in await store.whole(call) if entry.type == "call.ended")
-    assert (ended.data["reason"], ended.data["ended_by"]) == ("timeout", "platform")
-
-
-@postgres
-async def test_a_person_on_the_line_is_not_talked_over_and_the_limit_still_holds(
-    box: Box, store: Store, call: str
-) -> None:
-    session = a_session(box, NOBODY, ["nunca"])
-    await session.start()
-    session.call.taken_by = A_SUPERVISOR
-    await session.keep_time(1, exhausted=None)
-    await session.close()
-    assert model_of(session).requests == []
-    assert "call.ended" in await kinds(store, call)
-
-
-@postgres
-async def test_the_orgs_minutes_ending_the_call_first_are_written_before_it_ends(
-    box: Box, store: Store, call: str
-) -> None:
-    session = a_session(box, NOBODY)
-    await session.start()
-    spent = CreditsExhausted(org="org_1", quota="minutes", used=30, limit=30)
-    await session.keep_time(1, exhausted=spent)
-    await session.close()
-    written = await kinds(store, call)
-    assert written.index("credits.exhausted") < written.index("call.ended")
-
-
-async def test_no_limit_keeps_no_clock() -> None:
-    started = time.monotonic()
-    await Session.keep_time(object.__new__(Session), 0, exhausted=None)
-    assert time.monotonic() - started < 0.1
-
-
 # ── a spoken call's session ──
 
 
@@ -1220,26 +1170,6 @@ async def test_nothing_is_generated_after_end_call(box: Box) -> None:
     await asyncio.sleep(0.2)
     await session.close()
     assert len(model_of(session).requests) == 1
-
-
-@postgres
-async def test_the_agent_is_told_a_minute_before_a_limit_of_two_minutes_or_more(
-    box: Box, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    slept: list[float] = []
-    real = asyncio.sleep
-
-    async def counted(delay: float) -> None:
-        slept.append(delay)
-        await real(0)
-
-    session = a_session(box, NOBODY, ["cerramos"])
-    await session.start()
-    monkeypatch.setattr(asyncio, "sleep", counted)
-    await session.keep_time(300, exhausted=None)
-    monkeypatch.undo()
-    await session.close()
-    assert slept[:2] == [240, 60]
 
 
 # ── metrics ──

@@ -36,7 +36,7 @@ from pinecall.fleet.heartbeat import worker_name_of
 from pinecall.fleet.measures import measures_path, reported
 from pinecall.process.settings import Settings
 from pinecall.providers.credentials import Pipeline
-from pinecall.session import room
+from pinecall.session import clock, room
 from pinecall.session.call import Call, Platform, Seal, ToolUse, Writing
 from pinecall.session.hold import HoldMusic
 from pinecall.session.session import SEAL_S, Session
@@ -65,6 +65,10 @@ _STAGES: TypeAdapter[Pipeline] = TypeAdapter(Pipeline)
 
 # The one scope that makes a visit written: a chat in the widget, no microphone.
 WRITTEN_SCOPE = "chat"
+
+# How long a chat in a room waits for the person's next message: the voice ceiling's ten minutes.
+# A visitor who left the page open held a seat for over an hour on 2026-10-03.
+A_CHAT_WAITS_S = 600.0
 
 
 # The talk seat may join after the agent; a session started with nobody seated records nothing.
@@ -188,9 +192,12 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
     limit = config.max_duration_s if route.channel in CHANNELS_WITH_A_NUMBER or not typed else 0
     ceiling = 0 if opened.seconds_left is None else opened.seconds_left
     kept = min(item for item in (limit, ceiling) if item) if limit or ceiling else 0
-    timer = asyncio.create_task(session.keep_time(kept, exhausted=None))
+    timer = asyncio.create_task(clock.keep_time(session, kept, exhausted=None))
+    # A chat in a room is the one call with no ceiling: it ends after ten quiet minutes instead.
+    quiet = typed and route.channel not in CHANNELS_WITH_A_NUMBER
+    silence = asyncio.create_task(clock.end_when_quiet(session, A_CHAT_WAITS_S if quiet else 0))
 
-    ctx.add_shutdown_callback(_letting_go(ctx, session, where, widget, commands, timer))
+    ctx.add_shutdown_callback(_letting_go(ctx, session, where, widget, commands, timer, silence))
 
 
 # The agent leaving ends no SIP leg: with the room still up, a phone caller hears a silent line
