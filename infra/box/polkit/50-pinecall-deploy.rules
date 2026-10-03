@@ -1,5 +1,6 @@
-// The deploy account may start and restart the runtime's units, and stop the one worker per world
-// and the one gateway of a box installed before it ran two, and nothing else, without sudo.
+// The deploy account may start and restart the runtime's units, stop and start a world's fleet
+// loop around a release, and stop the one worker per world and the one gateway of a box installed
+// before it ran two, and nothing else, without sudo.
 polkit.addRule(function (action, subject) {
     if (action.id !== "org.freedesktop.systemd1.manage-units" || subject.user !== "deploy") {
         return polkit.Result.NOT_HANDLED;
@@ -8,6 +9,11 @@ polkit.addRule(function (action, subject) {
     var verb = action.lookup("verb");
     var ours = /^pinecall-(migrate|gateway@(8080|8081)|doctor|worker-[ab]@(production|sandbox)|overflow@production)\.service$/;
     if (ours.test(unit) && (verb === "start" || verb === "restart")) {
+        return polkit.Result.YES;
+    }
+    // The fleet loop runs the release's code too: stopped before the package changes, started after.
+    var loop = /^pinecall-fleet-loop@(production|sandbox)\.service$/;
+    if (loop.test(unit) && (verb === "stop" || verb === "start")) {
         return polkit.Result.YES;
     }
     // The one worker per world and the one gateway of a box installed before the two: a release

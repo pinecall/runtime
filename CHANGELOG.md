@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **The fleet loop is the one thing that sizes a fleet.** Production's managed instance group had an
+  autoscaler too, grown on the fleet's calls the loop wrote to Cloud Monitoring: it counted the
+  calls the box's own workers held, asked for a machine at the first call, and the loop let it go
+  as one too many, five machines in forty minutes on 2026-10-03. The autoscaler (and AWS's target
+  tracking) is gone; `infra/fleet/gcp-mig.py create` makes a machine in the group by name and
+  `aws-asg.py create` raises the group by one, as every other cloud script makes one. `measure`,
+  `--grow-at-most 0` and the box's metric-writer role are gone with it.
+- A release stops each world's fleet loop before it changes the package and starts it when it
+  ends: it never restarted it, and the loop ran the code it was started with until it crashed.
 - **The gateway chooses the worker a call goes to.** A worker registers with LiveKit under its own
   name, `<fleet>/<worker>`; the SIP rule and a visitor's token still dispatch to the fleet's plain
   name, which nobody holds, and the gateway, told by LiveKit's webhook that a person is alone in a

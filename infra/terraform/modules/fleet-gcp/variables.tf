@@ -31,17 +31,3 @@ variable "health_port" {
   description = "PINECALL_WORKER_HTTP_PORT of the world's fleet (infra/box/fleets/<world>.env)."
 }
 
-variable "min" {
-  type    = number
-  default = 0
-}
-
-variable "max" {
-  type    = number
-  default = 10
-}
-
-variable "calls_per_machine" {
-  type        = number
-  description = "The calls a machine is kept at: its seats × the loop's 0.6, so the group grows before the worker's 0.7."
-}

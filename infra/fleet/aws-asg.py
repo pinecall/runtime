@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""A fleet loop's cloud on AWS when an Auto Scaling group grows the fleet itself."""
+"""A fleet loop's cloud on AWS: the machines of an Auto Scaling group, made and let go."""
 
-# `fleet loop --cloud infra/fleet/aws-asg.py --grow-at-most 0 …` runs it with one verb:
-#   list                     the group's machines: name<TAB>created (ISO 8601); a machine's name is
-#                            its instance id, which is its hostname (modules/fleet-aws)
+# `fleet loop --cloud infra/fleet/aws-asg.py …` runs it with one verb:
+#   create <name>            one machine more: the group's desired capacity raised by one. EC2
+#                            names a machine by its instance id, which is its hostname and so its
+#                            worker's name (modules/fleet-aws); the name asked for is not kept
 #   delete <name>            the machine terminated out of the group, its desired capacity one
 #                            less: the loop does it once the worker drained (the group would end
 #                            a machine it removes itself, call or no call)
-#   measure <fleet> <calls>  the fleet's calls written to CloudWatch as Pinecall/fleet_calls,
-#                            which the group's target tracking grows on
-#   create <name>            refused: the group grows
+#   list                     the group's machines: name<TAB>created (ISO 8601)
+# The group has no scaling policy: the loop is the one thing that changes its size.
 # Set: PINECALL_FLEET_ASG; the region and the credentials are the aws CLI's (AWS_REGION, the
 # machine's instance profile or the operator's ~/.aws). Python's standard library and the aws CLI.
 
@@ -19,43 +19,29 @@ import subprocess
 import sys
 from typing import Any
 
-MEASURE_TAKES = 2
-NAMESPACE = "Pinecall"
-METRIC = "fleet_calls"
-
 
 def main(argv: list[str]) -> int:
     """Run the verb the loop asked for."""
     verb, *rest = argv or ["help"]
     if verb == "list":
-        for name, created in machines():
-            print(f"{name}\t{created}")
+        for name, made_at in machines():
+            print(f"{name}\t{made_at}")
+        return 0
+    if verb == "create" and len(rest) == 1:
+        created()
         return 0
     if verb == "delete" and len(rest) == 1:
         deleted(rest[0])
         return 0
-    if verb == "measure" and len(rest) == MEASURE_TAKES:
-        measured(rest[0], int(rest[1]))
-        return 0
-    if verb == "create":
-        print("the Auto Scaling group grows the fleet; the loop only lets go", file=sys.stderr)
-        return 2
-    print("aws-asg.py list | delete <name> | measure <fleet> <calls>", file=sys.stderr)
+    print("aws-asg.py create <name> | delete <name> | list", file=sys.stderr)
     return 2
 
 
 def machines() -> list[tuple[str, str]]:
     """Each machine of the group still in it, by instance id, with when it was launched."""
-    groups = _aws(
-        "autoscaling",
-        "describe-auto-scaling-groups",
-        "--auto-scaling-group-names",
-        _setting("PINECALL_FLEET_ASG"),
-    )
     ids = [
         instance["InstanceId"]
-        for group in groups["AutoScalingGroups"]
-        for instance in group["Instances"]
+        for instance in _group()["Instances"]
         if instance["LifecycleState"] in ("Pending", "InService")
     ]
     if not ids:
@@ -82,22 +68,26 @@ def deleted(name: str) -> None:
     )
 
 
-def measured(fleet: str, calls: int) -> None:
-    """One point of the fleet's calls, now."""
+def created() -> None:
+    """One machine more: the group's desired capacity raised by one."""
     _aws(
-        "cloudwatch",
-        "put-metric-data",
-        "--namespace",
-        NAMESPACE,
-        "--metric-name",
-        METRIC,
-        "--dimensions",
-        f"fleet={fleet}",
-        "--value",
-        str(calls),
-        "--unit",
-        "Count",
+        "autoscaling",
+        "set-desired-capacity",
+        "--auto-scaling-group-name",
+        _setting("PINECALL_FLEET_ASG"),
+        "--desired-capacity",
+        str(_group()["DesiredCapacity"] + 1),
     )
+
+
+def _group() -> dict[str, Any]:
+    groups = _aws(
+        "autoscaling",
+        "describe-auto-scaling-groups",
+        "--auto-scaling-group-names",
+        _setting("PINECALL_FLEET_ASG"),
+    )
+    return groups["AutoScalingGroups"][0]
 
 
 def _setting(name: str) -> str:

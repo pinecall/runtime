@@ -43,7 +43,7 @@ resource "google_project_iam_member" "fleet_loop" {
 }
 
 resource "google_project_iam_member" "fleet_writes" {
-  for_each = toset(["roles/monitoring.metricWriter", "roles/logging.logWriter"])
+  for_each = toset(["roles/logging.logWriter"])
   project  = var.project
   role     = each.value
   member   = "serviceAccount:${google_service_account.fleet.email}"

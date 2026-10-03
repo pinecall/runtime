@@ -39,11 +39,10 @@ module "secrets" {
 }
 
 module "fleet" {
-  source            = "../../modules/fleet-aws"
-  world             = "production"
-  fleet             = "pinecall"
-  subnets           = var.subnets
-  security_groups   = var.security_groups
-  instance_profile  = module.secrets.worker_instance_profiles["production"]
-  calls_per_machine = 19
+  source           = "../../modules/fleet-aws"
+  world            = "production"
+  fleet            = "pinecall"
+  subnets          = var.subnets
+  security_groups  = var.security_groups
+  instance_profile = module.secrets.worker_instance_profiles["production"]
 }

@@ -103,14 +103,11 @@ module "secrets" {
 }
 
 module "fleet" {
-  source            = "../../modules/fleet-gcp"
-  world             = "production"
-  fleet             = "pinecall"
-  zone              = var.zone
-  subnetwork        = module.network.fleet_subnet
-  service_account   = module.secrets.worker_service_accounts["production"]
-  health_port       = 8082
-  min               = 0
-  max               = 10
-  calls_per_machine = 19
+  source          = "../../modules/fleet-gcp"
+  world           = "production"
+  fleet           = "pinecall"
+  zone            = var.zone
+  subnetwork      = module.network.fleet_subnet
+  service_account = module.secrets.worker_service_accounts["production"]
+  health_port     = 8082
 }
