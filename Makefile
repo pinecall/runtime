@@ -128,6 +128,21 @@ test-box:         ## every suite on the box's database through an ssh tunnel; th
 	    | sed 's/127.0.0.1:5432/127.0.0.1:$(TUNNEL)/')" uv run pytest -q $(T); status=$$?; \
 	  pkill -f "ssh -f -N -o ExitOnForwardFailure=yes -L $(TUNNEL):" ; exit $$status
 
+# infra-v2's images, built by Cloud Build as the builds' own identity (infra-v2/terraform/modules/
+# build), never on the laptop. The runtime's context is the Containerfile and this checkout's
+# wheel alone; its tag is the commit, so a cluster runs exactly what the commit holds.
+REGISTRY ?= us-central1-docker.pkg.dev/$(PROJECT)/pinecall
+BUILDER  ?= projects/$(PROJECT)/serviceAccounts/pinecall-build@$(PROJECT).iam.gserviceaccount.com
+TAG      ?= $(shell git rev-parse --short HEAD)
+image-v2:         ## the runtime's container image, TAG=<commit>, built and checked by Cloud Build
+	scripts/console
+	rm -rf dist && uv build --wheel --quiet
+	rm -rf .image-v2 && mkdir .image-v2
+	cp infra-v2/images/pinecall/Containerfile dist/pinecall-*.whl .image-v2/
+	gcloud builds submit .image-v2 --config infra-v2/images/pinecall/cloudbuild.yaml \
+	  --service-account $(BUILDER) --substitutions _IMAGE=$(REGISTRY)/runtime:$(TAG) \
+	  --project $(PROJECT) --region us-central1; status=$$?; rm -rf .image-v2; exit $$status
+
 comma := ,
 
-.PHONY: check test db hooks box deploy rollback release logs ssh test-box tf-check tf-init tf-plan tf-apply image local local-gateway local-worker local-down
+.PHONY: check test db hooks box deploy rollback release logs ssh test-box tf-check tf-init tf-plan tf-apply image image-v2 local local-gateway local-worker local-down
