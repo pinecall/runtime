@@ -17,7 +17,7 @@ import httpx
 import uvicorn
 from livekit import api
 
-from pinecall.channels import whatsapp
+from pinecall.channels import offers, whatsapp
 from pinecall.cli import (
     _archive,
     _box,
@@ -392,6 +392,7 @@ async def _examined(settings: Settings) -> list[tuple[str, str | None, str]]:
         ("database", await _database(settings), ""),
         ("facts", await _facts.examined(settings), ""),
         ("days", await _days(settings), ""),
+        ("offers", await _offers(settings), ""),
         ("archive", *await _archived(settings)),
         ("livekit", await _livekit(settings), ""),
         ("gateway", await _gateway(settings), ""),
@@ -405,6 +406,17 @@ async def _days(settings: Settings) -> str | None:
         return str(refused)
     try:
         return await days.examined(pool, time.time())
+    finally:
+        await pool.close()
+
+
+async def _offers(settings: Settings) -> str | None:
+    try:
+        pool = await open_pool(settings.database_url)
+    except PinecallError as refused:
+        return str(refused)
+    try:
+        return await offers.examined(pool, time.time())
     finally:
         await pool.close()
 

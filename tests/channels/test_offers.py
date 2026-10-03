@@ -1,5 +1,9 @@
 """Tests for who takes a call: the rooms kept, a worker with a seat, the overflow, once each."""
 
+import logging
+
+import pytest
+
 from pinecall.channels import offers
 from pinecall.channels.offers import Offering
 from pinecall.channels.rooms import Dispatch, read_dispatch
@@ -43,15 +47,26 @@ async def test_an_opened_room_and_an_old_one_are_forgotten(pool: Pool) -> None:
     assert await offers.waiting(pool, since=0.0) == {}
 
 
-async def test_a_room_offered_goes_to_a_worker_with_a_seat_and_only_once(pool: Pool) -> None:
+async def test_a_room_offered_goes_to_a_worker_with_a_seat_and_only_once(
+    pool: Pool, caplog: pytest.LogCaptureFixture
+) -> None:
     server = Server()
     offering = an_offering(pool, server, "pinecall")
     carried = Dispatch(org="org_a", env="production")
-    assert await offering.offer("call-1", "pinecall", carried) == "pinecall/w1"
+    with caplog.at_level(logging.INFO, logger="pinecall.channels.offers"):
+        assert await offering.offer("call-1", "pinecall", carried) == "pinecall/w1"
+    assert "room call-1: offered to pinecall/w1: 4 seats free, heard 0 s ago" in caplog.messages
     assert await offering.offer("call-1", "pinecall", carried) is None
     (made,) = server.dispatcher.made
     assert (made.agent_name, read_dispatch(made.metadata)) == ("pinecall/w1", carried)
     await server.aclose()
+
+
+# Every room is let go by its third offer: one kept past a minute means nobody sweeps.
+async def test_the_doctor_names_rooms_kept_past_every_offer(pool: Pool) -> None:
+    await offers.opened(pool, "call-1", "pinecall", "{}", 100.0)
+    assert await offers.examined(pool, 100.0 + offers.UNSWEPT_AFTER_S) is None
+    assert await offers.examined(pool, 101.0 + offers.UNSWEPT_AFTER_S) == offers.UNSWEPT.format(n=1)
 
 
 async def test_a_room_of_a_fleet_with_no_seat_goes_to_the_overflow(pool: Pool) -> None:

@@ -72,6 +72,7 @@ def test_the_doctor_says_each_missing_thing_and_exits_one(
         "database",
         "facts",
         "days",
+        "offers",
         "archive",
         "livekit",
         "gateway",
