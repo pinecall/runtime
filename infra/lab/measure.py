@@ -62,6 +62,13 @@ select (select count(*) from c), (select count(*) from s),
         where l.type='call.ended' and l.data->>'reason' = 'drained') from a
 """
 
+# The scaled worker that started the most of a step's calls, and how many.
+BUSIEST = """
+select data->>'worker', count(*) from call_log
+where type = 'call.started' and ts >= {t0} and data->>'worker' like 'worker-scaled-%'
+group by 1 order by 2 desc limit 1
+"""
+
 CORE = (
     "pinecall-gateway",
     "pinecall-livekit",
@@ -230,7 +237,7 @@ class Lab:
         if kill_at is not None:
             waited = (kill_at - 1) / rate + 0.5
             time.sleep(waited)
-            self.kill_a_node()
+            self.kill_a_node(t0)
         time.sleep(max(0.0, calls / rate + SETTLED_S - waited))
         workers, core = self.cpu_over(WINDOW_S)
         caller.wait()
@@ -281,18 +288,15 @@ class Lab:
         return f"{replicas} · {len(nodes.split())}"
 
     # As a machine that dies: a hard reset, no pod stopped, no socket closed, nothing told.
-    def kill_a_node(self) -> None:
-        """The node of the scaled worker holding the most calls reset at once, and the note."""
-        roster = self.ops_call("GET", "/v1/ops/fleet", None)
-        scaled = [
-            seat
-            for seat in roster["workers"]
-            if seat["worker"].startswith("worker-scaled-") and seat["active"] > 0
-        ]
-        if not scaled:
-            self.notes.append("no scaled worker held a call: nothing was killed")
+    def kill_a_node(self, since: float) -> None:
+        """The node of the scaled worker that started the most of the step's calls reset at once."""
+        # The call log, not the roster: a heartbeat is up to 5 s behind the calls a worker took.
+        started = self.psql(BUSIEST.format(t0=since))
+        if not started:
+            self.notes.append("no scaled worker had started a call: nothing was killed")
             return
-        busiest = max(scaled, key=lambda seat: seat["active"])
+        worker, calls = started.split("|")
+        busiest = {"worker": worker, "active": int(calls)}
         node = self.kubectl("get", "pod", busiest["worker"], "-o", "jsonpath={.spec.nodeName}")
         progress(f"{node} reset at once, its worker holding {busiest['active']} calls")
         _ran(

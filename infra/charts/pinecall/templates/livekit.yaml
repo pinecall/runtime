@@ -13,10 +13,10 @@ spec:
   template:
     metadata:
       labels: { app: pinecall-livekit }
-      # Its config is a Secret External Secrets writes from secrets.yaml's template: a change to the
-      # template rolls the pod, as a release should; a rotated value is a rotation of its own.
-      annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+      # One instance holds every call, so a release never restarts it on its own: its config, the
+      # Secret External Secrets writes, is read at start and applied by `kubectl rollout restart`
+      # at an hour with no call; a new image is the same (on staging, 2026-10-03, a release that
+      # rolled both restarted them with sixteen calls up).
     spec:
       hostNetwork: true
       # On the node's network, the cluster's names still resolve: the gateway's Service, Redis's.
