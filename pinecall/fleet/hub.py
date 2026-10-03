@@ -2,11 +2,10 @@
 
 import math
 import os
-import re
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from fractions import Fraction
 from pathlib import Path
 from typing import TextIO
@@ -122,9 +121,6 @@ class Cloud:
         return done.stdout
 
 
-NUMBERED = re.compile(rf"^{re.escape(MACHINE_PREFIX)}(\d+)$")
-
-
 # A tick grows by what is missing, up to `grow_at_most` machines, or cordons one: a boot takes
 # minutes, and the next tick sees better numbers. Every delete that is due goes out. A machine the
 # cloud does not list as the fleet's counts in the numbers and is never let go.
@@ -155,7 +151,7 @@ def decide(
     workers = len(holding) + booting
     wanted, why = _missing(active, capacity, workers, line)
     if wanted:
-        decided += [Grow(name, why) for name in free_names(machines, wanted)]
+        decided += [Grow(name, why) for name in new_names(managed, wanted, now)]
     elif booting == 0:
         letting_go = _one_too_many(holding, managed, active, capacity, line)
         if letting_go is not None:
@@ -163,14 +159,18 @@ def decide(
     return decided
 
 
-def free_names(machines: Sequence[Machine], count: int) -> list[str]:
-    """The `count` lowest free `pinecall-worker-N`."""
-    taken = {int(found.group(1)) for machine in machines if (found := NUMBERED.match(machine.name))}
+# A name is a machine everywhere: its worker's heartbeats, a cordon, its keys, its LiveKit name.
+# One used before carries the last machine's cordon and its silence onto the next, which the loop
+# then deletes as cordoned and gone; so no name is used twice, each the time it was asked for.
+def new_names(taken: set[str], count: int, now: float) -> list[str]:
+    """`count` names never used: `pinecall-worker-<yymmddhhmmss>-<n>`, none of them taken."""
+    stamp = datetime.fromtimestamp(now, UTC).strftime("%y%m%d%H%M%S")
     names: list[str] = []
     number = 1
     while len(names) < count:
-        if number not in taken:
-            names.append(f"{MACHINE_PREFIX}{number}")
+        name = f"{MACHINE_PREFIX}{stamp}-{number}"
+        if name not in taken:
+            names.append(name)
         number += 1
     return names
 

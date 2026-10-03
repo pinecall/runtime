@@ -346,7 +346,7 @@ fifteen seconds (`fleet/hub.py`, numbers in, decisions out):
 |---|---|
 | a cordoned machine holds no call, or went silent | **delete** it |
 | a machine never dialled in within 10 min, or fell silent for 5 | **delete** it |
-| fewer workers than `--min`, no seat anywhere, or busy over the target | **grow** by what is missing: `create pinecall-worker-<n>` for each machine |
+| fewer workers than `--min`, no seat anywhere, or busy over the target | **grow** by what is missing: `create pinecall-worker-<yymmddhhmmss>-<n>` for each machine, a name never used before (a reused one would carry the last machine's cordon onto the next) |
 | busy would still be under the target **by 0.15** without the quietest, and more than `--min` | **cordon** the quietest |
 
 What is missing is counted in seats: those that bring busy back to the target (`active / target`,
