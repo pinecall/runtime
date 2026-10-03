@@ -1,7 +1,7 @@
 # Numbers — the accounts an org's numbers live in, and how a number reaches the box
 
 A number reaches an agent in three writes: the carrier points it at the box, the box admits it,
-and a route says which agent answers. The doors below do all three. Every one takes the org's
+and a route says which agent answers ([telephony.md](../telephony.md) is how the three fit). The doors below do all three. Every one takes the org's
 key with the `numbers` scope and acts in the key's world: a `pc_live_` key imports into
 production, a `pc_test_` key into the sandbox, a person's key into the world the request names.
 
