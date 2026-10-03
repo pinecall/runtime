@@ -22,7 +22,7 @@ from pinecall.fleet.heartbeat import (
     announced_ready,
 )
 from pinecall.fleet.measures import LastMinute, listening, measures_path
-from pinecall.fleet.roster import HEARTBEAT_S
+from pinecall.fleet.roster import overflow_name
 from pinecall.process.settings import Settings, load
 from pinecall.providers.build import installed, tts_of
 from pinecall.providers.credentials import Pipeline
@@ -66,11 +66,8 @@ NO_LIVEKIT = "LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET: a worker regi
 _STAGES: TypeAdapter[Pipeline] = TypeAdapter(Pipeline)
 
 
-# livekit weighs workers by 1 - load: a middling load would still take calls. Full until the
-# fleet is full, then empty.
-CLOSED = 1.0
-
-
+# The overflow is offered a call only by the gateway, by its name, when no worker of the fleet
+# has a seat: it never reads itself full.
 OPEN = 0.0
 
 
@@ -85,18 +82,6 @@ NOT_TOLD = "call %s: the caller its worker left was not told all of it; the room
 
 
 NOT_SEALED = "call %s: the gateway did not take the seal; its reaper seals the call"
-
-
-class OverflowGate:
-    """The overflow's load: full until the gateway says every worker of the fleet is."""
-
-    def __init__(self) -> None:
-        """Closed."""
-        self.fleet_is_full = False
-
-    def __call__(self, _server: AgentServer) -> float:
-        """The load livekit reads twice a second."""
-        return OPEN if self.fleet_is_full else CLOSED
 
 
 # Module-level: livekit pickles the entrypoint by module and name, so the gateway it reaches is
@@ -218,8 +203,13 @@ async def overflow_job(ctx: JobContext) -> None:
         await ended_and_sealed(gateway, writing, ended, settings.overflow_says)
 
 
-def overflow_of(settings: Settings, gate: OverflowGate) -> AgentServer:
-    """The overflow's AgentServer, under the fleet's name, on any free port."""
+def always_open(_server: AgentServer) -> float:
+    """The overflow's load: it never reads itself full."""
+    return OPEN
+
+
+def overflow_of(settings: Settings) -> AgentServer:
+    """The overflow's AgentServer, under <fleet>/overflow, on any free port, always open."""
     _refuse_an_unregistrable(settings)
     # Preloaded in the forkserver, as for the worker's own server.
     installed()
@@ -229,28 +219,23 @@ def overflow_of(settings: Settings, gate: OverflowGate) -> AgentServer:
         api_secret=settings.livekit_api_secret,
         host="127.0.0.1",
         port=0,
-        load_fnc=gate,
+        load_fnc=always_open,
         setup_fnc=prewarm,
         initialize_process_timeout=INITIALIZE_S,
     )
-    server.rtc_session(overflow_job, agent_name=settings.fleet)
+    server.rtc_session(overflow_job, agent_name=overflow_name(settings.fleet))
     return server
 
 
 async def overflow(settings: Settings) -> int:
-    """Run the overflow until told to stop, opening and closing with its fleet's standing."""
-    gate = OverflowGate()
-    server = overflow_of(settings, gate)
-    gateway = gateway_at(settings.gateway_url, settings.worker_key)
+    """Run the overflow until told to stop: the gateway sends it calls no worker has a seat for."""
+    server = overflow_of(settings)
     stopping = _stop_on_a_signal()
     running = asyncio.create_task(server.run())
-    watching = asyncio.create_task(_watched(gate, gateway, settings.fleet))
     await asyncio.wait(
         {running, asyncio.create_task(stopping.wait())}, return_when=asyncio.FIRST_COMPLETED
     )
-    watching.cancel()
     await server.aclose()
-    await gateway.aclose()
     return 0
 
 
@@ -298,20 +283,6 @@ async def _said_once(ctx: JobContext, writing: Writing, stages: Pipeline, says: 
     await session.say(says, allow_interruptions=False)
     writing.write("agent.transcript", sentence_entry(says))
     await session.aclose()
-
-
-# A gateway that does not answer leaves the gate as it was.
-async def _watched(gate: OverflowGate, gateway: GatewayClient, fleet: str) -> None:
-    while True:
-        try:
-            full = await gateway.fleet_is_full(fleet)
-        except GatewayRefused as refused:
-            logger.warning("the fleet's standing: %s", refused)
-        else:
-            if full != gate.fleet_is_full:
-                gate.fleet_is_full = full
-                logger.warning("the fleet is %s", "full: the overflow answers" if full else "open")
-        await asyncio.sleep(HEARTBEAT_S)
 
 
 def _gateway_of(proc: JobProcess, settings: Settings) -> GatewayClient:

@@ -2,10 +2,8 @@
 
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, Request
 
 from pinecall.channels import rooms
 from pinecall.domain.errors import NotAllowed, NotAvailable, NotFound
@@ -13,11 +11,11 @@ from pinecall.domain.org import DEFAULT_ORG
 from pinecall.domain.person import THE_FLEET, THE_JOIN
 from pinecall.fleet import worlds
 from pinecall.gateway._deps import FleetKey, GatewayDep, JoinKey, bearer_of, operator, public_url
+from pinecall.gateway.dispatching.arrivals import arrived
 from pinecall.gateway.ending.stranded import stranded
 from pinecall.tenancy import keys
 from pinecall.tenancy.people import fingerprint
 from pinecall.wire.rest.fleet import (
-    FleetTotals,
     HeartbeatRequest,
     HeartbeatResponse,
     JoinRequest,
@@ -41,12 +39,6 @@ NOT_THIS_MACHINE = "this token joins {name}, not {asked}: the loop made it for o
 NO_LIVEKIT_KEY = "this gateway holds no LiveKit key to hand a worker: it runs none"
 
 
-class FleetQuery(BaseModel):
-    """Which fleet the overflow asks about; unset, the fleet of the key's world."""
-
-    fleet: str | None = None
-
-
 @router.post("/v1/fleet/heartbeat")
 async def heartbeat(
     body: HeartbeatRequest, _key: FleetKey, gateway: GatewayDep
@@ -55,20 +47,11 @@ async def heartbeat(
     return gateway.roster.report(body, time.time())
 
 
-@router.get("/v1/fleet/standing")
-async def fleet_status(
-    key: FleetKey, gateway: GatewayDep, query: Annotated[FleetQuery, Query()]
-) -> FleetTotals:
-    """A fleet's workers summed; the overflow opens when it is full."""
-    fleet = query.fleet or worlds.fleet_of(await worlds.fleets(gateway.connections.pool), key.env)
-    return gateway.roster.totals(fleet, time.time())
-
-
 # livekit sends its token bare in Authorization, and every room event of the box: all but an
 # agent lost mid-call are answered and let be.
 @router.post("/v1/livekit/webhook", status_code=204)
 async def receive_livekit_event(request: Request, gateway: GatewayDep) -> None:
-    """A room event LiveKit signed: an agent lost mid-call has its caller told, its call ended."""
+    """A room event LiveKit signed: a caller alone is offered a worker; an agent lost, told."""
     token = request.headers.get("Authorization")
     if not token:
         raise NotAllowed(UNSIGNED)
@@ -77,7 +60,8 @@ async def receive_livekit_event(request: Request, gateway: GatewayDep) -> None:
     event = rooms.livekit_event(
         body, token, settings.livekit_api_key or "", settings.livekit_api_secret or ""
     )
-    await stranded(gateway.serving, gateway.connections.server, event)
+    await stranded(gateway.serving, gateway.offering, event)
+    await arrived(gateway.offering, event)
 
 
 # The loop asks for one before it makes a machine and hands it over as the machine's first-boot

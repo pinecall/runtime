@@ -530,7 +530,7 @@ async def _on_the_line(
     joined = dataclasses.replace(line, url=connections.settings.livekit_url, token=token)
     speech = tts_of(voice)
     try:
-        await rooms.dispatched(connections.server, line.call, fleet, dispatch)
+        await gateway.offering.offer(line.call, fleet, dispatch)
         return await spoken.run_spoken(joined, speech, gateway.logs, next_line)
     except (TimeoutError, rtc.ConnectError) as broke:
         raise NotAvailable(NO_LINE.format(broke=broke)) from broke

@@ -337,6 +337,8 @@ class Dispatcher(AgentDispatchService):
     """The server's dispatch door, keeping every dispatch, or refusing as told."""
 
     made: list[CreateAgentDispatchRequest]
+    # What the SIP rule or a visitor's token put on a room before any test's dispatch.
+    seeded: list[AgentDispatch]
     refusal: api.TwirpError | None
 
     @override
@@ -346,6 +348,18 @@ class Dispatcher(AgentDispatchService):
             raise self.refusal
         self.made.append(req)
         return AgentDispatch(room=req.room, agent_name=req.agent_name, metadata=req.metadata)
+
+    @override
+    async def list_dispatch(self, room_name: str) -> list[AgentDispatch]:
+        """The room's dispatches, the ones a test seeded first, each newer than the one before."""
+        made = [
+            AgentDispatch(room=req.room, agent_name=req.agent_name, metadata=req.metadata)
+            for req in self.made
+        ]
+        found = [dispatch for dispatch in [*self.seeded, *made] if dispatch.room == room_name]
+        for order, dispatch in enumerate(found, start=1):
+            dispatch.state.created_at = order
+        return found
 
 
 class Server(api.LiveKitAPI):
@@ -364,6 +378,7 @@ class Server(api.LiveKitAPI):
         self.rooms.requests, self.rooms.existing, self.rooms.people = [], {}, set()
         self.dispatcher = Dispatcher.__new__(Dispatcher)
         self.dispatcher.made, self.dispatcher.refusal = [], None
+        self.dispatcher.seeded = []
 
     @property
     @override

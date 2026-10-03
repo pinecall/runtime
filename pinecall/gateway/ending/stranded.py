@@ -6,6 +6,7 @@ from livekit import api
 from livekit.protocol.webhook import WebhookEvent
 
 from pinecall.channels import rooms
+from pinecall.channels.offers import Offering
 from pinecall.channels.rooms import Dispatch
 from pinecall.fleet import worlds
 from pinecall.gateway._served import Serving
@@ -38,8 +39,9 @@ STRANDED = "call %s: its worker went away (%s); the caller is told once and the 
 
 # The end is written first and only once: it is what tells a second delivery of the same event,
 # the worker's own late end and the told job's own leaving that there is nothing left to do.
-async def stranded(serving: Serving, server: api.LiveKitAPI, event: WebhookEvent) -> str | None:
+async def stranded(serving: Serving, offering: Offering, event: WebhookEvent) -> str | None:
     """End the call whose agent the event says was lost, and send its fleet to tell the caller."""
+    server = offering.server
     if not _an_agent_lost(event):
         return None
     call = event.room.name
@@ -61,7 +63,7 @@ async def stranded(serving: Serving, server: api.LiveKitAPI, event: WebhookEvent
         worker_gone=True,
         entries_written=kept.written,
     )
-    await rooms.dispatched(server, call, fleet, dispatch)
+    await offering.offer(call, fleet, dispatch)
     reason = api.DisconnectReason.Name(event.participant.disconnect_reason)
     logger.warning(STRANDED, call, reason)
     return call

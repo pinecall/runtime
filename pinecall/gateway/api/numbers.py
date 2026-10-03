@@ -342,6 +342,7 @@ async def dial_out(
         gateway.connections,
         gateway.logs,
         placement,
+        gateway.offering,
         running=gateway.live.running(where.org, where.env),
     )
     return DialResponse.model_validate(

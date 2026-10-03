@@ -6,6 +6,7 @@ import pytest
 from livekit import api
 
 from pinecall.channels import rooms
+from pinecall.channels.offers import Offering
 from pinecall.channels.telephony import dialing, numbers
 from pinecall.channels.telephony._twilio import termination_host
 from pinecall.channels.telephony.dialing import Placement
@@ -31,7 +32,7 @@ from tests.channels.conftest import (
     dial_of,
     ledger,
 )
-from tests.conftest import postgres
+from tests.conftest import an_offering, postgres
 from tests.fakes.idp import a_sid
 
 # ── outbound: the account to dial through ──
@@ -157,6 +158,11 @@ async def ready_to_dial(line: Line) -> None:
     )
 
 
+def dispatching(line: Line) -> Offering:
+    """The gateway's dispatcher on the line's pool and server, production's fleet one worker."""
+    return an_offering(line.connections.pool, line.server, "pinecall")
+
+
 def placing(line: Line, shown: str | None = None) -> Placement:
     """A call back to her phone, asked by Ana."""
     return Placement(line.scope(), "recepcion", HER_PHONE, shown, "m_ana", date(2026, 9, 28), NOON)
@@ -168,7 +174,13 @@ async def test_a_call_placed_opens_its_log_dialing_and_dispatches_its_worlds_fle
 ) -> None:
     await ready_to_dial(line)
     logs = Logs(store)
-    placed = await dialing.place_call(line.connections, logs, placing(line), running=0)
+    placed = await dialing.place_call(
+        line.connections,
+        logs,
+        placing(line),
+        dispatching(line),
+        running=0,
+    )
     assert (placed.to, placed.shown) == (HER_PHONE, A_NUMBER)
     (entry,) = await store.whole(placed.call)
     assert entry.type == "call.dialing"
@@ -180,7 +192,7 @@ async def test_a_call_placed_opens_its_log_dialing_and_dispatches_its_worlds_fle
     (request,) = [
         made_one for made_one in line.server.dispatcher.made if made_one.room == placed.call
     ]
-    assert request.agent_name == "pinecall"
+    assert request.agent_name == "pinecall/w1"
     data = rooms.read_dispatch(request.metadata)
     assert data.dial is not None
     assert (data.direction, data.dial.trunk, data.dial.shown) == (
@@ -200,11 +212,21 @@ async def test_a_number_shown_that_is_not_the_agents_and_an_agent_with_none_are_
     await ready_to_dial(line)
     with pytest.raises(DeclarationRefused, match="not a number agent recepcion answers at"):
         await dialing.place_call(
-            line.connections, Logs(store), placing(line, "+34910000000"), running=0
+            line.connections,
+            Logs(store),
+            placing(line, "+34910000000"),
+            dispatching(line),
+            running=0,
         )
     other = Placement(line.scope(), "agenda", HER_PHONE, None, "m_ana", date(2026, 9, 28), NOON)
     with pytest.raises(NotFound, match="answers at no phone number"):
-        await dialing.place_call(line.connections, Logs(store), other, running=0)
+        await dialing.place_call(
+            line.connections,
+            Logs(store),
+            other,
+            dispatching(line),
+            running=0,
+        )
 
 
 @postgres
@@ -215,7 +237,13 @@ async def test_a_number_the_org_hooked_itself_dials_through_nothing(
         line.connections, NumberImport(line.scope(), "recepcion", A_NUMBER, hooked=True)
     )
     with pytest.raises(Conflict, match="dials through no account"):
-        await dialing.place_call(line.connections, Logs(store), placing(line), running=0)
+        await dialing.place_call(
+            line.connections,
+            Logs(store),
+            placing(line),
+            dispatching(line),
+            running=0,
+        )
 
 
 @postgres
@@ -225,7 +253,13 @@ async def test_a_dispatch_the_sfu_refuses_ends_the_call_dial_failed_and_seals_it
     await ready_to_dial(line)
     line.server.dispatcher.refusal = api.TwirpError("unavailable", "no fleet", status=503)
     with pytest.raises(UpstreamFailed, match="no fleet"):
-        await dialing.place_call(line.connections, Logs(store), placing(line), running=0)
+        await dialing.place_call(
+            line.connections,
+            Logs(store),
+            placing(line),
+            dispatching(line),
+            running=0,
+        )
     (call,) = [row[2] for row in await ledger(line)]
     assert call is not None
     kinds = [entry.type for entry in await store.whole(call)]

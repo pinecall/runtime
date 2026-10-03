@@ -8,7 +8,16 @@ from pinecall.domain.person import THE_FLEET, KeyScope
 from pinecall.domain.scope import Scope
 from pinecall.log.store import Claim
 from pinecall.tenancy import vault
-from tests.conftest import AGENT, BOX_DOMAIN, Knocking, issued, postgres, received_until, sent
+from tests.conftest import (
+    AGENT,
+    BOX_DOMAIN,
+    Knocking,
+    a_worker_heard,
+    issued,
+    postgres,
+    received_until,
+    sent,
+)
 from tests.fakes.livekit import Server
 from tests.fakes.twilio import Twilio
 from tests.gateway.api.conftest import an_app
@@ -270,6 +279,7 @@ async def dialling(knocking: Knocking, twilio: Twilio) -> Knocking:
 async def test_a_call_back_is_202_with_its_call_and_a_log_token_and_nobody_holding_is_409(
     dialling: Knocking,
 ) -> None:
+    a_worker_heard(dialling.gateway.roster, "pinecall")
     async with dialling.http(dialling.app["production"]) as console:
         nobody = await console.post(f"/v1/agents/{AGENT}/dial", json={"to": HER_PHONE})
         app = await dialling.socket("/v1/apps", dialling.app["production"])
@@ -285,7 +295,7 @@ async def test_a_call_back_is_202_with_its_call_and_a_log_token_and_nobody_holdi
     server = dialling.gateway.connections.server
     assert isinstance(server, Server)
     (dispatch,) = server.dispatcher.made
-    assert (dispatch.room, dispatch.agent_name) == (answer["call"], "pinecall")
+    assert (dispatch.room, dispatch.agent_name) == (answer["call"], "pinecall/w1")
 
 
 @postgres

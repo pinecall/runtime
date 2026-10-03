@@ -1,6 +1,6 @@
 """Tests for whom a call is offered to: a worker heard lately, with a seat free, the freest."""
 
-from pinecall.gateway.dispatching._chooser import HEARD_WITHIN_S, chosen, free_seats
+from pinecall.channels._chooser import HEARD_WITHIN_S, chosen, free_seats
 from pinecall.wire.rest.fleet import WorkerStatus
 
 NOW = 1_000.0

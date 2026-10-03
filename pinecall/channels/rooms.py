@@ -101,10 +101,10 @@ def room_dispatch(fleet: str, dispatch: Dispatch) -> RoomConfiguration:
 
 
 # livekit creates the room if it does not exist; its name is the call id the worker opens.
-async def dispatched(server: api.LiveKitAPI, room: str, fleet: str, dispatch: Dispatch) -> None:
-    """Send the world's fleet into a room: an outbound call, or a ring handed to a sandbox."""
+async def dispatched(server: api.LiveKitAPI, room: str, agent: str, dispatch: Dispatch) -> None:
+    """Send the workers registered under this name into a room, with the call's dispatch."""
     await server.agent_dispatch.create_dispatch(
-        api.CreateAgentDispatchRequest(room=room, agent_name=fleet, metadata=written(dispatch))
+        api.CreateAgentDispatchRequest(room=room, agent_name=agent, metadata=written(dispatch))
     )
 
 

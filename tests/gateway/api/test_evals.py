@@ -17,7 +17,16 @@ from pinecall.providers import catalog
 from pinecall.tenancy import admission, judges, personas
 from pinecall.tenancy.personas import Persona, PersonaEdit
 from pinecall.wire.rest.evals import EvalRunResponse
-from tests.conftest import AGENT, Knocking, configured, issued, postgres, received_until, sent
+from tests.conftest import (
+    AGENT,
+    Knocking,
+    a_worker_heard,
+    configured,
+    issued,
+    postgres,
+    received_until,
+    sent,
+)
 from tests.fakes.livekit import Server
 from tests.gateway.api.conftest import an_app
 
@@ -581,6 +590,7 @@ async def test_the_agent_is_dispatched_with_the_persona_and_the_room_is_deleted_
 
     monkeypatch.setattr(rtc.Room, "connect", refused)
     await written_for(knocking, AGENT)
+    a_worker_heard(knocking.gateway.roster)
     ruled = {**APURADO, "accepts_when": "a Tuesday slot"}
     async with knocking.http(knocking.app["sandbox"]) as http:
         answer = await http.post(
@@ -592,7 +602,7 @@ async def test_the_agent_is_dispatched_with_the_persona_and_the_room_is_deleted_
     assert isinstance(server, Server)
     [dispatch] = server.dispatcher.made
     assert dispatch.room == "call_1"
-    assert dispatch.agent_name == "pinecall-sandbox"
+    assert dispatch.agent_name == "pinecall-sandbox/w1"
     assert '"persona":"apurado"' in dispatch.metadata
     assert '"accepts_when":"a Tuesday slot"' in dispatch.metadata
     assert [str(getattr(request, "room", "")) for request in server.rooms.requests] == ["call_1"]

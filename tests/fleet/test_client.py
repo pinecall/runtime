@@ -359,7 +359,7 @@ async def test_a_heartbeat_says_the_fleet_is_open(knocking: Knocking) -> None:
     )
     existing = await client.heartbeat(beat)
     assert not existing.cordoned
-    assert not await client.fleet_is_full("pinecall-sandbox")
+    assert not existing.full
     await client.aclose()
 
 
@@ -414,7 +414,11 @@ async def test_a_refusal_names_the_request_refused_and_its_status(knocking: Knoc
 async def test_a_gateway_that_is_not_there_is_a_refusal_and_never_a_traceback() -> None:
     client = gateway_at("http://127.0.0.1:9", "pc_test_x")
     with pytest.raises(GatewayRefused) as refused:
-        await client.fleet_is_full("pinecall")
+        await client.heartbeat(
+            HeartbeatRequest(
+                fleet="pinecall", worker="w1", active=0, max_jobs=4, load=0.0, draining=False
+            )
+        )
     assert refused.value.answered is None
     await client.aclose()
 

@@ -1,6 +1,7 @@
 """Tests for the fleet doors: the heartbeat and the roster."""
 
 import json
+import time
 
 from livekit import api
 
@@ -33,9 +34,9 @@ async def test_a_heartbeat_reaches_the_roster_of_its_fleet(knocking: Knocking) -
     )
     async with knocking.http(knocking.fleet["sandbox"]) as worker:
         existing = (await worker.post("/v1/fleet/heartbeat", json=beat.written())).json()
-        totals = (await worker.get("/v1/fleet/standing")).json()
+    totals = knocking.gateway.roster.totals("pinecall-sandbox", time.time())
     assert existing == {"cordoned": False, "full": False}
-    assert (totals["fleet"], totals["workers"], totals["free"]) == ("pinecall-sandbox", 1, 3)
+    assert (totals.fleet, totals.workers, totals.free) == ("pinecall-sandbox", 1, 3)
 
 
 @postgres

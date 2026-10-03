@@ -238,8 +238,15 @@ for a machine that vanished, above), leaves the caller in silence
 no retry). The gateway knows more, every worker's seats, calls and last heartbeat, five seconds old
 at most, so the gateway chooses.
 
-A room a caller joined is kept in `offers` until a worker opens its call
-(`gateway/dispatching/`). The gateway offers it to the worker of the fleet heard in the last 12 s
+The SIP rule and a visitor's token keep dispatching to the fleet by its plain name, which no worker
+holds, so LiveKit starts no job and keeps the dispatch on the room with the call's metadata. When a
+person is alone in a room, LiveKit's webhook says so (`participant_joined`, or an agent's
+`participant_left` after a hand-over), and the gateway reads the room's newest dispatch: one to a
+fleet that nobody took is the call to place. The room is kept in `offers` until a worker opens its
+call (`channels/offers.py`, `gateway/dispatching/`); an outbound call, a simulated caller and the
+sentence of a worker gone are offered the same way, by the door that makes them. So **the
+gateway needs LiveKit's webhook** (`livekit.yaml`'s `webhook.urls`): a box without it places no
+call. The gateway offers it to the worker of the fleet heard in the last 12 s
 with the most seats free, counting the calls offered to it and not opened yet, by its LiveKit name
 (`<fleet>/<worker>`, above): no other worker can take it. A room no worker opened 12 s after its
 offer is offered to another (LiveKit waits 10 s on a worker that does not answer; a live one opens a
@@ -254,9 +261,11 @@ a number that is not 0 is a call that LiveKit or a worker dropped.
 
 When every worker of a fleet is at the line, the token door answers `503`, writes `fleet.full` on
 the agent's log, and names `POST /v1/callbacks`, so a page offers a call back before any room is
-made. A phone caller arriving at a full production fleet is answered by the **overflow**, a worker
-that is never full (`pinecall-overflow@production`): one sentence, `PINECALL_OVERFLOW_SAYS`, the
-caller's number onto the agent's log as `callback.requested`, and it hangs up. No ears, no model.
+made. A phone caller arriving at a full production fleet is answered by the **overflow**
+(`pinecall-overflow@production`), registered as `<fleet>/overflow` and offered a call by the
+gateway alone, when no worker has a seat or a room ran out of offers: one sentence,
+`PINECALL_OVERFLOW_SAYS`, the caller's number onto the agent's log as `callback.requested`, and it
+hangs up. No ears, no model.
 An org's own concurrency is its `concurrent_calls` quota, counted on the calls this gateway serves
 in that world and held at the door, never mid-call: sandbox calls never use up production's.
 
