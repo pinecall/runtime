@@ -1,0 +1,26 @@
+# The cluster's Postgres: the image of images/postgres, built by Cloud Build, under
+# CloudNativePG. pg_textsearch keeps BM25 statistics in shared memory, so it
+# is preloaded, by the operator's own setting; the two extensions are made once, at initdb, by the
+# superuser, as infra/postgres/extensions.sql does for the box (the migrations make none).
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pinecall-postgres
+spec:
+  instances: 1
+  imageName: us-central1-docker.pkg.dev/hiding-place-447317-c6/pinecall/postgres:17.11-pgvector0.8.6-pgtextsearch1.4.0
+  # The superuser makes the two extensions at initdb; the application connects as its owner.
+  enableSuperuserAccess: true
+  postgresql:
+    shared_preload_libraries:
+      - pg_textsearch
+  bootstrap:
+    initdb:
+      database: pinecall
+      owner: pinecall
+      postInitTemplateSQL:
+        - CREATE EXTENSION IF NOT EXISTS vector
+        - CREATE EXTENSION IF NOT EXISTS pg_textsearch
+  storage:
+    size: 20Gi
+    storageClass: standard-rwo

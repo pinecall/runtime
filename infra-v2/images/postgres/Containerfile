@@ -1,0 +1,22 @@
+# The Postgres of a cluster: CloudNativePG's own operand image (Postgres 17.11 with pgvector
+# 0.8.6, the box's same two), with pg_textsearch, the other half of hybrid search, built on it.
+# CloudNativePG's rule for a custom image: start from theirs, add as root, end as user 26, and
+# change nothing else; pg_textsearch's preload is the Cluster's (charts/pinecall), not this file's.
+
+# The digest is the multi-architecture index's: a Mac and a node build on the same bytes.
+ARG BASE=ghcr.io/cloudnative-pg/postgresql:17-standard-trixie@sha256:db440678e1eca4f53999f819a6200ceb4b8cd2339c568c9bb0596052d3bc4ac5
+
+FROM ${BASE} AS build
+ARG PG_TEXTSEARCH_TAG=v1.4.0
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential ca-certificates git postgresql-server-dev-17 \
+ && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 --branch ${PG_TEXTSEARCH_TAG} https://github.com/timescale/pg_textsearch.git /build/pg_textsearch \
+ && make -C /build/pg_textsearch && make -C /build/pg_textsearch install DESTDIR=/out
+
+FROM ${BASE}
+USER root
+COPY --from=build /out/usr/lib/postgresql/17/lib/ /usr/lib/postgresql/17/lib/
+COPY --from=build /out/usr/share/postgresql/17/extension/ /usr/share/postgresql/17/extension/
+USER 26

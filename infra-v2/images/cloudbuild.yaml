@@ -1,0 +1,13 @@
+# One image of infra-v2/images built by Cloud Build and pushed to the cluster's registry:
+#   gcloud builds submit infra-v2/images/<image> --config infra-v2/images/cloudbuild.yaml \
+#     --service-account <terraform output build_service_account> \
+#     --substitutions _IMAGE=<registry>/<image>:<tag>
+# Built on Google's machines, as the builds' own identity (terraform/modules/build), from the
+# Containerfile beside it: nothing is built on a laptop.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "Containerfile", "-t", "${_IMAGE}", "."]
+images:
+  - "${_IMAGE}"
+options:
+  logging: CLOUD_LOGGING_ONLY
