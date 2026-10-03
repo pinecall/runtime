@@ -42,6 +42,8 @@ class FleetTotals(WireModel):
     free: int
     accepting: int
     full: bool
+    # Rooms with a caller that no worker opened yet, offered by the gateway (gateway/dispatching/).
+    waiting: int = 0
 
 
 class WorkerStatus(WireModel):

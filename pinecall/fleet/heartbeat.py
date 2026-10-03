@@ -12,7 +12,7 @@ from livekit.agents.worker import ServerOptions
 from pinecall.domain.errors import DeclarationRefused, GatewayRefused
 from pinecall.fleet.client import GatewayClient
 from pinecall.fleet.measures import LastMinute
-from pinecall.fleet.roster import HEARTBEAT_S, REFUSED_AT
+from pinecall.fleet.roster import HEARTBEAT_S, REFUSED_AT, agent_name
 from pinecall.process.settings import Settings
 from pinecall.wire.rest.fleet import HeartbeatRequest
 
@@ -164,7 +164,7 @@ def worker_name_of(settings: Settings) -> str:
 # name a dispatch carries, so the gateway reaches this worker and no other (docs/scaling.md).
 def agent_name_of(settings: Settings) -> str:
     """The name the worker registers under with LiveKit: its fleet's, then its own."""
-    return f"{settings.fleet}/{worker_name_of(settings)}"
+    return agent_name(settings.fleet, worker_name_of(settings))
 
 
 # livekit's own CPU average, read off its options' default rather than its private class.

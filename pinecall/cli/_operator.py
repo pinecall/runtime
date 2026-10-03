@@ -468,9 +468,10 @@ def fleet_list(client: httpx.Client, args: argparse.Namespace) -> int:
         if args.fleet is not None and summed["fleet"] != args.fleet:
             continue
         full = "  FULL" if summed["full"] else ""
+        waiting = f" · {summed['waiting']} waiting for a worker" if summed.get("waiting") else ""
         _line_out(
             f"\n{summed['fleet']}: {summed['workers']} up · {summed['active']} calls · "
-            f"{summed['free']} seats free · {summed['accepting']} accepting{full}"
+            f"{summed['free']} seats free · {summed['accepting']} accepting{waiting}{full}"
         )
     return 0
 

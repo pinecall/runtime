@@ -22,6 +22,7 @@ type WorkerState = Literal["gone", "cordoned", "draining", "accepting", "failing
 # slots to both, and LiveKit stopped at 0.7 of them while the gateway still counted seats free.
 REFUSED_AT = 0.7
 EVERY_SLOT = 1.0
+OVERFLOW = "overflow"
 HEARTBEAT_S = 5.0
 # A worker silent this long is no longer capacity.
 STALE_AFTER_S = 30.0
@@ -202,6 +203,18 @@ def worker_state(seat: WorkerStatus, fleet: Sequence[WorkerStatus], now: float) 
     if seat in accepting_of(fleet, now):
         return "accepting"
     return "failing" if _accepting_now(seat, now) else "full"
+
+
+# A worker registers with LiveKit under <fleet>/<worker>, the fleet's overflow under
+# <fleet>/overflow: a dispatch reaches exactly the workers registered under its name.
+def agent_name(fleet: str, worker: str) -> str:
+    """The name a worker of a fleet is registered under with LiveKit."""
+    return f"{fleet}/{worker}"
+
+
+def overflow_name(fleet: str) -> str:
+    """The name the fleet's overflow is registered under with LiveKit."""
+    return agent_name(fleet, OVERFLOW)
 
 
 def refused_at(max_jobs: int | None) -> float:

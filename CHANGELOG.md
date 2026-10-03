@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **The gateway chooses the worker a call goes to** (in progress, on the `dispatcher` branch): a
+  worker registers with LiveKit under its own name, `<fleet>/<worker>`; a room a caller joined is
+  kept in `offers` and offered to the worker heard lately with the most seats free, again to
+  another after 12 s, and to the fleet's overflow after three; `fleet list` and `/metrics` say the
+  rooms waiting for a worker.
 - **The hosted apps' machine is Terraform's too** (`module "apps"`, imported with no change):
   nothing of the runtime's cloud is made by hand any more.
 - **A worker that counts its calls takes every one of them.** It reported `calls ÷ slots` to

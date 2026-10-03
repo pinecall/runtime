@@ -173,9 +173,10 @@ on the host and closed in the cloud.
 ## The fleet
 
 `GET /v1/ops/fleet`: `{now, stale_after_s, workers: [{fleet, worker, agent_name, active, max_jobs, load,
-draining, cordoned, seen_at, ended, failed, errors, turns, first_audio_p95_s}], totals: [{fleet, workers, active, seats, free, accepting, full}]}`,
+draining, cordoned, seen_at, ended, failed, errors, turns, first_audio_p95_s}], totals: [{fleet, workers, active, seats, free, accepting, full, waiting}]}`,
 every worker heard from in the last hour, both fleets, and each fleet summed over the workers heard
-from in the last 30 s. `POST /v1/ops/fleet/{worker}/cordon?fleet=` and `DELETE …/cordon`: the
+from in the last 30 s; `waiting` is the fleet's rooms with a caller no worker opened in the last
+ten minutes, offered by the gateway ([scaling.md](../scaling.md), "Who takes a call"). `POST /v1/ops/fleet/{worker}/cordon?fleet=` and `DELETE …/cordon`: the
 worker is told on its next heartbeat, takes no new call, finishes what it holds and leaves;
 `404` for a name nobody has. The loop that grows and shrinks a fleet is [scaling.md](../scaling.md).
 
