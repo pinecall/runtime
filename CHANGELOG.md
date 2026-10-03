@@ -12,6 +12,9 @@
   test reads the installed framework's to hold the worker to it.
 - A machine of workers no longer takes the box's `PINECALL_IDLE_PROCESSES` with its fleet's
   settings: it keeps livekit's, one warm process per CPU.
+- The lab stops a worker before it destroys its machine, keeps the machine's journal under
+  `.lab/`, and places its calls at `--rate` a second. A machine destroyed with its worker up stayed
+  registered in LiveKit for 15–20 minutes and took half the next run's calls into silence.
 - Every machine of the cell is a `pinecall-runtime cell` verb, as the box is `box up`: on the box
   `cell allow-replica`, `allow-gateway`, `allow-worker` (an address or the fleet's range), their
   `forget-…`, `gateway-credentials`, `worker-settings` and `worker-credentials`; on the machine,

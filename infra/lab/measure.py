@@ -173,9 +173,27 @@ class Lab:
         print(f"\nbox {box_type} · worker machine {worker_type}\n\n{HEADER}")
         for row in rows:
             print(row)
+        self.kept_journal()
+        # As the fleet loop lets a machine go: the worker stopped first, so it closes its link to
+        # LiveKit. A machine destroyed with its worker up stays registered in livekit-server for
+        # 15 minutes or more, and every call offered to it in that time is lost in silence.
+        self.ssh(WORKER, "sudo systemctl stop 'pinecall-worker@*'")
         self.ssh(BOX, f"sudo pinecall-runtime cell forget-worker {worker}")
         progress("the worker machine destroyed")
         self.applied(box_type, None)
+
+    # The evidence of a step is on the machine the step destroys: its worker's journal and the
+    # settings it ran with are kept here, under .lab/, before it goes.
+    def kept_journal(self) -> None:
+        """The worker machine's journal and fleet.env, saved under .lab/ and named."""
+        kept = RUNTIME / ".lab" / f"worker-{time.strftime('%Y%m%dT%H%M%S')}.log"
+        kept.parent.mkdir(exist_ok=True)
+        settings = self.ssh(WORKER, "sudo cat /etc/pinecall/fleet.env", quiet=True)
+        journal = self.ssh(
+            WORKER, "sudo journalctl -u 'pinecall-worker*' --no-pager -o short-iso", quiet=True
+        )
+        kept.write_text(f"# /etc/pinecall/fleet.env\n{settings}\n\n# journal\n{journal}\n")
+        progress(f"the worker's journal kept at {kept.relative_to(RUNTIME)}")
 
     def step(self, calls: int, box: str, gen: str) -> str:
         """That many calls at once, placed at the lab's rate, kept up; the row the step reads."""

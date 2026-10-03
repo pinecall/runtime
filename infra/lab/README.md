@@ -27,7 +27,9 @@ and starts it with its disk kept, so several shapes are measured on one `up`), `
 unset is the `vCPU × 4` the worker would announce; set it high to find where first audio gives,
 which is what `MAX_JOBS` is then set under. `--rate` is the calls placed a second (1 unset):
 LiveKit's server reads a worker's load as reported every 2.5 s, so a faster burst on its last
-slots is the edge to measure. Every secret goes machine to machine through a pipe
+slots is the edge to measure. Before the worker machine is destroyed, its journal and
+its `fleet.env` are kept under `.lab/` (ignored by git): the evidence of a step outlives the
+machine. Every secret goes machine to machine through a pipe
 between two ssh processes; nothing is printed. Google's credentials are the gcloud login's, a
 fresh token for each terraform command.
 
@@ -69,6 +71,13 @@ generator (8 vCPU) for the fakes, the agent and SIPp; and, for SIP × 2, a machi
    CPU from `systemctl show -p CPUUsageNSec` before and after.
 
 ## What fooled the first runs
+
+- **A destroyed worker machine haunts the next run.** Destroyed with its worker up, the machine
+  closes nothing, and the box's LiveKit keeps it registered for 15–20 minutes, offering it about
+  half the next run's calls (its last load was low), each lost after 10 s with no retry: 12 of 24,
+  8 of 32, with `failed to assign job to worker … <the dead worker's id>` in the box's LiveKit log.
+  `measure.py` stops the worker before the machine goes, as the fleet loop does; a run that reads
+  low with no reason starts there: `podman logs pinecall-livekit | grep 'closing worker'`.
 
 - The box's SIP and LiveKit announce its **public** address (`use_external_ip`), so the
   generator's RTP and the worker's media arrive from the lab machines' public addresses, not
