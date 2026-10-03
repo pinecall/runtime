@@ -17,15 +17,18 @@ with a service account that has no roles.
 
 ## A machine, from nothing
 
+The machine is Terraform's (`module "apps"` in `infra/terraform/environments/production/main.tf`:
+an `e2-medium`, 40 GB, **no service account**), like every other one; what runs on it is this
+folder's:
+
 ```console
-$ gcloud compute instances create pinecall-apps-1 --machine-type e2-standard-4 \
-    --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud \
-    --boot-disk-size 50GB --no-service-account --no-scopes
+$ make tf-apply ENV=production       # the machine, if it is not there
 $ gcloud compute scp --recurse infra/apps pinecall-apps-1:/tmp/apps
 $ gcloud compute ssh pinecall-apps-1 --command 'sudo sh /tmp/apps/install.sh "pinecall==<version>" production'
 ```
 
-An E2 is enough: gVisor's default platform needs no KVM, and GCP refuses nested virtualisation on
+A bigger one is `machine_type` in that module and an apply (which stops it for the change only
+with `allow_stopping_for_update` set for that apply). An E2 is enough: gVisor's default platform needs no KVM, and GCP refuses nested virtualisation on
 E2. Measured on one (`internal-docs/DEPLOY.md`, D0): an idle agent takes 72 MB, so a 4-vCPU,
 16 GB machine holds 80–100 apps.
 
