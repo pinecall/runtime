@@ -172,8 +172,21 @@ Twenty-nine calls held at 57 % of the machine, first audio unmoved. The three th
 were refused by livekit-server, not by the worker: its log on the lab's box says, for each,
 `failed to send job request: no servers available`. The worker had moved the framework's line to
 every slot, but still reported `calls ÷ slots`, and the server cut at its own 0.7 of them, a few
-calls late because the report is 2.5 s old (a second run: 25 of 32). Reporting on LiveKit's scale
-(above) is the fix; the table is measured again with it.
+calls late because the report is 2.5 s old. Reporting on LiveKit's scale (above) is the fix, and
+the same lab measured with it, LiveKit's log clean of refusals:
+
+| calls asked | started | worker machine (8 vCPU) | per call | the box (4 vCPU) | turns answered | first audio p50 / p95 |
+|---|---|---|---|---|---|---|
+| 24 | 24 | 3.73 cores | 0.16 | 1.51 cores | 284 of 284 | 1.23 / 1.30 s |
+| 32 | **32** | 4.55 cores | 0.14 | 1.89 cores | 371 of 371 | 1.23 / 1.31 s |
+| 32, two a second | **32** | 3.57 cores | 0.11 | 1.84 cores | 370 of 374 | 1.23 / 1.31 s |
+
+**Every one of the 32 slots takes a call, at 57 % of the machine, first audio unmoved from 16
+to 32**, and a burst twice as fast as the report to LiveKit (2.5 s) lost none: LiveKit's log over
+the three runs, 88 jobs assigned, zero refused. The runs between the two tables that started 12 of 24 and 8 of 32 were a fault of the
+lab, not of the worker: it destroyed each worker machine with its worker still up, and LiveKit
+keeps such a worker registered for 15–20 minutes (below, "A worker that dies"), offering it calls
+it cannot take. The lab now stops the worker first, as the loop does.
 
 The same lab given 16 slots on a 2-vCPU worker (`--seats 16 --calls 8,12`) showed what an
 oversized `MAX_JOBS` costs: the worker at 1.9 of its 2 cores, 78 of 89 and 95 of 127 turns
@@ -258,6 +271,19 @@ the fleet is full. On a box of one worker per world, a dead worker's calls wait 
 come back (systemd restarts it in seconds), since the overflow opens only for a full fleet and a
 fleet nobody hears from is not full. A drain, a cordon and a call that ends leave on purpose, and
 are not this. If no job comes, the reaper seals the call after five quiet minutes, as before.
+
+**A machine that vanishes is worse than a worker that dies.** A worker process that ends, even
+killed, closes its connection, and LiveKit forgets it at once. A machine that disappears whole (a
+VM deleted with the worker up, a kernel gone, a cable cut) closes nothing, and LiveKit 1.13.7 sets
+no read deadline on a registered worker (`pkg/service/agentservice.go`, after registration): it
+keeps pinging the dead socket until the kernel gives up, **15–20 minutes** measured on
+2026-10-03, and all that time it keeps **offering that worker new calls**, drawn by its last
+reported load, each offer waiting 10 s and then dropped with no retry. With one live worker
+beside the ghost, about half the new calls of that fleet are lost in silence until the ghost is
+gone. Every path the runtime drives — the loop's cordon and delete, a release, `cell
+release-worker`, the lab — stops the worker before the machine goes, so none of them makes a
+ghost; a machine lost to a fault does. The gateway's answer to a call nobody took, offered again
+and then given the one sentence, is planned, not built.
 
 Measured on 2026-10-01 (a spoken call, its worker SIGKILLed 25 s in): **20.5 s** from the kill to
 `call.ended drained` on the log — LiveKit's connection timeout for the agent, which leaves as
