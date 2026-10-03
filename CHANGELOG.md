@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- A worker's heartbeat names it to LiveKit (`agent_name`) only once LiveKit registered it: it beats
+  from its start, and the gateway offered calls to a machine still loading its plugins, which waited
+  12 s for the offer to go to another worker.
 - **A machine the loop makes is named once**: `pinecall-worker-<yymmddhhmmss>-<n>`, the time it was
   asked for, instead of the lowest free `pinecall-worker-<n>`. A reused name carried the last
   machine's cordon and its silence in the roster onto the next one, which the loop deleted as

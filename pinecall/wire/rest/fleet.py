@@ -10,7 +10,8 @@ class HeartbeatRequest(WireModel):
 
     fleet: str
     worker: str
-    # The name the worker registered under with LiveKit: the one a dispatch reaches it by.
+    # The name the worker registered under with LiveKit: the one a dispatch reaches it by; null
+    # until LiveKit registered it, so no call is offered to a worker nobody can give it to.
     agent_name: str | None = None
     active: int
     # Measured slots; null when the worker is gated on its machine's CPU.

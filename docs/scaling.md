@@ -205,9 +205,11 @@ worker's cordon wins). A gateway that restarts has it back after one round of he
 heartbeat's `full` is answered from totals at most a second old. `GET /v1/ops/fleet` and `fleet list` read it.
 
 A worker registers with LiveKit under **its own name**, `<fleet>/<worker>` (`pinecall/box-a`),
-and says it in each heartbeat as `agent_name`. LiveKit offers a job only to the workers registered
-under the name the job's dispatch carries, so a dispatch to that name reaches that worker and no
-other: the gateway chooses (below, "Who takes a call"), not LiveKit's draw.
+and says it in each heartbeat as `agent_name` — only once LiveKit has registered it: a worker beats
+from its start, and a machine still loading its plugins is counted but offered no call, since
+LiveKit has nobody to give the job to. LiveKit offers a job only to the workers registered under the
+name the job's dispatch carries, so a dispatch to that name reaches that worker and no other: the
+gateway chooses (below, "Who takes a call"), not LiveKit's draw.
 
 ## A worker that is up but bad
 

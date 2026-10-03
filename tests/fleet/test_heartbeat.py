@@ -117,6 +117,7 @@ async def test_a_beat_carries_what_the_workers_calls_did_in_its_last_minute(
 # Every slot taken is LiveKit's 0.7 and the gateway's 1.0: the beat speaks the gateway's.
 async def test_a_beat_says_full_on_the_gateways_scale(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(AgentServer, "active_jobs", property(lambda _server: [object()] * 4))
+    monkeypatch.setattr(AgentServer, "id", property(lambda _server: "AW_registered"))
     settings = Settings.model_validate({"PINECALL_WORKER_NAME": "w-7", "PINECALL_MAX_JOBS": "4"})
     server = AgentServer(ws_url="ws://127.0.0.1:7880", api_key="APIfake", api_secret=A_SECRET)
     gateway = gateway_at("http://127.0.0.1:9", None)
@@ -151,6 +152,22 @@ async def test_the_worker_tells_systemd_it_is_ready_once_registered_and_heard(
             await gateway.aclose()
         assert systemd.recv(64) == b"READY=1"
     path.unlink()
+
+
+# The gateway offers a call only to a worker with a LiveKit name: none before LiveKit registers it.
+async def test_a_beat_names_the_worker_to_livekit_only_once_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(AgentServer, "active_jobs", property(_no_jobs))
+    ids = iter([UNREGISTERED, "AW_registered"])
+    monkeypatch.setattr(AgentServer, "id", property(lambda _server: next(ids)))
+    settings = Settings.model_validate({"PINECALL_WORKER_NAME": "w-7"})
+    server = AgentServer(ws_url="ws://127.0.0.1:7880", api_key="APIfake", api_secret=A_SECRET)
+    gateway = gateway_at("http://127.0.0.1:9", None)
+    beats = Heartbeats(server, gateway, settings, LastMinute())
+    before, after = beats.beat(), beats.beat()
+    await gateway.aclose()
+    assert (before.agent_name, after.agent_name) == (None, "pinecall/w-7")
 
 
 async def test_outside_systemd_nobody_is_told() -> None:
