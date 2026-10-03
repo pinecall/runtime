@@ -175,6 +175,13 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
     if hold is not None:
         await hold.start(ctx.room)
     where.watch()
+
+    # A call the session ended already (a transfer, the model's goodbye) is not ended again.
+    def caller_gone() -> None:
+        if session.ended is None:
+            session.hang_up("caller_hung_up", "caller")
+
+    where.when_the_caller_is_gone(caller_gone)
     widget = _widget(gateway, call, ctx.room) if route.channel == THE_WIDGET else None
     logger.info(ANSWERED_IN, time.monotonic() - began)
     commands = asyncio.create_task(_commands(gateway, session, context.call))

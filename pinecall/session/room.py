@@ -71,6 +71,14 @@ LEG_PREFIX = "sip_"
 KIND_OF_SCOPE: dict[str, ParticipantKind] = {"supervise": "supervisor", "observe": "listener"}
 
 
+# livekit's session closes when the caller leaves only for three reasons (they hung up, the room
+# was deleted, they were rejected); one whose connection dropped is waited for, and the room ends
+# 20 s after its last person left, LiveKit's departure timeout. A supervisor watching keeps the
+# room up, so the call is ended here: the caller gone as long as LiveKit waits for a last person.
+CALLER_RETURNS_S = 20.0
+
+CALLER_GONE = "call %s: the caller left (%s) and did not come back in %.0f s: the call ends"
+
 # A warm transfer rings for less than livekit's 30 s; a tone plays meanwhile, so silence is not
 # taken for a dropped call.
 RINGING_S = 25.0
@@ -175,6 +183,8 @@ class CallRoom:
         self.claimed: set[str] = set()
         self.tasks: set[asyncio.Task[None]] = set()
         self.bridged: str | None = None
+        self.caller_gone: Callable[[], None] | None = None
+        self.returning: asyncio.Task[None] | None = None
 
     # ── the caller's leg ──
 
@@ -213,6 +223,10 @@ class CallRoom:
                 hang_up()
 
         self.room.on("participant_disconnected", left)  # pyright: ignore[reportUnknownMemberType]
+
+    def when_the_caller_is_gone(self, hang_up: Callable[[], None]) -> None:
+        """Call `hang_up` once the caller left, whatever the reason, and did not come back."""
+        self.caller_gone = hang_up
 
     async def _sent_on(self, wanted: CallTransfer) -> wire.CallTransferred:
         leg = await self.leg()
@@ -428,6 +442,9 @@ class CallRoom:
             attributes=data,
         )
         self.call.writing.write("participant.joined", joined)
+        if joined.kind == "caller" and self.returning is not None:
+            self.returning.cancel()
+            self.returning = None
 
     def _left(self, seat: rtc.RemoteParticipant) -> None:
         reason = seat.disconnect_reason
@@ -436,6 +453,17 @@ class CallRoom:
             "participant.left", ParticipantLeft(identity=seat.identity, reason=text)
         )
         self.speaking.discard(seat.identity)
+        gone = self.caller_gone
+        if gone is not None and self.kind_of(seat, dict(seat.attributes)) == "caller":
+            if self.returning is not None:
+                self.returning.cancel()
+            self.returning = self._spawn(self._waited_for(gone, text))
+
+    async def _waited_for(self, hang_up: Callable[[], None], reason: str) -> None:
+        await asyncio.sleep(CALLER_RETURNS_S)
+        self.returning = None
+        logger.info(CALLER_GONE, self.room.name, reason, CALLER_RETURNS_S)
+        hang_up()
 
     # A SIP seat is the caller only if its number is the call's caller; any other was dialled in.
     def kind_of(self, seat: rtc.Participant, attributes: dict[str, str]) -> ParticipantKind:
@@ -513,10 +541,11 @@ class CallRoom:
             )
 
     # A task of a synchronous listener is kept, or it may be collected mid-run.
-    def _spawn(self, work: Awaitable[None]) -> None:
+    def _spawn(self, work: Awaitable[None]) -> asyncio.Task[None]:
         task = asyncio.ensure_future(work)
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
+        return task
 
 
 CALLER_NUMBER = f"{SIP_PREFIX}phoneNumber"
