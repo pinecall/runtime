@@ -161,7 +161,8 @@ async def test_the_fleet_is_listed_cordoned_and_looped_once_in_a_dry_run(
         "worker": "pinecall-worker-1",
         "active": 4,
         "max_jobs": 4,
-        "load": 0.9,
+        # What a worker of four slots holding four reports: full at every slot, not at 0.7.
+        "load": 1.0,
         "draining": False,
     }
     async with knocking.http(knocking.fleet["sandbox"]) as worker:
