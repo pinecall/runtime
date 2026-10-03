@@ -49,7 +49,7 @@ from pinecall.session._livekit import (
     usage_of,
 )
 from pinecall.session._prompt import A_RELEASE, A_WHISPER, Blocks
-from pinecall.session.call import CLOSING, WARNED_BEFORE_S, ToolUse
+from pinecall.session.call import ToolUse
 from pinecall.session.hold import HoldMusic
 from pinecall.wire import events as wire
 from pinecall.wire import metrics as measured
@@ -163,6 +163,8 @@ class Session:
         self.blocks = Blocks(self.call.config.prompt, self.call.config.knowledge or "")
         self.agent = CallAgent(live, self.blocks, lookups, self._declared(), self._music)
         self.started_at = time.time()
+        # When the person last said something: what a written call in a room is kept alive by.
+        self.last_heard = time.monotonic()
         # Why the call ended, when our code knows: it wins over livekit's close reason.
         self.ended: tuple[EndReason, EndedBy] | None = None
         self.closed_for: CloseReason | None = None
@@ -267,21 +269,6 @@ class Session:
         finally:
             await self.call.writing.close(SEAL_S)
             self.over.set()
-
-    # The limit holds while a supervisor has the line; only the warning is skipped, since a
-    # generated turn would talk over them.
-    async def keep_time(self, limit_s: int, *, exhausted: wire.CreditsExhausted | None) -> None:
-        """Warn the agent before the limit and end the call at it; nothing when there is none."""
-        if limit_s == 0:
-            return
-        warned_at = limit_s - WARNED_BEFORE_S if limit_s >= 2 * WARNED_BEFORE_S else limit_s / 2
-        await asyncio.sleep(warned_at)
-        if not self.call.a_person_has_the_line:
-            self.live.generate_reply(instructions=CLOSING)
-        await asyncio.sleep(limit_s - warned_at)
-        if exhausted is not None:
-            await self.call.writing.write("credits.exhausted", exhausted)
-        self.hang_up("timeout", "platform")
 
     # ── the app's commands ──
 
@@ -535,6 +522,7 @@ class Session:
             )
             self.call.writing.write("turn.agent", agent)
             return
+        self.last_heard = time.monotonic()
         eou = end_of_utterance(item.metrics, speech)
         if eou is not None:
             self.call.writing.write("metrics.eou", eou)
