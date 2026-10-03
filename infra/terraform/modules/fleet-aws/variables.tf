@@ -38,7 +38,3 @@ variable "max" {
   default = 10
 }
 
-variable "calls_per_machine" {
-  type        = number
-  description = "The calls a machine is kept at: its seats × the loop's 0.6, so the group grows before the worker's 0.7."
-}

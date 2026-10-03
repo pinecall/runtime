@@ -352,27 +352,24 @@ fifteen seconds (`fleet/hub.py`, numbers in, decisions out):
 What is missing is counted in seats: those that bring busy back to the target (`active / target`,
 the target read as the decimal it was typed as), less the seats there are, in whole machines of
 `--seats`; under `--min`, the machines up to it; with no seat at all, one. The larger of these is
-asked for, cut by `--max` and by `--grow-at-most` a tick (1 unless said: the loop as it was, one
-machine a tick). A machine still booting counts as `--seats` of capacity from the moment it is
+asked for, cut by `--max` and by `--grow-at-most` a tick (1 unless said). A machine still booting counts as `--seats` of capacity from the moment it is
 asked for, so the loop asks once and waits, and the slack keeps a grow and a cordon from chasing
 each other. Shrinking stays one cordon a tick, and never in a tick that grows or while a machine
 boots. The loop never cordons or deletes a machine the cloud does not list as
 the fleet's: a worker stood up by hand counts and is never let go. `--once --dry-run` prints one
 tick and touches nothing.
 
-**When the cloud grows the fleet** (`--grow-at-most 0`): the loop never asks for a machine; each
-tick it tells the cloud the fleet's calls (`<script> measure <fleet> <calls>`) and only cordons and
-deletes. On Google Cloud that is production's way: a managed instance group (Terraform's
-`modules/fleet-gcp`) grows on `custom.googleapis.com/pinecall/fleet_calls`, one machine per 19
-calls (32 seats at 0.6), and only grows, since a group removing a machine itself gives it 90 s and
-a call may last ten minutes; the loop, `pinecall-fleet-loop@production` on the box, lets go of the
-one too many once drained (abandoned from the group, then deleted: `infra/fleet/gcp-mig.py`). Its
-machines read their credentials from Secret Manager as their own identity. On AWS the same is an
-Auto Scaling group (`modules/fleet-aws`) grown by target tracking on CloudWatch's
-`Pinecall/fleet_calls`, its scale-in off, the loop terminating the one too many out of it
+**The loop is the one thing that sizes a fleet**, on every cloud. On Google Cloud, production's
+machines are a managed instance group (Terraform's `modules/fleet-gcp`) with no autoscaler: the
+loop, `pinecall-fleet-loop@production` on the box, makes a machine in it by name and deletes one out
+of it once drained (`infra/fleet/gcp-mig.py`), and its machines read their credentials from Secret
+Manager as their own identity. On AWS the same is an Auto Scaling group (`modules/fleet-aws`) with no
+scaling policy, the loop raising its desired capacity and terminating out of it
 (`infra/fleet/aws-asg.py`), the credentials from Secrets Manager as the instance profile; written
-and validated, never applied: no box runs on AWS. The recipe and why are
-[../infra/fleet/README.md](../infra/fleet/README.md).
+and validated, never applied: no box runs on AWS. A group that also sized itself disagreed with the
+loop: on 2026-10-03 production's autoscaler, counting the calls the box's own workers held, made a
+machine at every call that the loop then let go as one too many, five in forty minutes. The recipe
+and why are [../infra/fleet/README.md](../infra/fleet/README.md).
 
 Run in production on 2026-10-02, with no call (the demand written by hand at 19 calls, the loop
 stopped): the group made `pinecall-worker-production-x3jm` 91 s after it read the metric, and the

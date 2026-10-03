@@ -1,10 +1,11 @@
 # The fleet loop of a world, on the box, when the box is on Google Cloud and Terraform made the
-# world's managed instance group (infra/terraform/modules/fleet-gcp): the group grows the fleet on
-# the calls this loop tells Cloud Monitoring every 15 s, and this loop lets go of the one too many
-# once its calls drained. install.sh writes /etc/pinecall/fleet-loop-%i.env from the box's
-# metadata and enables the unit; a box elsewhere has neither.
+# world's managed instance group (infra/terraform/modules/fleet-gcp): every 15 s it reads the
+# roster and is the one thing that sizes the group, making a machine in it when the fleet is busy
+# over its target and letting one go once cordoned and drained. install.sh writes
+# /etc/pinecall/fleet-loop-%i.env from the box's metadata and enables the unit; a box elsewhere has
+# neither. A release stops it before the package changes and starts it after (release.sh).
 [Unit]
-Description=Pinecall: the %i fleet's machines let go when one too many, its calls told to the cloud
+Description=Pinecall: the %i fleet's machines, made when it is busy and let go once drained
 Wants=network-online.target
 After=network-online.target pinecall-gateway@8080.service
 
@@ -17,7 +18,7 @@ Environment=PINECALL_GATEWAY_URL=http://127.0.0.1:8080
 ImportCredential=PINECALL_OPS_KEY
 ExecStart=/opt/pinecall/venv/bin/pinecall-runtime fleet loop \
     --cloud /opt/pinecall/infra/fleet/gcp-mig.py --fleet ${PINECALL_FLEET} \
-    --seats ${PINECALL_FLEET_SEATS} --min 0 --max ${PINECALL_FLEET_MAX} --grow-at-most 0
+    --seats ${PINECALL_FLEET_SEATS} --min 0 --max ${PINECALL_FLEET_MAX}
 Restart=always
 RestartSec=10
 

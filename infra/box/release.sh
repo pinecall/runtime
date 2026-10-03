@@ -14,6 +14,19 @@ else
         *) echo "PACKAGE is pinecall==<version> or a wheel's path, not $PACKAGE" >&2; exit 2 ;;
     esac
 fi
+# A world's fleet loop runs this package too, and reads the gateway's answers strictly: it is
+# stopped before the package changes and started again when the release ends, whichever way it
+# ends. Stopped, it makes and lets go of nothing; the machines it sized keep their calls.
+looping=()
+for world in production sandbox; do
+    if systemctl is-enabled --quiet "pinecall-fleet-loop@$world"; then
+        looping+=("pinecall-fleet-loop@$world")
+    fi
+done
+if [ ${#looping[@]} -gt 0 ]; then
+    systemctl stop "${looping[@]}"
+    trap 'systemctl start "${looping[@]}"' EXIT
+fi
 UV=/opt/pinecall/bin/uv
 [ -x /opt/pinecall/venv/bin/python ] || "$UV" venv --python /usr/bin/python3.12 /opt/pinecall/venv
 "$UV" pip install --quiet --python /opt/pinecall/venv/bin/python --reinstall-package pinecall "$installed"

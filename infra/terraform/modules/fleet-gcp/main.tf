@@ -1,8 +1,8 @@
 # A world's fleet of worker machines on Google Cloud: a managed instance group from the image
-# family Packer builds, grown by its autoscaler on the fleet's calls (written to Cloud Monitoring
-# by the fleet loop: infra/fleet/gcp-mig.py measure), healed on the worker's health port. It only
-# grows: a machine it removed itself would have 90 s to drain, so the loop cordons the one too
-# many, waits for its calls to end, and abandons and deletes it.
+# family Packer builds, healed on the worker's health port, with no autoscaler. The fleet loop on
+# the box is the one thing that sizes it (infra/fleet/gcp-mig.py): it makes a machine when the
+# fleet is busy over its target, and lets one go only once it is cordoned and its calls ended; a
+# group that removed a machine itself would give it 90 s, and a call may take ten minutes.
 
 data "google_compute_image" "worker" {
   family = "pinecall-worker-${var.world}"
@@ -94,26 +94,8 @@ resource "google_compute_instance_group_manager" "workers" {
     max_unavailable_fixed = 0
   }
 
-  # The autoscaler owns the size, and the loop abandons from it.
+  # The loop owns the size: each machine it makes or deletes moves it by one.
   lifecycle {
     ignore_changes = [target_size]
-  }
-}
-
-resource "google_compute_autoscaler" "workers" {
-  name   = "pinecall-workers-${var.world}"
-  zone   = var.zone
-  target = google_compute_instance_group_manager.workers.id
-
-  autoscaling_policy {
-    min_replicas    = var.min
-    max_replicas    = var.max
-    cooldown_period = 180
-    mode            = "ONLY_SCALE_OUT"
-    metric {
-      name                       = "custom.googleapis.com/pinecall/fleet_calls"
-      single_instance_assignment = var.calls_per_machine
-      filter                     = "resource.type = \"global\" AND metric.labels.fleet = \"${var.fleet}\""
-    }
   }
 }

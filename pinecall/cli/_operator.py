@@ -61,7 +61,7 @@ A_FLEET_KEY = "the {env} fleet"
 
 A_RUNNER_KEY = "the {env} runner"
 
-NO_GROWTH = "--grow-at-most is 0 (the cloud grows) or more; --target a share of the seats over 0"
+NO_GROWTH = "--grow-at-most is 1 or more, and --target a share of the seats over 0"
 
 ONE_FLEET = "the loop makes machines for one fleet: name it with --fleet, or look with --dry-run"
 
@@ -193,7 +193,7 @@ def fleet_group(group: argparse.ArgumentParser) -> None:
         dest="grow_at_most",
         type=int,
         default=Line.grow_at_most,
-        help="the most machines one tick asks for; 0: the cloud grows the fleet, told its calls",
+        help="the most machines one tick asks for",
     )
     loop.add_argument("--every", type=float, default=15.0)
     loop.add_argument("--once", action="store_true")
@@ -494,7 +494,7 @@ def fleet_uncordon(client: httpx.Client, args: argparse.Namespace) -> int:
 # restarted resumes where the numbers are.
 def fleet_loop(client: httpx.Client, args: argparse.Namespace) -> int:
     """Every `--every` seconds, one tick: the fleet kept at its target, or a dry run said."""
-    if args.grow_at_most < 0 or args.target <= 0:
+    if args.grow_at_most < 1 or args.target <= 0:
         raise DeclarationRefused(NO_GROWTH)
     if args.fleet is None and not args.dry_run:
         raise DeclarationRefused(ONE_FLEET)
@@ -524,9 +524,6 @@ def fleet_loop(client: httpx.Client, args: argparse.Namespace) -> int:
                 lambda name: _joining(client, str(args.fleet), name),
                 lambda name: _forgotten(client, name),
             )
-            # A cloud that grows the fleet itself grows it on the calls it is told.
-            if line.grow_at_most == 0:
-                cloud.measured(str(args.fleet), hub.calls_held(seats, now))
         if args.once:
             return 0
         time.sleep(args.every)
