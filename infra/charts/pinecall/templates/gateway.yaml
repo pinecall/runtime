@@ -1,0 +1,60 @@
+# The gateways: as many as it takes, any one serving any call (their state is Postgres and Redis),
+# on the pod's network behind the cluster's load balancer, whose X-Forwarded-For alone they believe.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pinecall-gateway
+spec:
+  replicas: {{ .Values.gateway.replicas }}
+  selector: { matchLabels: { app: pinecall-gateway } }
+  strategy:
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  template:
+    metadata: { labels: { app: pinecall-gateway } }
+    spec:
+      nodeSelector: { pinecall.io/pool: core }
+      # A stopping gateway tells its open streams and lets them go; an app socket reconnects to another.
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: gateway
+          image: {{ include "pinecall.image" . }}
+          args: ["gateway"]
+          env:
+            {{- include "pinecall.env" . | nindent 12 }}
+            - name: PINECALL_GATEWAY_LISTEN
+              value: 0.0.0.0:8080
+            - name: PINECALL_TRUSTED_PROXIES
+              value: {{ .Values.gateway.trustedProxies | quote }}
+            - name: PINECALL_METRICS_FROM
+              value: {{ printf "127.0.0.1,::1,%s" .Values.gateway.podNetwork | quote }}
+          ports: [{ name: http, containerPort: 8080 }]
+          readinessProbe:
+            httpGet: { path: /, port: 8080 }
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 30
+          volumeMounts:
+            - { name: recordings, mountPath: /var/lib/pinecall/recordings }
+          resources:
+            requests: { cpu: 150m, memory: 384Mi }
+      volumes:
+        - { name: recordings, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pinecall-gateway
+  annotations:
+    cloud.google.com/backend-config: '{"default": "pinecall-gateway"}'
+spec:
+  selector: { app: pinecall-gateway }
+  ports: [{ name: http, port: 8080, targetPort: 8080 }]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pinecall-gateway
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app: pinecall-gateway } }

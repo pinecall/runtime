@@ -1,4 +1,4 @@
-"""pinecall-runtime: the operator's verbs, and the ones the box's units run."""
+"""pinecall-runtime: the operator's verbs, and the ones the cluster's pods and jobs run."""
 
 import argparse
 import asyncio
@@ -20,11 +20,8 @@ from livekit import api
 from pinecall.channels import offers, whatsapp
 from pinecall.cli import (
     _archive,
-    _box,
-    _cell,
     _drift,
     _facts,
-    _fence,
     _load,
     _operator,
     _sessions,
@@ -233,7 +230,6 @@ def doctor(settings: Settings, _args: argparse.Namespace) -> int:
 def verbs() -> argparse.ArgumentParser:
     """The parser of every group and verb, each bound to the function that runs it."""
     verbs = argparse.ArgumentParser(prog="pinecall-runtime")
-    # What a machine joining the cell installs to match the box: `pinecall==<this>`.
     verbs.add_argument("--version", action="version", version=version("pinecall"))
     under = verbs.add_subparsers(required=True)
     under.add_parser("gateway", help="the gateway, both worlds").set_defaults(run=gateway)
@@ -289,13 +285,10 @@ def verbs() -> argparse.ArgumentParser:
     _facts.facts_group(under.add_parser("facts", help="each call's facts, folded from its log"))
     _drift.drift_group(under.add_parser("drift", help="each day's drift, counted at the seal"))
     _usage.usage_group(under.add_parser("usage", help="each org's usage totals, from its log"))
-    _fence.fence_group(under.add_parser("fence", help="the networks 5060 opens to, in nftables"))
     _traceback.traceback_verb(
         under.add_parser("traceback", help="a number's calls and dials, for a carrier")
     )
     _operator.init_group(under.add_parser("init", help="the first org and person, on a fresh box"))
-    _box.box_group(under.add_parser("box", help="this machine made a box, from the package itself"))
-    _cell.cell_group(under.add_parser("cell", help="the machines beside the box, let in, joined"))
     _operator.orgs_group(under.add_parser("orgs", help="the tenants"))
     _operator.routes_group(under.add_parser("routes", help="which agent answers a number"))
     _operator.fleet_group(under.add_parser("fleet", help="the workers heard from"))

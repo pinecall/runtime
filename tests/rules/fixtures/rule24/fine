@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# A script named with no suffix, read by its shebang.
-echo fine

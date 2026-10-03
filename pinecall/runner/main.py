@@ -72,7 +72,7 @@ INSTALLED = ".installed"
 START = ("./node_modules/.bin/pinecall", "start")
 
 
-# What infra/apps/fence.nft matches: the runner's bridges and no other of the machine.
+# What the runner machine's fence matches: the runner's bridges and no other of the machine.
 BRIDGE_PREFIX = "pca"
 
 

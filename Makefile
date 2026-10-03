@@ -1,13 +1,7 @@
-# check · test · db · hooks · box · deploy · rollback · logs · ssh · test-box · tf-*.
-
-# The new box's ssh alias; the old box (v1) is never a target of this file.
-BOX      ?= pinecall-runtime-v2
-DOMAINS  ?= box.pinecall.io,sandbox.pinecall.io
-TUNNEL   ?= 15432
-WHEEL    ?= $(shell git rev-parse --short HEAD)$(shell git diff --quiet HEAD || echo -dirty)
+# check · test · db · hooks · local · tf-* · image · suite · deploy · logs.
 
 # The laptop's Postgres and Redis, for the suites only: in colima, on tmpfs, thrown away with
-# their containers. The Redis is the box's image, with nothing kept.
+# their containers.
 DB_IMAGE  = pinecall/postgres:17-pgvector0.8.6-pgtextsearch1.4.0
 DB_NAME   = pinecall-test-postgres
 DB_PORT  ?= 55432
@@ -18,12 +12,16 @@ REDIS_PORT ?= 56379
 LOCAL_REDIS = redis://127.0.0.1:$(REDIS_PORT)/1
 T        ?= tests
 
-# Terraform's root modules (infra/terraform). Google's credentials are the gcloud login's, handed
-# over as a short-lived token in the environment, never printed; AWS's are ~/.aws.
-ENV      ?= production
+# A world's cluster: its Terraform root (infra/terraform/environments/<ENV>), its values
+# (infra/values/<ENV>.yaml) and its kubectl context. Google's credentials are the gcloud login's,
+# handed over as a short-lived token in the environment, never printed.
+ENV      ?= staging
+PROJECT  ?= hiding-place-447317-c6
+ZONE     ?= us-central1-c
+CONTEXT  ?= gke_$(PROJECT)_$(ZONE)_pinecall-$(ENV)
 TF        = terraform -chdir=infra/terraform/environments/$(ENV)
 TF_AUTH   = GOOGLE_OAUTH_ACCESS_TOKEN="$$(gcloud auth print-access-token)"
-TF_ROOTS  = infra/terraform/bootstrap infra/terraform/environments/production infra/terraform/environments/lab infra/terraform/examples/fleet-aws
+TF_ROOTS  = infra/terraform/bootstrap $(wildcard infra/terraform/environments/*)
 
 check:            ## the rules and every suite that needs no database, on every core; terraform's form
 	uv run pytest -q -n auto
@@ -38,17 +36,18 @@ tf-check:         ## every root module formatted and valid, with no backend reac
 	  TF_DATA_DIR=$$data terraform -chdir=$$root validate -no-color >/dev/null || exit 1; \
 	done
 
-tf-init:          ## ENV=production|lab: the root module's providers and its state in the bucket
+tf-init:          ## ENV=staging: the root module's providers and its state in the bucket
 	$(TF_AUTH) $(TF) init -input=false
 
-tf-plan:          ## ENV=…: what an apply would change; "No changes." is the cloud as the repo says
-	$(TF_AUTH) $(TF) plan -input=false
+# Saved, so what is applied is exactly what was read.
+tf-plan:          ## ENV=…: what an apply would change, saved as its plan; "No changes." is the norm
+	$(TF_AUTH) $(TF) plan -input=false -out=plan
 
-tf-apply:         ## ENV=…: the change made, after the plan is read and `yes` typed
-	$(TF_AUTH) $(TF) apply -input=false
+tf-apply:         ## ENV=…: the saved plan applied, after it was read
+	$(TF_AUTH) $(TF) apply -input=false plan
 
-# The runtime whole on this laptop (infra/local): the box's services in docker, the gateway and a
-# worker from the checkout, on the settings `make local` wrote to .local/env.
+# The runtime whole on this laptop (infra/local): Postgres, Redis and LiveKit in docker, the
+# gateway and a worker from the checkout, on the settings `make local` wrote to .local/env.
 LOCAL_RUN = set -a; . ./.local/env; set +a; uv run pinecall-runtime
 local:            ## Postgres, Redis and LiveKit in docker, the schema migrated, .local/env written once
 	infra/local/up.sh
@@ -62,26 +61,13 @@ local-worker:     ## a worker of the sandbox fleet from the checkout, against `m
 local-down:       ## the compose stopped; its Postgres volume and .local/env kept
 	docker compose -f infra/local/compose.yaml down
 
-# The fleet's worker image (infra/packer): the wheel of this checkout, the box's settings for the
-# world (no secret in them), the seats of the machine type the fleet runs as.
-PROJECT  ?= hiding-place-447317-c6
-WORLD    ?= production
-SEATS    ?= 32
-image:            ## WORLD=…: the fleet's worker image built by Packer, into pinecall-worker-<world>
-	rm -rf dist && uv build --wheel --quiet
-	ssh $(BOX) 'sudo pinecall-runtime cell worker-settings $(WORLD)' > .image-settings.tar
-	$(TF_AUTH) packer build -only=googlecompute.worker -var project=$(PROJECT) -var world=$(WORLD) -var seats=$(SEATS) \
-	  -var box_address="$$($(TF_AUTH) terraform -chdir=infra/terraform/environments/production output -raw box_internal_address)" \
-	  -var package="$$(ls $(CURDIR)/dist/pinecall-*.whl)" -var settings=$(CURDIR)/.image-settings.tar infra/packer; \
-	  status=$$?; rm -f .image-settings.tar; exit $$status
-
 test: db          ## every suite (or T=tests/log), on the local Postgres and Redis, on every core
 	DATABASE_URL=$(LOCAL_DSN) PINECALL_REDIS_URL=$(LOCAL_REDIS) uv run pytest -q -n auto $(T)
 
 # Durability is off: a test database that loses its last second on a crash loses nothing.
 db:               ## the local Postgres and Redis: colima up, the image built once, both running
 	@colima status >/dev/null 2>&1 || colima start
-	@docker image inspect $(DB_IMAGE) >/dev/null 2>&1 || docker build -t $(DB_IMAGE) infra/postgres
+	@docker image inspect $(DB_IMAGE) >/dev/null 2>&1 || docker build -t $(DB_IMAGE) infra/local/postgres
 	@docker inspect -f '{{.State.Running}}' $(DB_NAME) 2>/dev/null | grep -q true || { \
 	  docker rm -f $(DB_NAME) >/dev/null 2>&1; \
 	  docker run -d --name $(DB_NAME) -p 127.0.0.1:$(DB_PORT):5432 --tmpfs /var/lib/postgresql/data \
@@ -97,52 +83,49 @@ db:               ## the local Postgres and Redis: colima up, the image built on
 hooks:            ## the pre-commit hook: `make check`
 	git config core.hooksPath .githooks
 
-box:              ## infra/ to the box and install.sh run there: once, and after infra/box changes
-	rsync -a --delete --delete-excluded --exclude .terraform/ --exclude '*.tfstate*' infra/ $(BOX):/tmp/pinecall-infra/
-	ssh $(BOX) 'sudo rsync -a --delete /tmp/pinecall-infra/ /opt/pinecall/infra/ && sudo /opt/pinecall/infra/box/install.sh $(DOMAINS)'
-
-deploy:           ## the console built in, a wheel, released on the box, the live suite, the journal
-	scripts/console
-	rm -rf dist && uv build --wheel --quiet
-	ssh $(BOX) 'mkdir -p /opt/pinecall/wheels/$(WHEEL)'
-	scp -q dist/pinecall-*.whl $(BOX):/opt/pinecall/wheels/$(WHEEL)/
-	$(MAKE) release WHEEL=$(WHEEL)
-	PINECALL_URL=https://$(firstword $(subst $(comma), ,$(DOMAINS))) uv run pytest -q tests/live
-	$(MAKE) logs
-
-rollback:         ## an older wheel still on the box: make rollback WHEEL=<sha>
-	$(MAKE) release WHEEL=$(WHEEL)
-
-release:
-	ssh $(BOX) 'WHEEL=$(WHEEL) bash -s' < infra/box/release.sh
-
-logs:             ## the journal of the runtime's units since the gateway last started, whole
-	ssh $(BOX) 'journalctl -u "pinecall-gateway@*" -u "pinecall-worker*@*" -u "pinecall-overflow@*" -u pinecall-migrate --no-pager -o cat --since "$$(systemctl show -p ActiveEnterTimestamp --value pinecall-gateway@8080)"'
-
-ssh:
-	ssh $(BOX)
-
-test-box:         ## every suite on the box's database through an ssh tunnel; the DSN is never printed
-	@ssh -f -N -o ExitOnForwardFailure=yes -L $(TUNNEL):127.0.0.1:5432 $(BOX)
-	@DATABASE_URL="$$(ssh $(BOX) sudo -n systemd-creds decrypt --name=DATABASE_URL /etc/credstore.encrypted/DATABASE_URL - \
-	    | sed 's/127.0.0.1:5432/127.0.0.1:$(TUNNEL)/')" uv run pytest -q $(T); status=$$?; \
-	  pkill -f "ssh -f -N -o ExitOnForwardFailure=yes -L $(TUNNEL):" ; exit $$status
-
-# infra-v2's images, built by Cloud Build as the builds' own identity (infra-v2/terraform/modules/
-# build), never on the laptop. The runtime's context is the Containerfile and this checkout's
-# wheel alone; its tag is the commit, so a cluster runs exactly what the commit holds.
+# The runtime's image, built by Cloud Build as the builds' own identity (infra/terraform/modules/
+# build), never on the laptop. Its context is the Containerfile and this checkout's wheel alone;
+# its tag is the commit, so a cluster runs exactly what the commit holds.
 REGISTRY ?= us-central1-docker.pkg.dev/$(PROJECT)/pinecall
 BUILDER  ?= projects/$(PROJECT)/serviceAccounts/pinecall-build@$(PROJECT).iam.gserviceaccount.com
 TAG      ?= $(shell git rev-parse --short HEAD)
-image-v2:         ## the runtime's container image, TAG=<commit>, built and checked by Cloud Build
+image:            ## the runtime's container image, TAG=<commit>, built and checked by Cloud Build
 	scripts/console
 	rm -rf dist && uv build --wheel --quiet
-	rm -rf .image-v2 && mkdir .image-v2
-	cp infra-v2/images/pinecall/Containerfile dist/pinecall-*.whl .image-v2/
-	gcloud builds submit .image-v2 --config infra-v2/images/pinecall/cloudbuild.yaml \
+	rm -rf .image && mkdir .image
+	cp infra/images/pinecall/Containerfile dist/pinecall-*.whl .image/
+	gcloud builds submit .image --config infra/images/pinecall/cloudbuild.yaml \
 	  --service-account $(BUILDER) --substitutions _IMAGE=$(REGISTRY)/runtime:$(TAG) \
-	  --project $(PROJECT) --region us-central1; status=$$?; rm -rf .image-v2; exit $$status
+	  --project $(PROJECT) --region us-central1; status=$$?; rm -rf .image; exit $$status
 
-comma := ,
+# Every suite inside the cluster, against its Postgres (CloudNativePG, the application user, no
+# superuser) and a Redis made for the run: the checkout's files as they are now and TREE.md, built
+# by Cloud Build like the runtime's image; the Job's log is the result.
+suite:            ## ENV=…: every suite as a Job on the cluster, TAG=<commit>; its log printed
+	rm -rf .suite && mkdir .suite
+	{ git ls-files -co --exclude-standard; echo TREE.md; } | while read -r f; do [ -f "$$f" ] && echo "$$f"; done \
+	  | tar -cf - -T - | tar -xf - -C .suite
+	cp infra/images/suite/Containerfile .suite/
+	gcloud builds submit .suite --config infra/images/cloudbuild.yaml \
+	  --service-account $(BUILDER) --substitutions _IMAGE=$(REGISTRY)/suite:$(TAG) \
+	  --project $(PROJECT) --region us-central1; status=$$?; rm -rf .suite; exit $$status
+	kubectl --context $(CONTEXT) delete job/suite pod/suite-redis service/suite-redis --ignore-not-found
+	sed "s|SUITE_IMAGE|$(REGISTRY)/suite:$(TAG)|" infra/manifests/suite.yaml | kubectl --context $(CONTEXT) apply -f -
+	kubectl --context $(CONTEXT) wait job/suite --for=condition=complete --timeout=30m; status=$$?; \
+	  kubectl --context $(CONTEXT) logs job/suite | tail -40; exit $$status
 
-.PHONY: check test db hooks box deploy rollback release logs ssh test-box tf-check tf-init tf-plan tf-apply image image-v2 local local-gateway local-worker local-down
+# The cluster's Postgres, then charts/pinecall at the image of this commit, waiting for every
+# workload; then the live suite against the world's production name.
+DOMAIN    = $(shell sed -n 's/^  production: //p' infra/values/$(ENV).yaml)
+deploy:           ## ENV=staging: charts/pinecall released at TAG=<commit> (make image first)
+	kubectl --context $(CONTEXT) apply -f infra/manifests/postgres.yaml
+	kubectl --context $(CONTEXT) wait cluster/pinecall-postgres --for=condition=Ready --timeout=600s
+	helm upgrade --install pinecall infra/charts/pinecall --kube-context $(CONTEXT) \
+	  -f infra/values/$(ENV).yaml --set image.tag=$(TAG) --wait --timeout 20m
+	PINECALL_URL=https://$(DOMAIN) uv run pytest -q tests/live
+
+logs:             ## ENV=…: the gateways' and the workers' logs of the last hour
+	kubectl --context $(CONTEXT) logs --since=1h --prefix --max-log-requests 20 \
+	  -l 'app in (pinecall-gateway,worker,overflow)'
+
+.PHONY: check test db hooks local local-gateway local-worker local-down tf-check tf-init tf-plan tf-apply image suite deploy logs

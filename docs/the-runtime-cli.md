@@ -10,76 +10,20 @@ writes an agent, nothing there issues a key.
 | group | speaks to |
 |---|---|
 | `gateway` · `worker` · `runner` · `doctor` · `providers` | this machine: its settings, its database, its LiveKit |
-| `migrate` · `sessions` · `memory` · `retention` · `traceback` · `facts` · `vault` · `fence` | Postgres, straight, over `DATABASE_URL` (`vault` with `PINECALL_VAULT_KEY` too; `fence apply` writes nftables as root) |
-| `box up` · `box upgrade` | this machine as root: it made a box from the package itself |
-| `cell` | this machine as root: on the box, its side of a machine beside it; on that machine, the machine joined from the package |
+| `migrate` · `sessions` · `memory` · `retention` · `traceback` · `facts` · `vault` | Postgres, straight, over `DATABASE_URL` (`vault` with `PINECALL_VAULT_KEY` too) |
 | `init` · `orgs` · `keys` · `routes` · `fleet` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` and `keys runner` alone are minted on the database, before any gateway answers |
 | `load` | a running gateway's sandbox, over the worker's own call doors with the sandbox fleet's key (`PINECALL_WORKER_KEY`) |
 
 ## `gateway` · `worker start` · `worker overflow` · `runner start`
 
-`gateway` serves both worlds on the loopback address `PINECALL_GATEWAY_URL` names, behind Caddy;
-a URL that is not loopback is refused in one sentence. `worker start` is a worker of the fleet
+`gateway` serves both worlds: in a pod on the address `PINECALL_GATEWAY_LISTEN` names, behind the
+cluster's load balancer; elsewhere on the loopback address `PINECALL_GATEWAY_URL` names, and a URL
+that is not loopback is refused in one sentence. `worker start` is a worker of the fleet
 `PINECALL_FLEET` names, until told to stop or cordoned; `worker overflow` the one that answers when
 the fleet is full. `runner start` keeps the hosted apps of the world its `PINECALL_RUNNER_KEY`
-opens running, one gVisor container each, on a machine that is not the box
-([../infra/apps/README.md](../infra/apps/README.md)). Every variable they read is
+opens running, one gVisor container each, on a machine of its own, outside the cluster. Every
+variable they read is
 [the-environment.md](the-environment.md).
-
-## `box up` · `box upgrade` · `box failover`
-
-`sudo uvx --from pinecall pinecall-runtime box up --domains <production>[,<sandbox>]` makes the
-machine it runs on a box, from the files the package carries (`pinecall/infra/`): the system's
-packages, `/opt/pinecall/infra`, `install.sh` (containers, firewall, Caddy for the names, the
-secrets drawn and sealed), then `release.sh` with `PACKAGE=pinecall==<this version>` — the
-runtime from PyPI into `/opt/pinecall/venv`, migrations, the units, the doctor. Ubuntu 24.04 and
-root; the names already point at the machine. `--backup-key age1…` writes
-`/etc/pinecall/backup.age.pub` and turns the nightly backup on; without it there is none.
-`--package` installs a wheel's path or another `pinecall==` instead. `box upgrade` is `box up`
-with the names the box has (`/etc/pinecall/box.env`): run from `uvx --from pinecall@latest`, it
-brings the box to that version. `box failover`, on the machine `cell join-replica` made a replica, promotes its
-Postgres and prints what to repoint; it repoints nothing itself ([a-box-in-production.md](a-box-in-production.md)). On a box, `/usr/local/bin/pinecall-runtime` runs any verb with the
-box's settings and sealed credentials: `sudo pinecall-runtime doctor`, `sudo pinecall-runtime init …`.
-
-## `cell`
-
-The machines beside the box: a replica of its Postgres, machines of gateways, machines of workers.
-Each is two halves, the box letting it in and the machine joining, and each half is a verb. The
-box's verbs run the scripts `box up` installed there (`/opt/pinecall/infra/cell/primary.sh`, the
-version the box runs); a machine's verbs, run through `uvx --from pinecall==<version>` on a machine
-that has nothing of Pinecall yet, copy the package's own `infra/` to `/opt/pinecall/infra` and run
-its script. The version is the box's: `sudo pinecall-runtime --version` on it. Secrets go from the
-box's verb to the machine's through a pipe, never through a terminal: a verb that writes a tar of
-them refuses a terminal for its stdout, and the machine's verb reads it on stdin.
-
-| on the box | does |
-|---|---|
-| `cell allow-replica <address>` · `forget-replica` | the replica's role, slot and `pg_hba` line, Postgres published toward it and fenced to it alone; undone |
-| `cell allow-gateway <address>` · `forget-gateway <address>` | a gateway machine let reach Postgres, Redis and LiveKit's API, and added to the gateways Caddy sends calls to; undone. A second LiveKit or SIP node is let in the same way |
-| `cell gateway-credentials` | the credentials a gateway machine runs on, as a tar on stdout |
-| `cell allow-worker <address or range>` · `forget-worker …` | a worker machine, or the subnet the fleet loop makes its machines in (`10.100.0.0/24`), let reach LiveKit's API and the gateways' balancer, nothing else; undone. Restarts nothing |
-| `cell worker-settings <world>` | what a worker of that world runs on and is no secret (the box's names, the object store, the fleet's file), as a tar: for the machine an image is made from |
-| `cell worker-credentials <world>` | the same with the fleet's key, the LiveKit pair and the store's secret; refused on a box that keeps recordings on its own disk |
-
-| on the machine joined | does |
-|---|---|
-| `cell join-worker <box address> <world> [--calls N]` | one worker of the world's fleet, its credentials on stdin and sealed there; `--calls` unset is four per vCPU |
-| `cell image-worker <box address> <world> [--calls N]` | the same machine prepared from `worker-settings`, its worker enabled and not started, no credential on it: stopped and frozen, it is the fleet's image ([../infra/fleet/README.md](../infra/fleet/README.md)) |
-| `cell release-worker` | the runtime brought to this version; the worker drains its calls and restarts |
-| `cell join-gateway <box address> [--processes N]` | gateways on loopback and the machine's Caddy on port 8090, fenced to the box; `--processes` unset is one per two vCPUs |
-| `cell release-gateway` | the runtime brought to this version, its gateways restarted one at a time |
-| `cell join-replica <box address>` | a streaming replica, the replication password on stdin: what `box failover` promotes |
-| `cell enroll` | a fleet machine's first boot (`pinecall-join.service` runs it at every boot): its credentials sealed here, from the join token cloud-init wrote, or from its cloud's store as its own identity (Secret Manager on Google Cloud, Secrets Manager on AWS through the aws CLI, by the instance's tags); enrolled already, or joined by hand, it says so and changes nothing |
-
-On the box, `cell publish-secrets` puts its credentials (each world's fleet key, the LiveKit pair,
-the store's secret) in its cloud's store for the fleet's machines to read (Secret Manager, or
-Secrets Manager on a box on AWS, the value on the aws CLI's stdin), a version added only where one
-differs; the secrets themselves and who reads them are Terraform's (`modules/secrets`,
-`modules/secrets-aws`).
-
-Every machine's verb takes `--package <wheel path or pinecall==version>` to install another than
-the one it runs from. The procedures, step by step, are [a-box-in-production.md](a-box-in-production.md):
-"A replica", "Gateways on other machines", "Workers on other machines".
 
 ## `init`
 
@@ -128,39 +72,19 @@ routes list [--org] [--env] · routes add <number> <agent> [--channel phone|what
 routes rm <number> [--org] · routes seed [--file infra/seed/routes.json]
 ```
 
-## `fence`
-
-```
-fence apply · fence export
-```
-
-The networks 5060 opens to beyond Twilio's: the carriers the operator admits and the addresses
-he approved ([telephony.md](telephony.md), "The fence, twice"). `apply` writes them into
-`/etc/pinecall/nftables.d/carriers.nft` and has nftables read it, checking each network again;
-`pinecall-fence.timer` runs it every minute as root through `pinecall-fence`, the same verbs on
-an entry point that imports none of the gateway. `export` prints the whole list Twilio's included
-as `{"carrier_signalling": [...]}`, the tfvars Terraform's cloud firewall reads
-(`infra/terraform/environments/production/carrier_signalling.auto.tfvars.json`, never committed).
-
 ## `fleet`
 
 ```
 fleet list [--fleet <name>] · fleet cordon <worker> · fleet uncordon <worker>
-fleet loop --cloud <script> --seats <n> [--fleet <name>] [--target 0.6] [--min 1] [--max 10]
-           [--grow-at-most 1] [--every 15] [--once] [--dry-run]
 ```
 
 `list` is the roster the gateway hears: each worker, what it holds, its seats, load, standing
 (`accepting`, `failing`, `full`, `draining`, `cordoned`, `gone`) and when it was heard, then each
 fleet summed, with its rooms waiting for a worker when there are any (a call LiveKit or a worker
-dropped, offered again by the gateway: [scaling.md](scaling.md), "Who takes a call"). `loop` keeps a fleet at its target ([scaling.md](scaling.md)):
-`--cloud` is a script with three verbs, `create <name>`, `delete <name>`, `list`; `infra/fleet/`
-holds one per cloud. A tick grows by the seats missing, at most `--grow-at-most` machines (1 unless
-said; 0 is a cloud that grows the fleet itself, told the fleet's calls each tick with `measure
-<fleet> <calls>`), and shrinks by one cordon. Before each `create` the loop mints the machine a join token
-(`POST /v1/ops/fleet/join-tokens`) and hands it over with the door to spend it at, and after each
-`delete` it revokes the machine's keys (`DELETE /v1/ops/fleet/{worker}/keys`): `--fleet` is
-required unless `--dry-run`, which prints one tick's verdict and touches nothing.
+dropped, offered again by the gateway: [scaling.md](scaling.md), "Who takes a call"). `cordon`
+tells a worker, on its next heartbeat, to take no new call, finish what it holds and leave;
+`uncordon` takes that back while it has not left. How many workers a fleet runs is the cluster's:
+[scaling.md](scaling.md), "The burst"
 
 ## `load`
 
@@ -182,18 +106,17 @@ log as JSON, the shape of `tests/wire/golden/call-log.json` (125 entries over 53
 is how many at once at the top, reached linearly over `--ramp` seconds and held `--minutes`.
 
 ```
-PINECALL_GATEWAY_URL=https://sandbox.<throwaway box> PINECALL_WORKER_KEY=<its sandbox fleet key> \
+PINECALL_GATEWAY_URL=https://<staging's sandbox name> PINECALL_WORKER_KEY=<its sandbox fleet key> \
   pinecall-runtime load --org org_load --agent load --script tests/wire/golden/call-log.json \
   --calls 500 --ramp 60 --minutes 5
 ```
 
-It runs against **a box made for it** (`box up` on a clean machine), never production's: the
-calls are real calls of the org, logged, counted against its quotas and sealed. The org is one
-made for the run, with its sandbox quotas (`orgs quota --env sandbox`) above the run and its
-hang-up judging off (`PUT /v1/org/judging`), or every seal asks the box's judge model. Each call
-at once has a client and a connection of its own, as a worker's job has, so `ulimit -n` must be
-above `--calls`. At the end it prints,
-a line each:
+It runs against **a cluster made for it** (staging, `make deploy ENV=staging`), never
+production's: the calls are real calls of the org, logged, counted against its quotas and
+sealed. The org is one made for the run, with its sandbox quotas (`orgs quota --env sandbox`)
+above the run and its hang-up judging off (`PUT /v1/org/judging`), or every seal asks the box's
+judge model. Each call at once has a client and a connection of its own, as a worker's job has, so
+`ulimit -n` must be above `--calls`. At the end it prints, a line each:
 
 | line | what it is |
 |---|---|
@@ -217,7 +140,7 @@ calls past their org's `retention_days` (`PUT /v1/org/policy`), oldest first; `r
 erases them, each through the erasure path with `retention` as who asked, 5 000 a run at most,
 then forgets the detail records of erased phone calls, and the dials, older than 24 months, and
 the WhatsApp message ids claimed more than 7 days ago ([whatsapp.md](protocol/whatsapp.md));
-then makes the log's days a week ahead (`call_log` is partitioned by UTC day; a row no day holds lands in `call_log_default`, and a day the default already holds rows of is named and not made) and drops each past day nothing is left in; `pinecall-retention.timer` runs it at 04:00 every night. `doctor`'s `days` line names rows in the default and fewer than two days made ahead. `traceback <number> [--since
+then makes the log's days a week ahead (`call_log` is partitioned by UTC day; a row no day holds lands in `call_log_default`, and a day the default already holds rows of is named and not made) and drops each past day nothing is left in; the CronJob `pinecall-retention` runs it at 04:00 UTC every night. `doctor`'s `days` line names rows in the default and fewer than two days made ahead. `traceback <number> [--since
 YYYY-MM-DD]` answers a carrier's traceback: every phone call with the number, still kept or erased
 with its record, and every dial to it placed or refused, with the org, the world, the number shown
 and who asked — 24 months back unless `--since` says a day. `migrate up` applies what the
@@ -226,8 +149,8 @@ every migration on the disk. `providers list [--does llm|stt|tts]` lists every v
 runs and whether the box holds its key; `providers seed <file>` writes the providers row a box
 starts from, once: after it, the console edits it at `/v1/ops/providers`. `providers prices
 <file.csv> [--apply]` says what a prices file changes in the row's rates (new, changed, the same,
-and the models only the box holds, which it keeps) and writes nothing until `--apply`; the box
-ships `infra/box/prices.csv`. `facts rebuild [--call <call>] [--org <org id>] [--since
+and the models only the box holds, which it keeps) and writes nothing until `--apply`; the
+repository ships `infra/seed/prices.csv`. `facts rebuild [--call <call>] [--org <org id>] [--since
 YYYY-MM-DD]` folds each call's facts row (what the lists, the inbox and the insights read) again
 from its log, every call's when no flag is given, and writes the row where it differs: one call at
 a time, each in a transaction of its own under the lock its appends take, so a live call waits
@@ -239,7 +162,7 @@ usage totals (what admission counts, a row per org, world and month) again from 
 the log, as the usage feed folds each one, and rewrites the table in one transaction that holds
 it: a summary written meanwhile waits and is counted after; it prints how many summaries and rows.
 `doctor` asks each thing the box needs one question, a line each, and exits 1
-when one is missing; it is the last line of every deploy. Its `facts` line examines the 20 newest
+when one is missing. Its `facts` line examines the 20 newest
 calls and 20 heads from a random point of the call ids (never every head: on a box that is a probe
 per call), names each whose head gave out fewer seqs than its rows hold and how many it examined,
 and refolds 20 sealed calls from a random point of the call ids, naming each whose stored facts
@@ -256,8 +179,9 @@ mends it.
 ## `vault rotate`
 
 Every secret the box keeps is sealed under the first key of `PINECALL_VAULT_KEY`, and any key the
-list holds opens it. To turn the vault: put a new key in front of the list (on a box,
-`install.sh secret PINECALL_VAULT_KEY` with `<new>,<old>` on stdin) and restart the gateway, so
+list holds opens it. To turn the vault: put a new key in front of the list (in a cluster, a new
+version of the secret `pinecall-<world>-vault-key` in Secret Manager holding `<new>,<old>`, which
+External Secrets brings to the pods within the hour) and restart the gateways, so
 every secret written from then on is sealed under the new one; then `vault rotate` re-seals every
 sealed value of the schema under the first key, one line per column:
 

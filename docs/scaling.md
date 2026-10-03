@@ -3,23 +3,24 @@
 The same runtime is one box that does everything, or a gateway with workers on as many machines as
 the calls need. It is configuration: a worker is `pinecall-runtime worker start` on a machine that
 reaches the gateway and LiveKit, holding its world's fleet key. The operator's verbs are
-[the-runtime-cli.md](the-runtime-cli.md); the box is [../infra/box/README.md](../infra/box/README.md);
-the clouds a fleet grows on are [../infra/fleet/README.md](../infra/fleet/README.md).
+[the-runtime-cli.md](the-runtime-cli.md); the cluster it runs on, from nothing, is
+[../infra/README.md](../infra/README.md).
 
 ## Growing it, step by step
 
-Each step is a command on a machine, and each was measured on 2026-10-01 (the numbers are the
-table at the end). Stop at the first one that holds your peak.
+The runtime runs on a Kubernetes cluster (`infra/`): a core node for the box's services and a few
+small workers, and a pool of worker nodes that grows with the calls. Each row is a value of the
+chart or of Terraform, never a machine made by hand. The numbers are what the runtime was measured
+holding on machines of the same types (the tables below); on the cluster they are proven on
+staging before production.
 
 | you need | do | holds (measured) |
 |---|---|---|
-| a box | `sudo uvx --from pinecall pinecall-runtime box up --domains <prod>,<sandbox>` on Ubuntu 24.04 | two gateways, Postgres, LiveKit, two workers per world |
-| more calls at once | workers on more machines: the fleet loop asks your cloud for them ([../infra/fleet/README.md](../infra/fleet/README.md)) | ~16 calls a 4-vCPU worker machine; workers are 93 % of the cores a call costs |
-| more gateway processes | on a bigger box: `systemctl enable --now pinecall-gateway@8880` (not 8082–8085) and its address in Caddy's `(gateways)` | ~330 calls a gateway core |
-| gateways off the box | on the box `pinecall-runtime cell allow-gateway <machine>`; then `cell gateway-credentials \| ssh <machine> uvx --from pinecall==<version> pinecall-runtime cell join-gateway <box>` ([a-box-in-production.md](a-box-in-production.md), "Gateways on other machines") | a gateway machine killed under 1 200 calls lost none |
-| more media | a second LiveKit node on the box's Redis (same page, "A second LiveKit node") | ~90 voice calls a core, 0 packets lost at 400 |
-| Postgres that outlives the box | `pinecall-runtime cell allow-replica <replica>` and `cell join-replica <box>` on it ([../infra/cell/README.md](../infra/cell/README.md)) | drilled: promoted in 17 s with no write lost, a box again in under 3 min; a restore to any minute in 79 s |
-| past ~15 000–20 000 calls | a second cell: another box and its machines, an org living in one | Postgres grows ~1.4 cores per 1 000 calls; one database is one cell |
+| a cluster | `make tf-plan`, `make tf-apply`, `make image`, `make deploy` ([../infra/README.md](../infra/README.md)) | two gateways, Postgres, LiveKit, SIP, two small workers per world |
+| more calls at once | nothing: KEDA adds a scaled worker when the gateway asks for one, and the cluster autoscaler a node for it ("The burst", below) | 32 calls a scaled worker, alone on an 8-vCPU node at ~60 % |
+| more gateway processes | `gateway.replicas` in the chart's values | ~330 calls a gateway core |
+| Postgres that outlives a node | `instances: 2` in `manifests/postgres.yaml`: CloudNativePG keeps a streaming replica and promotes it | — |
+| past ~15 000–20 000 calls | a second cell: another cluster, an org living in one | Postgres grows ~1.4 cores per 1 000 calls; one database is one cell |
 
 ## Three planes, each grows on its own
 
@@ -35,10 +36,10 @@ call's session, a WhatsApp thread) and, for five seconds, a key it verified; eve
 Postgres, or said on the signal each second (who holds which agent, the roster, an org's calls at
 once). A key revoked, or a person changed (role, agents, production, operator, disabled), at a door is
 forgotten on every gateway at once, said on the signal; a change made at a shell (`keys revoke`)
-holds for those seconds on a gateway that remembered the key. A call's requests go to one
-gateway while it lives, by the `Pinecall-Call` header the balancer hashes, so a second gateway
-costs a call nothing; any other gateway answers them the same when that one is gone. The box runs
-two ([a-box-in-production.md](a-box-in-production.md), "Two gateways").
+holds for those seconds on a gateway that remembered the key. Any gateway answers any request of
+a call, so the cluster's load balancer sends each wherever it likes and a second gateway costs a
+call nothing; the chart runs two (`gateway.replicas`), and a disruption budget keeps one up
+through a node's drain.
 
 ## A fleet per world
 
@@ -47,8 +48,8 @@ workers per world**. LiveKit dispatches by agent name, a worker registers under 
 `PINECALL_FLEET` (`pinecall` for production, `pinecall-sandbox` for the sandbox by default, the
 `fleets` row of the box, `/v1/ops/fleets`), and the gateway dispatches every call to the fleet of
 its world. A worker holds its world's fleet key, and the gateway refuses a call of the other world.
-Everything below is per fleet: the roster is keyed by fleet, the totals are a fleet's, the loop
-takes `--fleet`.
+Everything below is per fleet: the roster is keyed by fleet, the totals are a fleet's, and the
+cluster asks how many scaled workers each fleet wants.
 
 ## Capacity is counted in calls
 
@@ -87,14 +88,14 @@ CPU reading crosses 0.7 for an instant, LiveKit marks the worker unavailable and
 room again; counting (`PINECALL_MAX_JOBS=20`), 14 of 15 calls got their agent (the fifteenth was
 the 0.7 line) at 42 % of the machine. **A call costs ~0.24 vCPU**, so a worker machine holds about
 `2.9 × vCPU` calls at the line: set `PINECALL_MAX_JOBS` to `vCPU × 4` and the 0.7 line falls there.
-That is a machine of workers alone. On the box everything shares the cores, so `install.sh` gives
-its four workers 1.5 seats per vCPU between them, two thirds of them production's (a box of
-4 vCPU: two and two in production, one and one in the sandbox), from the box measured whole:
+That is a machine of workers alone. On a machine that also runs the box's services everything
+shares the cores: the cluster's core node runs two workers of two seats in production and two of
+one in the sandbox (`workers.core` in the chart's values), from the box measured whole:
 
 **A box, measured whole.** On 2026-10-01, on a box of production's machine type (4 vCPU:
 Postgres, LiveKit, SIP, the room's recorder of the time (egress), two gateways and one worker on
 it), SIP callers speaking a turn every 10 s and the three vendors faked on their own wire on
-another machine (`infra/lab/`): a call costs **~0.5 cores of the box** — ~0.3 the worker, ~0.12
+another machine (the load lab): a call costs **~0.5 cores of the box** — ~0.3 the worker, ~0.12
 its recording, ~0.1 SIP and LiveKit.
 
 | calls at once | box cores | turns the agent answered | first audio p50 / p95 | ring to live p50 |
@@ -126,8 +127,8 @@ worker went from 1.78 to 2.31 cores and the recorder from 0.60 to 0, the box at 
 but it needs no egress at all, it scales with the workers wherever they run, and it is what the
 next paragraph's machine of workers measured with.
 
-**A machine of workers alone** (`pinecall-runtime cell join-worker`, "Workers on other machines" in
-[a-box-in-production.md](a-box-in-production.md)), the same callers and fakes, the box keeping
+**A machine of workers alone** (a worker machine joined to the box), the same callers and fakes,
+the box keeping
 the media plane and the gateways, the recording in each call's process and the file in the bucket:
 
 | calls at once | worker machine (8 vCPU) | per call | the box (4 vCPU), no worker on it | turns answered | first audio p50 / p95 | ring to live |
@@ -143,8 +144,8 @@ about 25 calls before it needs a LiveKit node or a SIP node of its own (above). 
 not move from 8 to 24: the worker machine was never the bottleneck of these calls, the box was
 when the workers shared it.
 
-**Two vCPU on each side** (2026-10-02, `infra/lab/measure.py measure --box e2-standard-2 --worker
-e2-standard-2`, the lab made and destroyed by Terraform): the calls that started all held, but no
+**Two vCPU on each side** (2026-10-02, the load lab with an e2-standard-2 box and an e2-standard-2
+worker, made and destroyed by Terraform): the calls that started all held, but no
 step started more than six calls, whatever was asked: the worker had 8 slots and LiveKit refused
 it at 0.7 of them (above, "Capacity is counted in calls"); read the rows as what six calls cost,
 not as where two vCPU stop.
@@ -186,7 +187,7 @@ to 32**, and a burst twice as fast as the report to LiveKit (2.5 s) lost none: L
 the three runs, 88 jobs assigned, zero refused. The runs between the two tables that started 12 of 24 and 8 of 32 were a fault of the
 lab, not of the worker: it destroyed each worker machine with its worker still up, and LiveKit
 keeps such a worker registered for 15–20 minutes (below, "A worker that dies"), offering it calls
-it cannot take. The lab now stops the worker first, as the loop does.
+it cannot take. The lab now stops the worker first.
 
 The same lab given 16 slots on a 2-vCPU worker (`--seats 16 --calls 8,12`) showed what an
 oversized `MAX_JOBS` costs: the worker at 1.9 of its 2 cores, 78 of 89 and 95 of 127 turns
@@ -282,25 +283,18 @@ in that world and held at the door, never mid-call: sandbox calls never use up p
 ## Deploys drain, cordons shrink
 
 A worker told to stop takes no new call and drains what it holds for up to ten minutes, then seals
-what is left in sixty seconds; systemd waits fifteen. A **cordon** (`fleet cordon`,
-`POST /v1/ops/fleet/{worker}/cordon`) is told on the worker's next heartbeat: it takes no new call,
-finishes what it holds, and exits **3**, which its unit's `RestartPreventExitStatus=3` leaves down.
+what is left in sixty seconds; Kubernetes waits fifteen (the pod's `terminationGracePeriodSeconds`,
+900). A **cordon** (`fleet cordon`, `POST /v1/ops/fleet/{worker}/cordon`) is told on the worker's
+next heartbeat: it takes no new call, finishes what it holds, and exits **3**. In a cluster its
+Deployment starts the container again under the same name, which is still cordoned, so a cordon
+there is for looking, not for taking a worker out: a pod is taken out by deleting it
+(`kubectl delete pod`), which stops its worker the same way, drained.
 
-A deploy never closes a fleet. The box runs two workers per world and replaces one at a time
-([../infra/box/README.md](../infra/box/README.md)): each comes back registered and heard before the
-other is stopped. A fleet of machines is replaced by **generation**, with the loop's own verbs:
-
-1. make the new generation's image (the new wheel, the same units and `fleets/<world>.env`) and
-   point the cloud script at it (`PINECALL_FLEET_IMAGE`);
-2. stop the loop, and run it once with `--min` at the machines up now plus the new ones wanted and
-   `--grow-at-most` as many (`fleet loop --once …`): it creates them from the new image; wait
-   until `fleet list` shows each new one `accepting`;
-3. `fleet cordon` every machine of the old generation: each takes no new call, drains, and exits 3;
-4. start the loop again with its usual flags: it deletes each cordoned machine once it has drained,
-   and grows or shrinks the new generation by the numbers.
-
-The loop is stopped while the new machines come up, or it would cordon the quietest of them as one
-too many. At every step some machine takes new calls, and no call is moved.
+A deploy never closes a fleet. Each world's core workers are a Deployment that replaces one pod at
+a time and never has fewer than it asks for (`maxUnavailable: 0`, `maxSurge: 1`): the new pod is
+started and answering on its health port (its startup probe) before an old one is told to stop, and the old one drains its calls while the new one takes every new call of its
+world. The scaled workers roll by Kubernetes' default, a quarter of them at a time, each old one
+draining its calls as it goes. No call is moved.
 
 ## A worker that dies
 
@@ -312,8 +306,8 @@ log for a phone caller, and sends the world's fleet into the room with a job tha
 sentence, the overflow's `PINECALL_OVERFLOW_SAYS`, deletes the room and seals the call. So the
 caller hears that sentence, not silence: LiveKit notices a connection lost in seconds (it waits
 five for it to come back), and the job starts on any worker with a seat, or on the overflow when
-the fleet is full. On a box of one worker per world, a dead worker's calls wait for its unit to
-come back (systemd restarts it in seconds), since the overflow opens only for a full fleet and a
+the fleet is full. On a fleet of one worker, a dead worker's calls wait for it to come back (its
+Deployment starts it again in seconds), since the overflow opens only for a full fleet and a
 fleet nobody hears from is not full. A drain, a cordon and a call that ends leave on purpose, and
 are not this. If no job comes, the reaper seals the call after five quiet minutes, as before.
 
@@ -325,13 +319,13 @@ keeps pinging the dead socket until the kernel gives up, **15–20 minutes** mea
 2026-10-03, and all that time it keeps **offering that worker new calls**, drawn by its last
 reported load, each offer waiting 10 s and then dropped with no retry. With one live worker
 beside the ghost, about half the new calls of that fleet are lost in silence until the ghost is
-gone. Every path the runtime drives — the loop's cordon and delete, a release, `cell
-release-worker`, the lab — stops the worker before the machine goes, so none of them makes a
-ghost; a machine lost to a fault does. Since the gateway chooses the worker (above, "Who takes a
+gone. Every path the cluster drives — a release, KEDA letting a scaled worker go, `kubectl delete
+pod` — stops the worker before its pod goes (SIGTERM, then its drain), so none of them makes a
+ghost; a node lost to a fault does. Since the gateway chooses the worker (above, "Who takes a
 call") the ghost takes nothing: a worker unheard for 12 s is never offered a call, and one offered
 to it before that is offered again at 12 s. Measured on 2026-10-03 in the lab (two e2-standard-8
 machines of 32 slots, 16 calls at one a second, the second machine powered off at once at the 8th
-call, `measure.py --workers 2 --kill-at 8`): **16 of 16 started**; the 5 on the dead machine heard
+call): **16 of 16 started**; the 5 on the dead machine heard
 the sentence and ended as drained; the 2 the gateway had offered it before it was known dead
 were offered again at 12 s to the other and started; none went to the overflow, none was silent;
 131 of 132 turns answered, first audio 1.23 / 1.31 s. With the gateway choosing, the same lab on
@@ -342,60 +336,33 @@ live 0.1 s after it rang.
 Measured on 2026-10-01 (a spoken call, its worker SIGKILLed 25 s in): **20.5 s** from the kill to
 `call.ended drained` on the log — LiveKit's connection timeout for the agent, which leaves as
 `CONNECTION_TIMEOUT` — and the sentence's job on the other worker a second later; before LiveKit
-read its webhook on a box, the same call waited for the reaper's five minutes. The sentence is
+read its webhook, the same call waited for the reaper's five minutes. The sentence is
 said after `call.ended` is on the log: a client that hangs up on `call.ended` (the simulated caller
 of `/v1/evals/voice` does) leaves before it; a phone caller stays on the line and hears it.
 
-## The fleet loop
+## The burst
 
-`pinecall-runtime fleet loop --cloud infra/fleet/gcp --seats 4 --fleet pinecall` keeps a fleet at a
-target, **60 % busy** by default, `busy = active / seats` over the workers heard from, and holds
-nothing between two ticks: the roster is the gateway's and the machines are the cloud's. Every
-fifteen seconds (`fleet/hub.py`, numbers in, decisions out):
+The core node's workers hold a quiet hour's calls; every call beyond them goes to a **scaled
+worker**, a pod of 32 seats alone on a node of the workers pool (e2-standard-8). How many of them
+a fleet runs is one number the gateway computes from the roster it already hears,
+`GET /v1/ops/fleet/{fleet}/wanted?scaled=<prefix>&seats=<n>&most=<n>` (`fleet/demand.py`), and
+KEDA keeps the Deployment at it, asking every 15 seconds:
 
-| when | it does |
+| when | the number |
 |---|---|
-| a cordoned machine holds no call, or went silent | **delete** it |
-| a machine never dialled in within 10 min, or fell silent for 5 | **delete** it |
-| fewer workers than `--min`, no seat anywhere, or busy over the target | **grow** by what is missing: `create pinecall-worker-<yymmddhhmmss>-<n>` for each machine, a name never used before (a reused one would carry the last machine's cordon onto the next) |
-| busy would still be under the target **by 0.15** without the quietest, and more than `--min` | **cordon** the quietest |
+| the core's seats keep busy (`active / seats`) at or under **60 %** | the scaled workers there are, or none |
+| busy would pass 60 % | what brings it back under, in whole workers of `seats`, the core's seats counted first, cut at `most` |
+| busy would stay under **45 %** (the target less 0.15) without one of them | one fewer |
 
-What is missing is counted in seats: those that bring busy back to the target (`active / target`,
-the target read as the decimal it was typed as), less the seats there are, in whole machines of
-`--seats`; under `--min`, the machines up to it; with no seat at all, one. The larger of these is
-asked for, cut by `--max` and by `--grow-at-most` a tick (1 unless said). A machine still booting counts as `--seats` of capacity from the moment it is
-asked for, so the loop asks once and waits, and the slack keeps a grow and a cordon from chasing
-each other. Shrinking stays one cordon a tick, and never in a tick that grows or while a machine
-boots. The loop never cordons or deletes a machine the cloud does not list as
-the fleet's: a worker stood up by hand counts and is never let go. `--once --dry-run` prints one
-tick and touches nothing.
-
-**The loop is the one thing that sizes a fleet**, on every cloud. On Google Cloud, production's
-machines are a managed instance group (Terraform's `modules/fleet-gcp`) with no autoscaler: the
-loop, `pinecall-fleet-loop@production` on the box, makes a machine in it by name and deletes one out
-of it once drained (`infra/fleet/gcp-mig.py`), and its machines read their credentials from Secret
-Manager as their own identity. On AWS the same is an Auto Scaling group (`modules/fleet-aws`) with no
-scaling policy, the loop raising its desired capacity and terminating out of it
-(`infra/fleet/aws-asg.py`), the credentials from Secrets Manager as the instance profile; written
-and validated, never applied: no box runs on AWS. A group that also sized itself disagreed with the
-loop: on 2026-10-03 production's autoscaler, counting the calls the box's own workers held, made a
-machine at every call that the loop then let go as one too many, five in forty minutes. The recipe
-and why are [../infra/fleet/README.md](../infra/fleet/README.md).
-
-Run in production on 2026-10-03, with no call, the image of `f1b163e`, the loop stopped while the
-machine came up (as for a new generation, above): `fleet loop --once --min 3` made
-`pinecall-worker-261003152311-1` in the group at once; the machine, which had no token and no
-credential, read its world's key from Secret Manager, and LiveKit registered it under its own name
-75 s after the ask, the fleet at 36 seats; with the loop started again (the real demand, 0) it was
-cordoned at its first tick and deleted 15 s later, the group back at 0 and no machine made again.
-The box's two workers of production were never touched.
-
-Run on Google Cloud on 2026-10-02 against the sandbox fleet, from a laptop, with no call: a machine
-made from an image that holds no credential, in the fleet's own subnet, spent its join token at
-its first boot and was `accepting` 99 s after the loop asked for it, on a fleet key of its own;
-told it was one too many, the loop cordoned it, deleted it 86 s later and revoked that key. The
-box's workers were never touched. The subnet, the image and the commands are in
-[../infra/fleet/README.md](../infra/fleet/README.md).
+The number is absolute: a pod still booting, not yet heard, is never asked for twice. Up is at
+once; down is one pod every five minutes, never sooner than ten minutes after the last change, and
+each pod let go drains its calls first (KEDA's `ScaledObject`, `charts/pinecall/templates/
+workers.yaml`). A pod with no node to go to waits for the cluster autoscaler, which makes a node of
+the pool for it and removes a node once it is empty; nothing else sizes the pool, and its ceiling
+is Terraform's (`workers_max`). The ceiling of the pods is `workers.scaled.<world>.most` in the
+chart's values. On staging the number and KEDA reading it are proven with no call (KEDA ready,
+the number 0, no scaled pod); the same with calls, up and down, is the next proof before
+production.
 
 ## The shape of the numbers
 
@@ -404,7 +371,7 @@ box's workers were never touched. The subnet, the image and the commands are in
   = 50 000 × 4 ÷ 60 ÷ 10 × 2  ≈  667 calls at once
 ```
 
-At about 16 live calls a worker and 60 % busy, that is about 70 machines kept ready: `--max 70`.
+At 32 seats a scaled worker and 60 % busy, that is about 35 of them at the peak: `most: 35`.
 
 The control plane, measured on 2026-10-01 with `pinecall-runtime load` from a machine of its own
 (the golden call as the script, 2.1 entries a second per call, every log read back and verified):
@@ -413,7 +380,6 @@ The control plane, measured on 2026-10-01 with `pinecall-runtime load` from a ma
 |---|---|---|
 | a gateway process | 1 200 calls on four processes: 3.6 cores | ~3 cores of gateway (~330 calls a core) |
 | Postgres | 1.9 cores at 1 200 calls, the gateways on the same machine | the figure to plan with is the next-but-two row's: ~1.4 cores, measured with the gateways apart |
-| Caddy, as the balancer on the box | 2.4 cores at 1 200 calls | ~2 cores: past one box, a cloud balancer |
 | append, worker to log | p50 26 ms, p99 410 ms at 1 200 calls | — |
 | a gateway killed every minute | 0 of 8 000 logs wrong; its calls go on on the others | — |
 | gateways on a machine of their own, the box keeping Postgres | 2 000 calls on six gateways (two on the box, four apart): Postgres 2.6–3 cores, 9 017 calls sealed, 0 wrong | ~1.4 cores of Postgres, linear from 1 200 to 2 000 |
@@ -427,6 +393,6 @@ What this says of a cell: Postgres grows by about 1.4 cores per 1 000 calls at o
 100 000 would need some 140 cores of one database, which no one machine holds; a cell is sized
 instead at 15 000–20 000 calls (a 32-core Postgres, ~50 gateway cores, ~1 000 worker machines) and
 the platform grows by cells (P8 in `internal-docs`). What saturated first at 2 000 calls was not
-Postgres but the box's own two gateway processes and its Caddy: past a box, gateways live on
-machines of their own (`docs/a-box-in-production.md`, "Gateways on other machines") and the
-balancer is the cloud's.
+Postgres but the box's own two gateway processes and the proxy in front of them, on the same
+machine: in a cluster the gateways are pods of their own (`gateway.replicas`) and the balancer is
+Google's.

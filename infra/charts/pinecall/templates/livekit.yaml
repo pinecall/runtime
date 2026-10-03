@@ -1,0 +1,56 @@
+# LiveKit on the node's own network (LiveKit's requirement: WebRTC needs the node's address and
+# ports, and it supports no private cluster), on the core node, one at a time: two would contend
+# for the same ports, so a new one comes up only once the old one is gone. Its config, which holds
+# the API pair and Redis's password, is a Secret (secrets.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pinecall-livekit
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: pinecall-livekit } }
+  template:
+    metadata:
+      labels: { app: pinecall-livekit }
+      # Its config is a Secret External Secrets writes from secrets.yaml's template: a change to the
+      # template rolls the pod, as a release should; a rotated value is a rotation of its own.
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+    spec:
+      hostNetwork: true
+      # On the node's network, the cluster's names still resolve: the gateway's Service, Redis's.
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector: { pinecall.io/pool: core }
+      terminationGracePeriodSeconds: 600
+      containers:
+        - name: livekit
+          image: {{ .Values.media.livekit }}
+          args: ["--config", "/etc/livekit/livekit.yaml"]
+          ports:
+            - { name: http, containerPort: 7880 }
+            - { name: rtc-tcp, containerPort: 7881 }
+            - { name: rtc-udp, containerPort: 7882, protocol: UDP }
+          readinessProbe:
+            httpGet: { path: /, port: 7880 }
+          volumeMounts:
+            - { name: config, mountPath: /etc/livekit, readOnly: true }
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+      volumes:
+        - name: config
+          secret:
+            secretName: pinecall-media
+            items: [{ key: livekit.yaml, path: livekit.yaml }]
+---
+# Signalling inside the cluster (the gateways, SIP, the workers) and, through the Ingress, from
+# outside (/rtc and the rest, as v1's Caddy routed them).
+apiVersion: v1
+kind: Service
+metadata:
+  name: pinecall-livekit
+  annotations:
+    cloud.google.com/backend-config: '{"default": "pinecall-livekit"}'
+spec:
+  selector: { app: pinecall-livekit }
+  ports: [{ name: http, port: 7880, targetPort: 7880 }]

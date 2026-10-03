@@ -15,7 +15,8 @@ $ make local-down       # the compose stopped; the database volume and .local/en
 
 | file | what it is |
 |---|---|
-| `compose.yaml` | Postgres (the image of `infra/postgres/`, the box's), Redis, LiveKit, pinned; the SIP bridge under the `phone` profile |
+| `compose.yaml` | Postgres (the image of `postgres/`), Redis, LiveKit, pinned; the SIP bridge under the `phone` profile |
+| `postgres/` | Postgres 17 with pgvector and pg_textsearch: the laptop's, and the suites' (`make db`) |
 | `livekit.yaml` | LiveKit's config: a dev pair that exists only here, media on 7881/tcp and 7882/udp, its webhook to the gateway |
 | `sip.yaml` | the SIP bridge's config, on the same pair and Redis |
 | `up.sh` | `make local`: the compose up and healthy, `migrate up`, `.local/env` written once |

@@ -67,34 +67,3 @@ class WorkerStatus(WireModel):
     errors: int | None = None
     turns: int | None = None
     first_audio_p95_s: float | None = None
-
-
-class JoinTokenRequest(WireModel):
-    """POST /v1/ops/fleet/join-tokens: the fleet a machine will join, and the name it will take."""
-
-    fleet: str
-    worker: str
-
-
-class JoinTokenResponse(WireModel):
-    """A token good for one join of that machine until it expires, and the door to spend it at."""
-
-    token: str
-    url: str
-    expires_at: float
-
-
-class JoinRequest(WireModel):
-    """POST /v1/fleet/join: the name the machine took, as its heartbeats will say it."""
-
-    worker: str
-
-
-class JoinResponse(WireModel):
-    """What a worker machine runs on, handed once: a fleet key of its own, and the box's secrets."""
-
-    fleet: str
-    worker_key: str
-    livekit_api_key: str
-    livekit_api_secret: str
-    s3_secret_access_key: str | None

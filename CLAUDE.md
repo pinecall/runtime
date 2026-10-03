@@ -20,17 +20,23 @@ replaces `../runtime` (v1) at the cutover. The full history of decisions is in
 uv sync                           the venv and every dev tool
 make check                        the rules (tests/rules/) and the suites with no database
 make test [T=tests/log]           every suite on a local Postgres and Redis (colima; `make db`)
-make deploy BOX=pinecall-runtime-v2   console built in, wheel on the box, migrations, live tests
-make logs BOX=pinecall-runtime-v2     the journal of the three units, whole
+make image                        the runtime's image at this commit, built by Cloud Build
+make deploy ENV=staging           the chart released on the cluster at that image, then the live suite
+make suite ENV=staging            every suite as a Job inside the cluster
+make logs ENV=staging             the gateways' and the workers' logs of the last hour
 make local                        the runtime on this laptop: Postgres, Redis, LiveKit in docker
 make local-gateway / local-worker the gateway and a sandbox worker against it (infra/local)
-make tf-plan ENV=production       what Terraform would change in the cloud; "No changes." is the norm
-make tf-apply ENV=production      the change, after reading the plan and typing yes
+make tf-plan ENV=staging          what Terraform would change, saved; "No changes." is the norm
+make tf-apply ENV=staging         exactly the saved plan, after it was read
 vibesmell check                   the hygiene findings; must say "nothing to fix"
 ```
 
-The cloud around the box (network, firewall, addresses, VMs, buckets, IAM, secrets, the fleet)
-is Terraform's (`infra/terraform/`, its README): nothing cloud-side is made or changed by hand.
+The runtime runs on Kubernetes (`infra/`, its README): the cloud (cluster, pools, registry,
+address, firewall, names, secrets) is Terraform's and the runtime on it is `charts/pinecall`;
+nothing cloud-side is made or changed by hand. Production's box still runs v1's machines until
+the cutover; their files (the box, the cell, the fleet loop, the lab, v1's Terraform) left the
+repository on 2026-10-03 and live in `../infra-v1/`, kept for reference and for an urgent fix to
+that box alone.
 
 Both suites run before a reply says green. No test is skipped or deleted to pass.
 
@@ -95,13 +101,13 @@ beside the runtime (it pushes calls of both worlds to phones and browsers).
 
 Since 2026-10-01 the box's database is not alone: its WAL is archived every minute to S3
 (`pinecall-box-backups-905418191085`, us-east-1, the IAM user `pinecall-box-store` that can only
-touch the box's two buckets — all of it, the VMs and the names Terraform's, `infra/terraform/`; `/etc/pinecall/store.env`), the nightly backup and base backup go there
+touch the box's two buckets — all of it, the VMs and the names Terraform's, `../infra-v1/terraform/`; `/etc/pinecall/store.env`), the nightly backup and base backup go there
 too (35-day lifecycle); since 2026-10-02 recordings go to `pinecall-box-recordings-905418191085`
 (same store, same key, no lifecycle), and `ssh pinecall-runtime-replica` (34.31.81.33, 10.128.15.203) is a streaming
 replica, `box failover` ready (`docs/a-box-in-production.md`, "A replica"). The backup's private
 age key is never on either machine.
-The four alerts (`infra/cell/alerts.yaml`) are evaluated on the box by Prometheus and mailed by
-Alertmanager through SES (`infra/box/alerts.sh`, `/etc/pinecall/alerts.env`, IAM user
+The four alerts (`../infra-v1/cell/alerts.yaml`) are evaluated on the box by Prometheus and mailed by
+Alertmanager through SES (`../infra-v1/box/alerts.sh`, `/etc/pinecall/alerts.env`, IAM user
 `pinecall-box-alerts`, which can only send as alerts@pinecall.io); `alerts.sh test` proves the path.
 
 ## Secrets and what never gets committed

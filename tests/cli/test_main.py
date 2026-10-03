@@ -43,7 +43,7 @@ def test_a_verb_nobody_declared_is_refused_with_the_list() -> None:
     assert refused.value.code == 2
 
 
-def test_the_version_is_said_as_a_machine_joining_the_cell_installs_it(
+def test_the_version_is_the_installed_packages(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with pytest.raises(SystemExit) as printed:

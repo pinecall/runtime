@@ -89,17 +89,11 @@ mean is [limits.md](../limits.md).
 ## Keys
 
 - `POST /v1/ops/orgs/{named}/keys {env, label?, scopes?, subject?, name?}`: a key of the org in
-  the world named, `pc_live_` or `pc_test_`, answered this once; every scope but `fleet`,
-  `runner` and `join` when `scopes` is left out; `subject` and `name` make it a person's key.
+  the world named, `pc_live_` or `pc_test_`, answered this once; every scope but `fleet` and
+  `runner` when `scopes` is left out; `subject` and `name` make it a person's key.
 - `GET /v1/ops/orgs/{named}/keys`: every key by fingerprint, the revoked ones said; never a key.
 - `POST /v1/ops/keys/{fingerprint}/revoke`: stops the key from the next request; the row stays, so
   the entries that name it still read.
-- `POST /v1/ops/fleet/join-tokens {fleet, worker}` → `{token, url, expires_at}`: a key of scope
-  `join` named for a machine the fleet loop is about to make, ten minutes, spent at
-  `POST /v1/fleet/join {worker}` for the machine's own fleet key, the LiveKit pair and the store's
-  secret (`infra/fleet/README.md`); 404 when no world's calls go to the fleet.
-- `DELETE /v1/ops/fleet/{worker}/keys`: the machine's fleet key and any join token it never spent
-  revoked, as the loop does when it deletes the machine.
 
 ## Provider keys
 
@@ -147,7 +141,9 @@ signalling networks, the page they were read from and the day). `GET /v1/ops/car
 `{carriers, fence}`: each carrier `{kind, name, control, networks, source, read_on, admitted, fixed,
 numbers}` (`control` when the box drives its API, `fixed` for Twilio, the box's own carrier,
 admitted always, `numbers` the numbers of every org that reach the box through it), and the fence,
-`{openings: [{network, reason}], applied_at, applied}`. `PUT /v1/ops/carriers/{kind} {admitted}`
+`{openings: [{network, reason}], applied_at, applied}` (`applied_at` and `applied`: when a root
+helper on a box last wrote the list into nftables and how many networks; null in a cluster, which
+has none). `PUT /v1/ops/carriers/{kind} {admitted}`
 admits a carrier or stops: admitted, every org sees it in `GET /v1/carriers/catalog` and may hook
 numbers `via` it; `409` for Twilio off, `404` for a kind the catalog lacks.
 
@@ -158,17 +154,13 @@ waits for the operator: `GET /v1/ops/carrier-networks?state=waiting|approved|ref
 follow at once (a number fenced by nothing approved is taken off them). A network wider than a
 `/24`, or not public, never reaches the list: `PUT /v1/carrier` and `POST /v1/numbers` refuse it.
 
-The fence is written by `pinecall-fence apply`, as root, every minute
-(`pinecall-fence.timer`): the admitted carriers' networks and the approved ones, each checked again
-(none wider than a `/16` from the catalog or a `/24` from an org), into
-`/etc/pinecall/nftables.d/carriers.nft`, which `nftables.conf` reads beside Twilio's own set; the
-gateway never runs `nft`. On a GCP box the cloud's firewall stands in front: its rule
-`pinecall-runtime-sip` (priority 500) admits `carrier_signalling`, and `pinecall-runtime-sip-deny`
-(600) denies everyone else's 5060, ending a flow the allow no longer covers. A network beyond
-Twilio's reaches that rule when the operator runs, from a laptop,
-`ssh <box> sudo pinecall-runtime fence export > infra/terraform/environments/production/carrier_signalling.auto.tfvars.json`
-and `make tf-apply` (the file is the orgs' addresses and is never committed). Until then it is open
-on the host and closed in the cloud.
+In a cluster the fence is the cloud's firewall (`infra/terraform/modules/edge`): its rule
+`pinecall-<world>-sip` (priority 500) admits the networks of Terraform's `sip_sources`, and
+`pinecall-<world>-sip-deny` (600) denies everyone else's 5060, ending a flow the allow no longer
+covers. The networks it should admit are the fence's openings above, Twilio's with them, each
+checked again (none wider than a `/16` from the catalog or a `/24` from an org); a network the
+operator approves reaches the rule by a Terraform change, and until then it is closed in the
+cloud. The gateway never touches the firewall.
 
 ## The fleet
 
@@ -178,10 +170,10 @@ every worker heard from in the last hour, both fleets, and each fleet summed ove
 from in the last 30 s; `waiting` is the fleet's rooms with a caller no worker opened in the last
 ten minutes, offered by the gateway ([scaling.md](../scaling.md), "Who takes a call"). `POST /v1/ops/fleet/{worker}/cordon?fleet=` and `DELETE …/cordon`: the
 worker is told on its next heartbeat, takes no new call, finishes what it holds and leaves;
-`404` for a name nobody has. The loop that grows and shrinks a fleet is [scaling.md](../scaling.md).
+`404` for a name nobody has. What grows and shrinks a fleet is [scaling.md](../scaling.md), "The burst".
 `GET /v1/ops/fleet/{fleet}/wanted?scaled=<name prefix>&seats=<n>[&most=<n>]` → `{fleet, wanted,
 active, seats}`: in a Kubernetes cluster, how many workers whose names start with `scaled` (the
-Deployment KEDA scales) the fleet wants, by the loop's own line — busy over 0.6 grows, one goes
+Deployment KEDA scales) the fleet wants, by one line — busy over 0.6 grows, one goes
 only when busy stays under 0.45 without it — counting first the seats of the workers that do not
 scale (a core node's), so calls they hold ask for none. Absolute: a pod still booting is never asked
 for twice. `422` without `scaled` and `seats`.

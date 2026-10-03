@@ -27,7 +27,6 @@ from pinecall.tenancy.keys import (
     listed,
     person_key,
     revoke,
-    revoke_named,
     scope_of,
     server_scopes,
     verify,
@@ -404,24 +403,3 @@ def test_the_name_a_request_came_in_by_is_its_world_and_a_header_that_disagrees_
         world_of(ana, "production", at="sandbox")
     with pytest.raises(NotAllowed, match="a production server's token"):
         world_of(Bearer(SERVER), None, at="sandbox")
-
-
-@postgres
-async def test_a_machines_fleet_key_and_its_unspent_join_token_are_revoked_by_its_name(
-    pool: Pool,
-) -> None:
-    org = await org_with_keys(pool)
-    machine = "pinecall-worker-3"
-    _, fleet_key = await issue(
-        pool, Issued(org=org.id, env="sandbox", scopes=frozenset({"fleet"}), name=machine)
-    )
-    _, token = await issue(
-        pool, Issued(org=org.id, env="sandbox", scopes=frozenset({"join"}), name=machine)
-    )
-    _, a_persons = await issue(pool, Issued(org=org.id, env="sandbox", name=machine))
-    assert sorted(await revoke_named(pool, org.id, machine)) == sorted(
-        [fingerprint(fleet_key), fingerprint(token)]
-    )
-    assert await revoke_named(pool, org.id, machine) == []
-    assert (await verify(pool, fleet_key), await verify(pool, token)) == (None, None)
-    assert await verify(pool, a_persons) is not None

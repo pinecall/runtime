@@ -152,9 +152,9 @@ bucket when the box has one, and the key it is sealed under); then it writes one
 what, subject, env, asked_by, calls, entries, memories, recordings}`. The dial ledger stays, and a
 phone call leaves its detail record in `call_records` — the numbers, the direction, when it
 started and ended, how it ended; no name, no words, no outcome — for a carrier's traceback, until
-the nightly run forgets it, and every dial, 24 months on. The night's backup, taken at 03:00
-before the retention run, still holds what was erased: 7 days on the box, 35 in the bucket
-(`a-box-in-production.md` §Backups), which an answer to a data subject says.
+the nightly run forgets it, and every dial, 24 months on. A backup of the database taken before
+the erasure still holds what was erased until the backup expires, which an answer to a data
+subject says.
 
 A sealed log is the database's word too, not only the gateway's: `call_log` refuses an entry on a
 sealed log but its `call.score` (a judge scores a call again after its seal), and `call_log_head`

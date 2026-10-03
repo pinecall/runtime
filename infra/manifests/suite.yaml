@@ -1,0 +1,52 @@
+# Every suite of the checkout, run as a Job on the cluster against its Postgres (CloudNativePG's
+# application user, by the secret the operator writes) and a Redis made for the run. The Job's
+# log is the result; `make suite` applies it and reads it.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: suite-redis
+  labels:
+    app: suite-redis
+spec:
+  containers:
+    - name: redis
+      image: docker.io/library/redis:8.10.2-alpine
+      ports:
+        - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: suite-redis
+spec:
+  selector:
+    app: suite-redis
+  ports:
+    - port: 6379
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: suite
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: suite
+          image: SUITE_IMAGE
+          args: ["-q", "-n", "4", "-p", "no:cacheprovider"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pinecall-postgres-app
+                  key: uri
+            - name: PINECALL_REDIS_URL
+              value: redis://suite-redis:6379/1
+          resources:
+            requests:
+              cpu: "2"
+              memory: 3Gi

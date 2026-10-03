@@ -1,0 +1,27 @@
+# Production's overflow: offered a call by the gateway alone, by its name, when no worker of the
+# fleet has a seat or a room ran out of offers; one sentence, a call back written, the room closed.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: overflow-production
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: overflow } }
+  template:
+    metadata: { labels: { app: overflow } }
+    spec:
+      nodeSelector: { pinecall.io/pool: core }
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: overflow
+          image: {{ include "pinecall.image" . }}
+          args: ["worker", "overflow"]
+          env:
+            {{- include "pinecall.env" . | nindent 12 }}
+            {{- include "pinecall.workerEnv" (dict "root" . "world" "production" "seats" 1) | nindent 12 }}
+            {{- with .Values.overflow.says }}
+            - name: PINECALL_OVERFLOW_SAYS
+              value: {{ . | quote }}
+            {{- end }}
+          resources:
+            requests: { cpu: 50m, memory: 384Mi }

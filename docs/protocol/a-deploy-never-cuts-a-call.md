@@ -65,13 +65,11 @@ goes on from the count its log's head keeps.
 
 A worker told to stop takes no new call, finishes the ones it holds (up to ten minutes) and
 leaves; nothing moves a call from one worker to another. So a release keeps a fleet open by never
-stopping its last worker: the box runs two per world, `pinecall-worker-a@` and `-b@`, and
-`release.sh` restarts every `b@`, then every `a@`. Each unit is `Type=notify`: `systemctl restart`
-returns once the old process drained and the new one is registered with LiveKit and heard by the
-gateway, and only then is the other stopped. While one drains the other takes every new call of its
-world, so no caller of a deploy hears the overflow's sentence. A fleet of machines is replaced by
-generation the same way: the new machines first, then the old ones cordoned
-([scaling.md](../scaling.md)).
+stopping its last worker: each world's workers are a Deployment that starts a new pod and waits
+for it to answer its startup probe before it tells an old one to stop (`maxUnavailable: 0`,
+`maxSurge: 1`), and Kubernetes gives the old one fifteen minutes to drain. While one drains the
+others take every new call of its world, so no caller of a deploy hears the overflow's sentence
+([scaling.md](../scaling.md), "Deploys drain, cordons shrink").
 
 ## A written call
 

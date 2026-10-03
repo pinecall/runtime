@@ -1,0 +1,10 @@
+# Staging's release of charts/pinecall: the names, the secrets, the address Terraform made
+# (environments/staging's outputs). The image's tag is the commit, given by `make deploy`.
+domains:
+  production: staging.pinecall.io
+  sandbox: sandbox.staging.pinecall.io
+secrets:
+  project: hiding-place-447317-c6
+  prefix: pinecall-staging-
+ingress:
+  address: pinecall-staging-ingress

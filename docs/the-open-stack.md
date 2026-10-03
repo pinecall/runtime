@@ -20,8 +20,7 @@ you run.
 
 ## What you need
 
-- **A box**, made as [from-zero.md](from-zero.md) or [a-box-in-production.md](a-box-in-production.md)
-  make it (`pinecall-runtime box up`), doctor green.
+- **A box**, made as [from-zero.md](from-zero.md) makes it, doctor green.
 - **An NVIDIA card with 12 GB of memory or more.** Everything loaded takes about 10 GB: Gemma
   ~8.5, the ears and Kokoro ~1 each. It was measured on 24 GB (an RTX 3090).
 - **About 25 GB of disk** for the images and the models.

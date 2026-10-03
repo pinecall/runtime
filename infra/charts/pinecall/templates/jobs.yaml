@@ -1,0 +1,109 @@
+# The schema before anything new runs; the fleets' keys once, at install; the nightly retention.
+# The doctor is not a hook yet: its `archive` line reads the box's WAL spool through Postgres, which
+# a cluster's Postgres (CloudNativePG, no superuser) has not; that line is a decision of v1's.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pinecall-migrate
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: {{ include "pinecall.image" . }}
+          args: ["migrate", "up"]
+          env:
+            - name: DATABASE_URL
+              valueFrom: { secretKeyRef: { name: {{ .Values.postgres.secret }}, key: uri } }
+---
+# A worker knocks on the gateway with its world's fleet key, minted in the database by the runtime
+# itself; the Job writes them into a Secret once, at install, before any worker starts, and it
+# may create that Secret and nothing else.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pinecall-fleet-keys
+  annotations:
+    helm.sh/hook: pre-install
+    helm.sh/hook-weight: "-1"
+    helm.sh/hook-delete-policy: before-hook-creation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pinecall-fleet-keys
+  annotations:
+    helm.sh/hook: pre-install
+    helm.sh/hook-weight: "-1"
+    helm.sh/hook-delete-policy: before-hook-creation
+rules:
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pinecall-fleet-keys
+  annotations:
+    helm.sh/hook: pre-install
+    helm.sh/hook-weight: "-1"
+    helm.sh/hook-delete-policy: before-hook-creation
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: pinecall-fleet-keys }
+subjects: [{ kind: ServiceAccount, name: pinecall-fleet-keys }]
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pinecall-fleet-keys
+  annotations:
+    helm.sh/hook: pre-install
+    helm.sh/hook-weight: "1"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: pinecall-fleet-keys
+      initContainers:
+        - name: mint
+          image: {{ include "pinecall.image" . }}
+          command: ["sh", "-c", "umask 077 && pinecall-runtime keys fleet production > /keys/production && pinecall-runtime keys fleet sandbox > /keys/sandbox"]
+          env:
+            - name: DATABASE_URL
+              valueFrom: { secretKeyRef: { name: {{ .Values.postgres.secret }}, key: uri } }
+          volumeMounts: [{ name: keys, mountPath: /keys }]
+      containers:
+        - name: secret
+          image: {{ .Values.media.kubectl }}
+          args: ["create", "secret", "generic", "pinecall-fleet-keys", "--from-file=/keys/production", "--from-file=/keys/sandbox"]
+          volumeMounts: [{ name: keys, mountPath: /keys, readOnly: true }]
+      volumes:
+        - { name: keys, emptyDir: { medium: Memory } }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pinecall-retention
+spec:
+  schedule: "0 4 * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          nodeSelector: { pinecall.io/pool: core }
+          containers:
+            - name: retention
+              image: {{ include "pinecall.image" . }}
+              args: ["retention", "run"]
+              env:
+                {{- include "pinecall.env" . | nindent 16 }}

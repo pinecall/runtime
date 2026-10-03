@@ -3,7 +3,6 @@
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 
 import httpx
 import pytest
@@ -29,7 +28,6 @@ A_NUMBER = "+13617334133"
 # What a peer dials out with beside its username.
 THE_OTHER_HALF = "the other half of the pair"
 HER_PHONE = "+59899000001"
-NFTABLES = Path(__file__).parents[2] / "infra/box/nftables.conf"
 
 # A PBX of the org calls from the office: public, and narrow enough for the operator to approve.
 PEER_NETWORK = "45.60.12.0/24"
