@@ -109,3 +109,8 @@ import {
   to = module.dns.aws_route53_record.box["billing.pinecall.io"]
   id = "Z029073115B4TJUU26ND6_billing.pinecall.io_A"
 }
+
+import {
+  to = module.apps.google_compute_instance.this
+  id = "projects/hiding-place-447317-c6/zones/us-central1-c/instances/pinecall-apps-1"
+}

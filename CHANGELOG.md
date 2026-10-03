@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **The hosted apps' machine is Terraform's too** (`module "apps"`, imported with no change):
+  nothing of the runtime's cloud is made by hand any more.
 - **A worker that counts its calls takes every one of them.** LiveKit refused it at 0.7 of its
   slots, as it does a CPU reading, while the gateway counted the last 30 % of seats free: on a
   worker of 8 the seventh call rang in silence. The worker's line is now every slot taken (its

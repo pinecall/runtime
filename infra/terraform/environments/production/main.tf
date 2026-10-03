@@ -66,6 +66,20 @@ module "replica" {
   deletion_protection = true
 }
 
+# The orgs' hosted apps (infra/apps): another machine than the box, with no identity at all, so a
+# container that escaped gVisor holds nothing of Pinecall's. Made by hand on 2026-09-30, imported.
+module "apps" {
+  source          = "../../modules/machine"
+  name            = "pinecall-apps-1"
+  zone            = var.zone
+  machine_type    = "e2-medium"
+  labels          = { purpose = "hosted-apps" }
+  disk_size_gb    = 40
+  disk_type       = "pd-standard"
+  subnetwork      = "default"
+  service_account = null
+}
+
 module "store" {
   source            = "../../modules/store"
   backups_bucket    = "pinecall-box-backups-905418191085"
