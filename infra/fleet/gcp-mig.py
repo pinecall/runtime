@@ -48,11 +48,17 @@ def main(argv: list[str]) -> int:
     return 2
 
 
+# A machine the group is deleting stays listed until it is gone, about a minute after the delete
+# returned: it is no longer the fleet's, or the loop would decide its delete again every tick.
 def machines() -> list[tuple[str, str]]:
-    """Each machine of the group, by name, with when it was made."""
+    """Each machine of the group that is not on its way out, by name, with when it was made."""
     group = _group()
     answer = _call("POST", f"{group}/listManagedInstances", {})
-    names = [item["instance"].rsplit("/", 1)[1] for item in answer.get("managedInstances", [])]
+    names = [
+        item["instance"].rsplit("/", 1)[1]
+        for item in answer.get("managedInstances", [])
+        if item.get("currentAction") != "DELETING"
+    ]
     found: list[tuple[str, str]] = []
     for name in names:
         instance = _call("GET", f"{_zone()}/instances/{name}", None, missing_ok=True)

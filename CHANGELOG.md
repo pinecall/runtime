@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `gcp-mig.py list` leaves out a machine the group is deleting: it stays listed for about a minute
+  after its delete returned, and the loop decided its delete again every tick (four times in
+  production on 2026-10-03). The script's verbs have a test on a fake Compute API (`tests/infra/`).
 - A worker's heartbeat names it to LiveKit (`agent_name`) only once LiveKit registered it: it beats
   from its start, and the gateway offered calls to a machine still loading its plugins, which waited
   12 s for the offer to go to another worker.
