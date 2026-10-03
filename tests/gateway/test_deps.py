@@ -171,10 +171,15 @@ async def test_an_org_past_its_minute_is_told_when_to_come_back_and_nobody_else_
     async with knocking.http(theirs) as other:
         other_org = await other.get("/v1/sessions")
     async with knocking.http(knocking.fleet["sandbox"]) as worker:
-        beats = [
-            (await worker.get("/v1/fleet/standing", params={"fleet": "pinecall-sandbox"}))
-            for _ in range(3)
-        ]
+        beat = {
+            "fleet": "pinecall-sandbox",
+            "worker": "w1",
+            "active": 0,
+            "max_jobs": 4,
+            "load": 0.0,
+            "draining": False,
+        }
+        beats = [(await worker.post("/v1/fleet/heartbeat", json=beat)) for _ in range(3)]
     assert let_in == [200, 200]
     assert paced.status_code == 429
     assert 1 <= int(paced.headers["retry-after"]) <= 60

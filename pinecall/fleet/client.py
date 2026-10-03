@@ -41,7 +41,7 @@ from pinecall.wire.rest.calls import (
     RecordingKeyResponse,
     SealCallRequest,
 )
-from pinecall.wire.rest.fleet import FleetTotals, HeartbeatRequest, HeartbeatResponse
+from pinecall.wire.rest.fleet import HeartbeatRequest, HeartbeatResponse
 from pinecall.wire.rest.numbers import LegTrunk, LegTrunkResponse
 
 logger = logging.getLogger(__name__)
@@ -309,11 +309,6 @@ class GatewayClient:
         return HeartbeatResponse.model_validate(
             await self._read("POST", "/v1/fleet/heartbeat", beat.written())
         )
-
-    async def fleet_is_full(self, fleet: str) -> bool:
-        """Whether no worker of the fleet can take a call."""
-        text = await self._read("GET", "/v1/fleet/standing", params={"fleet": fleet})
-        return FleetTotals.model_validate(text).full
 
     async def callback(self, wanted: CallbackRequest) -> None:
         """Somebody the overflow told to wait for a call back."""

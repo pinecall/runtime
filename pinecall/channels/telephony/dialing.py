@@ -13,7 +13,8 @@ from livekit.protocol.sip import (
 )
 from psycopg.rows import DictRow
 
-from pinecall.channels import rooms, routes
+from pinecall.channels import routes
+from pinecall.channels.offers import Offering
 from pinecall.channels.rooms import Dialling, Dispatch
 from pinecall.channels.telephony._twilio import (
     TERMINATION_SUFFIX,
@@ -212,7 +213,7 @@ async def provision_outbound(
 
 
 async def place_call(
-    connections: Connections, logs: Logs, placement: Placement, *, running: int
+    connections: Connections, logs: Logs, placement: Placement, offering: Offering, *, running: int
 ) -> PlacedCall:
     """Place the call: number shown, account, guards, minutes, the log, then the dispatch."""
     scope = placement.scope
@@ -272,9 +273,7 @@ async def place_call(
         ),
     )
     try:
-        await rooms.dispatched(
-            connections.server, call, worlds.fleet_of(fleets, scope.env), carried
-        )
+        await offering.offer(call, worlds.fleet_of(fleets, scope.env), carried)
     except api.TwirpError as refused:
         ended = CallEnded(
             reason="dial_failed", ended_by="platform", ended_at=time.time(), duration_s=0.0

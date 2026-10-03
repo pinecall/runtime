@@ -2,11 +2,14 @@
 
 ## Unreleased
 
-- **The gateway chooses the worker a call goes to** (in progress, on the `dispatcher` branch): a
-  worker registers with LiveKit under its own name, `<fleet>/<worker>`; a room a caller joined is
-  kept in `offers` and offered to the worker heard lately with the most seats free, again to
-  another after 12 s, and to the fleet's overflow after three; `fleet list` and `/metrics` say the
-  rooms waiting for a worker.
+- **The gateway chooses the worker a call goes to.** A worker registers with LiveKit under its own
+  name, `<fleet>/<worker>`; the SIP rule and a visitor's token still dispatch to the fleet's plain
+  name, which nobody holds, and the gateway, told by LiveKit's webhook that a person is alone in a
+  room, offers its call to the worker heard in the last 12 s with the most seats free, again to
+  another after 12 s, and to the fleet's overflow after three. Outbound calls, simulated callers
+  and the sentence of a worker gone go the same way. The overflow is `<fleet>/overflow`, always
+  open; its gate and `GET /v1/fleet/standing` are gone. `fleet list` and `/metrics` say the rooms
+  waiting for a worker. A box needs LiveKit's webhook to place calls.
 - **The hosted apps' machine is Terraform's too** (`module "apps"`, imported with no change):
   nothing of the runtime's cloud is made by hand any more.
 - **A worker that counts its calls takes every one of them.** It reported `calls ÷ slots` to

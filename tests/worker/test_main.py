@@ -13,10 +13,9 @@ from pinecall.wire.events import CallEnded
 from pinecall.wire.rest.calls import OpenCallRequest
 from pinecall.worker._job import ended_and_sealed, writer_of
 from pinecall.worker.main import (
-    CLOSED,
     INITIALIZE_S,
     OPEN,
-    OverflowGate,
+    always_open,
     overflow_of,
     run,
     sentence_entry,
@@ -73,7 +72,7 @@ def test_both_servers_give_a_new_process_the_time_the_plugins_take(
 
     monkeypatch.setattr(AgentServer, "__init__", recorded)
     server_of(settings_with())
-    overflow_of(settings_with(), OverflowGate())
+    overflow_of(settings_with())
     assert given == [INITIALIZE_S, INITIALIZE_S]
 
 
@@ -98,7 +97,7 @@ def test_both_servers_register_every_plugin_for_livekits_preload() -> None:
     preloaded: list[set[str]] = []
     for build in (
         lambda: server_of(settings_with()),
-        lambda: overflow_of(settings_with(), OverflowGate()),
+        lambda: overflow_of(settings_with()),
     ):
         installed.cache_clear()
         build()
@@ -142,13 +141,24 @@ def test_a_worker_without_its_livekit_pair_is_refused() -> None:
         server_of(settings_with(LIVEKIT_API_SECRET=""))
 
 
-def test_the_overflow_is_closed_until_the_fleet_is_full() -> None:
-    gate = OverflowGate()
-    server = overflow_of(settings_with(), gate)
-    assert isinstance(server, AgentServer)
-    assert gate(server) == CLOSED
-    gate.fleet_is_full = True
-    assert gate(server) == OPEN
+# The gateway sends the overflow a call, by its name, only when no worker has a seat: always open.
+def test_the_overflow_registers_under_its_own_name_and_never_reads_full(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    named: list[str] = []
+    original = AgentServer.rtc_session
+
+    def recorded(
+        server: AgentServer, *args: object, agent_name: str = "", **told: object
+    ) -> object:
+        named.append(agent_name)
+        return original(server, *args, agent_name=agent_name, **told)
+
+    monkeypatch.setattr(AgentServer, "rtc_session", recorded)
+    server = overflow_of(settings_with())
+    assert named == ["pinecall-sandbox/overflow"]
+    assert server.load_fnc is always_open
+    assert always_open(server) == OPEN
 
 
 SAYS = "All our agents are busy: we will call you back."

@@ -1,8 +1,25 @@
-"""The rooms the gateway offers to workers, in Postgres: a row a room until a worker opens it."""
+"""Who takes a call: offered to a worker the gateway chose, then another, then the overflow."""
 
+import logging
+import time
 from dataclasses import dataclass
 
+from livekit import api
+
+from pinecall.channels import rooms
+from pinecall.channels._chooser import chosen
+from pinecall.channels.rooms import Dispatch
+from pinecall.fleet.roster import Roster, overflow_name
 from pinecall.postgres.pool import Pool
+
+logger = logging.getLogger(__name__)
+
+# LiveKit waits 10 s on a worker that does not answer before it gives a job up; a live worker opens
+# its call in about 2 s. A room no worker opened 12 s after its offer is offered to another.
+OFFERED_AGAIN_AFTER_S = 12.0
+
+# Three offers, then the overflow's sentence: 36 s is the longest a caller waits on our account.
+OFFERS = 3
 
 # The rooms counted as waiting for a worker: the ones a caller joined in the last ten minutes.
 WAITING_COUNTED_S = 600.0
@@ -16,7 +33,7 @@ RETURNING room
 """
 
 # Taken only by the gateway that read this count: two sweeping the same room offer it once.
-OFFERED = """
+CLAIMED = """
 UPDATE offers SET worker = %(worker)s, offers = offers + 1, offered_at = %(now)s
 WHERE room = %(room)s AND offers = %(offers)s
 RETURNING room
@@ -42,6 +59,10 @@ FORGOTTEN = "DELETE FROM offers WHERE room = %(room)s"
 
 AGED = "DELETE FROM offers WHERE seen_at < %(before)s"
 
+OFFERED_AGAIN = "room %s: no worker opened it in %.0f s; offered to %s (offer %d)"
+
+TO_THE_OVERFLOW = "room %s: %s; the overflow says the sentence"
+
 
 @dataclass(frozen=True)
 class Offer:
@@ -54,6 +75,42 @@ class Offer:
     offers: int
 
 
+# What a process holds to send a call to a worker: the offers' table, LiveKit, and the fleet's
+# workers as their heartbeats say. Every door that sends a call into a room goes through it.
+@dataclass(frozen=True)
+class Offering:
+    """The gateway's dispatcher: a room offered to the worker it chose, by the worker's name."""
+
+    pool: Pool
+    server: api.LiveKitAPI
+    roster: Roster
+
+    async def offer(self, room: str, fleet: str, dispatch: Dispatch) -> str | None:
+        """Send a fleet's worker into the room; the name it went to, or None if it was offered."""
+        written = rooms.written(dispatch)
+        if not await opened(self.pool, room, fleet, written, time.time()):
+            return None
+        return await self.offered(
+            Offer(room=room, fleet=fleet, dispatch=written, worker=None, offers=0)
+        )
+
+    async def offered(self, offer: Offer) -> str | None:
+        """Offer the room to the worker it should go to now; the name, or None if taken already."""
+        now = time.time()
+        target, why = await _target(self.pool, self.roster, offer, now)
+        if not await claimed(self.pool, offer, target, now):
+            return None
+        await rooms.dispatched(self.server, offer.room, target, rooms.read_dispatch(offer.dispatch))
+        if why is not None:
+            await forgotten(self.pool, offer.room)
+            logger.warning(TO_THE_OVERFLOW, offer.room, why)
+        elif offer.offers > 0:
+            logger.warning(
+                OFFERED_AGAIN, offer.room, OFFERED_AGAIN_AFTER_S, target, offer.offers + 1
+            )
+        return target
+
+
 async def opened(pool: Pool, room: str, fleet: str, dispatch: str, now: float) -> bool:
     """Keep a room a caller joined; False when it was kept already."""
     values = {"room": room, "fleet": fleet, "dispatch": dispatch, "now": now}
@@ -61,11 +118,11 @@ async def opened(pool: Pool, room: str, fleet: str, dispatch: str, now: float) -
         return await (await connection.execute(OPENED, values)).fetchone() is not None
 
 
-async def offered(pool: Pool, offer: Offer, worker: str, now: float) -> bool:
-    """Say the room was offered to this worker; False when another gateway offered it first."""
+async def claimed(pool: Pool, offer: Offer, worker: str, now: float) -> bool:
+    """Say the room is offered to this worker; False when another gateway offered it first."""
     values = {"room": offer.room, "worker": worker, "offers": offer.offers, "now": now}
     async with pool.connection() as connection:
-        return await (await connection.execute(OFFERED, values)).fetchone() is not None
+        return await (await connection.execute(CLAIMED, values)).fetchone() is not None
 
 
 async def due(pool: Pool, before: float, limit: int) -> list[Offer]:
@@ -99,3 +156,15 @@ async def aged_out(pool: Pool, before: float) -> None:
     """Rooms first seen before `before` are past any offer: their callers are gone."""
     async with pool.connection() as connection:
         await connection.execute(AGED, {"before": before})
+
+
+# The overflow when the offers ran out or no worker has a seat; why, so the log says it.
+async def _target(pool: Pool, roster: Roster, offer: Offer, now: float) -> tuple[str, str | None]:
+    if offer.offers >= OFFERS:
+        return overflow_name(offer.fleet), f"no worker opened it in {OFFERS} offers"
+    flying = await in_flight(pool, now - OFFERED_AGAIN_AFTER_S)
+    tried = () if offer.worker is None else (offer.worker,)
+    seat = chosen(roster.of(offer.fleet, now), flying, now, not_these=tried)
+    if seat is None or seat.agent_name is None:
+        return overflow_name(offer.fleet), "no worker of the fleet has a seat"
+    return seat.agent_name, None

@@ -6,6 +6,7 @@ import logging
 import os
 import socket
 import sys
+import time
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Iterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
@@ -16,10 +17,12 @@ import pytest
 import uvicorn
 from cryptography.fernet import Fernet, MultiFernet
 from fastapi import FastAPI
+from livekit import api
 from psycopg import sql
 from websockets.asyncio.client import ClientConnection
 from websockets.asyncio.client import connect as opened_socket
 
+from pinecall.channels.offers import Offering
 from pinecall.domain.names import Env, JsonObject
 from pinecall.domain.org import Org
 from pinecall.domain.person import KEY_SCOPES, THE_FLEET, KeyScope
@@ -52,6 +55,7 @@ from pinecall.tenancy.throttle import Window
 from pinecall.tenancy.tokens import Signer
 from pinecall.tenancy.words import Words
 from pinecall.wire.frames import Entry
+from pinecall.wire.rest.fleet import HeartbeatRequest
 from tests.fakes.acme import ACME
 from tests.fakes.livekit import A_SECRET, Server, acme_plugin
 from tests.fakes.meta import Graph, outside
@@ -470,3 +474,24 @@ async def a_developer(knocking: Knocking, email: str) -> tuple[str, str]:
     )
     _, secret = await keys.person_key(knocking.gateway.connections.pool, member)
     return member.id, secret
+
+
+def a_worker_heard(roster: Roster, fleet: str = "pinecall-sandbox") -> None:
+    """The fleet's worker w1, heard just now with its four seats free."""
+    beat = HeartbeatRequest(
+        fleet=fleet,
+        worker="w1",
+        agent_name=f"{fleet}/w1",
+        active=0,
+        max_jobs=4,
+        load=0.0,
+        draining=False,
+    )
+    roster.report(beat, time.time())
+
+
+def an_offering(pool: Pool, server: api.LiveKitAPI, fleet: str = "pinecall-sandbox") -> Offering:
+    """The gateway's dispatcher on this pool and server, the fleet one worker w1 with seats free."""
+    roster = Roster()
+    a_worker_heard(roster, fleet)
+    return Offering(pool=pool, server=server, roster=roster)

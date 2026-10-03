@@ -11,7 +11,7 @@ from fastapi import APIRouter, Header, Query, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from pinecall.channels import routes
+from pinecall.channels import offers, routes
 from pinecall.domain.agent import AgentConfig, Versions
 from pinecall.domain.call import CallContext
 from pinecall.domain.errors import (
@@ -49,7 +49,6 @@ from pinecall.gateway._served import (
 from pinecall.gateway._sockets import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registration
 from pinecall.gateway._streams import frame, paced, streamed, wants_sse
 from pinecall.gateway.calls.binding import attach
-from pinecall.gateway.dispatching import offers
 from pinecall.gateway.ending.seal import remembered, sealed
 from pinecall.log import openings, queries
 from pinecall.log.readers import Filter, parse_filter, project_entry, project_state

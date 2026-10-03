@@ -6,11 +6,11 @@ import psycopg
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
 
+from pinecall.channels import offers
 from pinecall.domain.errors import NotAllowed
 from pinecall.fleet.roster import heard_lately, worker_state
 from pinecall.gateway._deps import GatewayDep, client_of
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway.dispatching import offers
 from pinecall.process.metrics import family, histogram
 
 router = APIRouter()

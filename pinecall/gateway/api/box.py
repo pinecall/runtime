@@ -9,7 +9,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import StreamingResponse
 
-from pinecall.channels import routes
+from pinecall.channels import offers, routes
 from pinecall.channels.telephony import carrier_catalog, firewall, numbers, sip
 from pinecall.channels.telephony.carrier_catalog import KnownCarrier
 from pinecall.channels.telephony.numbers import NumberImport
@@ -29,7 +29,6 @@ from pinecall.gateway.api.org import mailbox_of
 from pinecall.gateway.api.providers import credentials_of, installed_vendor
 from pinecall.gateway.api.sso_login import NO_BOX_WIDE
 from pinecall.gateway.api.usage import usage_row_response, usage_totals
-from pinecall.gateway.dispatching import offers
 from pinecall.log import queries
 from pinecall.log.reduce import totals_by_org
 from pinecall.log.store import DEFAULT_LIMIT, Store

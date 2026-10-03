@@ -3,6 +3,7 @@
 import asyncio
 from dataclasses import dataclass, field
 
+from pinecall.channels.offers import Offering
 from pinecall.evals.runs import Runner
 from pinecall.fleet.roster import Roster
 from pinecall.gateway._served import ServedCalls, Serving
@@ -50,6 +51,13 @@ class Gateway:
     # What GET /metrics reads: counted on the append path since the process started.
     counters: Counters = field(default_factory=Counters)
     prompts: Prompts = field(default_factory=Prompts)
+
+    @property
+    def offering(self) -> Offering:
+        """What sends a call to the worker this gateway chose."""
+        return Offering(
+            pool=self.connections.pool, server=self.connections.server, roster=self.roster
+        )
 
     @property
     def serving(self) -> Serving:

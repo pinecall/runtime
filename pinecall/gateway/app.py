@@ -260,10 +260,7 @@ async def lifespan(fastapi_app: FastAPI) -> AsyncGenerator[None]:
         fastapi_app.state.gateway = gateway
         reaper = asyncio.create_task(reap_forever(gateway.serving, gateway.connections.server))
         stack.push_async_callback(_cancelled, reaper)
-        connections = gateway.connections
-        sweep = asyncio.create_task(
-            sweep_forever(connections.pool, connections.server, gateway.roster)
-        )
+        sweep = asyncio.create_task(sweep_forever(gateway.offering))
         stack.push_async_callback(_cancelled, sweep)
         # After the start, so a slow SFU never keeps the gateway from answering.
         rebuilt = asyncio.create_task(rebuild(gateway.connections))

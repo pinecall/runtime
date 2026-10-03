@@ -122,7 +122,6 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/events` | calls | The org's calls and agents changing, as they change. |
 | `POST` | `/v1/fleet/heartbeat` | fleet | A worker's report; the answer says whether it is cordoned and its fleet full. |
 | `POST` | `/v1/fleet/join` | join | A worker machine's one join: its own fleet key, the LiveKit pair and the store's secret. |
-| `GET` | `/v1/fleet/standing` | fleet | A fleet's workers summed; the overflow opens when it is full. |
 | `GET` | `/v1/hosted` | app | The apps the box hosts for the org in this world, by name. |
 | `DELETE` | `/v1/hosted/{name}` | app | Stop hosting the app: its releases go, and its token is revoked. |
 | `GET` | `/v1/hosted/usage` | app | The time the org's apps served here per UTC day, in one month: this one by default. |
