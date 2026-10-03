@@ -13,9 +13,13 @@ from pinecall.wire.rest.fleet import FleetTotals, HeartbeatRequest, HeartbeatRes
 
 type WorkerState = Literal["gone", "cordoned", "draining", "accepting", "failing", "full"]
 
-# livekit's line for a worker gated on its CPU: at or over it, no dispatch. A worker that counted
-# its calls reports calls over its slots and is refused at every slot taken, not at 0.7 of them:
-# on 2026-10-02 a worker of 8 slots took six calls and livekit left the rest ringing in silence.
+# LiveKit's line, the same on both of its sides: livekit-server's agent.DefaultTargetLoad
+# (pkg/agent/config.go; a job is offered to a worker whose reported load is under it) and
+# livekit-agents' load_threshold (the worker declines at or over it). A worker gated on CPU
+# reports its share of the machine, which is that scale. A worker that counts its calls reports
+# 0.7 times its calls over its slots to LiveKit (fleet/heartbeat.Load), so LiveKit's full is its
+# last slot, and calls over slots to the gateway, full at 1.0: on 2026-10-02 it reported calls over
+# slots to both, and LiveKit stopped at 0.7 of them while the gateway still counted seats free.
 REFUSED_AT = 0.7
 EVERY_SLOT = 1.0
 HEARTBEAT_S = 5.0
@@ -200,7 +204,7 @@ def worker_state(seat: WorkerStatus, fleet: Sequence[WorkerStatus], now: float) 
 
 
 def refused_at(max_jobs: int | None) -> float:
-    """The load livekit stops dispatching at: every slot of a worker that counts, 0.7 of a CPU."""
+    """The load a heartbeat says full at: every slot of a worker that counts, 0.7 of a CPU."""
     return REFUSED_AT if max_jobs is None else EVERY_SLOT
 
 

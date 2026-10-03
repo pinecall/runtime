@@ -52,19 +52,33 @@ takes `--fleet`.
 
 ## Capacity is counted in calls
 
-A worker reports one number to LiveKit: live calls over the calls it was measured to hold,
-`PINECALL_MAX_JOBS`; unset, its machine's CPU. A worker on CPU is refused at LiveKit's **0.7**; a
-worker that counts is refused at **every slot taken**, and that is also the line the gateway
-calls it full at, so a call LiveKit cannot place is one the gateway already sends to overflow.
-(Until 2026-10-02 the counting worker was refused at 0.7 of its slots too: a worker of 8 took six
-calls, and the seventh rang in silence, because the gateway still counted two seats free.) The
-measure is taken, never guessed: on the machine type it will run on, calls with real audio, more
-each step, until first audio's p95 crosses what a caller tolerates; `MAX_JOBS` is one under it.
+A worker hands LiveKit one number, its load, and LiveKit reads it twice, with one line,
+**0.7**: livekit-server offers a job only to a worker whose last **reported** load is under it
+(`agents.target_load`, default 0.7; the worker reports every 2.5 s), and livekit-agents, in the
+worker, declines at it (`load_threshold`, default 0.7). A call neither will take is **never
+offered again**: if no other worker has room, it waits in its room in silence until the SIP
+bridge closes it. So a worker speaks LiveKit's scale: one gated on CPU reports its share of the
+machine, and one that counts its calls (`PINECALL_MAX_JOBS`) reports `0.7 × calls ÷ slots`, so
+LiveKit's full is its last slot. To the gateway the same worker reports `calls ÷ slots`, full at
+1.0, which is where the roster opens overflow. Neither of LiveKit's lines is overridden: they
+are its contract, the same on LiveKit Cloud, and `tests/fleet/test_heartbeat.py` reads the
+installed framework's to hold the worker to it.
 
-One rule of LiveKit's stays: a worker holding **no** call yet guesses each call's weight as its
-line over `PINECALL_IDLE_PROCESSES`, so an idle worker accepts at most that many calls in the same
-instant, until the first is launched (milliseconds with a warm process). A burst on a worker just
-up is the one case to keep the warm processes up for.
+(Until 2026-10-03 a counting worker reported `calls ÷ slots` to LiveKit too, and both of
+LiveKit's readers called it full at 0.7 of its slots while the gateway counted the rest free: a
+worker of 8 took six calls, a worker of 32 took 23, and the next rang in silence.)
+
+The measure is taken, never guessed: on the machine type it will run on, calls with real audio,
+more each step, until first audio's p95 crosses what a caller tolerates; `MAX_JOBS` is one under
+it.
+
+Two edges of LiveKit's remain, both a burst on a worker's last moment: the server reads a load up
+to 2.5 s old, so in a burst faster than that it may offer a worker on its last slot one call too
+many, which the framework declines and nobody retries; and a worker holding **no** call yet guesses
+each call's weight as its line over its warm processes, so it accepts at most that many in the same
+instant until the first is launched. With two workers or more, the server offers the declined call
+to another; on the last free slots of the whole fleet it is silence until the roster says full
+(five seconds) and overflow opens.
 
 **Set it; never leave a worker on CPU.** Measured on 2026-10-01 with spoken calls (Deepgram,
 Haiku, Cartesia) against a worker alone on an 8-vCPU machine: on CPU, ten calls placed a second
@@ -132,8 +146,8 @@ when the workers shared it.
 **Two vCPU on each side** (2026-10-02, `infra/lab/measure.py measure --box e2-standard-2 --worker
 e2-standard-2`, the lab made and destroyed by Terraform): the calls that started all held, but no
 step started more than six calls, whatever was asked: the worker had 8 slots and LiveKit refused
-it at 0.7 of them (fixed the next morning, above); read the rows as what six calls cost, not as
-where two vCPU stop.
+it at 0.7 of them (above, "Capacity is counted in calls"); read the rows as what six calls cost,
+not as where two vCPU stop.
 
 | asked | started | worker machine (2 vCPU) | per call | the box (2 vCPU), no worker on it | turns answered | first audio p50 / p95 |
 |---|---|---|---|---|---|---|
@@ -155,19 +169,16 @@ with its 32 slots, the lab made and destroyed by Terraform):
 | 32 | 29 | 4.56 cores | 0.16 | 1.50 cores | 334 of 336 | 1.24 / 1.33 s |
 
 Twenty-nine calls held at 57 % of the machine, first audio unmoved. The three that did not start
-reached LiveKit SIP and waited in their rooms. The worker, joined to the sandbox's fleet, had taken
-the box's `PINECALL_IDLE_PROCESSES=1` with the fleet's settings: one warm process on 8 vCPU, so
-each call of a burst waited ~3 s for a process to be born, and livekit-agents counts a call
-accepted but not yet launched as a slot taken. With three of them starting, the worker read full
-three slots early, and a call it refuses is never offered again unless another worker has room.
-Since then a machine of workers never takes the box's warm-process count (`worker.sh`); it keeps
-livekit's, one per CPU.
+were refused by livekit-server, not by the worker: its log on the lab's box says, for each,
+`failed to send job request: no servers available`. The worker had moved the framework's line to
+every slot, but still reported `calls ÷ slots`, and the server cut at its own 0.7 of them, a few
+calls late because the report is 2.5 s old (a second run: 25 of 32). Reporting on LiveKit's scale
+(above) is the fix; the table is measured again with it.
 
-With the fix, the same lab given 16 slots (2026-10-03, `--seats 16 --calls 8,12`) started **8 of
-8 and 12 of 12** — the dispatch reaches every slot — and showed what an oversized `MAX_JOBS`
-costs: the worker at 1.9 of its 2 cores, 78 of 89 and 95 of 127 turns answered, first audio p95
-3.9 s. The 0.7 line had been hiding this, cutting calls off in silence before the machine
-saturated; `MAX_JOBS` measured on the machine type is the only line now.
+The same lab given 16 slots on a 2-vCPU worker (`--seats 16 --calls 8,12`) showed what an
+oversized `MAX_JOBS` costs: the worker at 1.9 of its 2 cores, 78 of 89 and 95 of 127 turns
+answered, first audio p95 3.9 s. (It started 8 of 8 and 12 of 12, which proves nothing about the
+line: 12 of 16 is under the server's 0.7 of 16 plus the report's lag.)
 
 ## The gateway hears every worker
 

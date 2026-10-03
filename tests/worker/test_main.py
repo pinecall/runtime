@@ -75,8 +75,8 @@ def test_both_servers_give_a_new_process_the_time_the_plugins_take(
     assert given == [INITIALIZE_S, INITIALIZE_S]
 
 
-# 8 slots, 6 taken, reads 0.75: livekit's own 0.7 would refuse the seventh call in silence.
-def test_a_worker_that_counts_is_refused_at_every_slot_and_one_on_cpu_at_livekits_line(
+# LiveKit's line is LiveKit's: the worker reports on its scale and overrides nothing.
+def test_neither_worker_overrides_livekits_line(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     given: list[object] = []
@@ -89,7 +89,7 @@ def test_a_worker_that_counts_is_refused_at_every_slot_and_one_on_cpu_at_livekit
     monkeypatch.setattr(AgentServer, "__init__", recorded)
     server_of(settings_with(PINECALL_MAX_JOBS="8"))
     server_of(settings_with())
-    assert given == [1.0, 0.7]
+    assert given == [None, None]
 
 
 def test_both_servers_register_every_plugin_for_livekits_preload() -> None:

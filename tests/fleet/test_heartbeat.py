@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import pytest
 from livekit.agents import AgentServer
+from livekit.agents.worker import ServerEnvOption, ServerOptions
 
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.fleet import heartbeat
@@ -22,15 +23,37 @@ from pinecall.fleet.heartbeat import (
     worker_name_of,
 )
 from pinecall.fleet.measures import JobReport, LastMinute
+from pinecall.fleet.roster import REFUSED_AT
 from pinecall.process.settings import Settings
 from pinecall.worker._traces import otlp_headers
 from tests.conftest import Knocking, postgres
 from tests.fakes.livekit import A_SECRET
 
 
-def test_slots_are_reported_as_the_fraction_held() -> None:
-    load = Load(10)
-    assert load.at(3) == pytest.approx(0.3)
+def test_a_worker_that_counts_reports_its_slots_on_livekits_scale() -> None:
+    load = Load(32)
+    assert load.at(16) == pytest.approx(0.35)
+    assert load.at(32) == pytest.approx(REFUSED_AT)
+
+
+# LiveKit's two readers, written down: livekit-server offers a job with affinity
+# max(0, target_load - reported load) (pkg/service/agentservice.go, target_load 0.7 in
+# pkg/agent/config.go), and livekit-agents declines at load_threshold, read here from the installed
+# library. A worker with one slot free must be offered and accept; with none, neither.
+async def _no_call(_ctx: object) -> None:
+    return None
+
+
+def test_livekit_offers_every_slot_and_no_more() -> None:
+    options = ServerOptions(entrypoint_fnc=_no_call)
+    declared = options.load_threshold
+    threshold = declared.prod_default if isinstance(declared, ServerEnvOption) else declared
+    assert threshold == REFUSED_AT
+    load = Load(32)
+    for slots_taken, offered in ((31, True), (32, False)):
+        reported = load.at(slots_taken)
+        assert (max(0.0, REFUSED_AT - reported) > 0) is offered
+        assert (reported < threshold) is offered
 
 
 def test_the_machine_is_measured_by_livekits_own_calculator() -> None:
@@ -89,6 +112,17 @@ async def test_a_beat_carries_what_the_workers_calls_did_in_its_last_minute(
     await gateway.aclose()
     assert (beat.worker, beat.ended, beat.failed, beat.errors, beat.turns) == ("w-7", 1, 1, 0, 5)
     assert beat.first_audio_p95_s == 3.0
+
+
+# Every slot taken is LiveKit's 0.7 and the gateway's 1.0: the beat speaks the gateway's.
+async def test_a_beat_says_full_on_the_gateways_scale(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(AgentServer, "active_jobs", property(lambda _server: [object()] * 4))
+    settings = Settings.model_validate({"PINECALL_WORKER_NAME": "w-7", "PINECALL_MAX_JOBS": "4"})
+    server = AgentServer(ws_url="ws://127.0.0.1:7880", api_key="APIfake", api_secret=A_SECRET)
+    gateway = gateway_at("http://127.0.0.1:9", None)
+    beat = Heartbeats(server, gateway, settings, LastMinute()).beat()
+    await gateway.aclose()
+    assert (beat.active, beat.load) == (4, 1.0)
 
 
 # systemd's end of NOTIFY_SOCKET: a datagram socket the test binds and reads.
