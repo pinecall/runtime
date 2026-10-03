@@ -4,8 +4,9 @@ from pathlib import Path
 
 from tests.rules.tree import FIXTURES, PACKAGE, TESTS
 
-# Suites that mirror no module: the rules, the live suite, the shared fakes and configuration.
-NOT_A_MIRROR = ("rules", "live", "fakes", "conftest.py")
+# Suites that mirror no module: the rules, the live suite, the shared fakes and configuration, and
+# the suites of the scripts under infra/, which are beside the package, not in it.
+NOT_A_MIRROR = ("rules", "live", "fakes", "infra", "conftest.py")
 
 
 def mirror_of(module: Path, package: Path) -> Path:
