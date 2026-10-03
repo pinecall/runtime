@@ -172,7 +172,7 @@ on the host and closed in the cloud.
 
 ## The fleet
 
-`GET /v1/ops/fleet`: `{now, stale_after_s, workers: [{fleet, worker, active, max_jobs, load,
+`GET /v1/ops/fleet`: `{now, stale_after_s, workers: [{fleet, worker, agent_name, active, max_jobs, load,
 draining, cordoned, seen_at, ended, failed, errors, turns, first_audio_p95_s}], totals: [{fleet, workers, active, seats, free, accepting, full}]}`,
 every worker heard from in the last hour, both fleets, and each fleet summed over the workers heard
 from in the last 30 s. `POST /v1/ops/fleet/{worker}/cordon?fleet=` and `DELETE …/cordon`: the

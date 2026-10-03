@@ -44,7 +44,9 @@ def settings_with(**told: str) -> Settings:
     return Settings.model_validate({**REGISTRABLE, **told})
 
 
-def test_a_worker_registers_under_its_fleets_name_only(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_a_worker_registers_under_its_own_name_in_its_fleet(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     named: list[str] = []
     original = AgentServer.rtc_session
 
@@ -55,8 +57,8 @@ def test_a_worker_registers_under_its_fleets_name_only(monkeypatch: pytest.Monke
         return original(server, *args, agent_name=agent_name, **told)
 
     monkeypatch.setattr(AgentServer, "rtc_session", recorded)
-    server_of(settings_with())
-    assert named == ["pinecall-sandbox"]
+    server_of(settings_with(PINECALL_WORKER_NAME="w-7"))
+    assert named == ["pinecall-sandbox/w-7"]
 
 
 def test_both_servers_give_a_new_process_the_time_the_plugins_take(

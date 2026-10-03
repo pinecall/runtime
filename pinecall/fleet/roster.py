@@ -83,6 +83,7 @@ class Roster:
         seat = WorkerStatus(
             fleet=beat.fleet,
             worker=beat.worker,
+            agent_name=beat.agent_name,
             active=beat.active,
             max_jobs=beat.max_jobs,
             load=beat.load,

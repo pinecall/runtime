@@ -84,6 +84,7 @@ class Heartbeats:
         self.fleet = settings.fleet
         self.max_jobs = settings.max_jobs
         self.name = worker_name_of(settings)
+        self.agent_name = agent_name_of(settings)
         self.minute = minute
         self.cordoned = False
         self.leave = asyncio.Event()
@@ -97,6 +98,7 @@ class Heartbeats:
         return HeartbeatRequest(
             fleet=self.fleet,
             worker=self.name,
+            agent_name=self.agent_name,
             active=active,
             max_jobs=self.max_jobs,
             load=self.gateways_load(active),
@@ -156,6 +158,13 @@ async def announced_ready(beats: Heartbeats, notify: str | None) -> bool:
 def worker_name_of(settings: Settings) -> str:
     """What the worker is called in its heartbeats and its calls: its setting, or the short host."""
     return settings.worker_name or socket.gethostname().split(".")[0]
+
+
+# Its own name, not the fleet's: LiveKit offers a job only to the workers registered under the
+# name a dispatch carries, so the gateway reaches this worker and no other (docs/scaling.md).
+def agent_name_of(settings: Settings) -> str:
+    """The name the worker registers under with LiveKit: its fleet's, then its own."""
+    return f"{settings.fleet}/{worker_name_of(settings)}"
 
 
 # livekit's own CPU average, read off its options' default rather than its private class.

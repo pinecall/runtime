@@ -195,14 +195,19 @@ line: 12 of 16 is under the server's 0.7 of 16 plus the report's lag.)
 
 ## The gateway hears every worker
 
-Every five seconds a worker posts its heartbeat, `{fleet, worker, active, max_jobs, load,
-draining}` and its last minute, `{ended, failed, errors, turns, first_audio_p95_s}`, and the
+Every five seconds a worker posts its heartbeat, `{fleet, worker, agent_name, active, max_jobs,
+load, draining}` and its last minute, `{ended, failed, errors, turns, first_audio_p95_s}`, and the
 answer says whether it is cordoned and whether its fleet is full. A worker silent 30 s is no longer
 capacity; one silent an hour is forgotten. The roster is in memory, on every gateway: each keeps the
 heartbeats that reached it and says them to the others once a heartbeat, so a worker is counted on
 every gateway whichever it beats on, and a cordon set on one stands on all (the newest setting of a
 worker's cordon wins). A gateway that restarts has it back after one round of heartbeats; a
 heartbeat's `full` is answered from totals at most a second old. `GET /v1/ops/fleet` and `fleet list` read it.
+
+A worker registers with LiveKit under **its own name**, `<fleet>/<worker>` (`pinecall/box-a`),
+and says it in each heartbeat as `agent_name`. LiveKit offers a job only to the workers registered
+under the name the job's dispatch carries, so a dispatch to that name reaches that worker and no
+other: the gateway chooses (below, "Who takes a call"), not LiveKit's draw.
 
 ## A worker that is up but bad
 
