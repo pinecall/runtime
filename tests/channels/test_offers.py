@@ -1,5 +1,6 @@
 """Tests for who takes a call: the rooms kept, a worker with a seat, the overflow, once each."""
 
+import dataclasses
 import logging
 
 import pytest
@@ -9,7 +10,7 @@ from pinecall.channels.offers import Offering
 from pinecall.channels.rooms import Dispatch, read_dispatch
 from pinecall.fleet.roster import Roster
 from pinecall.postgres.pool import Pool
-from tests.conftest import an_offering, postgres
+from tests.conftest import a_worker_heard, an_offering, postgres
 from tests.fakes.livekit import Server
 
 pytestmark = postgres
@@ -69,9 +70,25 @@ async def test_the_doctor_names_rooms_kept_past_every_offer(pool: Pool) -> None:
     assert await offers.examined(pool, 101.0 + offers.UNSWEPT_AFTER_S) == offers.UNSWEPT.format(n=1)
 
 
-async def test_a_room_of_a_fleet_with_no_seat_goes_to_the_overflow(pool: Pool) -> None:
+async def test_a_room_of_a_fleet_whose_workers_are_full_goes_to_the_overflow(pool: Pool) -> None:
     server = Server()
-    offering = Offering(pool=pool, server=server, roster=Roster())
+    roster = Roster()
+    a_worker_heard(roster, "pinecall", active=4)
+    offering = Offering(pool=pool, server=server, roster=roster)
     assert await offering.offer("call-1", "pinecall", Dispatch()) == "pinecall/overflow"
     assert await offers.waiting(pool, since=0.0) == {}
+    await server.aclose()
+
+
+# A gateway that just started has heard nobody: the room waits for the sweep, not the sentence.
+async def test_a_room_of_a_fleet_nobody_was_heard_from_waits_then_goes_to_the_overflow(
+    pool: Pool,
+) -> None:
+    server = Server()
+    offering = Offering(pool=pool, server=server, roster=Roster())
+    assert await offering.offer("call-1", "pinecall", Dispatch()) is None
+    assert server.dispatcher.made == []
+    (waiting,) = await offers.due(pool, before=0.0, limit=1)
+    waited = dataclasses.replace(waiting, seen_at=waiting.seen_at - offers.WAITS_FOR_A_WORKER_S)
+    assert await offering.offered(waited) == "pinecall/overflow"
     await server.aclose()

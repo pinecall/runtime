@@ -28,6 +28,13 @@ def chosen(
     return max(candidates, key=lambda seat: (free_seats(seat, in_flight), -seat.load), default=None)
 
 
+# A gateway that just started rebuilds its roster from the next heartbeats, five seconds: until a
+# worker of the fleet is heard, nobody can say the fleet is full.
+def any_heard(seats: Collection[WorkerStatus], now: float) -> bool:
+    """Whether any worker of the fleet was heard lately, whatever it is doing."""
+    return any(now - seat.seen_at <= HEARD_WITHIN_S for seat in seats)
+
+
 # A worker gated on its CPU has no count of seats: one call at a time is offered to it, under
 # LiveKit's line.
 def free_seats(seat: WorkerStatus, in_flight: Mapping[str, int]) -> int:

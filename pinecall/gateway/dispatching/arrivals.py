@@ -1,15 +1,17 @@
-"""A person alone in a room: its newest dispatch, to a fleet and taken by none, offered a worker."""
+"""A person alone in a room is offered a worker; one an agent joined, or that ended, is let go."""
 
 from livekit import api
 from livekit.protocol.agent_dispatch import AgentDispatch
 from livekit.protocol.webhook import WebhookEvent
 
-from pinecall.channels import rooms
+from pinecall.channels import offers, rooms
 from pinecall.channels.offers import Offering
 
 JOINED = "participant_joined"
 
 LEFT = "participant_left"
+
+FINISHED = "room_finished"
 
 
 # The SIP rule and a visitor's token dispatch to the fleet by its plain name, which no worker holds
@@ -29,6 +31,15 @@ async def arrived(offering: Offering, event: WebhookEvent) -> str | None:
     if newest is None or "/" in newest.agent_name or newest.state.jobs:
         return None
     return await offering.offer(room, newest.agent_name, rooms.read_dispatch(newest.metadata))
+
+
+# A dispatch creates the room it names again if it is gone: a room offered after its caller hung
+# up, or after the worker sent to say the sentence closed it, would be a job on an empty room.
+async def settled(offering: Offering, event: WebhookEvent) -> None:
+    """Let a room go that an agent joined or that ended: nothing is left to offer it to."""
+    agent_in = event.event == JOINED and event.participant.kind == api.ParticipantInfo.Kind.AGENT
+    if event.room.name and (agent_in or event.event == FINISHED):
+        await offers.forgotten(offering.pool, event.room.name)
 
 
 def _a_person_may_be_alone(event: WebhookEvent) -> bool:

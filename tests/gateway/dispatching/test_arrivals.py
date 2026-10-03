@@ -4,8 +4,9 @@ from livekit import api
 from livekit.protocol.agent_dispatch import AgentDispatch
 from livekit.protocol.webhook import WebhookEvent
 
+from pinecall.channels import offers
 from pinecall.channels.rooms import Dispatch, read_dispatch, written
-from pinecall.gateway.dispatching.arrivals import JOINED, LEFT, arrived
+from pinecall.gateway.dispatching.arrivals import FINISHED, JOINED, LEFT, arrived, settled
 from pinecall.postgres.pool import Pool
 from tests.conftest import an_offering, postgres
 from tests.fakes.livekit import Server
@@ -78,4 +79,27 @@ async def test_a_caller_handed_to_the_sandbox_is_offered_to_a_sandbox_worker(poo
     )
     (made,) = server.dispatcher.made
     assert read_dispatch(made.metadata) == handed
+    await server.aclose()
+
+
+# The row outlives the room otherwise, and a dispatch on a room that is gone makes it again.
+async def test_a_room_that_ended_before_a_worker_opened_its_call_is_let_go(pool: Pool) -> None:
+    server = Server()
+    offering = an_offering(pool, server, "pinecall")
+    assert await offering.offer(ROOM, "pinecall", CARRIED) == "pinecall/w1"
+    assert await offers.waiting(pool, since=0.0) == {"pinecall": 1}
+    await settled(offering, WebhookEvent(event=FINISHED, room=api.Room(name=ROOM)))
+    assert await offers.waiting(pool, since=0.0) == {}
+    await server.aclose()
+
+
+# The sentence's job opens no call: the agent in the room is what says the offer was taken.
+async def test_a_room_an_agent_joined_is_let_go_and_a_person_joining_keeps_it(pool: Pool) -> None:
+    server = Server()
+    offering = an_offering(pool, server, "pinecall")
+    assert await offering.offer(ROOM, "pinecall", CARRIED) == "pinecall/w1"
+    await settled(offering, an_event(JOINED, "STANDARD"))
+    assert await offers.waiting(pool, since=0.0) == {"pinecall": 1}
+    await settled(offering, an_event(JOINED, "AGENT"))
+    assert await offers.waiting(pool, since=0.0) == {}
     await server.aclose()

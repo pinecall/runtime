@@ -10,8 +10,10 @@
   and the sentence of a worker gone go the same way. The overflow is `<fleet>/overflow`, always
   open; its gate and `GET /v1/fleet/standing` are gone. `fleet list` and `/metrics` say the rooms
   waiting for a worker; each offer is a line in the gateway's journal with the worker and why, and
-  `doctor`'s `offers` line names rooms no gateway swept. A box needs LiveKit's webhook to place
-  calls.
+  `doctor`'s `offers` line names rooms no gateway swept. A room is let go when a worker opens its
+  call, an agent joins it or it ends, so a caller who hung up first is never offered again; a
+  fleet none of whose workers was heard yet (a gateway just started) has its room wait up to 12 s
+  for the next sweep instead of the sentence. A box needs LiveKit's webhook to place calls.
 - **The hosted apps' machine is Terraform's too** (`module "apps"`, imported with no change):
   nothing of the runtime's cloud is made by hand any more.
 - **A worker that counts its calls takes every one of them.** It reported `calls ÷ slots` to

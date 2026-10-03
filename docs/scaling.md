@@ -243,16 +243,21 @@ holds, so LiveKit starts no job and keeps the dispatch on the room with the call
 person is alone in a room, LiveKit's webhook says so (`participant_joined`, or an agent's
 `participant_left` after a hand-over), and the gateway reads the room's newest dispatch: one to a
 fleet that nobody took is the call to place. The room is kept in `offers` until a worker opens its
-call (`channels/offers.py`, `gateway/dispatching/`); an outbound call, a simulated caller and the
-sentence of a worker gone are offered the same way, by the door that makes them. So **the
+call, an agent joins the room or the room ends, whichever LiveKit says first (`channels/offers.py`,
+`gateway/dispatching/`): a caller who hangs up before any worker took the call leaves nothing to
+offer, and a dispatch on a room that is gone would make the room again. An outbound call, a
+simulated caller and the sentence of a worker gone are offered the same way, by the door that
+makes them. So **the
 gateway needs LiveKit's webhook** (`livekit.yaml`'s `webhook.urls`): a box without it places no
 call. The gateway offers it to the worker of the fleet heard in the last 12 s
 with the most seats free, counting the calls offered to it and not opened yet, by its LiveKit name
 (`<fleet>/<worker>`, above): no other worker can take it. A room no worker opened 12 s after its
 offer is offered to another (LiveKit waits 10 s on a worker that does not answer; a live one opens a
-call in about 2 s). After three offers, or when no worker of the fleet has a seat, the room goes to
-the fleet's overflow (`<fleet>/overflow`, below): the caller hears one sentence and a call back is
-written. Any gateway sweeps the rooms every 3 s; an offer is taken by the update that finds the
+call in about 2 s). After three offers, or when the workers of the fleet heard lately have no seat,
+the room goes to the fleet's overflow (`<fleet>/overflow`, below): the caller hears one sentence and
+a call back is written. A fleet none of whose workers was heard in 12 s is one a gateway that just
+started knows nothing of yet (the next heartbeats, five seconds, tell it): its room waits for the
+next sweep, for up to 12 s from the caller's arrival, and only then goes to the overflow. Any gateway sweeps the rooms every 3 s; an offer is taken by the update that finds the
 count it read, so two gateways never offer one room twice. `fleet list` says each fleet's rooms
 waiting for a worker in the last ten minutes, and `/metrics` as `pinecall_fleet{what="waiting"}`:
 a number that is not 0 is a call that LiveKit or a worker dropped. Each offer is a line in the

@@ -1,6 +1,6 @@
 """Tests for whom a call is offered to: a worker heard lately, with a seat free, the freest."""
 
-from pinecall.channels._chooser import HEARD_WITHIN_S, chosen, free_seats
+from pinecall.channels._chooser import HEARD_WITHIN_S, any_heard, chosen, free_seats
 from pinecall.wire.rest.fleet import WorkerStatus
 
 NOW = 1_000.0
@@ -65,3 +65,9 @@ def test_a_worker_on_cpu_takes_one_call_at_a_time_under_livekits_line() -> None:
     assert free_seats(idle, {}) == 1
     assert free_seats(idle, {"pinecall/cpu": 1}) == 0
     assert free_seats(a_seat("cpu", max_jobs=None, load=0.8), {}) == 0
+
+
+def test_a_fleet_is_heard_from_while_any_worker_beat_lately_whatever_it_does() -> None:
+    assert any_heard([a_seat("a", active=4), a_seat("b", heard_ago=60.0)], NOW)
+    assert not any_heard([a_seat("b", heard_ago=HEARD_WITHIN_S + 1)], NOW)
+    assert not any_heard([], NOW)

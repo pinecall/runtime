@@ -4,6 +4,7 @@ import asyncio
 import logging
 import time
 
+import psycopg
 from livekit import api
 
 from pinecall.channels import offers
@@ -28,13 +29,14 @@ async def swept(offering: Offering) -> list[str]:
     return [offer.room for offer in due if await offering.offered(offer) is not None]
 
 
-# A pass that fails is said, and the next one runs: the sweep never stops.
+# A pass that fails is said, and the next one runs: the sweep never stops, a database or an SFU
+# that did not answer included.
 async def sweep_forever(offering: Offering) -> None:
     """A pass every few seconds."""
     while True:
         try:
             await swept(offering)
-        except (Conflict, NotAvailable, api.TwirpError, OSError):
+        except (Conflict, NotAvailable, api.TwirpError, OSError, psycopg.Error):
             logger.warning(
                 "the offers' sweep failed; the next is in %.0f s", SWEPT_EVERY_S, exc_info=True
             )
