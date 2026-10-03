@@ -145,6 +145,24 @@ On two vCPU a call costs the worker ~0.27 vCPU (more than on eight: the job proc
 the event loop weigh more on fewer cores) and the box ~0.16; six calls already put the worker
 near 0.8 of the machine, so a 2-vCPU worker machine is not the shape to run a fleet on.
 
+**The production shape, after the fix** (2026-10-03: box e2-standard-4, worker e2-standard-8
+with its 32 slots, the lab made and destroyed by Terraform):
+
+| calls asked | started | worker machine (8 vCPU) | per call | the box (4 vCPU) | turns answered | first audio p50 / p95 |
+|---|---|---|---|---|---|---|
+| 16 | 16 | 2.77 cores | 0.17 | 1.14 cores | 193 of 193 | 1.23 / 1.30 s |
+| 24 | 24 | 4.14 cores | 0.17 | 1.72 cores | 288 of 288 | 1.23 / 1.31 s |
+| 32 | 29 | 4.56 cores | 0.16 | 1.50 cores | 334 of 336 | 1.24 / 1.33 s |
+
+Twenty-nine calls held at 57 % of the machine, first audio unmoved. The three that did not start
+reached LiveKit SIP and waited in their rooms: livekit-agents counts a call it has accepted but
+not yet launched as load too (a slot reserved until the call's process is up), so in a burst of
+one call a second the worker reads full with three or four calls still starting, two or three
+slots before its last. With one worker, as in the lab, such a call has nowhere to go; in a fleet
+LiveKit offers it to the next worker with room, and the group has asked for another machine long
+before a worker holds 29 (one per 19 calls). The silence comes back only when every worker of the
+fleet is on its last slots during a burst.
+
 With the fix, the same lab given 16 slots (2026-10-03, `--seats 16 --calls 8,12`) started **8 of
 8 and 12 of 12** — the dispatch reaches every slot — and showed what an oversized `MAX_JOBS`
 costs: the worker at 1.9 of its 2 cores, 78 of 89 and 95 of 127 turns answered, first audio p95
