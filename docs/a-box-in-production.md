@@ -20,8 +20,11 @@ your own, a machine at home.
   alone serves both worlds, and the console there is production's.
 - **The cloud's firewall open for**: tcp 22, tcp 80 and 443 (the console, the API, LiveKit's
   signalling), tcp 7881 and udp 7882 (WebRTC), udp 10000–10199 (the phone's audio, RTP), and tcp
-  and udp 5060 from your carrier's signalling addresses alone (Twilio's are in
-  `infra/box/nftables.conf`). The box fences 5060 again itself, with nftables.
+  and udp 5060 from your carriers' signalling addresses alone (Twilio's are in
+  `infra/box/nftables.conf`; on GCP Terraform keeps that rule and a deny of everyone else's 5060
+  beside it). The box fences 5060 again itself, with nftables, and opens it further to the
+  carriers its operator admits and the addresses he approves, every minute
+  ([telephony.md](telephony.md), "The fence, twice").
 
 ## 2. The box, from the package
 
@@ -554,6 +557,9 @@ From the console's box screens, or the operator's doors with the ops key
   own GPU, and the servers it points at, is `infra/models/` ([the-open-stack.md](the-open-stack.md)).
 - the **box's vendor keys** (`/v1/ops/provider-keys/{vendor}`): offering a vendor is holding its key.
 - **admission** (`/v1/ops/admission`): what a new org is given in each world.
+- the **carriers** (`/v1/ops/carriers`): which of the catalog's carriers an org may bring a number
+  through, and the addresses orgs asked 5060 to open to, approved or refused
+  (`/v1/ops/carrier-networks`); `pinecall-fence.timer` writes the answer into nftables.
 - the **mail** the box posts through, its **brand**, the **fleets** each world dispatches to.
 
 ## 6. The first org and the first person
@@ -571,9 +577,11 @@ person signs in at the console and makes the rest: keys, people, numbers.
 
 ## 7. A phone number
 
-The org brings its carrier account or buys a number on the box's, and the number is routed to an
-agent in a world ([protocol/numbers.md](protocol/numbers.md)). The carrier's trunk points at the
-box's SIP port, which the fence opens to that carrier alone. Before the first call the box places,
+The org brings its carrier account, points a number here from a carrier the operator admits, or
+buys one on the box's, and the number is routed to an agent in a world
+([protocol/numbers.md](protocol/numbers.md); how a call reaches it is [telephony.md](telephony.md)).
+The carrier sends the number's calls to the box's SIP port, which the fence opens to that
+carrier alone. Before the first call the box places,
 the org's dial guards are what they are by default: a destination must have called the org before,
 six dials a minute, two hundred a day, ten minutes a call; `orgs dialling` changes them.
 
