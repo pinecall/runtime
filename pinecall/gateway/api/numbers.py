@@ -7,12 +7,12 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from pinecall.channels import routes
-from pinecall.channels.telephony import dialing, numbers
-from pinecall.channels.telephony.carrier import verify_account
+from pinecall.channels.telephony import carrier_catalog, dialing, numbers, sip
+from pinecall.channels.telephony.carrier import declared_networks, verify_account
 from pinecall.channels.telephony.dialing import Placement
 from pinecall.channels.telephony.numbers import NumberImport, NumberPurchase
 from pinecall.domain.call import today_in
-from pinecall.domain.errors import Conflict
+from pinecall.domain.errors import Conflict, NotAvailable
 from pinecall.domain.names import parse_e164
 from pinecall.domain.scope import Scope
 from pinecall.gateway._deps import (
@@ -25,14 +25,18 @@ from pinecall.gateway._deps import (
     WorkerKey,
     asked_by,
 )
-from pinecall.tenancy import carriers, consents, keys, tokens
+from pinecall.tenancy import carrier_networks, carriers, consents, keys, tokens
+from pinecall.tenancy.carrier_networks import NetworkAsk
+from pinecall.tenancy.carriers import Carrier
 from pinecall.tenancy.consents import Given
 from pinecall.tenancy.dial_policy import Dial
 from pinecall.wire.rest.numbers import (
     AvailableNumbers,
     BuyNumberRequest,
+    CarrierCatalog,
     CarrierList,
     CarrierRow,
+    CatalogCarrier,
     ConsentHistory,
     DialGuards,
     DialRequest,
@@ -44,6 +48,7 @@ from pinecall.wire.rest.numbers import (
     ImportNumberResponse,
     LegTrunkResponse,
     MoveNumberRequest,
+    NetworkRow,
     NumberRow,
     OutboundStatus,
     OwnedNumberRow,
@@ -88,7 +93,8 @@ async def get_carrier(
     carrier = await carriers.carrier_named(
         gateway.connections.pool, gateway.connections.vault, key.org, account
     )
-    return CarrierRow(kind=carrier.account.kind, account=carrier.id, label=carrier.account.label)
+    asks = await carrier_networks.of_org(gateway.connections.pool, key.org)
+    return _carrier_row(carrier, asks)
 
 
 @router.get("/v1/carriers")
@@ -97,11 +103,34 @@ async def list_carriers(key: NumbersKey, gateway: GatewayDep) -> CarrierList:
     carriers_listed = await carriers.carriers_of(
         gateway.connections.pool, gateway.connections.vault, key.org
     )
-    return CarrierList(
+    asks = await carrier_networks.of_org(gateway.connections.pool, key.org)
+    return CarrierList(carriers=[_carrier_row(carrier, asks) for carrier in carriers_listed])
+
+
+# What Add a number offers beside the org's own accounts: Twilio drives its own numbers; a
+# guided carrier is SIP terms, a number pasted into its portal.
+@router.get("/v1/carriers/catalog")
+async def list_carrier_catalog(_key: NumbersKey, gateway: GatewayDep) -> CarrierCatalog:
+    """The carriers this box admits, each automatic or guided, and whether the box sells numbers."""
+    connections = gateway.connections
+    admitted = await carrier_catalog.admitted(connections.pool)
+    try:
+        await carriers.box_twilio(connections.pool, connections.vault)
+        sells = True
+    except NotAvailable:
+        sells = False
+    return CarrierCatalog(
         carriers=[
-            CarrierRow(kind=carrier.account.kind, account=carrier.id, label=carrier.account.label)
-            for carrier in carriers_listed
-        ]
+            CatalogCarrier(
+                kind=carrier.kind,
+                name=carrier.name,
+                how="automatic" if carrier.control else "guided",
+                networks=list(carrier.networks),
+            )
+            for carrier in carrier_catalog.known().values()
+            if carrier.kind in admitted
+        ],
+        sells=sells,
     )
 
 
@@ -109,11 +138,16 @@ async def list_carriers(key: NumbersKey, gateway: GatewayDep) -> CarrierList:
 @router.put("/v1/carrier")
 async def put_carrier(body: carriers.Account, key: NumbersKey, gateway: GatewayDep) -> CarrierRow:
     """Keep an account of the org: a Twilio account, a SIP peer, a WhatsApp number at Meta."""
-    await verify_account(gateway.connections.http, body)
-    carrier = await carriers.put_carrier(
-        gateway.connections.pool, gateway.connections.vault, key.org, body
-    )
-    return CarrierRow(kind=carrier.account.kind, account=carrier.id, label=carrier.account.label)
+    connections = gateway.connections
+    declared = declared_networks(Carrier(org=key.org, account=body))
+    for network in declared or ():
+        carrier_networks.checked(network)
+    await verify_account(connections.http, body)
+    carrier = await carriers.put_carrier(connections.pool, connections.vault, key.org, body)
+    if declared is not None:
+        await carrier_networks.ask(connections.pool, key.org, carrier.id, declared)
+        await sip.readmit(connections, key.org)
+    return _carrier_row(carrier, await carrier_networks.of_org(connections.pool, key.org))
 
 
 @router.delete("/v1/carrier", status_code=204)
@@ -167,6 +201,7 @@ async def import_number(
         account=body.account,
         hooked=body.hooked,
         networks=tuple(body.networks),
+        via=body.via,
         move=body.move,
     )
     plan = (
@@ -354,6 +389,20 @@ async def import_do_not_call(
         gateway.connections.pool, where, body.numbers, given
     )
     return DoNotCallImported(added=added, refused=refused)
+
+
+def _carrier_row(carrier: Carrier, asks: list[NetworkAsk]) -> CarrierRow:
+    """An account as the doors send it, a peer's networks with the operator's answer to each."""
+    return CarrierRow(
+        kind=carrier.account.kind,
+        account=carrier.id,
+        label=carrier.account.label,
+        networks=[
+            NetworkRow(network=ask.network, state=ask.state)
+            for ask in asks
+            if ask.source == carrier.id
+        ],
+    )
 
 
 def _org_scope(key: Acting) -> Scope:

@@ -2,6 +2,7 @@
 
 import pytest
 
+from pinecall.channels.telephony import carrier_catalog
 from pinecall.domain.names import JsonObject
 from pinecall.domain.person import THE_FLEET, KeyScope
 from pinecall.domain.scope import Scope
@@ -35,12 +36,67 @@ async def test_a_carrier_is_brought_verified_listed_by_account_and_taken_back(
         brought = await console.put("/v1/carrier", json=account_body(twilio))
         assert brought.status_code == 200
         shown = (await console.get("/v1/carrier")).json()
-        assert shown == {"kind": "twilio", "account": twilio.account_sid, "label": ""}
+        assert shown == {
+            "kind": "twilio",
+            "account": twilio.account_sid,
+            "label": "",
+            "networks": [],
+        }
         assert twilio.secret not in str(shown)
         listed = (await console.get("/v1/carriers")).json()
         assert [item["account"] for item in listed["carriers"]] == [twilio.account_sid]
         assert (await console.delete("/v1/carrier")).status_code == 204
         assert (await console.get("/v1/carrier")).status_code == 404
+
+
+@postgres
+async def test_the_catalog_offers_twilio_always_and_another_carrier_once_admitted(
+    knocking: Knocking,
+) -> None:
+    async with knocking.http(knocking.app["production"]) as console:
+        before = (await console.get("/v1/carriers/catalog")).json()
+        await carrier_catalog.admit(knocking.gateway.connections.pool, "telnyx", on=True)
+        after = (await console.get("/v1/carriers/catalog")).json()
+    assert [(item["kind"], item["how"]) for item in before["carriers"]] == [("twilio", "automatic")]
+    assert [(item["kind"], item["how"]) for item in after["carriers"]] == [
+        ("twilio", "automatic"),
+        ("telnyx", "guided"),
+    ]
+    assert after["carriers"][1]["networks"][0] == "192.76.120.10/32"
+    assert before["sells"] is False
+
+
+@postgres
+async def test_a_number_via_a_carrier_the_box_admits_is_fenced_to_its_networks(
+    knocking: Knocking,
+) -> None:
+    wanted = {"number": A_NUMBER, "agent": AGENT, "hooked": True, "via": "telnyx"}
+    async with knocking.http(knocking.app["production"]) as console:
+        refused = await console.post("/v1/numbers", json=wanted)
+        await carrier_catalog.admit(knocking.gateway.connections.pool, "telnyx", on=True)
+        hooked = await console.post("/v1/numbers", json=wanted)
+        with_networks = await console.post(
+            "/v1/numbers", json={**wanted, "networks": ["45.60.12.7"]}
+        )
+    assert refused.status_code == 409
+    assert "does not admit Telnyx" in refused.text
+    assert hooked.status_code == 200
+    assert any("trunk org" in step and ":telnyx admits" in step for step in hooked.json()["steps"])
+    assert with_networks.status_code == 400
+
+
+@postgres
+async def test_a_peers_networks_wait_for_the_operator_and_a_wide_one_is_refused(
+    knocking: Knocking,
+) -> None:
+    peer = {"kind": "sip", "username": "pbx", "password": "a peer's password"}
+    async with knocking.http(knocking.app["production"]) as console:
+        wide = await console.put("/v1/carrier", json={**peer, "addresses": ["45.60.0.0/16"]})
+        brought = await console.put("/v1/carrier", json={**peer, "addresses": ["45.60.12.7"]})
+        listed = (await console.get("/v1/carriers")).json()
+    assert wide.status_code == 400
+    assert brought.json()["networks"] == [{"network": "45.60.12.7/32", "state": "waiting"}]
+    assert listed["carriers"][0]["networks"][0]["state"] == "waiting"
 
 
 @postgres

@@ -5,9 +5,10 @@ import pytest
 
 from pinecall.channels.telephony import carrier
 from pinecall.channels.telephony._twilio import Twilio
+from pinecall.channels.telephony.carrier_catalog import known_carrier
 from pinecall.domain.errors import Conflict, DeclarationRefused
 from pinecall.tenancy.carriers import Carrier, Termination, TwilioAccount, WhatsappAccount
-from tests.channels.conftest import a_peer
+from tests.channels.conftest import PEER_NETWORK, a_peer
 from tests.fakes.idp import a_sid
 
 A_NUMBER = "+59829001199"
@@ -37,27 +38,37 @@ def a_whatsapp() -> Carrier:
 
 def test_a_twilio_number_and_one_with_no_account_are_fenced_to_twilios_edges() -> None:
     for brought in (a_twilio(), None):
-        fence = carrier.fence_of("org_a", A_NUMBER, brought, ())
+        fence = carrier.fence_of("org_a", A_NUMBER, brought, None, None)
+        assert fence is not None
         assert (fence.trunk, fence.networks) == ("org_a", carrier.TWILIO_SIGNALLING)
 
 
-def test_a_peer_is_fenced_to_its_own_networks_with_its_pair() -> None:
-    fence = carrier.fence_of("org_a", A_NUMBER, Carrier("org_a", a_peer()), ())
-    assert (fence.trunk, fence.networks, fence.username) == (
-        "org_a:pbx",
-        ("203.0.113.0/24",),
-        "pbx",
-    )
+def test_a_number_via_a_catalog_carrier_is_fenced_to_that_carriers_networks() -> None:
+    fence = carrier.fence_of("org_a", A_NUMBER, None, "telnyx", None)
+    assert fence is not None
+    assert (fence.trunk, fence.networks) == ("org_a:telnyx", known_carrier("telnyx").networks)
 
 
-def test_a_hooked_number_with_networks_is_a_fence_of_its_own() -> None:
-    fence = carrier.fence_of("org_a", A_NUMBER, None, ("198.51.100.7/32",))
-    assert (fence.trunk, fence.networks) == (f"org_a:{A_NUMBER}", ("198.51.100.7/32",))
+def test_a_peer_is_fenced_to_its_approved_networks_with_its_pair_and_to_none_before() -> None:
+    peer = Carrier("org_a", a_peer())
+    assert carrier.fence_of("org_a", A_NUMBER, peer, None, ()) is None
+    fence = carrier.fence_of("org_a", A_NUMBER, peer, None, (PEER_NETWORK,))
+    assert fence is not None
+    assert (fence.trunk, fence.networks, fence.username) == ("org_a:pbx", (PEER_NETWORK,), "pbx")
+    assert carrier.declared_networks(peer) == (PEER_NETWORK,)
+    assert carrier.declared_networks(a_twilio()) is None
+
+
+def test_a_hooked_number_with_networks_is_a_fence_of_its_own_once_approved() -> None:
+    assert carrier.fence_of("org_a", A_NUMBER, None, None, ()) is None
+    fence = carrier.fence_of("org_a", A_NUMBER, None, None, ("45.60.13.7/32",))
+    assert fence is not None
+    assert (fence.trunk, fence.networks) == (f"org_a:{A_NUMBER}", ("45.60.13.7/32",))
 
 
 def test_a_whatsapp_number_is_on_no_trunk() -> None:
     with pytest.raises(DeclarationRefused, match="on no SIP trunk"):
-        carrier.fence_of("org_a", A_NUMBER, a_whatsapp(), ())
+        carrier.fence_of("org_a", A_NUMBER, a_whatsapp(), None, None)
 
 
 def test_what_each_kind_lacks_to_dial_out() -> None:

@@ -99,6 +99,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/carrier/outbound` | numbers | Whether the org can place a call, one sentence per thing missing, and its guards. |
 | `POST` | `/v1/carrier/outbound` | numbers | Make an account dialable: Twilio's termination and a credential; a peer needs nothing. |
 | `GET` | `/v1/carriers` | numbers | Every account of the org, oldest first. |
+| `GET` | `/v1/carriers/catalog` | numbers | The carriers this box admits, each automatic (its API) or guided (SIP terms), and whether the box sells numbers. |
 | `WS` | `/v1/chat` | — | One text call: {text} frames in, every entry of the call out. |
 | `POST` | `/v1/codes` | talk | Four digits for a caller to key, the number to call, and a token that asks after them. |
 | `GET` | `/v1/codes/{code}` | calls | How the code stands; with ?wait=1, held up to 25 s for a call to key it. |
@@ -184,6 +185,11 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `PUT` | `/v1/ops/admission` | operator | What a newborn org is given, replaced whole. |
 | `GET` | `/v1/ops/brand` | operator | What the box's letters and sign-in page are called and painted with. |
 | `PUT` | `/v1/ops/brand` | operator | The brand changed field by field: one left out stays, an empty one goes to the default. |
+| `GET` | `/v1/ops/carrier-networks` | operator | Every network an org asked 5060 to open to, or those in one state, oldest first. |
+| `POST` | `/v1/ops/carrier-networks/{ask}/approve` | operator | Open 5060 to the network within a minute, and admit the org's numbers it fences. |
+| `POST` | `/v1/ops/carrier-networks/{ask}/refuse` | operator | Keep 5060 closed to the network; numbers it alone fenced are let go of on the SFU. |
+| `GET` | `/v1/ops/carriers` | operator | The catalog, each carrier admitted or not with the numbers it brings, and the fence now. |
+| `PUT` | `/v1/ops/carriers/{kind}` | operator | Admit a carrier of the catalog, or stop admitting it; Twilio is admitted always. |
 | `GET` | `/v1/ops/hosted-usage` | operator | The time every org's apps served, both worlds, per UTC day, one month: what bills them. |
 | `GET` | `/v1/ops/events` | operator | Every org's floor at once, each frame saying whose. |
 | `GET` | `/v1/ops/fleet` | operator | Every worker heard from, of both fleets, and each fleet summed over the ones up. |

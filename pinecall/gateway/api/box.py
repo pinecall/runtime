@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+from collections import Counter
 from collections.abc import AsyncIterator
 from typing import Annotated
 
@@ -9,7 +10,8 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import StreamingResponse
 
 from pinecall.channels import routes
-from pinecall.channels.telephony import numbers
+from pinecall.channels.telephony import carrier_catalog, firewall, numbers, sip
+from pinecall.channels.telephony.carrier_catalog import KnownCarrier
 from pinecall.channels.telephony.numbers import NumberImport
 from pinecall.domain.call import Route
 from pinecall.domain.errors import Conflict, NotAvailable, NotFound
@@ -19,7 +21,7 @@ from pinecall.fleet import worlds
 from pinecall.fleet.roster import STALE_AFTER_S
 from pinecall.fleet.worlds import Fleets
 from pinecall.gateway import _streams
-from pinecall.gateway._deps import GatewayDep, operator, public_url
+from pinecall.gateway._deps import GatewayDep, OperatorDep, operator, public_url
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._streams import frame, paced, streamed, wants_sse
 from pinecall.gateway.api import hosting as hosting_doors
@@ -32,8 +34,17 @@ from pinecall.log.reduce import totals_by_org
 from pinecall.log.store import DEFAULT_LIMIT, Store
 from pinecall.providers import catalog
 from pinecall.providers.catalog import Providers
-from pinecall.tenancy import admission, hosted_running, letters, mail, orgs, vault
+from pinecall.tenancy import (
+    admission,
+    carrier_networks,
+    hosted_running,
+    letters,
+    mail,
+    orgs,
+    vault,
+)
 from pinecall.tenancy.admission import Admission
+from pinecall.tenancy.carrier_networks import NetworkState
 from pinecall.tenancy.mail import MailboxStatus
 from pinecall.wire.frames import Entry
 from pinecall.wire.rest.accounts import (
@@ -44,11 +55,17 @@ from pinecall.wire.rest.accounts import (
 )
 from pinecall.wire.rest.hosting import ServedPage
 from pinecall.wire.rest.ops import (
+    AdmitCarrierRequest,
+    BoxCarrier,
+    BoxCarriers,
     BoxEvent,
+    BoxFence,
     BoxMailResponse,
     BoxNumber,
     BoxProvider,
     BoxSignInResponse,
+    CarrierNetworkRow,
+    FenceOpening,
     FleetListed,
     NumberCameIn,
     PutBrandRequest,
@@ -352,9 +369,74 @@ async def list_box_numbers(gateway: GatewayDep) -> list[BoxNumber]:
             answered_by=None
             if row.answering == row.route.org
             else slugs.get(row.answering, row.answering),
+            via=row.via,
         )
         for row in found
     ]
+
+
+# ── the carriers ──
+
+
+@router.get("/v1/ops/carriers")
+async def list_box_carriers(gateway: GatewayDep) -> BoxCarriers:
+    """The catalog, each carrier admitted or not with the numbers it brings, and the fence now."""
+    pool = gateway.connections.pool
+    admitted = await carrier_catalog.admitted(pool)
+    through = Counter(_comes_through(record) for record in await routes.on_the_box(pool))
+    applied = await firewall.last_applied(pool)
+    return BoxCarriers(
+        carriers=[
+            _box_carrier(carrier, admitted, through[carrier.kind])
+            for carrier in carrier_catalog.known().values()
+        ],
+        fence=BoxFence(
+            openings=[
+                FenceOpening(network=opening.network, reason=opening.reason)
+                for opening in await firewall.openings(pool)
+            ],
+            applied_at=None if applied is None else applied.at,
+            applied=None if applied is None else applied.networks,
+        ),
+    )
+
+
+# On, every org sees it under Add a number and the fence opens to its networks within a minute.
+@router.put("/v1/ops/carriers/{kind}")
+async def admit_box_carrier(
+    kind: str, body: AdmitCarrierRequest, gateway: GatewayDep
+) -> BoxCarrier:
+    """Admit a carrier of the catalog, or stop admitting it; Twilio is admitted always."""
+    pool = gateway.connections.pool
+    admitted = await carrier_catalog.admit(pool, kind, on=body.admitted)
+    through = Counter(_comes_through(record) for record in await routes.on_the_box(pool))
+    return _box_carrier(carrier_catalog.known_carrier(kind), admitted, through[kind])
+
+
+@router.get("/v1/ops/carrier-networks")
+async def list_carrier_networks(
+    gateway: GatewayDep, state: Annotated[NetworkState | None, Query()] = None
+) -> list[CarrierNetworkRow]:
+    """Every network an org asked 5060 to open to, or those in one state, oldest first."""
+    pool = gateway.connections.pool
+    slugs = {org.id: org.slug for org in await orgs.listed(pool)}
+    return [_network_row(ask, slugs) for ask in await carrier_networks.listed(pool, state)]
+
+
+@router.post("/v1/ops/carrier-networks/{ask}/approve")
+async def approve_carrier_network(
+    ask: int, gateway: GatewayDep, operating: OperatorDep
+) -> CarrierNetworkRow:
+    """Open 5060 to the network within a minute, and admit the org's numbers it fences."""
+    return await _decided(gateway, ask, "approved", operating)
+
+
+@router.post("/v1/ops/carrier-networks/{ask}/refuse")
+async def refuse_carrier_network(
+    ask: int, gateway: GatewayDep, operating: OperatorDep
+) -> CarrierNetworkRow:
+    """Keep 5060 closed to the network; numbers it alone fenced are let go of on the SFU."""
+    return await _decided(gateway, ask, "refused", operating)
 
 
 # ── the fleet ──
@@ -436,6 +518,58 @@ def _came_in(row: routes.RouteRecord) -> NumberCameIn:
             return kind
         case origin, _:
             return origin
+
+
+def _box_carrier(carrier: KnownCarrier, admitted: frozenset[str], numbers: int) -> BoxCarrier:
+    """A carrier of the catalog as the doors send it."""
+    return BoxCarrier(
+        kind=carrier.kind,
+        name=carrier.name,
+        control=carrier.control,
+        networks=list(carrier.networks),
+        source=carrier.source,
+        read_on=carrier.read_on.isoformat(),
+        admitted=carrier.kind in admitted,
+        fixed=carrier.kind == carrier_catalog.BOX_CARRIER,
+        numbers=numbers,
+    )
+
+
+# A number with no account, no carrier named and no networks of its own is fenced to Twilio's.
+def _comes_through(record: routes.RouteRecord) -> str | None:
+    """The catalog carrier a number reaches the box through, if any."""
+    if record.via is not None:
+        return record.via
+    if record.carrier is not None:
+        return record.carrier
+    if record.route.managed or record.origin in {"hooked", "typed"}:
+        return carrier_catalog.BOX_CARRIER
+    return None
+
+
+def _network_row(ask: carrier_networks.NetworkAsk, slugs: dict[str, str]) -> CarrierNetworkRow:
+    """A network asked for as the doors send it, the org by its slug."""
+    return CarrierNetworkRow(
+        id=ask.id,
+        org=slugs.get(ask.org, ask.org),
+        source=ask.source,
+        network=ask.network,
+        state=ask.state,
+        asked_at=ask.asked_at,
+        decided_by=ask.decided_by,
+        decided_at=ask.decided_at,
+    )
+
+
+async def _decided(
+    gateway: Gateway, ask: int, state: NetworkState, operating: str
+) -> CarrierNetworkRow:
+    """The operator's answer kept, and the org's trunks made to follow it."""
+    pool = gateway.connections.pool
+    decided = await carrier_networks.decide(pool, ask, state, operating)
+    await sip.readmit(gateway.connections, decided.org)
+    slugs = {org.id: org.slug for org in await orgs.listed(pool)}
+    return _network_row(decided, slugs)
 
 
 async def _box_mail(gateway: Gateway) -> MailboxStatus | None:

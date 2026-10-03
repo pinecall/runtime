@@ -20,3 +20,6 @@ crash.log
 .image-settings.tar
 .local/
 .lab/
+# `pinecall-runtime fence export` on the box: the carriers' and the orgs' approved networks, which
+# are the orgs' and never published with this repository.
+infra/terraform/environments/*/carrier_signalling.auto.tfvars.json

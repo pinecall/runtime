@@ -15,7 +15,7 @@ from pinecall.domain.names import Env
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
 from pinecall.process.connections import Connections, vault_of
-from pinecall.tenancy import carriers, orgs, vault
+from pinecall.tenancy import carrier_networks, carriers, orgs, vault
 from pinecall.tenancy.carriers import SipPeer, TwilioAccount
 from pinecall.tenancy.dial_policy import Dial
 from tests.conftest import settings_of
@@ -30,6 +30,9 @@ A_NUMBER = "+15550100133"
 THE_OTHER_HALF = "the other half of the pair"
 HER_PHONE = "+59899000001"
 NFTABLES = Path(__file__).parents[2] / "infra/box/nftables.conf"
+
+# A PBX of the org calls from the office: public, and narrow enough for the operator to approve.
+PEER_NETWORK = "45.60.12.0/24"
 
 
 @dataclass
@@ -100,13 +103,20 @@ async def brought(line: Line) -> None:
     )
 
 
+async def approved(line: Line, source: str, *networks: str) -> None:
+    """The org asked for these networks for the source, and the box's operator approved them."""
+    pool = line.connections.pool
+    for ask in await carrier_networks.ask(pool, line.org, source, networks):
+        await carrier_networks.decide(pool, ask.id, "approved", "ana@pinecall.test")
+
+
 def a_peer(**said: object) -> SipPeer:
     """A PBX of the org's that calls from its office's network."""
     return SipPeer.model_validate(
         {
             "username": "pbx",
             "password": "a peer's password",
-            "addresses": ["203.0.113.0/24"],
+            "addresses": [PEER_NETWORK],
             **said,
         }
     )

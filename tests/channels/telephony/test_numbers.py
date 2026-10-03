@@ -10,7 +10,7 @@ from cryptography.fernet import Fernet
 from livekit import api
 
 from pinecall.channels import routes
-from pinecall.channels.telephony import carrier, dialing, numbers
+from pinecall.channels.telephony import carrier, dialing, numbers, sip
 from pinecall.channels.telephony._twilio import termination_host
 from pinecall.channels.telephony.numbers import NumberImport, NumberPurchase
 from pinecall.domain.errors import (
@@ -23,7 +23,7 @@ from pinecall.domain.org import Quotas
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
 from pinecall.process.connections import Connections, vault_of
-from pinecall.tenancy import admission, carriers, dial_policy, orgs
+from pinecall.tenancy import admission, carrier_networks, carriers, dial_policy, orgs
 from pinecall.tenancy.carriers import TwilioAccount, WhatsappAccount
 from pinecall.tenancy.dial_policy import Dial
 from tests.channels.conftest import (
@@ -31,9 +31,11 @@ from tests.channels.conftest import (
     DOMAIN,
     HER_PHONE,
     HERE,
+    PEER_NETWORK,
     THE_OTHER_HALF,
     Line,
     a_peer,
+    approved,
     box_sells,
     brought,
 )
@@ -167,12 +169,18 @@ async def test_a_peer_touches_nothing_outside_and_rides_its_pair_onto_a_trunk_of
     line: Line,
 ) -> None:
     await carriers.put_carrier(line.connections.pool, line.connections.vault, line.org, a_peer())
-    await numbers.import_number(line.connections, NumberImport(line.scope(), "recepcion", A_NUMBER))
+    waiting = await numbers.import_number(
+        line.connections, NumberImport(line.scope(), "recepcion", A_NUMBER)
+    )
     assert line.twilio.requests == []
-    sfu = line.trunk(f"{line.org}:pbx")
-    assert (list(sfu.allowed_addresses), sfu.auth_username) == (["203.0.113.0/24"], "pbx")
+    assert any("waits for the box's operator to approve" in step for step in waiting.steps)
+    assert line.server.dialled.trunks == {}
     routed = await routes.of_number(line.connections.pool, line.org, A_NUMBER)
     assert routed is not None
+    await approved(line, "pbx", PEER_NETWORK)
+    assert await sip.readmit(line.connections, line.org) == 1
+    sfu = line.trunk(f"{line.org}:pbx")
+    assert (list(sfu.allowed_addresses), sfu.auth_username) == ([PEER_NETWORK], "pbx")
 
 
 @postgres
@@ -180,10 +188,19 @@ async def test_a_number_the_org_hooks_itself_needs_no_account_and_keeps_its_own_
     line: Line,
 ) -> None:
     wanted = NumberImport(
-        line.scope(), "recepcion", A_NUMBER, hooked=True, networks=("198.51.100.7/32",)
+        line.scope(), "recepcion", A_NUMBER, hooked=True, networks=("45.60.13.7",)
     )
     await numbers.import_number(line.connections, wanted)
-    assert list(line.trunk(f"{line.org}:{A_NUMBER}").allowed_addresses) == ["198.51.100.7/32"]
+    assert line.server.dialled.trunks == {}
+    (request,) = await carrier_networks.of_org(line.connections.pool, line.org)
+    assert (request.source, request.network, request.state) == (
+        A_NUMBER,
+        "45.60.13.7/32",
+        "waiting",
+    )
+    await approved(line, A_NUMBER, "45.60.13.7/32")
+    await sip.readmit(line.connections, line.org)
+    assert list(line.trunk(f"{line.org}:{A_NUMBER}").allowed_addresses) == ["45.60.13.7/32"]
     await numbers.import_number(
         line.connections, NumberImport(line.scope(), "recepcion", "+15550100134", hooked=True)
     )

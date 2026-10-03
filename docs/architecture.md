@@ -22,7 +22,7 @@ surface is the URL.
 | `session/` | one LiveKit `AgentSession` for voice and text: `session.py`, a voice call's pipeline (`voice.py`: the three stages built, and the end of the caller's turn read off the audio by a local model, livekit's `v1-mini` or Smart Turn v3 as the row says), a written one (`text.py`), the call's live state (`call.py`), the room, hold music (`hold.py`), tools, the widget channel; private: the Agent, livekit's shapes read as ours, the prompt, what the ears are told (`_hearing.py`: the turn policy per language, the keyterms) | `domain` `wire` `providers` `log` `process` |
 | `retrieval/` | the embedder (`embed.py`), knowledge bases with their cutter and goldens (`knowledge.py`), contact memory (`memory.py`), a call's lookups written on its log (`lookups.py`), and what a call taught at hang-up (`extraction.py`); private: the hybrid search over one table (`_search.py`) | `domain` `wire` `postgres` `log` `providers` `process` |
 | `evals/` | the case a judge reads (`case.py`), the judges and the hang-up panel (`judges.py`), the compliance judges settled by code (`compliance.py`), the checks by code alone (`checks.py`), a golden played on a written call and the judges its expectations set (`goldens.py`), real calls kept as goldens of the org's dataset (`dataset.py`), a run and its matrix (`runs.py`: one run of an agent at a time on the whole box, by a lease in Postgres the run renews), the simulated caller (`callers.py`) and its spoken line (`spoken.py`); private: what an agent could know and stated (`_evidence.py`) | `session` `retrieval` `log` `providers` and the leaves |
-| `channels/` | by where a conversation comes in: `routes.py` (number or channel to agent, for every channel), `rooms.py` (a call to the fleet of its world), `whatsapp.py` (Meta's API), `telephony/` (`carrier.py`, the one module that reads an account's kind: its fence, where it is dialled, its API; Twilio's API, private; the SIP trunks and rules on LiveKit; numbers imported and bought; dialling out) | `domain` `wire` `postgres` `process` `tenancy` `fleet` `log` |
+| `channels/` | by where a conversation comes in: `routes.py` (number or channel to agent, for every channel), `rooms.py` (a call to the fleet of its world), `whatsapp.py` (Meta's API), `telephony/` (`carrier.py`, the one module that reads an account's kind: its fence, where it is dialled, its API; `carrier_catalog.py` and `carriers.csv`, the carriers the box knows and admits; `firewall.py`, the networks 5060 opens to beyond Twilio's; Twilio's API, private; the SIP trunks and rules on LiveKit; numbers imported and bought; dialling out) | `domain` `wire` `postgres` `process` `tenancy` `fleet` `log` |
 | `fleet/` | the fleet each world dispatches to (`worlds.py`), the roster of workers, a worker's heartbeat and the last minute it carries (`measures.py`: what its calls' jobs tell it), the worker's client to the gateway (its batches down one socket per call, `EntriesStream`) | `domain` `wire` `postgres` `log` `process` |
 | `gateway/` | the FastAPI app; private, each named for what it holds and none the logic of a door of the same name: the process's state (`_gateway.py`, the `Gateway`), each request's dependencies (`_deps.py`), what a call of an agent is set up with (`_call_setup.py`), written calls opened and taken up (`_text_calls.py`), SSE streams, the app sockets registered on every gateway of the box, this one's and the others' as they say them (`_sockets.py`); and `calls/`, what a call is to a gateway that did not open it (`known.py`: served from what was kept when it opened) and the pump that sends a bound call's entries down its socket, whichever gateway wrote them, the socket's gateway told on the signal when another binds a call to it (`pump.py`), the WhatsApp threads kept open (`threads.py`: they need the sockets and the session, so they are the gateway's; `api/threads.py` holds their doors), what one gateway sends an app socket another holds (`inbox.py`: a call bound to it, a console's `dev.request`, a stop, the answer back, and the sockets each gateway holds, for the org's list), and who runs each written call and holds each thread across the gateways of the box (`owners.py`: a message that lands on another gateway is handed to the holder; a call it runs is not taken up or reaped elsewhere while it says so), the calls served (`_served.py`); `ending/`: how a call ends (`seal.py`: memory, the bill, the judges, the seal) the calls nobody ends (`reaper.py`), and a call whose worker died (`stranded.py`: LiveKit's word that its agent was lost, the caller told once); `api/`: one module per topic of doors, the account doors among them (`accounts.py`: sign-in, whoami, codes, pairing, invitations; `members.py`, `keys.py`, `signup.py`, `sso_login.py`, `org.py`'s provider and mailbox, `ops.py`) | everything above |
 | `runner/` | the runner: a world's hosted apps kept running as the gateway wants them (`main.py`), what each beat does to each app decided from numbers alone (`_plan.py`), one gVisor container each, driven through podman (`_podman.py`); no database, no vault | `domain` `wire` `process` |
@@ -47,12 +47,12 @@ core under `_` names.
 
 | folder | files | lines | imports of ours |
 |---|---|---|---|
-| `channels/` | 8 | 2344 | `domain`, `fleet`, `log`, `postgres`, `process`, `tenancy`, `wire` |
-| `cli/` | 12 | 2808 | `channels`, `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `runner`, `session`, `tenancy`, `wire`, `worker` |
-| `domain/` | 8 | 1194 | — |
+| `channels/` | 10 | 2719 | `domain`, `fleet`, `log`, `postgres`, `process`, `tenancy`, `wire` |
+| `cli/` | 13 | 2880 | `channels`, `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `runner`, `session`, `tenancy`, `wire`, `worker` |
+| `domain/` | 8 | 1199 | — |
 | `evals/` | 11 | 2965 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
 | `fleet/` | 6 | 1467 | `domain`, `postgres`, `process`, `wire` |
-| `gateway/` | 56 | 11811 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `gateway/` | 56 | 12000 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
 | `log/` | 14 | 4837 | `domain`, `postgres`, `process`, `wire` |
 | `postgres/` | 2 | 283 | `domain` |
 | `process/` | 9 | 1849 | `domain`, `postgres` |
@@ -60,8 +60,8 @@ core under `_` names.
 | `retrieval/` | 6 | 2352 | `domain`, `log`, `postgres`, `providers`, `wire` |
 | `runner/` | 3 | 866 | `domain`, `process`, `wire` |
 | `session/` | 13 | 3615 | `domain`, `log`, `providers`, `wire` |
-| `tenancy/` | 37 | 7706 | `domain`, `log`, `postgres`, `process`, `wire` |
-| `wire/` | 20 | 5035 | `domain` |
+| `tenancy/` | 38 | 7862 | `domain`, `log`, `postgres`, `process`, `wire` |
+| `wire/` | 20 | 5124 | `domain` |
 | `worker/` | 4 | 1012 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
 
 ## The path of a call

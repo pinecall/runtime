@@ -24,11 +24,12 @@ from psycopg.rows import DictRow
 
 from pinecall.channels import rooms
 from pinecall.channels.rooms import Dispatch
-from pinecall.channels.telephony.carrier import Fence, fence_of
+from pinecall.channels.telephony.carrier import Fence, declared_networks, fence_of
 from pinecall.domain.errors import NotAvailable
 from pinecall.domain.names import Env
 from pinecall.fleet import worlds
 from pinecall.process.connections import Connections
+from pinecall.tenancy import carrier_networks
 from pinecall.tenancy.carriers import Carrier, carriers_of
 
 logger = logging.getLogger(__name__)
@@ -44,8 +45,12 @@ REBUILT = "SIP rebuilt from the tables: %d numbers stand, %d orgs refused"
 
 
 TO_REBUILD = """
-SELECT org, number, env, account, networks FROM routes
+SELECT org, number, env, account, networks, via FROM routes
 WHERE channel = 'phone' AND number IS NOT NULL ORDER BY org, added_at, number
+"""
+OF_ORG = """
+SELECT org, number, env, account, networks, via FROM routes
+WHERE channel = 'phone' AND number IS NOT NULL AND org = %(org)s ORDER BY added_at, number
 """
 
 
@@ -206,17 +211,10 @@ async def rebuild(connections: Connections) -> Rebuilt:
     """Admit every routed phone number again on the SFU, with its fence and its world's rule."""
     async with connections.pool.connection() as connection:
         rows = await (await connection.execute(TO_REBUILD)).fetchall()
-    fleets = await worlds.fleets(connections.pool)
     readmitted, refused = 0, list[str]()
     for org in dict.fromkeys(str(row["org"]) for row in rows):
         try:
-            carriers = {
-                carrier.id: carrier
-                for carrier in await carriers_of(connections.pool, connections.vault, org)
-            }
-            for row in (row for row in rows if row["org"] == org):
-                await _readmit(connections, row, carriers.get(row["account"] or ""), fleets)
-                readmitted += 1
+            readmitted += await readmit(connections, org)
         except (api.TwirpError, httpx.HTTPError):
             logger.warning("the SFU refused org %s's numbers: the others go on", org, exc_info=True)
             refused.append(org)
@@ -224,12 +222,45 @@ async def rebuild(connections: Connections) -> Rebuilt:
     return Rebuilt(numbers=readmitted, refused=refused)
 
 
-async def _readmit(
-    connections: Connections, row: DictRow, carrier: Carrier | None, fleets: worlds.Fleets
-) -> None:
-    org, number, env = str(row["org"]), str(row["number"]), row["env"]
-    fence = fence_of(org, number, carrier, tuple(row["networks"] or ()))
-    trunk = await trunk_named(connections.server, fence.trunk)
-    trunk_id = await admit(connections.server, fence, trunk, number)
-    world = WorldRule(org, env, worlds.fleet_of(fleets, env))
-    await rule_in(connections.server, world, [trunk_id], number)
+# After the operator approves or refuses a network: the org's trunks follow what is approved now.
+async def readmit(connections: Connections, org: str) -> int:
+    """Admit the org's phone numbers again with the fences they have now; how many stand."""
+    async with connections.pool.connection() as connection:
+        rows = await (await connection.execute(OF_ORG, {"org": org})).fetchall()
+    fleets = await worlds.fleets(connections.pool)
+    carriers = {
+        carrier.id: carrier
+        for carrier in await carriers_of(connections.pool, connections.vault, org)
+    }
+    approved = await carrier_networks.approved(connections.pool, org)
+    admitted = 0
+    for row in rows:
+        fence = _fence_now(row, carriers.get(row["account"] or ""), approved)
+        number = str(row["number"])
+        if fence is None:
+            await _unlisted(connections.server, org, number)
+            continue
+        trunk = await trunk_named(connections.server, fence.trunk)
+        trunk_id = await admit(connections.server, fence, trunk, number)
+        world = WorldRule(org, row["env"], worlds.fleet_of(fleets, row["env"]))
+        await rule_in(connections.server, world, [trunk_id], number)
+        admitted += 1
+    return admitted
+
+
+def _fence_now(
+    row: DictRow, carrier: Carrier | None, approved: dict[str, tuple[str, ...]]
+) -> Fence | None:
+    org, number = str(row["org"]), str(row["number"])
+    networks = tuple(str(network) for network in row["networks"] or ())
+    named = (networks or None) if carrier is None else declared_networks(carrier)
+    declared = None if named is None else tuple(carrier_networks.written(n) for n in named)
+    source = number if carrier is None else carrier.id
+    own = None if declared is None else tuple(n for n in declared if n in approved.get(source, ()))
+    return fence_of(org, number, carrier, row["via"], own)
+
+
+async def _unlisted(server: api.LiveKitAPI, org: str, number: str) -> None:
+    for trunk in await trunks_admitting(server, number):
+        if belongs_to(trunk.name, org):
+            await renumber_trunk(server, org, trunk, [n for n in trunk.numbers if n != number])
