@@ -14,7 +14,13 @@ from pinecall.channels.rooms import Dispatch, read_dispatch, room_closed
 from pinecall.domain.errors import GatewayRefused, SettingsRefused
 from pinecall.domain.scope import Scope
 from pinecall.fleet.client import GatewayClient, gateway_at
-from pinecall.fleet.heartbeat import CORDONED_EXIT, Heartbeats, Load, announced_ready
+from pinecall.fleet.heartbeat import (
+    CORDONED_EXIT,
+    Heartbeats,
+    Load,
+    agent_name_of,
+    announced_ready,
+)
 from pinecall.fleet.measures import LastMinute, listening, measures_path
 from pinecall.fleet.roster import HEARTBEAT_S
 from pinecall.process.settings import Settings, load
@@ -115,7 +121,7 @@ def prewarm(proc: JobProcess) -> None:
 
 
 def server_of(settings: Settings) -> AgentServer:
-    """The AgentServer of this worker, registered under its fleet's name."""
+    """The AgentServer of this worker, registered under its own name in its fleet."""
     _refuse_an_unregistrable(settings)
     # Every plugin imported in the worker's own process is one livekit lists in its forkserver's
     # preload: imported once there, inherited by each call's process. Imported in the call's
@@ -140,7 +146,8 @@ def server_of(settings: Settings) -> AgentServer:
     # livekit keeps one warm process per CPU; two fleets on one machine hold twice the memory.
     if settings.idle_processes is not None:
         server.update_options(num_idle_processes=settings.idle_processes)
-    server.rtc_session(job, agent_name=settings.fleet)
+    # The gateway chooses the worker and dispatches to its name (gateway/dispatching/).
+    server.rtc_session(job, agent_name=agent_name_of(settings))
     return server
 
 

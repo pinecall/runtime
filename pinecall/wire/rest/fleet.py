@@ -10,6 +10,8 @@ class HeartbeatRequest(WireModel):
 
     fleet: str
     worker: str
+    # The name the worker registered under with LiveKit: the one a dispatch reaches it by.
+    agent_name: str | None = None
     active: int
     # Measured slots; null when the worker is gated on its machine's CPU.
     max_jobs: int | None
@@ -49,6 +51,8 @@ class WorkerStatus(WireModel):
 
     fleet: str
     worker: str
+    # The name the worker registered under with LiveKit: the one a dispatch reaches it by.
+    agent_name: str | None = None
     active: int
     max_jobs: int | None
     load: float

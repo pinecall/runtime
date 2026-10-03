@@ -123,6 +123,7 @@ async def test_a_beat_says_full_on_the_gateways_scale(monkeypatch: pytest.Monkey
     beat = Heartbeats(server, gateway, settings, LastMinute()).beat()
     await gateway.aclose()
     assert (beat.active, beat.load) == (4, 1.0)
+    assert beat.agent_name == "pinecall/w-7"
 
 
 # systemd's end of NOTIFY_SOCKET: a datagram socket the test binds and reads.
