@@ -373,12 +373,13 @@ loop: on 2026-10-03 production's autoscaler, counting the calls the box's own wo
 machine at every call that the loop then let go as one too many, five in forty minutes. The recipe
 and why are [../infra/fleet/README.md](../infra/fleet/README.md).
 
-Run in production on 2026-10-02, with no call (the demand written by hand at 19 calls, the loop
-stopped): the group made `pinecall-worker-production-x3jm` 91 s after it read the metric, and the
-machine, which had no token and no credential, read its world's key from Secret Manager and was
-`accepting` with 32 seats 64 s later; with the loop started again (the real demand, 0), it was
-cordoned, drained and, abandoned from the group, deleted 27 s later, the group back at 0. The box's
-two workers of production were never touched.
+Run in production on 2026-10-03, with no call, the image of `f1b163e`, the loop stopped while the
+machine came up (as for a new generation, above): `fleet loop --once --min 3` made
+`pinecall-worker-261003152311-1` in the group at once; the machine, which had no token and no
+credential, read its world's key from Secret Manager, and LiveKit registered it under its own name
+75 s after the ask, the fleet at 36 seats; with the loop started again (the real demand, 0) it was
+cordoned at its first tick and deleted 15 s later, the group back at 0 and no machine made again.
+The box's two workers of production were never touched.
 
 Run on Google Cloud on 2026-10-02 against the sandbox fleet, from a laptop, with no call: a machine
 made from an image that holds no credential, in the fleet's own subnet, spent its join token at
