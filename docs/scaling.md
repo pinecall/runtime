@@ -155,13 +155,13 @@ with its 32 slots, the lab made and destroyed by Terraform):
 | 32 | 29 | 4.56 cores | 0.16 | 1.50 cores | 334 of 336 | 1.24 / 1.33 s |
 
 Twenty-nine calls held at 57 % of the machine, first audio unmoved. The three that did not start
-reached LiveKit SIP and waited in their rooms: livekit-agents counts a call it has accepted but
-not yet launched as load too (a slot reserved until the call's process is up), so in a burst of
-one call a second the worker reads full with three or four calls still starting, two or three
-slots before its last. With one worker, as in the lab, such a call has nowhere to go; in a fleet
-LiveKit offers it to the next worker with room, and the group has asked for another machine long
-before a worker holds 29 (one per 19 calls). The silence comes back only when every worker of the
-fleet is on its last slots during a burst.
+reached LiveKit SIP and waited in their rooms. The worker, joined to the sandbox's fleet, had taken
+the box's `PINECALL_IDLE_PROCESSES=1` with the fleet's settings: one warm process on 8 vCPU, so
+each call of a burst waited ~3 s for a process to be born, and livekit-agents counts a call
+accepted but not yet launched as a slot taken. With three of them starting, the worker read full
+three slots early, and a call it refuses is never offered again unless another worker has room.
+Since then a machine of workers never takes the box's warm-process count (`worker.sh`); it keeps
+livekit's, one per CPU.
 
 With the fix, the same lab given 16 slots (2026-10-03, `--seats 16 --calls 8,12`) started **8 of
 8 and 12 of 12** — the dispatch reaches every slot — and showed what an oversized `MAX_JOBS`
