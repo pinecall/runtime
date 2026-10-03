@@ -13,8 +13,11 @@ from pinecall.wire.rest.fleet import FleetTotals, HeartbeatRequest, HeartbeatRes
 
 type WorkerState = Literal["gone", "cordoned", "draining", "accepting", "failing", "full"]
 
-# livekit-server's DefaultTargetLoad: at or over it a worker gets no dispatch.
+# livekit's line for a worker gated on its CPU: at or over it, no dispatch. A worker that counted
+# its calls reports calls over its slots and is refused at every slot taken, not at 0.7 of them:
+# on 2026-10-02 a worker of 8 slots took six calls and livekit left the rest ringing in silence.
 REFUSED_AT = 0.7
+EVERY_SLOT = 1.0
 HEARTBEAT_S = 5.0
 # A worker silent this long is no longer capacity.
 STALE_AFTER_S = 30.0
@@ -196,11 +199,16 @@ def worker_state(seat: WorkerStatus, fleet: Sequence[WorkerStatus], now: float) 
     return "failing" if _accepting_now(seat, now) else "full"
 
 
+def refused_at(max_jobs: int | None) -> float:
+    """The load livekit stops dispatching at: every slot of a worker that counts, 0.7 of a CPU."""
+    return REFUSED_AT if max_jobs is None else EVERY_SLOT
+
+
 def _accepting_now(seat: WorkerStatus, now: float) -> bool:
-    """Whether livekit would dispatch to it: up, not cordoned, not draining, under the line."""
+    """Whether livekit would dispatch to it: up, not cordoned, not draining, under its line."""
     return (
         heard_lately(seat, now)
         and not seat.cordoned
         and not seat.draining
-        and seat.load < REFUSED_AT
+        and seat.load < refused_at(seat.max_jobs)
     )

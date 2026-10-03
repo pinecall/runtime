@@ -43,8 +43,17 @@ def test_the_free_seats_are_what_each_worker_holds_under_its_measure() -> None:
 
 def test_a_worker_at_livekits_line_accepts_nothing_and_a_fleet_of_it_is_full() -> None:
     roster = Roster()
-    roster.report(beat("w1", load=0.7), 0.0)
+    roster.report(beat("w1", max_jobs=None, load=0.7), 0.0)
     assert roster.totals(SANDBOX, 0.0).full
+
+
+# Six of eight slots taken read as 0.75: a CPU would be over the line, a counted worker is not.
+def test_a_worker_that_counts_its_calls_accepts_until_every_slot_is_taken() -> None:
+    roster = Roster()
+    roster.report(beat("w1", active=6, max_jobs=8, load=0.75), 0.0)
+    assert roster.totals(SANDBOX, 0.0).accepting == 1
+    roster.report(beat("w1", active=8, max_jobs=8, load=1.0), 1.0)
+    assert roster.totals(SANDBOX, 1.0).full
 
 
 def test_a_cpu_gated_worker_counts_no_seat_and_still_accepts() -> None:
@@ -56,7 +65,7 @@ def test_a_cpu_gated_worker_counts_no_seat_and_still_accepts() -> None:
 
 def test_one_fleet_full_leaves_the_other_open() -> None:
     roster = Roster()
-    roster.report(beat("w1", load=0.9), 0.0)
+    roster.report(beat("w1", max_jobs=None, load=0.9), 0.0)
     production = HeartbeatRequest(
         fleet="pinecall", worker="w9", active=0, max_jobs=4, load=0.1, draining=False
     )

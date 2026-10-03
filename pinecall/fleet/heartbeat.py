@@ -12,7 +12,7 @@ from livekit.agents.worker import ServerOptions
 from pinecall.domain.errors import DeclarationRefused, GatewayRefused
 from pinecall.fleet.client import GatewayClient
 from pinecall.fleet.measures import LastMinute
-from pinecall.fleet.roster import HEARTBEAT_S, REFUSED_AT
+from pinecall.fleet.roster import HEARTBEAT_S, refused_at
 from pinecall.process.settings import Settings
 from pinecall.wire.rest.fleet import HeartbeatRequest
 
@@ -60,7 +60,7 @@ class Load:
 
     def announced(self, load: float) -> float:
         """The load, a crossing of livekit's line said once each way."""
-        refused = load >= REFUSED_AT
+        refused = load >= refused_at(self.max_jobs)
         if refused != self.refused:
             self.refused = refused
             if refused:

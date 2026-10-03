@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **A worker that counts its calls takes every one of them.** LiveKit refused it at 0.7 of its
+  slots, as it does a CPU reading, while the gateway counted the last 30 % of seats free: on a
+  worker of 8 the seventh call rang in silence. The worker's line is now every slot taken (its
+  `load_threshold`), the same line the roster calls it full at and overflow opens on.
 - Every machine of the cell is a `pinecall-runtime cell` verb, as the box is `box up`: on the box
   `cell allow-replica`, `allow-gateway`, `allow-worker` (an address or the fleet's range), their
   `forget-…`, `gateway-credentials`, `worker-settings` and `worker-credentials`; on the machine,
