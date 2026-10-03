@@ -1,4 +1,4 @@
-# The voice lab: a box, a generator and a worker machine at the sizes under test, made and
+# The voice lab: a box, a generator and worker machines at the sizes under test, made and
 # destroyed by infra/lab/measure.py (`apply` with the sizes, `destroy` after). Each is the box's
 # first boot without an ssh key: the lab reaches its machines through gcloud.
 
@@ -39,9 +39,9 @@ module "generator" {
 }
 
 module "worker" {
-  count                     = var.worker_type == null ? 0 : 1
+  count                     = var.worker_type == null ? 0 : var.workers
   source                    = "../../modules/machine"
-  name                      = "pinecall-lab-wk"
+  name                      = "pinecall-lab-wk-${count.index + 1}"
   zone                      = var.zone
   machine_type              = var.worker_type
   tags                      = ["pinecall-lab"]
@@ -67,18 +67,19 @@ resource "google_compute_firewall" "lab" {
 
 # The box's SIP and LiveKit announce its public address (use_external_ip), so the generator's RTP
 # and the worker's media reach it from the lab machines' public addresses, which the rule above
-# (internal, by tag) does not cover: the media ports from those addresses alone.
+# (internal, by tag) does not cover: the media ports from those addresses alone. SIP itself goes
+# by the public addresses too: the box admits a number's network only if it is public.
 resource "google_compute_firewall" "lab_media" {
   name    = "pinecall-lab-media"
   network = "default"
   source_ranges = [
-    for address in compact([module.generator.public_address, try(module.worker[0].public_address, "")]) :
+    for address in concat([module.generator.public_address], module.worker[*].public_address) :
     "${address}/32"
   ]
   target_tags = ["pinecall-lab"]
   allow {
     protocol = "udp"
-    ports    = ["7882", "10000-10199"]
+    ports    = ["5060", "7882", "10000-10199"]
   }
   allow {
     protocol = "tcp"

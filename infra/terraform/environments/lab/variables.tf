@@ -27,6 +27,12 @@ variable "generator_type" {
 
 variable "worker_type" {
   type        = string
-  description = "The worker machine's type under test; null for no worker machine."
+  description = "The worker machines' type under test; null for no worker machine."
   default     = null
+}
+
+variable "workers" {
+  type        = number
+  description = "How many worker machines of worker_type: two to kill one with calls on it."
+  default     = 1
 }
