@@ -205,12 +205,18 @@ every gateway whichever it beats on, and a cordon set on one stands on all (the 
 worker's cordon wins). A gateway that restarts has it back after one round of heartbeats; a
 heartbeat's `full` is answered from totals at most a second old. `GET /v1/ops/fleet` and `fleet list` read it.
 
-A worker registers with LiveKit under **its own name**, `<fleet>/<worker>` (`pinecall/box-a`),
+A worker registers with LiveKit under **its own name**, `<fleet>/<worker>.<its start>`
+(`pinecall/worker-scaled-production-5f654f5f59-zwgjp.1791067258`),
 and says it in each heartbeat as `agent_name` — only once LiveKit has registered it: a worker beats
 from its start, and a machine still loading its plugins is counted but offered no call, since
 LiveKit has nobody to give the job to. LiveKit offers a job only to the workers registered under the
 name the job's dispatch carries, so a dispatch to that name reaches that worker and no other: the
-gateway chooses (below, "Who takes a call"), not LiveKit's draw.
+gateway chooses (below, "Who takes a call"), not LiveKit's draw. The start is in the name because a worker can come back under the same
+name — a pod's container started again after its node was reset — while LiveKit still holds the
+last process's dead socket (below, "A worker that dies"): the roster keys by the worker's name, so
+the gateway hears only the newest registration and never offers the dead one a call. Measured on
+staging on 2026-10-03, before the start was in the name: two of sixteen calls offered to a worker
+that had come back under its old name went unopened three times and reached the overflow.
 
 ## A worker that is up but bad
 

@@ -282,19 +282,19 @@ class Lab:
 
     # As a machine that dies: a hard reset, no pod stopped, no socket closed, nothing told.
     def kill_a_node(self) -> None:
-        """The node of the first scaled worker reset at once, and the note of it."""
-        node = self.kubectl(
-            "get",
-            "pods",
-            "-l",
-            "app=worker,pool=workers",
-            "-o",
-            "jsonpath={.items[0].spec.nodeName}",
-        )
-        if not node:
-            self.notes.append("no scaled worker to kill: every call was on the core node")
+        """The node of the scaled worker holding the most calls reset at once, and the note."""
+        roster = self.ops_call("GET", "/v1/ops/fleet", None)
+        scaled = [
+            seat
+            for seat in roster["workers"]
+            if seat["worker"].startswith("worker-scaled-") and seat["active"] > 0
+        ]
+        if not scaled:
+            self.notes.append("no scaled worker held a call: nothing was killed")
             return
-        progress(f"{node} reset at once")
+        busiest = max(scaled, key=lambda seat: seat["active"])
+        node = self.kubectl("get", "pod", busiest["worker"], "-o", "jsonpath={.spec.nodeName}")
+        progress(f"{node} reset at once, its worker holding {busiest['active']} calls")
         _ran(
             "gcloud",
             "compute",
@@ -304,7 +304,10 @@ class Lab:
             f"--zone={ZONE}",
             f"--project={PROJECT}",
         )
-        self.notes.append(f"{node} (a scaled worker's node) reset at once during the first step")
+        self.notes.append(
+            f"{node} reset at once during the first step, its worker {busiest['worker']} "
+            f"holding {busiest['active']} calls"
+        )
 
     def sip_address(self) -> str:
         """The public address of the node the SIP pod runs on, where a carrier sends INVITEs."""

@@ -15,6 +15,7 @@ from pinecall.domain.errors import DeclarationRefused
 from pinecall.fleet import heartbeat
 from pinecall.fleet.client import gateway_at
 from pinecall.fleet.heartbeat import (
+    STARTED,
     UNREGISTERED,
     Heartbeats,
     Load,
@@ -124,7 +125,7 @@ async def test_a_beat_says_full_on_the_gateways_scale(monkeypatch: pytest.Monkey
     beat = Heartbeats(server, gateway, settings, LastMinute()).beat()
     await gateway.aclose()
     assert (beat.active, beat.load) == (4, 1.0)
-    assert beat.agent_name == "pinecall/w-7"
+    assert beat.agent_name == f"pinecall/w-7.{STARTED}"
 
 
 # systemd's end of NOTIFY_SOCKET: a datagram socket the test binds and reads.
@@ -167,7 +168,7 @@ async def test_a_beat_names_the_worker_to_livekit_only_once_registered(
     beats = Heartbeats(server, gateway, settings, LastMinute())
     before, after = beats.beat(), beats.beat()
     await gateway.aclose()
-    assert (before.agent_name, after.agent_name) == (None, "pinecall/w-7")
+    assert (before.agent_name, after.agent_name) == (None, f"pinecall/w-7.{STARTED}")
 
 
 async def test_outside_systemd_nobody_is_told() -> None:
