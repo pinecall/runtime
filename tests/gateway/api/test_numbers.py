@@ -116,6 +116,7 @@ async def test_each_number_says_if_it_rings_now_and_its_path_says_why(
         missing = await console.get("/v1/numbers/+13617334199/path")
     await app.close()
     assert (nobody[0]["rings"], nobody[0]["last_call_at"]) == ("broken", None)
+    assert nobody[0]["account"] == twilio.account_sid
     assert running[0]["rings"] == "ok"
     assert [(step["step"], step["state"]) for step in path["steps"]] == [
         ("carrier", "ok"),

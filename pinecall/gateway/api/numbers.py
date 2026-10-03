@@ -179,6 +179,7 @@ async def list_numbers(key: NumbersKey, gateway: GatewayDep) -> list[NumberRow]:
             rings=ringing,
             last_call_at=record.last_call_at,
             via=record.via,
+            account=record.account,
         )
         for record, ringing in zip(records, rings, strict=True)
     ]
