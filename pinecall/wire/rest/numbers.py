@@ -59,12 +59,37 @@ class ProvisionOutboundResponse(WireModel):
 # ── numbers and the accounts they live in ──
 
 
+class NetworkRow(WireModel):
+    """A network a peer of the org calls from, and whether the box's operator admitted it."""
+
+    network: str
+    state: str
+
+
 class CarrierRow(WireModel):
     """GET /v1/carrier: one account of the org, named, never its secret."""
 
     kind: str
     account: str
     label: str = ""
+    # A SIP peer's networks, each waiting, approved or refused; none for an account with an API.
+    networks: list[NetworkRow] = Field(default_factory=list[NetworkRow])
+
+
+class CatalogCarrier(WireModel):
+    """A carrier the org may bring numbers through: automatic (its API) or guided (SIP terms)."""
+
+    kind: str
+    name: str
+    how: Literal["automatic", "guided"]
+    networks: list[str]
+
+
+class CarrierCatalog(WireModel):
+    """GET /v1/carriers/catalog: the carriers this box admits, and whether it sells numbers."""
+
+    carriers: list[CatalogCarrier]
+    sells: bool
 
 
 class CarrierList(WireModel):
@@ -113,6 +138,8 @@ class ImportNumberRequest(WireModel):
     account: str | None = None
     hooked: bool = False
     networks: list[str] = Field(default_factory=list[str])
+    # A hooked number's carrier from the box's catalog (GET /v1/carriers/catalog).
+    via: str | None = None
     move: bool = False
 
 

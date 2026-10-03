@@ -21,11 +21,15 @@ carrier with no API here), a WhatsApp number at Meta. Each is one row, sealed un
 `PUT /v1/carrier` adds an account, or replaces the secret of one the org already holds. A Twilio
 account is opened once first: `user` is an API key SID (make one at Twilio → Account → API keys,
 revoke it there any time) or the account SID again with the auth token, and a pair Twilio refuses
-is `400 Twilio refused these credentials`. A peer's `addresses` are the networks it calls from;
-its four `outbound_*` fields say where the box dials it, and unsaid the box dials with the pair it
+is `400 Twilio refused these credentials`. A peer's `addresses` are the networks it calls from:
+each is an IPv4 address or a network no wider than a `/24`, public (a private, shared, loopback or
+documentation range is `400`), and each waits for the box's operator to approve it before 5060
+opens to it or a trunk lists it ([operator-api.md](operator-api.md), "Carriers and the fence").
+Its four `outbound_*` fields say where the box dials it, and unsaid the box dials with the pair it
 registers with. `outbound_username` without `outbound_password` is refused.
 
-`GET /v1/carrier` answers `{kind, account, label}` for the org's only account, or the one
+`GET /v1/carrier` answers `{kind, account, label, networks}` (a peer's networks, each
+`{network, state}`: `waiting`, `approved` or `refused`) for the org's only account, or the one
 `?account=` names; with several and none named it is `409` naming them. `GET /v1/carriers` is every
 one of them. `DELETE /v1/carrier` forgets an account; its numbers stay routed until each is let go.
 
@@ -49,8 +53,16 @@ Two ways to hook a number, both through this door:
   none, and attaches the number. On a SIP peer nothing outside is touched. With several accounts,
   `account` says which.
 - **You hook it** (`hooked: true`): the org points the number at the box itself, from any
-  carrier or PBX: `sip:+59829000000@<PINECALL_DOMAIN>:5060`. Nothing outside is touched; the box
-  admits the number from `networks` (Twilio's signalling networks when unsaid) and routes it.
+  carrier or PBX: `sip:+59829000000@<PINECALL_DOMAIN>:5060`. Nothing outside is touched. The box
+  admits the number from the networks of the carrier named in `via`, one of
+  `GET /v1/carriers/catalog` (Twilio's when unsaid), or from `networks` of the org's own, which
+  wait for the operator's approval like a peer's: until then the number is routed and on no
+  trunk, and the import's steps say so.
+
+`GET /v1/carriers/catalog` is `{carriers: [{kind, name, how, networks}], sells}`: the carriers this
+box's operator admits, `automatic` for one the box drives through its API (Twilio), `guided` for one
+whose portal the org types the address above into; `sells` says whether `POST /v1/numbers/buy`
+has an account to buy on.
 
 ```
 $ curl -X POST https://box.pinecall.io/v1/numbers -H "authorization: Bearer $PINECALL_KEY" \
@@ -152,15 +164,19 @@ the stranger fence, and the trunk inline in the answer.
 
 ## The firewall
 
-livekit-sip listens on 5060, and the box's nftables opens it to Twilio's signalling networks alone.
-A SIP peer that calls the box from networks of its own needs the operator to add them to
-`carrier_signalling` in `infra/box/nftables.conf`.
+livekit-sip listens on 5060, and the box opens it to the signalling networks of the carriers its
+operator admits and to the addresses he approved, and to nothing else: Twilio's are typed into
+`infra/box/nftables.conf`, the rest are written every minute by `pinecall-runtime fence apply`
+(as root, `pinecall-fence.timer`) from the catalog and the approvals. On a GCP box the cloud's own
+firewall stands in front and is Terraform's ([operator-api.md](operator-api.md)).
 
 ## Reconcile at start
 
 LiveKit keeps its trunks and rules in Redis, which can be emptied; the tables are the truth. At
 start the gateway admits every routed phone number again with its fence and its world's rule, one
-org's refusal logged and the others going on. It deletes nothing and never touches the carrier.
+org's refusal logged and the others going on. It never touches the carrier, and it takes a number
+off its org's trunks when nothing approved fences it any more. The operator's approval or refusal
+of a network does the same for that org at once.
 
 
 ## Consent and the do-not-call list

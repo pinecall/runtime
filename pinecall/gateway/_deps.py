@@ -56,6 +56,10 @@ READ_WITH_A_KEY = "a log is read with a key, or with a token of that call"
 NOT_THE_OPERATORS = "this door is the box's: its operator key, or a person the box made an operator"
 
 
+# Who decided, when the box's own key did: it names no person.
+OPS_KEY_NAMED = "the box's key"
+
+
 NOT_STARTED = "the gateway never started: its lifespan never ran"
 NO_EMBEDDER = (
     "this box embeds nothing: its providers row names no embedding, or the box holds no key for it"
@@ -235,15 +239,19 @@ async def bearer(connection: HTTPConnection, gateway: GatewayDep) -> Bearer:
 BearerDep = Annotated[Bearer, Depends(bearer)]
 
 
-async def operator(connection: HTTPConnection, gateway: GatewayDep) -> None:
-    """The box's own key, or a person the box made an operator; 401 otherwise."""
+async def operator(connection: HTTPConnection, gateway: GatewayDep) -> str:
+    """The box's own key, or a person the box made an operator, by name; 401 otherwise."""
     data = bearer_of(connection.headers)
     ops = gateway.connections.settings.ops_key
     if data is not None and ops and compare_digest(data, ops):
-        return
+        return OPS_KEY_NAMED
     verified = None if data is None else await gateway.keys.verify(data)
     if verified is None or verified.member is None or not verified.member.operator:
         raise NotSignedIn(NOT_THE_OPERATORS)
+    return verified.member.email
+
+
+OperatorDep = Annotated[str, Depends(operator)]
 
 
 async def named_holder(gateway: Gateway, scope: Scope) -> ScopeHolder | None:

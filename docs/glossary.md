@@ -13,6 +13,7 @@
 | **BYOK** | bring your own key: the org's own vendor credential, sealed in the vault; runs any installed vendor with no gate of ours |
 | **admission** | what a newborn org is allowed in each world (quotas, lends, one trial per person): the `admission` row of `box_settings`, edited from the console |
 | **fence** | the set of carrier networks a number may be called from; one inbound SIP trunk per fence |
+| **carrier catalog** | the carriers a box knows (`channels/telephony/carriers.csv`), each with its published SIP signalling networks; its operator admits some, and only those are offered to orgs and opened in the fence |
 | **hooked number** | a number the org points at the box itself, from its own carrier, admitted by its networks; as opposed to one imported from an account the box can configure |
 | **app socket** | the WebSocket a tenant's agent process holds open on `/v1/agents/{slug}/app`; tool calls cross it |
 | **the box** | one machine running the gateway, the workers, LiveKit, SIP, Redis and Postgres, from `infra/box/` |

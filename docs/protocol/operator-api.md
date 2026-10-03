@@ -140,6 +140,36 @@ org whose older row answers the number instead of this one (two orgs typed it), 
 this one does. Changing a number is the org's own door, which writes the carrier, the SFU and the
 row together.
 
+## Carriers and the fence
+
+The box knows a catalog of carriers (`channels/telephony/carriers.csv`: each one's published SIP
+signalling networks, the page they were read from and the day). `GET /v1/ops/carriers` is
+`{carriers, fence}`: each carrier `{kind, name, control, networks, source, read_on, admitted, fixed,
+numbers}` (`control` when the box drives its API, `fixed` for Twilio, the box's own carrier,
+admitted always, `numbers` the numbers of every org that reach the box through it), and the fence,
+`{openings: [{network, reason}], applied_at, applied}`. `PUT /v1/ops/carriers/{kind} {admitted}`
+admits a carrier or stops: admitted, every org sees it in `GET /v1/carriers/catalog` and may hook
+numbers `via` it; `409` for Twilio off, `404` for a kind the catalog lacks.
+
+What an org declares beyond the catalog (a SIP peer's `addresses`, a hooked number's `networks`)
+waits for the operator: `GET /v1/ops/carrier-networks?state=waiting|approved|refused` lists each
+`{id, org, source, network, state, asked_at, decided_by, decided_at}`, and
+`POST /v1/ops/carrier-networks/{id}/approve` or `…/refuse` answers it, the org's trunks made to
+follow at once (a number fenced by nothing approved is taken off them). A network wider than a
+`/24`, or not public, never reaches the list: `PUT /v1/carrier` and `POST /v1/numbers` refuse it.
+
+The fence is written by `pinecall-runtime fence apply`, as root, every minute
+(`pinecall-fence.timer`): the admitted carriers' networks and the approved ones, each checked again
+(none wider than a `/16` from the catalog or a `/24` from an org), into
+`/etc/pinecall/nftables.d/carriers.nft`, which `nftables.conf` reads beside Twilio's own set; the
+gateway never runs `nft`. On a GCP box the cloud's firewall stands in front: its rule
+`pinecall-runtime-sip` (priority 500) admits `carrier_signalling`, and `pinecall-runtime-sip-deny`
+(600) denies everyone else's 5060, ending a flow the allow no longer covers. A network beyond
+Twilio's reaches that rule when the operator runs, from a laptop,
+`ssh <box> sudo pinecall-runtime fence export > infra/terraform/environments/production/carrier_signalling.auto.tfvars.json`
+and `make tf-apply` (the file is the orgs' addresses and is never committed). Until then it is open
+on the host and closed in the cloud.
+
 ## The fleet
 
 `GET /v1/ops/fleet`: `{now, stale_after_s, workers: [{fleet, worker, active, max_jobs, load,

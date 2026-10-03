@@ -202,6 +202,9 @@ systemctl enable pinecall-migrate pinecall-gateway@8080 \
     pinecall-worker-b@production pinecall-worker-a@sandbox pinecall-worker-b@sandbox \
     pinecall-overflow@production
 systemctl enable --now pinecall-retention.timer
+# The fence beyond Twilio's networks: written now, then every minute (pinecall-fence.service).
+systemctl enable --now pinecall-fence.timer
+systemctl start pinecall-fence.service || echo "the fence was not written: 5060 opens to Twilio alone until it is"
 # No key, no backup: an unencrypted dump of every call is not written anywhere.
 if [ -f /etc/pinecall/backup.age.pub ]; then
     systemctl enable --now pinecall-backup.timer

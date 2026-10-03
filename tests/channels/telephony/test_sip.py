@@ -7,7 +7,16 @@ from livekit import api
 from pinecall.channels.telephony import carrier, numbers, sip
 from pinecall.channels.telephony.numbers import NumberImport, NumberPurchase
 from pinecall.tenancy import carriers
-from tests.channels.conftest import A_NUMBER, NFTABLES, Line, a_peer, box_sells, brought
+from tests.channels.conftest import (
+    A_NUMBER,
+    NFTABLES,
+    PEER_NETWORK,
+    Line,
+    a_peer,
+    approved,
+    box_sells,
+    brought,
+)
 from tests.conftest import postgres
 
 # ── rebuilding the SFU from the tables ──
@@ -17,6 +26,7 @@ from tests.conftest import postgres
 async def test_an_emptied_sfu_gets_every_trunk_and_both_worlds_rules_back(line: Line) -> None:
     await brought(line)
     await carriers.put_carrier(line.connections.pool, line.connections.vault, line.org, a_peer())
+    await approved(line, "pbx", PEER_NETWORK)
     line.twilio.owns(A_NUMBER)
     await numbers.import_number(
         line.connections,

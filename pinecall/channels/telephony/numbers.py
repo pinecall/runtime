@@ -10,8 +10,8 @@ from livekit.protocol.sip import (
 )
 
 from pinecall.channels import routes, whatsapp
-from pinecall.channels.routes import RouteRecord
-from pinecall.channels.telephony import sip
+from pinecall.channels.routes import RouteRecord, RouteWrite
+from pinecall.channels.telephony import carrier_catalog, sip
 from pinecall.channels.telephony._twilio import (
     Twilio,
     TwilioNumber,
@@ -19,7 +19,14 @@ from pinecall.channels.telephony._twilio import (
     origination_uri,
     twilio_of,
 )
-from pinecall.channels.telephony.carrier import Fence, control_of, fence_of, meta_of
+from pinecall.channels.telephony.carrier import (
+    Fence,
+    control_of,
+    declared_networks,
+    fence_of,
+    meta_of,
+)
+from pinecall.channels.telephony.carrier_catalog import known_carrier
 from pinecall.channels.telephony.sip import WorldRule, domain_of, rule_name
 from pinecall.domain.call import Route
 from pinecall.domain.errors import (
@@ -32,7 +39,7 @@ from pinecall.domain.names import Channel, Env, RouteOrigin, parse_e164
 from pinecall.domain.scope import Scope
 from pinecall.fleet import worlds
 from pinecall.process.connections import Connections
-from pinecall.tenancy import admission
+from pinecall.tenancy import admission, carrier_networks
 from pinecall.tenancy.carriers import (
     NO_CARRIER,
     WhatsappAccount,
@@ -74,6 +81,15 @@ NO_ROUTE = "the org answers no {number} in the {env}"
 NONE_FOR_SALE = "Twilio has no local voice number for sale in {country}{area}"
 
 
+VIA_ALONE = (
+    "a number comes via a carrier of the box's catalog when the org hooks it, on the phone, with "
+    "no networks of its own: that carrier's are its fence"
+)
+
+
+NOT_ADMITTED = "this box does not admit {name}: its operator turns it on under Carriers"
+
+
 NOT_A_COUNTRY = "{number} starts with no country calling code E.164 assigns"
 
 
@@ -111,6 +127,9 @@ class Survey:
     fleet: str
     domain: str
     at_twilio: AtTwilio | None = None
+    via: str | None = None
+    # The networks named for the number that the operator has not approved: no trunk until he does.
+    waiting: tuple[str, ...] = ()
     # The org's own other trunks that list the number and must let it go.
     leaving: list[SIPInboundTrunkInfo] = field(default_factory=list[SIPInboundTrunkInfo])
     trunk: SIPInboundTrunkInfo | None = None
@@ -150,8 +169,10 @@ class NumberImport:
     account: str | None = None
     # The org points the number here itself: no account is touched.
     hooked: bool = False
-    # A self-hooked number's own fence; unsaid, Twilio's.
+    # A self-hooked number's own networks, which the operator approves; unsaid, its carrier's.
     networks: tuple[str, ...] = ()
+    # The catalog carrier a self-hooked number comes through; unsaid, Twilio.
+    via: str | None = None
     # Take the number off another trunk of its account first.
     move: bool = False
 
@@ -289,6 +310,7 @@ async def _survey_import(connections: Connections, wanted: NumberImport) -> Surv
     domain = domain_of(connections, env)
     route = Route(org=org, agent=wanted.agent, channel=wanted.channel, number=number, env=env)
     fleets = await worlds.fleets(connections.pool)
+    await _check_via(connections, wanted)
     carrier = (
         None
         if wanted.hooked
@@ -296,21 +318,40 @@ async def _survey_import(connections: Connections, wanted: NumberImport) -> Surv
     )
     if carrier is not None and wanted.networks:
         raise DeclarationRefused(KEY_WITHOUT_PEER.format(kind=carrier.account.kind))
+    networks = tuple(carrier_networks.checked(network) for network in wanted.networks)
+    approved = await carrier_networks.approved(connections.pool, org)
+    named = (networks or None) if carrier is None else declared_networks(carrier)
+    declared = None if named is None else tuple(carrier_networks.written(n) for n in named)
+    source = number if carrier is None else carrier.id
+    own = None if declared is None else tuple(n for n in declared if n in approved.get(source, ()))
     survey = Survey(
         route=route,
         origin="hooked" if carrier is None else "imported",
-        fence=fence_of(org, number, carrier, wanted.networks)
+        fence=fence_of(org, number, carrier, wanted.via, own)
         if wanted.channel == "phone"
         else None,
         account=None if carrier is None else carrier.id,
-        networks=wanted.networks,
+        networks=networks,
         fleet=worlds.fleet_of(fleets, env),
         domain=domain,
+        via=wanted.via,
+        waiting=() if declared is None else tuple(n for n in declared if n not in (own or ())),
     )
     control = None if carrier is None else control_of(connections.http, carrier)
     if control is not None and wanted.channel == "phone":
         survey.at_twilio = await _at_twilio(connections, control, number, env, move=wanted.move)
     return await _survey_sfu(connections, survey)
+
+
+# A catalog carrier is the operator's to admit; its networks are the number's whole fence.
+async def _check_via(connections: Connections, wanted: NumberImport) -> None:
+    if wanted.via is None:
+        return
+    if not wanted.hooked or wanted.networks or wanted.channel != "phone":
+        raise DeclarationRefused(VIA_ALONE)
+    carrier = known_carrier(wanted.via)
+    if wanted.via not in await carrier_catalog.admitted(connections.pool):
+        raise Conflict(NOT_ADMITTED.format(name=carrier.name))
 
 
 async def _survey_purchase(connections: Connections, wanted: NumberPurchase) -> Survey:
@@ -332,7 +373,7 @@ async def _survey_purchase(connections: Connections, wanted: NumberPurchase) -> 
     survey = Survey(
         route=route,
         origin="bought",
-        fence=fence_of(org, for_sale, None, ()),
+        fence=fence_of(org, for_sale, None, None, None),
         account=None,
         networks=(),
         fleet=worlds.fleet_of(fleets, env),
@@ -373,13 +414,15 @@ async def _survey_sfu(connections: Connections, survey: Survey) -> Survey:
     route, fence = survey.route, survey.fence
     number = str(route.number)
     survey.routed = await routes.of_number(connections.pool, route.org, number)
-    if fence is None:
+    if route.channel != "phone":
         return survey
     listing = await sip.trunks_admitting(connections.server, number)
     stranger = next((trunk for trunk in listing if not sip.belongs_to(trunk.name, route.org)), None)
     if stranger is not None:
         raise Conflict(HELD_ELSEWHERE.format(number=number, trunk=stranger.name))
-    survey.leaving = [trunk for trunk in listing if trunk.name != fence.trunk]
+    survey.leaving = [trunk for trunk in listing if fence is None or trunk.name != fence.trunk]
+    if fence is None:
+        return survey
     survey.trunk = await sip.trunk_named(connections.server, fence.trunk)
     survey.rule = await sip.rule_named(connections.server, rule_name(route.org, route.env))
     other = "sandbox" if route.env == "production" else "production"
@@ -399,24 +442,23 @@ async def _write_hook(connections: Connections, survey: Survey) -> None:
             await at.twilio.detach(str(at.number.trunk_sid), at.number.sid)
         if at.number.trunk_sid != trunk.sid:
             await at.twilio.attach(trunk.sid, at.number.sid)
+    if survey.origin == "hooked" and survey.networks:
+        await carrier_networks.ask(connections.pool, route.org, number, survey.networks)
+    for leaving in survey.leaving:
+        kept = [listed for listed in leaving.numbers if listed != number]
+        await sip.renumber_trunk(connections.server, route.org, leaving, kept)
     if survey.fence is not None:
         # Off the other world's rule first: two rules of one trunk never list one number.
         if survey.other_rule is not None and number in survey.other_rule.numbers:
             kept = [listed for listed in survey.other_rule.numbers if listed != number]
             await sip.renumber_rule(connections.server, survey.other_rule, kept)
-        for leaving in survey.leaving:
-            kept = [listed for listed in leaving.numbers if listed != number]
-            await sip.renumber_trunk(connections.server, route.org, leaving, kept)
         trunk_id = await sip.admit(connections.server, survey.fence, survey.trunk, number)
         world = WorldRule(route.org, route.env, survey.fleet)
         await sip.rule_in(connections.server, world, [trunk_id], number)
-    await routes.put(
-        connections.pool,
-        route,
-        origin=survey.origin,
-        account=survey.account,
-        networks=survey.networks,
+    written = RouteWrite(
+        origin=survey.origin, account=survey.account, networks=survey.networks, via=survey.via
     )
+    await routes.put(connections.pool, route, written)
 
 
 def _steps(survey: Survey, *, done: bool) -> list[str]:
@@ -434,8 +476,11 @@ def _steps(survey: Survey, *, done: bool) -> list[str]:
         )
         steps.append(f"Twilio: {number} attached to it: {'stands' if on_it else made}")
     fence = survey.fence
+    steps += [f"LiveKit: {number} off trunk {trunk.name}: {made}" for trunk in survey.leaving]
+    if fence is None and survey.waiting and route.channel == "phone":
+        waiting = ", ".join(survey.waiting)
+        steps.append(f"LiveKit: {number} waits for the box's operator to approve {waiting}: {made}")
     if fence is not None:
-        steps += [f"LiveKit: {number} off trunk {trunk.name}: {made}" for trunk in survey.leaving]
         admits = survey.trunk is not None and number in survey.trunk.numbers
         steps.append(
             f"LiveKit: trunk {fence.trunk} admits {number}: {'stands' if admits else made}"

@@ -5,6 +5,7 @@ from dataclasses import replace
 from livekit.protocol.sip import ListSIPInboundTrunkRequest
 
 from pinecall.channels import routes
+from pinecall.channels.routes import RouteWrite
 from pinecall.domain.call import Route
 from pinecall.tenancy import orgs
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
@@ -144,11 +145,11 @@ async def test_the_box_lists_every_number_how_it_came_and_whether_it_is_answered
     bought = Route(
         org=knocking.org.id, agent=AGENT, channel="phone", number="+59829001199", env="sandbox"
     )
-    await routes.put(pool, replace(bought, managed=True), origin="bought", account=None)
+    await routes.put(pool, replace(bought, managed=True), RouteWrite("bought"))
     await routes.put(
-        pool, replace(bought, agent="nobody", number="+59829001100"), origin="hooked", account=None
+        pool, replace(bought, agent="nobody", number="+59829001100"), RouteWrite("hooked")
     )
-    await routes.put(pool, replace(bought, org=other.id), origin="typed", account=None)
+    await routes.put(pool, replace(bought, org=other.id), RouteWrite("typed"))
     socket = await an_app(knocking)
     async with knocking.http(THE_OPS_KEY) as operator:
         listed = await operator.get("/v1/ops/numbers")
@@ -162,6 +163,64 @@ async def test_the_box_lists_every_number_how_it_came_and_whether_it_is_answered
         ("+59829001199", slug, "bought", True, None),
         ("+59829001199", "otra", "typed", False, slug),
     ]
+
+
+@postgres
+async def test_the_operator_admits_a_carrier_and_twilio_stays_admitted(knocking: Knocking) -> None:
+    with_an_ops_key(knocking)
+    async with knocking.http(THE_OPS_KEY) as operator:
+        listed = await operator.get("/v1/ops/carriers")
+        admitted = await operator.put("/v1/ops/carriers/telnyx", json={"admitted": True})
+        kept = await operator.put("/v1/ops/carriers/twilio", json={"admitted": False})
+        unknown = await operator.put("/v1/ops/carriers/bandwidth", json={"admitted": True})
+        after = (await operator.get("/v1/ops/carriers")).json()
+    by_kind = {item["kind"]: item for item in listed.json()["carriers"]}
+    assert (by_kind["twilio"]["admitted"], by_kind["twilio"]["fixed"]) == (True, True)
+    assert by_kind["telnyx"]["admitted"] is False
+    assert admitted.json()["admitted"] is True
+    assert (kept.status_code, unknown.status_code) == (409, 404)
+    assert len(after["fence"]["openings"]) == 12
+    assert {opening["reason"] for opening in after["fence"]["openings"]} == {"telnyx"}
+
+
+@postgres
+async def test_a_peers_network_is_approved_by_the_operator_and_its_number_is_admitted(
+    knocking: Knocking,
+) -> None:
+    with_an_ops_key(knocking)
+    peer = {"kind": "sip", "username": "pbx", "password": "a peer's password"}
+    number = {"number": "+59829001199", "agent": AGENT, "account": "pbx"}
+    async with knocking.http(knocking.app["production"]) as console:
+        await console.put("/v1/carrier", json={**peer, "addresses": ["45.60.12.7"]})
+        waiting = await console.post("/v1/numbers", json=number)
+    before = await admitting(knocking)
+    async with knocking.http(THE_OPS_KEY) as operator:
+        (request,) = (
+            await operator.get("/v1/ops/carrier-networks", params={"state": "waiting"})
+        ).json()
+        approved = await operator.post(f"/v1/ops/carrier-networks/{request['id']}/approve")
+        admitted = await admitting(knocking)
+        fence = (await operator.get("/v1/ops/carriers")).json()["fence"]
+        refused = await operator.post(f"/v1/ops/carrier-networks/{request['id']}/refuse")
+        missing = await operator.post("/v1/ops/carrier-networks/999999/approve")
+    assert any("waits for the box's operator" in step for step in waiting.json()["steps"])
+    assert before == []
+    assert (request["org"], request["source"], request["network"]) == (
+        knocking.org.slug,
+        "pbx",
+        "45.60.12.7/32",
+    )
+    assert (approved.json()["state"], approved.json()["decided_by"]) == (
+        "approved",
+        "the box's key",
+    )
+    assert admitted == [(f"{knocking.org.id}:pbx", ["+59829001199"])]
+    assert fence["openings"] == [
+        {"network": "45.60.12.7/32", "reason": f"{knocking.org.slug}: pbx"}
+    ]
+    assert refused.json()["state"] == "refused"
+    assert await admitting(knocking) == []
+    assert missing.status_code == 404
 
 
 @postgres

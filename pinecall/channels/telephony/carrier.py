@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import httpx
 
 from pinecall.channels.telephony._twilio import Twilio, twilio_of, verify
+from pinecall.channels.telephony.carrier_catalog import BOX_CARRIER, known_carrier
 from pinecall.domain.errors import Conflict, DeclarationRefused
 from pinecall.tenancy.carriers import (
     Account,
@@ -15,18 +16,9 @@ from pinecall.tenancy.carriers import (
     WhatsappAccount,
 )
 
-# Twilio's signalling edges (twilio.com/docs/sip-trunking/ip-addresses): the fence of every
-# Twilio number on the SFU, and the set nftables.conf opens 5060 to. A test holds them equal.
-TWILIO_SIGNALLING: tuple[str, ...] = (
-    "54.172.60.0/30",
-    "54.244.51.0/30",
-    "54.171.127.192/30",
-    "35.156.191.128/30",
-    "54.65.63.192/30",
-    "54.169.127.128/30",
-    "54.252.254.64/30",
-    "177.71.206.192/30",
-)
+# Twilio's signalling edges, from the catalog: the fence of every Twilio number on the SFU, and the
+# set nftables.conf opens 5060 to. A test holds them equal.
+TWILIO_SIGNALLING: tuple[str, ...] = known_carrier(BOX_CARRIER).networks
 
 
 NOT_PROVISIONED = (
@@ -66,25 +58,47 @@ class Dialled:
     password: str
 
 
-def fence_of(org: str, number: str, carrier: Carrier | None, networks: tuple[str, ...]) -> Fence:
-    """Who the SFU admits the number from: the account's networks, or the ones the org gave."""
+# A trunk that lists no address admits every source: a fence with none approved is no trunk at all.
+# `via` is the catalog carrier a number with no account comes through; `own` the approved networks
+# of the peer, or of a number hooked with networks of its own (None: it named none).
+def fence_of(
+    org: str,
+    number: str,
+    carrier: Carrier | None,
+    via: str | None,
+    own: tuple[str, ...] | None,
+) -> Fence | None:
+    """Who the SFU admits the number from, or None until the operator approves a network of it."""
     if carrier is None:
-        if networks:
-            return Fence(trunk=f"{org}:{number}", networks=networks)
-        return Fence(trunk=org, networks=TWILIO_SIGNALLING)
+        if own is not None:
+            return Fence(trunk=f"{org}:{number}", networks=own) if own else None
+        kind = via or BOX_CARRIER
+        trunk = org if kind == BOX_CARRIER else f"{org}:{kind}"
+        return Fence(trunk=trunk, networks=known_carrier(kind).networks)
     match carrier.account:
         case TwilioAccount():
             return Fence(trunk=org, networks=TWILIO_SIGNALLING)
         case SipPeer():
             peer = carrier.account
+            if not own:
+                return None
             return Fence(
                 trunk=f"{org}:{peer.username}",
-                networks=tuple(peer.addresses),
+                networks=own,
                 username=peer.username,
                 password=peer.password,
             )
         case WhatsappAccount():
             raise DeclarationRefused(ON_NO_TRUNK.format(account=carrier.id))
+
+
+def declared_networks(carrier: Carrier) -> tuple[str, ...] | None:
+    """The networks a peer says it calls from, for the operator to approve; None for the others."""
+    match carrier.account:
+        case SipPeer():
+            return tuple(carrier.account.addresses)
+        case TwilioAccount() | WhatsappAccount():
+            return None
 
 
 def missing_to_dial(carrier: Carrier) -> list[str]:

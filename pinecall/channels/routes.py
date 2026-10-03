@@ -1,7 +1,6 @@
 """Which agent answers a number or a channel, per org and world: the routes table."""
 
 import logging
-from collections.abc import Sequence
 from dataclasses import dataclass
 
 from psycopg.rows import DictRow
@@ -28,14 +27,14 @@ OF_NUMBER = """
 SELECT org, number, agent, channel, env, managed FROM routes
 WHERE org = %(org)s AND number = %(number)s
 """
-# A number added again moves: its agent, channel, world, account and origin are the newest said.
+# A number added again moves: its agent, channel, world and how it came are the newest said.
 PUT = """
-INSERT INTO routes (org, number, agent, channel, env, managed, account, networks, origin)
+INSERT INTO routes (org, number, agent, channel, env, managed, account, networks, origin, via)
 VALUES (%(org)s, %(number)s, %(agent)s, %(channel)s, %(env)s, %(managed)s, %(account)s,
-        %(networks)s, %(origin)s)
+        %(networks)s, %(origin)s, %(via)s)
 ON CONFLICT (org, number) DO UPDATE SET agent = excluded.agent, channel = excluded.channel,
     env = excluded.env, managed = excluded.managed, account = excluded.account,
-    networks = excluded.networks, origin = excluded.origin
+    networks = excluded.networks, origin = excluded.origin, via = excluded.via
 """
 REMOVE = "DELETE FROM routes WHERE org = %(org)s AND number = %(number)s RETURNING number"
 MOVE = "UPDATE routes SET env = %(env)s WHERE org = %(org)s AND number = %(number)s RETURNING env"
@@ -53,13 +52,25 @@ STAYED = "SELECT number FROM routes WHERE agent = %(agent)s AND org <> %(org)s O
 # number lives in, and the org whose row answers the number (the oldest, as AT reads it).
 RECORDS = """
 SELECT routes.org, routes.number, routes.agent, routes.channel, routes.env, routes.managed,
-       routes.origin, carriers.kind AS carrier,
+       routes.origin, routes.via, carriers.kind AS carrier,
        (SELECT first.org FROM routes AS first
         WHERE first.channel = routes.channel AND first.number = routes.number
         ORDER BY first.added_at LIMIT 1) AS answering
 FROM routes LEFT JOIN carriers
     ON carriers.org = routes.org AND carriers.account = routes.account
 """
+
+
+@dataclass(frozen=True)
+class RouteWrite:
+    """What a row keeps beside its route: who wrote it, the account, the networks, the carrier."""
+
+    origin: RouteOrigin
+    account: str | None = None
+    # A number hooked from networks of the org's own, which the operator approves.
+    networks: tuple[str, ...] = ()
+    # The catalog carrier a number with no account comes through.
+    via: str | None = None
 
 
 @dataclass(frozen=True)
@@ -73,6 +84,7 @@ class RouteRecord:
     carrier: str | None
     # The org whose row answers the number: the route's own, or an older row of another org.
     answering: str
+    via: str | None = None
 
 
 ON_THE_BOX = RECORDS + "ORDER BY routes.number, routes.channel, routes.added_at"
@@ -132,15 +144,8 @@ async def of_number(pool: Pool, org: str, number: str) -> Route | None:
     return None if row is None else _route(row)
 
 
-async def put(
-    pool: Pool,
-    route: Route,
-    *,
-    origin: RouteOrigin,
-    account: str | None,
-    networks: Sequence[str] = (),
-) -> None:
-    """Keep the route, moving the number if the org had it: how, and the account it lives in."""
+async def put(pool: Pool, route: Route, written: RouteWrite) -> None:
+    """Keep the route, moving the number if the org had it, with how it was written."""
     row = {
         "org": route.org,
         "number": route.number,
@@ -148,9 +153,10 @@ async def put(
         "channel": route.channel,
         "env": route.env,
         "managed": route.managed,
-        "account": account,
-        "networks": list(networks),
-        "origin": origin,
+        "account": written.account,
+        "networks": list(written.networks),
+        "origin": written.origin,
+        "via": written.via,
     }
     async with pool.connection() as connection:
         await connection.execute(PUT, row)
@@ -200,5 +206,9 @@ def _route(row: DictRow) -> Route:
 
 def _record(row: DictRow) -> RouteRecord:
     return RouteRecord(
-        route=_route(row), origin=row["origin"], carrier=row["carrier"], answering=row["answering"]
+        route=_route(row),
+        origin=row["origin"],
+        carrier=row["carrier"],
+        answering=row["answering"],
+        via=row["via"],
     )

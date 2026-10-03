@@ -1,0 +1,13 @@
+# The networks 5060 opens to beyond Twilio's (channels/telephony/firewall.py): the carriers the
+# operator admits and the addresses he approved, written to /etc/pinecall/nftables.d/carriers.nft
+# and read by nftables. Root's: the gateway asks, this writes. Started by pinecall-fence.timer.
+[Unit]
+Description=Pinecall: open 5060 to the carriers and addresses the operator admitted
+After=pinecall-postgres.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/pinecall
+EnvironmentFile=/etc/pinecall/box.env
+ImportCredential=DATABASE_URL
+ExecStart=/opt/pinecall/venv/bin/pinecall-runtime fence apply

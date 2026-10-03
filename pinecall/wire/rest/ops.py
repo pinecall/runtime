@@ -199,6 +199,66 @@ class BoxNumber(WireModel):
     running: bool
     # The org whose older row answers the number instead of this one; null when this one does.
     answered_by: str | None
+    # The catalog carrier a number the org hooked comes through, when it named one.
+    via: str | None = None
+
+
+class BoxCarrier(WireModel):
+    """A carrier of the box's catalog: its published networks, and whether it is admitted."""
+
+    kind: str
+    name: str
+    # The box drives its API (lists, points, buys numbers); the others are SIP terms alone.
+    control: bool
+    networks: list[str]
+    source: str
+    read_on: str
+    admitted: bool
+    # The box's own carrier: admitted always, its networks typed into nftables.conf.
+    fixed: bool
+    # The numbers of every org that reach the box through it.
+    numbers: int
+
+
+class FenceOpening(WireModel):
+    """A network 5060 opens to beyond Twilio's, and why: a carrier's kind, or an org's ask."""
+
+    network: str
+    reason: str
+
+
+class BoxFence(WireModel):
+    """What the fence opens to now, and when the root helper last wrote it into nftables."""
+
+    openings: list[FenceOpening]
+    applied_at: float | None
+    applied: int | None
+
+
+class BoxCarriers(WireModel):
+    """GET /v1/ops/carriers: the catalog, each carrier admitted or not, and the fence."""
+
+    carriers: list[BoxCarrier]
+    fence: BoxFence
+
+
+class AdmitCarrierRequest(WireModel):
+    """PUT /v1/ops/carriers/{kind}: whether orgs may bring numbers through the carrier."""
+
+    admitted: bool
+
+
+class CarrierNetworkRow(WireModel):
+    """A network an org asked 5060 to open to: who, for what, and the operator's answer."""
+
+    id: int
+    org: str
+    source: str
+    network: str
+    state: str
+    asked_at: float
+    decided_by: str | None
+    decided_at: float | None
 
 
 class FleetListed(WireModel):

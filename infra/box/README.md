@@ -11,7 +11,7 @@ release.sh             one release: a built wheel (make deploy) or a PyPI versio
 pinecall-runtime       /usr/local/bin/pinecall-runtime: the operator's verbs with the box's credentials
 containers/            redis · livekit · sip · egress · postgres (Quadlet)
 livekit.yaml sip.yaml egress.yaml
-nftables.conf          5060 from the carrier alone; 22, 80, 443, WebRTC for anyone
+nftables.conf          5060 from Twilio and nftables.d/carriers.nft alone; 22, 80, 443, WebRTC for anyone
 caddy/Caddyfile        TLS for PINECALL_DOMAINS; LiveKit's paths to the SFU, the rest to the two gateways
                        (a call's requests on one while it lives), and 127.0.0.1:8088 for the box's workers
 fleets/<world>.env     PINECALL_FLEET and the worker's health port, per world
@@ -21,6 +21,7 @@ pinecall-worker@.service · pinecall-overflow@.service
 pinecall-worker-slot.conf  the drop-in that makes the worker template the box's a@ and b@
 pinecall-migrate.service · pinecall-doctor.service · pinecall-fleet-key@.service
 pinecall-retention.service · pinecall-retention.timer   the nightly erasure of calls past their org's days
+pinecall-fence.service · pinecall-fence.timer   as root, every minute: 5060 opened to the carriers admitted and the addresses approved
 pinecall-backup.service · pinecall-backup.timer · backup.sh · backup.age.pub   the nightly encrypted backup
 wal.sh · pinecall-wal.service · pinecall-wal.timer   the WAL archive to the backup bucket, for a restore to any minute
 alerts.sh                                            the cell's four alerts evaluated on the box and mailed (alerts.env)

@@ -29,10 +29,12 @@ resource "google_compute_firewall" "web" {
   }
 }
 
+# 5060 from the carriers' signalling edges alone, before the deny below.
 resource "google_compute_firewall" "sip" {
   name          = "pinecall-runtime-sip"
   network       = data.google_compute_network.vpc.self_link
   direction     = "INGRESS"
+  priority      = 500
   source_ranges = var.carrier_signalling
   target_tags   = [var.box_tag]
   allow {
@@ -43,6 +45,27 @@ resource "google_compute_firewall" "sip" {
     protocol = "udp"
     ports    = ["5060"]
   }
+}
+
+# Everyone else's 5060, denied explicitly: GCP keeps an established UDP flow alive after the allow
+# that let it in is narrowed, and only a deny ends it. Made after the allow's priority is 500, so
+# the two never stand in the wrong order.
+resource "google_compute_firewall" "sip_deny" {
+  name          = "pinecall-runtime-sip-deny"
+  network       = data.google_compute_network.vpc.self_link
+  direction     = "INGRESS"
+  priority      = 600
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = [var.box_tag]
+  deny {
+    protocol = "tcp"
+    ports    = ["5060"]
+  }
+  deny {
+    protocol = "udp"
+    ports    = ["5060"]
+  }
+  depends_on = [google_compute_firewall.sip]
 }
 
 resource "google_compute_firewall" "media" {
