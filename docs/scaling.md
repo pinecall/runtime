@@ -132,7 +132,7 @@ when the workers shared it.
 **Two vCPU on each side** (2026-10-02, `infra/lab/measure.py measure --box e2-standard-2 --worker
 e2-standard-2`, the lab made and destroyed by Terraform): the calls that started all held, but no
 step started more than six calls, whatever was asked: the worker had 8 slots and LiveKit refused
-it at 0.7 of them (fixed the same night, above); read the rows as what six calls cost, not as
+it at 0.7 of them (fixed the next morning, above); read the rows as what six calls cost, not as
 where two vCPU stop.
 
 | asked | started | worker machine (2 vCPU) | per call | the box (2 vCPU), no worker on it | turns answered | first audio p50 / p95 |
@@ -144,6 +144,12 @@ where two vCPU stop.
 On two vCPU a call costs the worker ~0.27 vCPU (more than on eight: the job processes' start and
 the event loop weigh more on fewer cores) and the box ~0.16; six calls already put the worker
 near 0.8 of the machine, so a 2-vCPU worker machine is not the shape to run a fleet on.
+
+With the fix, the same lab given 16 slots (2026-10-03, `--seats 16 --calls 8,12`) started **8 of
+8 and 12 of 12** — the dispatch reaches every slot — and showed what an oversized `MAX_JOBS`
+costs: the worker at 1.9 of its 2 cores, 78 of 89 and 95 of 127 turns answered, first audio p95
+3.9 s. The 0.7 line had been hiding this, cutting calls off in silence before the machine
+saturated; `MAX_JOBS` measured on the machine type is the only line now.
 
 ## The gateway hears every worker
 
