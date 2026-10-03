@@ -29,9 +29,7 @@ APPLIED = "fence/applied"
 SET = "inet pinecall carrier_signalling"
 
 
-HEADER = (
-    "# Written by `pinecall-runtime fence apply`; every edit here is lost on the next minute.\n"
-)
+HEADER = "# Written by `pinecall-fence apply`; every edit here is lost on the next minute.\n"
 
 
 TOO_WIDE = "%s (%s) is not opened: wider than a /%d"

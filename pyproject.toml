@@ -68,6 +68,8 @@ voice-big = ["livekit-agents[aws,azure,google,speechmatics]>=1.8.3,<2"]
 
 [project.scripts]
 pinecall-runtime = "pinecall.cli.main:main"
+# The fence's root helper, every minute: its own entry, so it imports none of the gateway.
+pinecall-fence = "pinecall.cli._fence:main"
 
 [project.urls]
 Homepage = "https://github.com/pinecall/runtime"

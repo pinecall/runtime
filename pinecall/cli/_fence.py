@@ -5,11 +5,12 @@ import asyncio
 import json
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 from pinecall.channels.telephony import firewall
 from pinecall.postgres.pool import open_pool
-from pinecall.process.settings import Settings
+from pinecall.process.settings import Settings, load
 
 # Read by nftables.conf's `include`, as the cell's own files beside it are.
 INCLUDE = Path("/etc/pinecall/nftables.d/carriers.nft")
@@ -19,6 +20,14 @@ NFT = "/usr/sbin/nft"
 
 
 NFTABLES = "/etc/nftables.conf"
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    """`pinecall-fence apply|export`: the fence alone, without the runtime's whole import."""
+    parser = argparse.ArgumentParser(prog="pinecall-fence")
+    fence_group(parser)
+    data = parser.parse_args(argv)
+    sys.exit(data.run(load(), data))
 
 
 def fence_group(group: argparse.ArgumentParser) -> None:
