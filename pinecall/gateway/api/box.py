@@ -12,6 +12,7 @@ from pinecall.channels import routes
 from pinecall.domain.call import Route
 from pinecall.domain.errors import Conflict, NotAvailable, NotFound
 from pinecall.domain.names import PRODUCTION, Env
+from pinecall.domain.scope import Scope
 from pinecall.fleet import worlds
 from pinecall.fleet.roster import STALE_AFTER_S
 from pinecall.fleet.worlds import Fleets
@@ -43,9 +44,11 @@ from pinecall.wire.rest.hosting import ServedPage
 from pinecall.wire.rest.ops import (
     BoxEvent,
     BoxMailResponse,
+    BoxNumber,
     BoxProvider,
     BoxSignInResponse,
     FleetListed,
+    NumberCameIn,
     PutBrandRequest,
     PutSignInRequest,
     RouteRequest,
@@ -321,6 +324,39 @@ async def drop_box_route(number: str, gateway: GatewayDep, org: Annotated[str, Q
         raise NotFound(NO_SUCH_ROUTE.format(number=number, slug=org))
 
 
+# What a number would do if it rang now: whose it is, how it came, and whether anyone picks up.
+@router.get("/v1/ops/numbers")
+async def list_box_numbers(gateway: GatewayDep) -> list[BoxNumber]:
+    """Every number the box answers at, of every org and world, by number."""
+    pool = gateway.connections.pool
+    slugs = {org.id: org.slug for org in await orgs.listed(pool)}
+    found = await routes.on_the_box(pool)
+    running = {
+        (route.org, route.env): {
+            agent.slug
+            for agent in gateway.sockets.holding(
+                Scope(org=route.org, env=route.env), every_corner=True
+            )
+        }
+        for route in (row.route for row in found)
+    }
+    return [
+        BoxNumber(
+            number=row.route.number or "",
+            channel=row.route.channel,
+            org=slugs.get(row.route.org, row.route.org),
+            env=row.route.env,
+            agent=row.route.agent,
+            came_in=_came_in(row),
+            running=row.route.agent in running[(row.route.org, row.route.env)],
+            answered_by=None
+            if row.answering == row.route.org
+            else slugs.get(row.answering, row.answering),
+        )
+        for row in found
+    ]
+
+
 # ── the fleet ──
 
 
@@ -391,6 +427,17 @@ def _route_row(route: Route) -> RouteRow:
         env=route.env,
         managed=route.managed,
     )
+
+
+def _came_in(row: routes.BoxRoute) -> NumberCameIn:
+    """How the number reached the box: bought by it, an account of the org, or hooked by hand."""
+    if row.route.managed:
+        return "bought"
+    match row.carrier:
+        case "twilio" | "sip" | "whatsapp" as kind:
+            return kind
+        case _:
+            return "hooked"
 
 
 async def _box_mail(gateway: Gateway) -> MailboxStatus | None:

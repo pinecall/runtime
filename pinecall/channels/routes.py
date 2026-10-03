@@ -2,6 +2,7 @@
 
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from psycopg.rows import DictRow
 
@@ -48,6 +49,25 @@ WHERE agent = %(agent)s AND org <> %(org)s
 RETURNING number
 """
 STAYED = "SELECT number FROM routes WHERE agent = %(agent)s AND org <> %(org)s ORDER BY number"
+# Every row of every org, oldest first within a number: the first of a number answers it (AT).
+ON_THE_BOX = """
+SELECT routes.org, routes.number, routes.agent, routes.channel, routes.env, routes.managed,
+       carriers.kind AS carrier
+FROM routes LEFT JOIN carriers
+    ON carriers.org = routes.org AND carriers.account = routes.account
+ORDER BY routes.number, routes.channel, routes.added_at
+"""
+
+
+@dataclass(frozen=True)
+class BoxRoute:
+    """A route of the box: the kind of account its number lives in, and the org that answers it."""
+
+    route: Route
+    # None for a number no account of the org holds: bought by the box, or hooked by hand.
+    carrier: str | None
+    # The org whose row answers the number: the route's own, or an older row of another org.
+    answering: str
 
 
 async def of_org(pool: Pool, org: str, env: Env) -> list[Route]:
@@ -68,6 +88,18 @@ async def at(pool: Pool, channel: Channel, number: str) -> Route | None:
     for other in rows[1:]:
         logger.warning(TWO_ORGS, number, answering.org, other["org"])
     return answering
+
+
+async def on_the_box(pool: Pool) -> list[BoxRoute]:
+    """Every route of every org and world, by number, and which of them answers each number."""
+    async with pool.connection() as connection:
+        rows = await (await connection.execute(ON_THE_BOX)).fetchall()
+    first: dict[tuple[str, str], str] = {}
+    found: list[BoxRoute] = []
+    for row in rows:
+        answering = first.setdefault((row["channel"], row["number"]), row["org"])
+        found.append(BoxRoute(route=_route(row), carrier=row["carrier"], answering=answering))
+    return found
 
 
 async def of_number(pool: Pool, org: str, number: str) -> Route | None:

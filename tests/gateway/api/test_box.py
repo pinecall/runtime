@@ -1,9 +1,14 @@
 """Tests for the box's own settings and floor: mail, brand, sign-in, routes, fleet, events."""
 
+from dataclasses import replace
+
+from pinecall.channels import routes
+from pinecall.domain.call import Route
+from pinecall.tenancy import orgs
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
 from tests.conftest import AGENT, FLEETS, Knocking, postgres
 from tests.fakes.mail import Postbox
-from tests.gateway.api.conftest import a_call, first_data
+from tests.gateway.api.conftest import a_call, an_app, first_data
 from tests.gateway.api.test_ops import THE_OPS_KEY, with_an_ops_key
 
 A_MAILBOX = {
@@ -97,6 +102,34 @@ async def test_the_operator_types_lists_and_forgets_a_route(knocking: Knocking) 
     assert gone.status_code == 204
     assert again.status_code == 404
     assert nobody.status_code == 404
+
+
+@postgres
+async def test_the_box_lists_every_number_how_it_came_and_whether_it_is_answered(
+    knocking: Knocking,
+) -> None:
+    with_an_ops_key(knocking)
+    pool = knocking.gateway.connections.pool
+    other = await orgs.create(pool, "otra", "Otra")
+    bought = Route(
+        org=knocking.org.id, agent=AGENT, channel="phone", number="+59829001199", env="sandbox"
+    )
+    await routes.put(pool, replace(bought, managed=True), account=None)
+    await routes.put(pool, replace(bought, agent="nobody", number="+59829001100"), account=None)
+    await routes.put(pool, replace(bought, org=other.id), account=None)
+    socket = await an_app(knocking)
+    async with knocking.http(THE_OPS_KEY) as operator:
+        listed = await operator.get("/v1/ops/numbers")
+    await socket.close()
+    slug = knocking.org.slug
+    assert [
+        (row["number"], row["org"], row["came_in"], row["running"], row["answered_by"])
+        for row in listed.json()
+    ] == [
+        ("+59829001100", slug, "hooked", False, None),
+        ("+59829001199", slug, "bought", True, None),
+        ("+59829001199", "otra", "hooked", False, slug),
+    ]
 
 
 @postgres
