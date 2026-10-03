@@ -16,7 +16,7 @@ from pinecall.fleet.hub import (
     Machine,
     applied,
     decide,
-    free_names,
+    new_names,
     printed,
     status_line,
     worded,
@@ -25,6 +25,9 @@ from pinecall.wire.rest.fleet import WorkerStatus
 
 NOW = 1_000.0
 LINE = Line(target=0.6, slack=0.15, at_least=1, at_most=4, seats_per_worker=4)
+
+# The first name a tick at NOW gives: the time it was asked for, to the second.
+ASKED_AT_NOW = "pinecall-worker-700101001640-1"
 
 
 def a_seat(
@@ -56,14 +59,14 @@ def a_machine(name: str, *, made_ago: float = 3_600.0) -> Machine:
 def test_a_fleet_under_its_minimum_grows_by_the_lowest_free_name() -> None:
     decided = decide([], [a_machine("pinecall-worker-3", made_ago=30.0)], LINE, NOW)
     assert decided == []
-    assert decide([], [], LINE, NOW) == [Grow("pinecall-worker-1", "0 of at least 1 workers")]
+    assert decide([], [], LINE, NOW) == [Grow(ASKED_AT_NOW, "0 of at least 1 workers")]
 
 
 def test_a_busy_fleet_grows_and_a_quiet_one_cordons_its_quietest_managed_worker() -> None:
     busy = [a_seat("pinecall-worker-1", active=3), a_seat("pinecall-worker-2", active=3)]
     machines = [a_machine("pinecall-worker-1"), a_machine("pinecall-worker-2")]
     assert decide(busy, machines, LINE, NOW) == [
-        Grow("pinecall-worker-3", "busy 0.75 over 0.60: 2 seats missing")
+        Grow(ASKED_AT_NOW, "busy 0.75 over 0.60: 2 seats missing")
     ]
     quiet = [a_seat("pinecall-worker-1", active=1), a_seat("pinecall-worker-2", active=0)]
     (letting_go,) = decide(quiet, machines, LINE, NOW)
@@ -104,14 +107,12 @@ def test_a_cordoned_machine_that_holds_nothing_is_deleted_without_waiting() -> N
     assert Delete("pinecall-worker-2", "cordoned and drained") in decided
 
 
-def test_the_names_fill_the_lowest_gaps() -> None:
-    machines = [a_machine("pinecall-worker-1"), a_machine("pinecall-worker-3"), a_machine("other")]
-    assert free_names(machines, 1) == ["pinecall-worker-2"]
-    assert free_names(machines, 3) == [
-        "pinecall-worker-2",
-        "pinecall-worker-4",
-        "pinecall-worker-5",
-    ]
+# A name used before would carry the last machine's cordon and silence onto the next one.
+def test_a_name_is_the_time_it_was_asked_for_and_never_one_a_machine_has() -> None:
+    assert new_names(set(), 2, NOW) == [ASKED_AT_NOW, "pinecall-worker-700101001640-2"]
+    taken = {ASKED_AT_NOW}
+    assert new_names(taken, 1, NOW) == ["pinecall-worker-700101001640-2"]
+    assert new_names(set(), 1, NOW + 1) == ["pinecall-worker-700101001641-1"]
 
 
 WIDE = Line(target=0.6, at_least=2, at_most=20, seats_per_worker=4, grow_at_most=5)
@@ -161,7 +162,7 @@ def test_the_decimal_target_is_read_as_written_not_as_a_float() -> None:
     # 9 held of 12: 9 / 0.6 is 15 seats, three missing; in floats it is 15.000000000000002.
     seats, machines = busy_fleet(3, 3)
     (grow,) = decide(seats, machines, WIDE, NOW)
-    assert grow == Grow("pinecall-worker-4", "busy 0.75 over 0.60: 3 seats missing")
+    assert grow == Grow(ASKED_AT_NOW, "busy 0.75 over 0.60: 3 seats missing")
 
 
 def test_shrinking_stays_one_cordon_a_tick_however_quiet() -> None:

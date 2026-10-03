@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **A machine the loop makes is named once**: `pinecall-worker-<yymmddhhmmss>-<n>`, the time it was
+  asked for, instead of the lowest free `pinecall-worker-<n>`. A reused name carried the last
+  machine's cordon and its silence in the roster onto the next one, which the loop deleted as
+  "cordoned and gone" 13 s after asking for it (production drill, 2026-10-03).
 - **A call whose caller dropped ends**, whatever the reason they left. livekit's session closes on
   the caller leaving only when they hung up, the room was deleted or they were rejected; a browser
   whose connection timed out was waited for, and with a supervisor watching the room never emptied:

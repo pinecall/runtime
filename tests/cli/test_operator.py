@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import re
 import stat
 from pathlib import Path
 
@@ -186,7 +187,10 @@ async def test_the_fleet_is_listed_cordoned_and_looped_once_in_a_dry_run(
     )
     ticked = capsys.readouterr().out
     assert ticked.startswith("fleet: 1 workers up · 1 machines · 4/4 seats held")
-    assert "grow    pinecall-worker-2: busy 1.00 over 0.60: 3 seats missing  (dry run)" in ticked
+    assert re.search(
+        r"grow    pinecall-worker-\d{12}-1: busy 1\.00 over 0\.60: 3 seats missing  \(dry run\)",
+        ticked,
+    )
     loop = ("fleet", "loop", "--cloud", str(script), "--seats", "4", "--once", "--dry-run")
     with pytest.raises(DeclarationRefused, match="--grow-at-most is 1 or more"):
         await ran(settings, *loop, "--grow-at-most", "0")
