@@ -14,20 +14,26 @@ $ make tf-init ENV=lab    # once per checkout
 $ uv run --no-project python infra/lab/measure.py measure --box e2-standard-2 --worker e2-standard-2 --calls 4,6,8,10,12
 ```
 
-makes the box and the generator with Terraform (`infra/terraform/environments/lab`: three
-machines of `modules/machine` and a firewall rule between them alone, in the project of its
+makes the box and the generator with Terraform (`infra/terraform/environments/lab`: machines of
+`modules/machine` and a firewall rule between them alone, in the project of its
 `terraform.tfvars`), brings the box up from this checkout's wheel, configures the generator and
-the box as the steps below say (`configure.sh`), makes a worker machine by the same apply and joins
-it with `pinecall-runtime cell join-worker`, ramps each step's calls, prints one row per step —
+the box as the steps below say (`configure.sh`, which also points LiveKit's webhook at the
+gateways' door on the box's address and proves they answer it: the webhook places every call, and
+the lab's names resolve nowhere), makes the worker machines by the same apply and joins them
+with `pinecall-runtime cell join-worker`, ramps each step's calls, prints one row per step —
 calls, the worker machine's cores and per call, the box's cores, turns answered, first audio p50 /
 p95, ring to live, errors — and destroys everything with `terraform destroy`. The verbs apart:
-`up --box <type>` (~20 min, the box and the generator), `run --worker <type> [--box <type>]
-[--calls …] [--seats N] [--rate N]` (a few minutes a step; `--box` resizes the box by the apply, which stops
+`up --box <type>` (~20 min, the box and the generator), `run --worker <type> [--workers N]
+[--box <type>] [--calls …] [--seats N] [--rate N] [--kill-at N]` (a few minutes a step; `--box` resizes the box by the apply, which stops
 and starts it with its disk kept, so several shapes are measured on one `up`), `down`. `--seats`
 unset is the `vCPU × 4` the worker would announce; set it high to find where first audio gives,
 which is what `MAX_JOBS` is then set under. `--rate` is the calls placed a second (1 unset):
 LiveKit's server reads a worker's load as reported every 2.5 s, so a faster burst on its last
-slots is the edge to measure. Before the worker machine is destroyed, its journal and
+slots is the edge to measure. `--workers 2 --kill-at N` powers the last machine off at once at
+the first step's N-th call (`sysrq o`: no unit stopped, no socket closed, as a machine that dies),
+and prints under the table what it did: the calls that started of those that rang, the ones that
+lost their worker and ended as drained, the offers made again after 12 s, the ones sent to the
+overflow, and the longest ring to live; the worker columns read the first machine. Before the worker machines are destroyed, its journal and
 its `fleet.env` are kept under `.lab/` (ignored by git): the evidence of a step outlives the
 machine. Every secret goes machine to machine through a pipe
 between two ssh processes; nothing is printed. Google's credentials are the gcloud login's, a
@@ -60,10 +66,11 @@ generator (8 vCPU) for the fakes, the agent and SIPp; and, for SIP × 2, a machi
    answers any other Host with an empty 200; an agent project under `pinecall start` with
    `PINECALL_URL=http://127.0.0.1:8088` and the token; a number routed to it by
    `POST /v1/numbers {"hooked": true, "networks": ["<gen>/32"]}`.
-4. **The webhook.** A box whose name resolves nowhere never gets LiveKit's webhook, and a dead
-   worker's calls then wait five minutes for the reaper. Give LiveKit a way to the gateways (a
-   site in `/etc/caddy/conf.d/` on the podman network's address, its port opened to `podman*`)
-   before measuring one.
+4. **The webhook.** It is what places every call (the gateway chooses the worker on it), and a
+   box whose name resolves nowhere never gets it: point `/etc/pinecall/livekit.yaml`'s
+   `webhook.urls` at `http://<the box's address>:8088/v1/livekit/webhook`, open 8088 to the
+   containers' bridge (`iifname "podman*" tcp dport 8088 accept`), restart `pinecall-livekit`,
+   and check that a POST from the bridge answers 403 (unsigned), not Caddy's empty 200.
 5. **Calls.** `uv run --with numpy python caller.py`, then
    `sipp <box>:5060 -sf caller.xml -s <number> -i <gen> -mi <gen> -m N -l N -r 1`. Raise N until
    first audio's p95 or the share of turns answered gives; read both from `call_log`
@@ -72,12 +79,12 @@ generator (8 vCPU) for the fakes, the agent and SIPp; and, for SIP × 2, a machi
 
 ## What fooled the first runs
 
-- **A destroyed worker machine haunts the next run.** Destroyed with its worker up, the machine
-  closes nothing, and the box's LiveKit keeps it registered for 15–20 minutes, offering it about
-  half the next run's calls (its last load was low), each lost after 10 s with no retry: 12 of 24,
-  8 of 32, with `failed to assign job to worker … <the dead worker's id>` in the box's LiveKit log.
-  `measure.py` stops the worker before the machine goes, as the fleet loop does; a run that reads
-  low with no reason starts there: `podman logs pinecall-livekit | grep 'closing worker'`.
+- **A destroyed worker machine haunted the next run** while LiveKit chose the worker. Destroyed
+  with its worker up, the machine closes nothing, and the box's LiveKit keeps it registered for
+  15–20 minutes, offering it about half the next run's calls (its last load was low), each lost
+  after 10 s with no retry: 12 of 24, 8 of 32, with `failed to assign job to worker … <the dead
+  worker's id>` in the box's LiveKit log. The gateway chooses now and never names a worker unheard
+  for 12 s; `measure.py` still stops the worker before the machine goes, as the fleet loop does.
 
 - The box's SIP and LiveKit announce its **public** address (`use_external_ip`), so the
   generator's RTP and the worker's media arrive from the lab machines' public addresses, not

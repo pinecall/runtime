@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # The lab's machines configured, one verb a step, run on the machine by measure.py over ssh:
 #   generator <gen>          the vendors faked, the caller, the tenant agent, an S3 bucket
-#   box <gen>                providers at the fakes, the lab's org and its keys, the fence
+#   box <gen>                providers at the fakes, the lab's org and its keys, the fence, the
+#                            webhook that places every call
 #   store <gen>              the box's store at the generator's bucket; the access key id on stdin
 #   agent-env <box>          the agent's .env; the box's sandbox server key on stdin
 #   agent                    the agent under `pinecall start`, until it connects
-#   number <gen> <number>    the number routed to the agent, from the generator alone
+#   number <gen> <number>    the number routed to the agent, hooked from the generator's public
+#                            address alone (a carrier reaches the box from the internet)
+#   admit <number>           the box's operator approves the generator's address, the fence
+#                            opens 5060 to it now, and the number rings
 # A secret comes on stdin, from the other machine, and is never an argument or a line printed.
 set -euo pipefail
 
@@ -70,11 +74,24 @@ box() {
         echo not-a-key-the-lab-fakes-every-vendor | $runtime orgs provider-key set "$org" "$vendor" >/dev/null 2>&1
     done
     sudo sh -c "umask 077; $runtime keys issue --org $org --env sandbox --label lab-agent --name lab-agent 2>/dev/null > /root/lab-agent.key"
-    # The generator is the lab's carrier and the agent's server: SIP from it, the gateways and LiveKit to it.
+    # The generator is the agent's server: the gateways and LiveKit open to it. Its 5060 is the
+    # fence's, once the operator approves its public address (`admit`).
     $runtime cell allow-worker "$gen" >/dev/null
-    echo "add element inet pinecall carrier_signalling { $gen }" | sudo tee /etc/pinecall/nftables.d/lab.nft >/dev/null
+    # LiveKit's webhook is what places every call, and it goes to the box's name, which resolves
+    # nowhere in the lab: it goes to the gateways' own door on the box's address instead, opened
+    # to the containers' bridge. A request from the bridge proves the gateways answer it (403,
+    # unsigned): Caddy answers a Host it does not serve with an empty 200, which proves nothing.
+    local here status
+    here=$(sed -n 's/^PINECALL_HERE=//p' /etc/pinecall/box.env)
+    echo 'add rule inet pinecall input iifname "podman*" tcp dport 8088 accept' |
+        sudo tee /etc/pinecall/nftables.d/lab.nft >/dev/null
     sudo nft -f /etc/nftables.conf
-    echo "box ready, org $org"
+    sudo sed -i "s|https://[^ ]*/v1/livekit/webhook|http://$here:8088/v1/livekit/webhook|" /etc/pinecall/livekit.yaml
+    sudo systemctl restart pinecall-livekit
+    status=$(sudo podman run --rm --network pinecall docker.io/curlimages/curl:8.10.1 -s -o /dev/null \
+        -w '%{http_code}' -X POST "http://$here:8088/v1/livekit/webhook")
+    [ "$status" = 403 ] || { echo "LiveKit's webhook does not reach the gateways: $status"; exit 1; }
+    echo "box ready, org $org, the webhook at $here:8088"
 }
 
 store() {
@@ -106,18 +123,42 @@ agent() {
 }
 
 number() {
-    local gen=$1 number=$2
+    local gen=$1 number=$2 status
     printf '{"number": "%s", "agent": "clinica-norte", "hooked": true, "networks": ["%s/32"]}\n' \
         "$number" "$gen" > /tmp/number.json
-    sudo sh -c 'set -a; . /home/lab/agent/.env; set +a; curl -s -o /dev/null -w "number %{http_code}\n" \
+    status=$(sudo sh -c 'set -a; . /home/lab/agent/.env; set +a; curl -s -o /tmp/number.out -w "%{http_code}" \
         -X POST -H "Authorization: Bearer $PINECALL_KEY" -H "content-type: application/json" \
-        "$PINECALL_URL/v1/numbers" -d @/tmp/number.json'
+        "$PINECALL_URL/v1/numbers" -d @/tmp/number.json')
+    case "$status" in 2*) echo "number $status" ;; *) echo "number $status: $(cat /tmp/number.out)"; exit 1 ;; esac
+}
+
+# The approval is the operator's, the fence's write is the timer's own unit started now, and the
+# number's path says the fence stands (`rings` itself waits for the first call, by design).
+admit() {
+    local number=$1 asks ask fence
+    asks=$(sudo curl -fsS -H @/root/ops.header 'http://127.0.0.1:8080/v1/ops/carrier-networks?state=waiting' |
+        python3 -c 'import json,sys; print(" ".join(str(row["id"]) for row in json.load(sys.stdin)))')
+    for ask in $asks; do
+        sudo curl -fsS -o /dev/null -X POST -H @/root/ops.header "http://127.0.0.1:8080/v1/ops/carrier-networks/$ask/approve"
+    done
+    sudo systemctl start pinecall-fence.service
+    for _ in $(seq 30); do
+        fence=$(sudo sh -c 'curl -fsS -H "Authorization: Bearer $(grep -o -m1 "pc_test_[A-Za-z0-9_.-]*" /root/lab-agent.key)" \
+            "http://127.0.0.1:8080/v1/numbers/'"$number"'/path"' |
+            python3 -c "import json,sys; print(next(s['state'] for s in json.load(sys.stdin)['steps'] if s['step']=='fence'))")
+        [ "$fence" = ok ] && { echo "the number's fence stands: ${#asks} network(s) approved"; return 0; }
+        sleep 2
+    done
+    echo "the number's fence does not stand ($fence):"
+    sudo sh -c 'curl -fsS -H "Authorization: Bearer $(grep -o -m1 "pc_test_[A-Za-z0-9_.-]*" /root/lab-agent.key)" \
+        "http://127.0.0.1:8080/v1/numbers/'"$number"'/path"'
+    exit 1
 }
 
 verb=${1:-}
 shift || true
 case "$verb" in
-    generator | box | store | agent | number) "$verb" "$@" ;;
+    generator | box | store | agent | number | admit) "$verb" "$@" ;;
     agent-env) agent_env "$@" ;;
     *) echo "configure.sh generator|box|store|agent-env|agent|number …" >&2; exit 2 ;;
 esac

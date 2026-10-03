@@ -327,8 +327,17 @@ reported load, each offer waiting 10 s and then dropped with no retry. With one 
 beside the ghost, about half the new calls of that fleet are lost in silence until the ghost is
 gone. Every path the runtime drives — the loop's cordon and delete, a release, `cell
 release-worker`, the lab — stops the worker before the machine goes, so none of them makes a
-ghost; a machine lost to a fault does. The gateway's answer to a call nobody took, offered again
-and then given the one sentence, is planned, not built.
+ghost; a machine lost to a fault does. Since the gateway chooses the worker (above, "Who takes a
+call") the ghost takes nothing: a worker unheard for 12 s is never offered a call, and one offered
+to it before that is offered again at 12 s. Measured on 2026-10-03 in the lab (two e2-standard-8
+machines of 32 slots, 16 calls at one a second, the second machine powered off at once at the 8th
+call, `measure.py --workers 2 --kill-at 8`): **16 of 16 started**; the 5 on the dead machine heard
+the sentence and ended as drained; the 2 the gateway had offered it before it was known dead
+were offered again at 12 s to the other and started; none went to the overflow, none was silent;
+131 of 132 turns answered, first audio 1.23 / 1.31 s. With the gateway choosing, the same lab on
+one worker machine held its numbers: 24 of 24 (first audio 1.23 / 1.31 s), 32 of 32 (1.26 /
+1.40 s, 378 of 382 turns) and 32 of 32 at two a second (1.24 / 1.32 s, 370 of 370), every call
+live 0.1 s after it rang.
 
 Measured on 2026-10-01 (a spoken call, its worker SIGKILLed 25 s in): **20.5 s** from the kill to
 `call.ended drained` on the log — LiveKit's connection timeout for the agent, which leaves as
