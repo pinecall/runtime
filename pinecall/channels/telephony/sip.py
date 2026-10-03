@@ -24,12 +24,12 @@ from psycopg.rows import DictRow
 
 from pinecall.channels import rooms
 from pinecall.channels.rooms import Dispatch
-from pinecall.channels.telephony.twilio import TWILIO_SIGNALLING
+from pinecall.channels.telephony.carrier import Fence, fence_of
 from pinecall.domain.errors import NotAvailable
 from pinecall.domain.names import Env
 from pinecall.fleet import worlds
 from pinecall.process.connections import Connections
-from pinecall.tenancy.carriers import Carrier, SipPeer, TwilioAccount, WhatsappAccount, carriers_of
+from pinecall.tenancy.carriers import Carrier, carriers_of
 
 logger = logging.getLogger(__name__)
 
@@ -47,16 +47,6 @@ TO_REBUILD = """
 SELECT org, number, env, account, networks FROM routes
 WHERE channel = 'phone' AND number IS NOT NULL ORDER BY org, added_at, number
 """
-
-
-@dataclass(frozen=True)
-class Fence:
-    """Who the SFU admits a number's INVITE from: one trunk per fence."""
-
-    trunk: str
-    networks: tuple[str, ...]
-    username: str = ""
-    password: str = ""
 
 
 @dataclass(frozen=True)
@@ -82,26 +72,6 @@ def domain_of(connections: Connections, world: Env) -> str:
     if not name:
         raise NotAvailable(NO_DOMAIN)
     return name
-
-
-# The kind of an account is read here, where it decides the fence, and nowhere else on the SFU.
-def fence_of(org: str, number: str, carrier: Carrier | None, networks: tuple[str, ...]) -> Fence:
-    """Who the SFU admits the number from: the account's networks, or the ones the org gave."""
-    if carrier is None:
-        if networks:
-            return Fence(trunk=f"{org}:{number}", networks=networks)
-        return Fence(trunk=org, networks=TWILIO_SIGNALLING)
-    match carrier.account:
-        case TwilioAccount() | WhatsappAccount():
-            return Fence(trunk=org, networks=TWILIO_SIGNALLING)
-        case SipPeer():
-            peer = carrier.account
-            return Fence(
-                trunk=f"{org}:{peer.username}",
-                networks=tuple(peer.addresses),
-                username=peer.username,
-                password=peer.password,
-            )
 
 
 def rule_name(org: str, env: Env) -> str:

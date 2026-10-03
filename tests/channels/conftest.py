@@ -10,7 +10,7 @@ import pytest
 from cryptography.fernet import Fernet
 from livekit import api
 
-from pinecall.channels.telephony import twilio
+from pinecall.channels.telephony._twilio import verify
 from pinecall.domain.names import Env
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
@@ -94,7 +94,7 @@ async def line(pool: Pool, graph: Graph) -> AsyncIterator[Line]:
 
 async def brought(line: Line) -> None:
     """The org brought its Twilio account, the pair tried first as the door does."""
-    await twilio.verify(line.connections.http, line.account())
+    await verify(line.connections.http, line.account())
     await carriers.put_carrier(
         line.connections.pool, line.connections.vault, line.org, line.account()
     )
