@@ -150,7 +150,10 @@ def routes_group(group: argparse.ArgumentParser) -> None:
     listing.add_argument("--org", default=DEFAULT_ORG)
     listing.add_argument("--env", default="production", choices=("production", "sandbox"))
     listing.set_defaults(run=_knocking(routes_list))
-    add = under.add_parser("add")
+    add = under.add_parser(
+        "add",
+        help="route a number the carrier already sends here; for a new one, the org's Numbers",
+    )
     add.add_argument("number")
     add.add_argument("agent")
     add.add_argument("--channel", default="phone", choices=("phone", "whatsapp"))

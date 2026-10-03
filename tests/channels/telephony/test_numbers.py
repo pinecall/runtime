@@ -259,6 +259,22 @@ async def test_a_whatsapp_number_moves_world_by_its_row_and_nothing_lands_on_the
     assert line.rules() == []
 
 
+@postgres
+async def test_an_operators_route_is_admitted_at_once_and_touches_no_account(line: Line) -> None:
+    await brought(line)
+    requests = len(line.twilio.requests)
+    typed = await numbers.type_route(
+        line.connections, NumberImport(line.scope(), "recepcion", A_NUMBER, account="ignored")
+    )
+    assert all(not step.startswith("Twilio") for step in typed.steps)
+    assert len(line.twilio.requests) == requests
+    assert list(line.trunk(line.org).numbers) == [A_NUMBER]
+    assert list(line.rule("production").numbers) == [A_NUMBER]
+    kept = await routes.record_of(line.connections.pool, line.org, A_NUMBER)
+    assert kept is not None
+    assert kept.origin == "typed"
+
+
 # ── buying on the box's account ──
 
 
