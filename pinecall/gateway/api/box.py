@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import StreamingResponse
 
 from pinecall.channels import routes
+from pinecall.channels.telephony import numbers
+from pinecall.channels.telephony.numbers import NumberImport
 from pinecall.domain.call import Route
 from pinecall.domain.errors import Conflict, NotAvailable, NotFound
 from pinecall.domain.names import PRODUCTION, Env
@@ -301,27 +303,25 @@ async def list_box_routes(
     ]
 
 
-# One row per number per org: a number added again moves.
+# One row per number per org: a number added again moves. It is admitted on the SFU at once;
+# the carrier is never touched, so it rings only where the carrier already points it here.
 @router.post("/v1/ops/routes")
 async def add_box_route(body: RouteRequest, gateway: GatewayDep) -> RouteRow:
     """A number answered by this org's agent, in this world, on this channel."""
-    route = Route(
-        org=await _org_id(gateway, body.org),
-        agent=body.agent,
-        channel=body.channel,
-        number=body.number,
-        env=body.env,
-    )
-    await routes.put(gateway.connections.pool, route, origin="typed", account=None)
-    return _route_row(route)
+    scope = Scope(org=await _org_id(gateway, body.org), env=body.env)
+    wanted = NumberImport(scope, body.agent, body.number, channel=body.channel)
+    typed = await numbers.type_route(gateway.connections, wanted)
+    return _route_row(typed.route)
 
 
 @router.delete("/v1/ops/routes/{number}", status_code=204)
 async def drop_box_route(number: str, gateway: GatewayDep, org: Annotated[str, Query()]) -> None:
-    """The org's route at the number forgotten; 404 for a number nobody typed."""
+    """The org's route at the number forgotten, and its admission; 404 for a number nobody typed."""
     found = await _org_id(gateway, org)
-    if not await routes.remove(gateway.connections.pool, found, number):
+    route = await routes.of_number(gateway.connections.pool, found, number)
+    if route is None:
         raise NotFound(NO_SUCH_ROUTE.format(number=number, slug=org))
+    await numbers.release(gateway.connections, found, number, route.env)
 
 
 # What a number would do if it rang now: whose it is, how it came, and whether anyone picks up.

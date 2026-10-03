@@ -121,9 +121,13 @@ dial to the number, placed or refused, forgotten by the same run after 24 months
 ## Routes
 
 `GET /v1/ops/routes?org=&env=` (production unless asked), `POST /v1/ops/routes {org, number, agent,
-channel, env}` (one row per number per org: added again, it moves), `DELETE /v1/ops/routes/{number}?org=`
-(`404` for a number nobody typed). A number an org imported through its own carrier is
-[numbers.md](numbers.md); these are the operator's rows.
+channel, env}` (one row per number per org: added again, it moves) and `DELETE
+/v1/ops/routes/{number}?org=` (`404` for a number nobody typed) are the operator's rows, written
+with `origin: typed`. A row is admitted on the SFU when it is written, the way a hooked number is
+(the org's trunk, fenced to Twilio's networks, and its world's rule), and let go of there when it is
+deleted; a number another org's trunk already lists is `409` and nothing is written. The carrier is
+never touched: a typed row rings only where the carrier already sends the number to this box. A
+number an org brings itself is [numbers.md](numbers.md).
 
 `GET /v1/ops/numbers` is every route of the box at once, every org and both worlds, by number: what
 a call to each number would do now. A row is `{number, channel, org, env, agent, came_in, running,

@@ -223,8 +223,8 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/ops/providers` | operator | The providers row: defaults, models, voices, tuning, rates, the judge, the embedder. |
 | `PUT` | `/v1/ops/providers` | operator | The providers row replaced whole; a vendor not installed or not doing its stage refused. |
 | `GET` | `/v1/ops/routes` | operator | Every number the org answers at in the world, oldest first. |
-| `POST` | `/v1/ops/routes` | operator | A number answered by this org's agent, in this world, on this channel. |
-| `DELETE` | `/v1/ops/routes/{number}` | operator | The org's route at the number forgotten; 404 for a number nobody typed. |
+| `POST` | `/v1/ops/routes` | operator | A number answered by this org's agent, in this world, on this channel; admitted on the SFU at once, the carrier untouched. |
+| `DELETE` | `/v1/ops/routes/{number}` | operator | The org's route at the number forgotten, and its admission; 404 for a number nobody typed. |
 | `GET` | `/v1/ops/traceback` | operator | Every phone call with a number, kept or erased, and every dial to it, of every org. |
 | `GET` | `/v1/ops/signin` | operator | Every provider the box could offer every org's people: none wired in this version. |
 | `DELETE` | `/v1/ops/signin/google` | operator | Refused: box-wide Google sign-in is not in this version. |

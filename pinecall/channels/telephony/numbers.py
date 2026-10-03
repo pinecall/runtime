@@ -265,6 +265,16 @@ async def import_number(connections: Connections, wanted: NumberImport) -> Plan:
     return Plan(route=survey.route, steps=steps, dry_run=False)
 
 
+# The operator's row is admitted like a hooked number, at once, and says who wrote it.
+async def type_route(connections: Connections, wanted: NumberImport) -> Plan:
+    """Route a number the box's operator names: on the SFU and in the table, no account touched."""
+    survey = await _survey_import(connections, replace(wanted, hooked=True, account=None))
+    survey.origin = "typed"
+    steps = _steps(survey, done=True)
+    await _write_hook(connections, survey)
+    return Plan(route=survey.route, steps=steps, dry_run=False)
+
+
 async def plan_import(connections: Connections, wanted: NumberImport) -> Plan:
     """What importing the number would do, writing nothing."""
     survey = await _survey_import(connections, wanted)

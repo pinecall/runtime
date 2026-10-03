@@ -2,6 +2,8 @@
 
 from dataclasses import replace
 
+from livekit.protocol.sip import ListSIPInboundTrunkRequest
+
 from pinecall.channels import routes
 from pinecall.domain.call import Route
 from pinecall.tenancy import orgs
@@ -66,6 +68,14 @@ async def test_the_brand_changes_field_by_field_and_an_empty_field_goes_back(
     assert refused.status_code == 400
 
 
+async def admitting(knocking: Knocking) -> list[tuple[str, list[str]]]:
+    """Every inbound trunk on the box's SFU, by name, with the numbers it admits."""
+    listed = await knocking.gateway.connections.server.sip.list_inbound_trunk(
+        ListSIPInboundTrunkRequest()
+    )
+    return [(trunk.name, list(trunk.numbers)) for trunk in listed.items]
+
+
 @postgres
 async def test_box_wide_sign_in_is_named_and_refused_in_this_version(knocking: Knocking) -> None:
     with_an_ops_key(knocking)
@@ -90,6 +100,7 @@ async def test_the_operator_types_lists_and_forgets_a_route(knocking: Knocking) 
             "/v1/ops/routes",
             json={"org": org, "number": "+59829001199", "agent": AGENT, "channel": "phone"},
         )
+        admitted = await admitting(knocking)
         listed = await operator.get("/v1/ops/routes", params={"org": org})
         sandbox = await operator.get("/v1/ops/routes", params={"org": org, "env": "sandbox"})
         gone = await operator.delete("/v1/ops/routes/+59829001199", params={"org": org})
@@ -97,11 +108,30 @@ async def test_the_operator_types_lists_and_forgets_a_route(knocking: Knocking) 
         nobody = await operator.get("/v1/ops/routes", params={"org": "nobody"})
     assert added.status_code == 200
     assert (added.json()["env"], added.json()["managed"]) == ("production", False)
+    assert admitted == [(org, ["+59829001199"])]
     assert [route["number"] for route in listed.json()] == ["+59829001199"]
     assert sandbox.json() == []
     assert gone.status_code == 204
+    assert await admitting(knocking) == []
     assert again.status_code == 404
     assert nobody.status_code == 404
+
+
+@postgres
+async def test_a_number_another_org_answers_is_refused_before_anything_is_written(
+    knocking: Knocking,
+) -> None:
+    with_an_ops_key(knocking)
+    other = await orgs.create(knocking.gateway.connections.pool, "otra", "Otra")
+    wanted = {"number": "+59829001199", "agent": AGENT, "channel": "phone"}
+    async with knocking.http(THE_OPS_KEY) as operator:
+        first = await operator.post("/v1/ops/routes", json={**wanted, "org": other.id})
+        second = await operator.post("/v1/ops/routes", json={**wanted, "org": knocking.org.id})
+        theirs = await operator.get("/v1/ops/routes", params={"org": knocking.org.id})
+    assert first.status_code == 200
+    assert second.status_code == 409
+    assert "another org's trunk" in second.text
+    assert theirs.json() == []
 
 
 @postgres
