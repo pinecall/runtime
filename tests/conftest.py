@@ -476,13 +476,15 @@ async def a_developer(knocking: Knocking, email: str) -> tuple[str, str]:
     return member.id, secret
 
 
-def a_worker_heard(roster: Roster, fleet: str = "pinecall-sandbox") -> None:
-    """The fleet's worker w1, heard just now with its four seats free."""
+def a_worker_heard(
+    roster: Roster, fleet: str = "pinecall-sandbox", worker: str = "w1", active: int = 0
+) -> None:
+    """A worker of the fleet with four seats, heard just now holding `active` calls."""
     beat = HeartbeatRequest(
         fleet=fleet,
-        worker="w1",
-        agent_name=f"{fleet}/w1",
-        active=0,
+        worker=worker,
+        agent_name=f"{fleet}/{worker}",
+        active=active,
         max_jobs=4,
         load=0.0,
         draining=False,

@@ -7,8 +7,7 @@ from pinecall.channels.offers import OFFERED_AGAIN_AFTER_S, OFFERS, Offering
 from pinecall.fleet.roster import Roster
 from pinecall.gateway.dispatching.sweep import swept
 from pinecall.postgres.pool import Pool
-from pinecall.wire.rest.fleet import HeartbeatRequest
-from tests.conftest import postgres
+from tests.conftest import a_worker_heard, postgres
 from tests.fakes.livekit import Server
 
 pytestmark = postgres
@@ -20,16 +19,7 @@ def an_offering_of(pool: Pool, server: Server, *workers: str) -> Offering:
     """The gateway's dispatcher with these workers of the fleet heard just now, seats free."""
     roster = Roster()
     for worker in workers:
-        beat = HeartbeatRequest(
-            fleet="pinecall",
-            worker=worker,
-            agent_name=f"pinecall/{worker}",
-            active=0,
-            max_jobs=4,
-            load=0.0,
-            draining=False,
-        )
-        roster.report(beat, time.time())
+        a_worker_heard(roster, "pinecall", worker)
     return Offering(pool=pool, server=server, roster=roster)
 
 

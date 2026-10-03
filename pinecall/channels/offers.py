@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from livekit import api
 
 from pinecall.channels import rooms
-from pinecall.channels._chooser import chosen, free_seats
+from pinecall.channels._chooser import HEARD_WITHIN_S, any_heard, chosen, free_seats
 from pinecall.channels.rooms import Dispatch
 from pinecall.fleet.roster import Roster, overflow_name
 from pinecall.postgres.pool import Pool
@@ -20,6 +20,10 @@ OFFERED_AGAIN_AFTER_S = 12.0
 
 # Three offers, then the overflow's sentence: 36 s is the longest a caller waits on our account.
 OFFERS = 3
+
+# A fleet none of whose workers was heard is one the gateway knows nothing of yet (it just
+# started): the room waits for the next sweep, up to as long as a worker takes to be heard.
+WAITS_FOR_A_WORKER_S = HEARD_WITHIN_S
 
 # The rooms counted as waiting for a worker: the ones a caller joined in the last ten minutes.
 WAITING_COUNTED_S = 600.0
@@ -46,7 +50,7 @@ RETURNING room
 """
 
 DUE = """
-SELECT room, fleet, dispatch, worker, offers FROM offers
+SELECT room, fleet, dispatch, seen_at, worker, offers FROM offers
 WHERE offered_at IS NULL OR offered_at < %(before)s
 ORDER BY seen_at LIMIT %(limit)s
 """
@@ -69,6 +73,8 @@ KEPT_SINCE = "SELECT count(*) AS kept FROM offers WHERE seen_at < %(before)s"
 
 OFFERED = "room %s: offered to %s: %s"
 
+NOT_YET = "room %s: %s; offered at the next sweep"
+
 OFFERED_AGAIN = "room %s: no worker opened it in %.0f s; offered to %s (offer %d): %s"
 
 TO_THE_OVERFLOW = "room %s: %s; the overflow says the sentence"
@@ -81,6 +87,7 @@ class Offer:
     room: str
     fleet: str
     dispatch: str
+    seen_at: float
     worker: str | None
     offers: int
 
@@ -96,18 +103,22 @@ class Offering:
     roster: Roster
 
     async def offer(self, room: str, fleet: str, dispatch: Dispatch) -> str | None:
-        """Send a fleet's worker into the room; the name it went to, or None if it was offered."""
+        """Keep the room and offer it; the name it went to, or None if kept already or not yet."""
         written = rooms.written(dispatch)
-        if not await opened(self.pool, room, fleet, written, time.time()):
+        now = time.time()
+        if not await opened(self.pool, room, fleet, written, now):
             return None
         return await self.offered(
-            Offer(room=room, fleet=fleet, dispatch=written, worker=None, offers=0)
+            Offer(room=room, fleet=fleet, dispatch=written, seen_at=now, worker=None, offers=0)
         )
 
     async def offered(self, offer: Offer) -> str | None:
-        """Offer the room to the worker it should go to now; the name, or None if taken already."""
+        """Offer the room to the worker it should go to now; the name, or None if not offered."""
         now = time.time()
         target, why = await _target(self.pool, self.roster, offer, now)
+        if target is None:
+            logger.info(NOT_YET, offer.room, why)
+            return None
         if not await claimed(self.pool, offer, target, now):
             return None
         await rooms.dispatched(self.server, offer.room, target, rooms.read_dispatch(offer.dispatch))
@@ -180,15 +191,18 @@ async def examined(pool: Pool, now: float) -> str | None:
     return UNSWEPT.format(n=kept) if kept else None
 
 
-# The worker chosen, or the overflow when the offers ran out or no worker has a seat; and why,
-# so the log says it.
-async def _target(pool: Pool, roster: Roster, offer: Offer, now: float) -> tuple[str, str]:
+# The worker chosen; the overflow when the offers ran out or the workers heard have no seat; None
+# while no worker of the fleet was heard yet. And why, so the log says it.
+async def _target(pool: Pool, roster: Roster, offer: Offer, now: float) -> tuple[str | None, str]:
     if offer.offers >= OFFERS:
         return overflow_name(offer.fleet), f"no worker opened it in {OFFERS} offers"
     flying = await in_flight(pool, now - OFFERED_AGAIN_AFTER_S)
     tried = () if offer.worker is None else (offer.worker,)
-    seat = chosen(roster.of(offer.fleet, now), flying, now, not_these=tried)
-    if seat is None or seat.agent_name is None:
-        return overflow_name(offer.fleet), "no worker of the fleet has a seat"
-    free = free_seats(seat, flying)
-    return seat.agent_name, f"{free} seats free, heard {now - seat.seen_at:.0f} s ago"
+    seats = roster.of(offer.fleet, now)
+    seat = chosen(seats, flying, now, not_these=tried)
+    if seat is not None and seat.agent_name is not None:
+        free = free_seats(seat, flying)
+        return seat.agent_name, f"{free} seats free, heard {now - seat.seen_at:.0f} s ago"
+    if not any_heard(seats, now) and now - offer.seen_at < WAITS_FOR_A_WORKER_S:
+        return None, f"no worker of the fleet heard in {HEARD_WITHIN_S:.0f} s"
+    return overflow_name(offer.fleet), "no worker of the fleet has a seat"

@@ -11,7 +11,7 @@ from pinecall.domain.org import DEFAULT_ORG
 from pinecall.domain.person import THE_FLEET, THE_JOIN
 from pinecall.fleet import worlds
 from pinecall.gateway._deps import FleetKey, GatewayDep, JoinKey, bearer_of, operator, public_url
-from pinecall.gateway.dispatching.arrivals import arrived
+from pinecall.gateway.dispatching.arrivals import arrived, settled
 from pinecall.gateway.ending.stranded import stranded
 from pinecall.tenancy import keys
 from pinecall.tenancy.people import fingerprint
@@ -52,6 +52,8 @@ async def heartbeat(
 @router.post("/v1/livekit/webhook", status_code=204)
 async def receive_livekit_event(request: Request, gateway: GatewayDep) -> None:
     """A room event LiveKit signed: a caller alone is offered a worker; an agent lost, told."""
+    # In this order: a worker gone sends the sentence, a caller alone is offered a worker, and a
+    # room an agent joined or that ended is let go; each event moves one of the three.
     token = request.headers.get("Authorization")
     if not token:
         raise NotAllowed(UNSIGNED)
@@ -62,6 +64,7 @@ async def receive_livekit_event(request: Request, gateway: GatewayDep) -> None:
     )
     await stranded(gateway.serving, gateway.offering, event)
     await arrived(gateway.offering, event)
+    await settled(gateway.offering, event)
 
 
 # The loop asks for one before it makes a machine and hands it over as the machine's first-boot

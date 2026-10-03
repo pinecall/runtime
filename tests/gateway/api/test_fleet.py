@@ -14,6 +14,7 @@ from tests.conftest import (
     FLEETS,
     LIVEKIT_KEY,
     Knocking,
+    a_worker_heard,
     postgres,
 )
 from tests.fakes.livekit import Server, signed
@@ -78,6 +79,7 @@ async def test_livekit_saying_an_agent_was_lost_ends_its_call_and_sends_the_flee
     server = knocking.gateway.connections.server
     assert isinstance(server, Server)
     server.rooms.people = {context.call}
+    a_worker_heard(knocking.gateway.roster)
     body = agent_lost(context.call)
     async with knocking.http("unused") as livekit:
         answered = await livekit.post(
@@ -88,7 +90,9 @@ async def test_livekit_saying_an_agent_was_lost_ends_its_call_and_sends_the_flee
         "call.started",
         "call.ended",
     ]
-    assert [made.room for made in server.dispatcher.made] == [context.call]
+    assert [(made.room, made.agent_name) for made in server.dispatcher.made] == [
+        (context.call, "pinecall-sandbox/w1")
+    ]
 
 
 @postgres
