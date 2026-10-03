@@ -5,6 +5,8 @@
 - **A chat in a room ends after ten minutes without a message.** It was the one call with no
   ceiling, and a visitor who left pinecall.io's chat open held a production seat for over an hour
   on 2026-10-03. It ends as `timeout`, the ten minutes the voice ceiling has.
+- `gcp-mig.py delete` asks the group's list first and deletes only a machine still on it, instead
+  of reading a refusal's text to tell one already gone.
 - `gcp-mig.py list` leaves out a machine the group is deleting: it stays listed for about a minute
   after its delete returned, and the loop decided its delete again every tick (four times in
   production on 2026-10-03). The script's verbs have a test on a fake Compute API (`tests/infra/`).

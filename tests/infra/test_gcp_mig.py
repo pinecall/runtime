@@ -126,12 +126,33 @@ def test_create_asks_the_group_for_the_name_and_waits_for_the_operation(
     ]
 
 
-def test_delete_of_a_machine_already_out_of_the_group_is_nothing(
+def test_delete_asks_the_group_only_for_a_machine_it_still_lists(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    api = ComputeApi({f"{GROUP}/deleteInstances": refusal(400, b"instance is not a member")})
+    listed = {
+        "managedInstances": [
+            {"instance": f"https://x/{AT}/instances/pinecall-worker-1", "currentAction": "NONE"}
+        ]
+    }
+    made = {"creationTimestamp": "2026-10-03T15:23:11.000-07:00"}
+    api = ComputeApi(
+        {
+            f"{GROUP}/listManagedInstances": listed,
+            f"{AT}/instances/pinecall-worker-1": made,
+            f"{GROUP}/deleteInstances": {"name": "op-2", "status": "DONE"},
+        }
+    )
     assert ran(monkeypatch, api, "delete", "pinecall-worker-9")[0] == 0
-    assert [sent[1] for sent in api.sent] == [f"{GROUP}/deleteInstances"]
+    assert [sent[1] for sent in api.sent if "deleteInstances" in sent[1]] == []
+    assert ran(monkeypatch, api, "delete", "pinecall-worker-1")[0] == 0
+    deletes = [sent for sent in api.sent if "deleteInstances" in sent[1]]
+    assert deletes == [
+        (
+            "POST",
+            f"{GROUP}/deleteInstances",
+            {"instances": ["zones/us-central1-c/instances/pinecall-worker-1"]},
+        )
+    ]
 
 
 def test_a_verb_it_does_not_have_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
