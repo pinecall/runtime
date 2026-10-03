@@ -15,15 +15,15 @@ from psycopg.rows import DictRow
 
 from pinecall.channels import rooms, routes
 from pinecall.channels.rooms import Dialling, Dispatch
-from pinecall.channels.telephony.sip import domain_of
-from pinecall.channels.telephony.twilio import (
+from pinecall.channels.telephony._twilio import (
     TERMINATION_SUFFIX,
     Twilio,
     TwilioTrunk,
     origination_uri,
     termination_host,
-    twilio_of,
 )
+from pinecall.channels.telephony.carrier import control_of, dialled_of, missing_to_dial
+from pinecall.channels.telephony.sip import domain_of
 from pinecall.domain.call import CallContext, new_call_id
 from pinecall.domain.errors import (
     Conflict,
@@ -41,11 +41,8 @@ from pinecall.process.connections import Connections
 from pinecall.tenancy import admission
 from pinecall.tenancy.carriers import (
     Carrier,
-    SipPeer,
     Termination,
     Transport,
-    TwilioAccount,
-    WhatsappAccount,
     carrier_named,
     seal_carrier,
 )
@@ -64,17 +61,6 @@ NOT_OUR_NUMBER = "{shown} is not a number agent {agent} answers at in the {env}"
 
 DIALS_THROUGH_NOTHING = (
     "{shown} was hooked by the org or bought by the box: it dials through no account of the org"
-)
-
-
-NOT_PROVISIONED = (
-    "the org's account {account} cannot place a call yet: POST /v1/carrier/outbound provisions it"
-)
-
-
-NO_OUTBOUND_HOST = (
-    "SIP peer {account} declared no outbound_host: the networks a peer calls FROM are not an "
-    "address it takes calls AT"
 )
 
 
@@ -188,7 +174,7 @@ async def outbound_readiness(
             steps_missing=[str(missing)],
             guards=guards,
         )
-    missing = _missing_to_dial(carrier)
+    missing = missing_to_dial(carrier)
     if not numbers:
         missing.append(f"the org answers at no phone number in the {scope.env}: a call shows one")
     return OutboundReadiness(
@@ -314,7 +300,7 @@ async def leg_trunk(connections: Connections, dial: Dial) -> LegTrunk:
         if not doors:
             raise NotFound(NO_PHONE_DOOR.format(agent=dial.agent, env=scope.env))
         shown = str(doors[0].number)
-    return _dialled_through(await _dials_through(connections, scope, shown), shown)
+    return _leg_through(await _dials_through(connections, scope, shown), shown)
 
 
 def sip_config(leg: LegTrunk) -> SIPOutboundConfig:
@@ -327,44 +313,23 @@ def sip_config(leg: LegTrunk) -> SIPOutboundConfig:
     )
 
 
-# The kind decides how a leg is dialled out, here and in `_dialled_through`.
-def _missing_to_dial(carrier: Carrier) -> list[str]:
-    match carrier.account:
-        case TwilioAccount():
-            return [] if carrier.outbound else [NOT_PROVISIONED.format(account=carrier.id)]
-        case SipPeer():
-            return (
-                []
-                if carrier.account.outbound_host
-                else [NO_OUTBOUND_HOST.format(account=carrier.id)]
-            )
-        case WhatsappAccount():
-            return [f"{carrier.id} is a WhatsApp number: it places no call"]
-
-
 # This box makes nothing on somebody else's switch: a peer is dialled where it said.
 async def _surveyed(connections: Connections, carrier: Carrier, world: Env) -> OutboundSurvey:
-    match carrier.account:
-        case TwilioAccount():
-            return await _twilio_surveyed(connections, carrier, carrier.account, world)
-        case SipPeer() if carrier.account.outbound_host:
-            peer = carrier.account
-            where = f"{peer.outbound_host} over {peer.outbound_transport}"
-            return OutboundSurvey(
-                steps=[f"SIP peer: dialled at {where}: stands"], address=peer.outbound_host
-            )
-        case SipPeer() | WhatsappAccount():
-            raise Conflict(_missing_to_dial(carrier)[0])
+    control = control_of(connections.http, carrier)
+    if control is not None:
+        return await _twilio_surveyed(connections, carrier, control, world)
+    dialled = dialled_of(carrier)
+    where = f"{dialled.hostname} over {dialled.transport}"
+    return OutboundSurvey(steps=[f"SIP peer: dialled at {where}: stands"], address=dialled.hostname)
 
 
 # Read before anything is written, so a plan and a provisioning see the same account.
 async def _twilio_surveyed(
-    connections: Connections, carrier: Carrier, account: TwilioAccount, world: Env
+    connections: Connections, carrier: Carrier, twilio: Twilio, world: Env
 ) -> OutboundSurvey:
     domain = domain_of(connections, world)
-    twilio = twilio_of(connections.http, account)
     trunk = await twilio.trunk_pointing_at(origination_uri(domain))
-    host = termination_host(domain, account.account_sid)
+    host = termination_host(domain, twilio.sid)
     # One list per trunk, as the trunk is per account and box; one credential per org on it,
     # so two orgs that brought the same account each dial with their own.
     name = host.removesuffix(TERMINATION_SUFFIX)
@@ -372,9 +337,7 @@ async def _twilio_surveyed(
     listed = await twilio.credential_list(name)
     holds = listed is not None and username in await twilio.usernames_in(listed)
     if holds and carrier.outbound is None:
-        raise Conflict(
-            CREDENTIALS_LOST.format(account=account.account_sid, username=username, name=name)
-        )
+        raise Conflict(CREDENTIALS_LOST.format(account=twilio.sid, username=username, name=name))
     on_trunk = (
         trunk is not None and listed is not None and listed in await twilio.lists_on(trunk.sid)
     )
@@ -427,36 +390,21 @@ async def _dials_through(connections: Connections, scope: Scope, shown: str) -> 
     if account is None:
         raise Conflict(DIALS_THROUGH_NOTHING.format(shown=shown))
     carrier = await carrier_named(connections.pool, connections.vault, scope.org, str(account))
-    missing = _missing_to_dial(carrier)
+    missing = missing_to_dial(carrier)
     if missing:
         raise Conflict(missing[0])
     return carrier
 
 
-def _dialled_through(carrier: Carrier, shown: str) -> LegTrunk:
-    match carrier.account:
-        case TwilioAccount():
-            termination = carrier.outbound
-            if termination is None:
-                raise Conflict(NOT_PROVISIONED.format(account=carrier.id))
-            return LegTrunk(
-                hostname=termination.host,
-                transport="auto",
-                username=termination.username,
-                password=termination.password,
-                shown=shown,
-            )
-        case SipPeer():
-            peer = carrier.account
-            return LegTrunk(
-                hostname=str(peer.outbound_host),
-                transport=peer.outbound_transport,
-                username=peer.outbound_username or peer.username,
-                password=peer.outbound_password or peer.password,
-                shown=shown,
-            )
-        case WhatsappAccount():
-            raise Conflict(_missing_to_dial(carrier)[0])
+def _leg_through(carrier: Carrier, shown: str) -> LegTrunk:
+    dialled = dialled_of(carrier)
+    return LegTrunk(
+        hostname=dialled.hostname,
+        transport=dialled.transport,
+        username=dialled.username,
+        password=dialled.password,
+        shown=shown,
+    )
 
 
 async def _calling_from(pool: Pool, scope: Scope) -> list[DictRow]:

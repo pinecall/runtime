@@ -3,8 +3,7 @@
 import httpx
 import pytest
 
-from pinecall.channels.telephony import twilio
-from pinecall.channels.telephony.twilio import Twilio, origination_uri, termination_host
+from pinecall.channels.telephony._twilio import Twilio, origination_uri, termination_host, verify
 from pinecall.domain.errors import DeclarationRefused, UpstreamFailed
 from pinecall.tenancy import carriers
 from tests.channels.conftest import Line
@@ -58,5 +57,5 @@ async def test_a_pair_twilio_refuses_is_refused_in_our_words_before_anything_is_
 ) -> None:
     wrong = line.account().model_copy(update={"secret": "not it"})
     with pytest.raises(DeclarationRefused, match="Twilio refused"):
-        await twilio.verify(line.connections.http, wrong)
+        await verify(line.connections.http, wrong)
     assert await carriers.carriers_of(line.connections.pool, line.connections.vault, line.org) == []

@@ -30,20 +30,6 @@ ACCOUNTS = "https://api.twilio.com/2010-04-01"
 TIMEOUT_S = 30.0
 
 
-# Twilio's signalling edges (twilio.com/docs/sip-trunking/ip-addresses): the fence of every
-# Twilio number on the SFU, and the set nftables.conf opens 5060 to. A test holds them equal.
-TWILIO_SIGNALLING: tuple[str, ...] = (
-    "54.172.60.0/30",
-    "54.244.51.0/30",
-    "54.171.127.192/30",
-    "35.156.191.128/30",
-    "54.65.63.192/30",
-    "54.169.127.128/30",
-    "54.252.254.64/30",
-    "177.71.206.192/30",
-)
-
-
 # livekit-sip listens here (infra/box/sip.yaml), and nftables opens it to the carrier alone.
 SIP_PORT = 5060
 

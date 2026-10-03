@@ -6,7 +6,8 @@ import pytest
 from livekit import api
 
 from pinecall.channels import rooms
-from pinecall.channels.telephony import dialing, numbers, twilio
+from pinecall.channels.telephony import dialing, numbers
+from pinecall.channels.telephony._twilio import termination_host
 from pinecall.channels.telephony.dialing import Placement
 from pinecall.channels.telephony.numbers import NumberImport
 from pinecall.domain.errors import (
@@ -105,7 +106,7 @@ async def test_a_credential_whose_password_the_box_lost_is_refused_naming_it(
     line: Line,
 ) -> None:
     await brought(line)
-    host = twilio.termination_host(DOMAIN, line.twilio.account_sid)
+    host = termination_host(DOMAIN, line.twilio.account_sid)
     label = host.removesuffix(".pstn.twilio.com")
     lost = [(credential_of(line.org), "a password nobody here kept")]
     line.twilio.credential_lists[a_sid("CL", 9)] = (label, lost)

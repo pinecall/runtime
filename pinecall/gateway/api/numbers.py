@@ -7,7 +7,8 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from pinecall.channels import routes
-from pinecall.channels.telephony import dialing, numbers, twilio
+from pinecall.channels.telephony import dialing, numbers
+from pinecall.channels.telephony.carrier import verify_account
 from pinecall.channels.telephony.dialing import Placement
 from pinecall.channels.telephony.numbers import NumberImport, NumberPurchase
 from pinecall.domain.call import today_in
@@ -25,7 +26,6 @@ from pinecall.gateway._deps import (
     asked_by,
 )
 from pinecall.tenancy import carriers, consents, keys, tokens
-from pinecall.tenancy.carriers import TwilioAccount
 from pinecall.tenancy.consents import Given
 from pinecall.tenancy.dial_policy import Dial
 from pinecall.wire.rest.numbers import (
@@ -109,8 +109,7 @@ async def list_carriers(key: NumbersKey, gateway: GatewayDep) -> CarrierList:
 @router.put("/v1/carrier")
 async def put_carrier(body: carriers.Account, key: NumbersKey, gateway: GatewayDep) -> CarrierRow:
     """Keep an account of the org: a Twilio account, a SIP peer, a WhatsApp number at Meta."""
-    if isinstance(body, TwilioAccount):
-        await twilio.verify(gateway.connections.http, body)
+    await verify_account(gateway.connections.http, body)
     carrier = await carriers.put_carrier(
         gateway.connections.pool, gateway.connections.vault, key.org, body
     )

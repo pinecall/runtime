@@ -4,7 +4,7 @@ import re
 
 from livekit import api
 
-from pinecall.channels.telephony import numbers, sip, twilio
+from pinecall.channels.telephony import carrier, numbers, sip
 from pinecall.channels.telephony.numbers import NumberImport, NumberPurchase
 from pinecall.tenancy import carriers
 from tests.channels.conftest import A_NUMBER, NFTABLES, Line, a_peer, box_sells, brought
@@ -48,4 +48,4 @@ async def test_an_emptied_sfu_gets_every_trunk_and_both_worlds_rules_back(line: 
 
 def test_the_networks_a_twilio_trunk_admits_are_the_ones_the_fence_opens() -> None:
     opened = set(re.findall(r"(\d+\.\d+\.\d+\.\d+/\d+)", NFTABLES.read_text(encoding="utf-8")))
-    assert opened == set(twilio.TWILIO_SIGNALLING)
+    assert opened == set(carrier.TWILIO_SIGNALLING)

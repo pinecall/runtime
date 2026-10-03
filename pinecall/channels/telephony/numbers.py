@@ -11,14 +11,15 @@ from livekit.protocol.sip import (
 
 from pinecall.channels import routes, whatsapp
 from pinecall.channels.telephony import sip
-from pinecall.channels.telephony.sip import Fence, WorldRule, domain_of, fence_of, rule_name
-from pinecall.channels.telephony.twilio import (
+from pinecall.channels.telephony._twilio import (
     Twilio,
     TwilioNumber,
     TwilioTrunk,
     origination_uri,
     twilio_of,
 )
+from pinecall.channels.telephony.carrier import Fence, control_of, fence_of, meta_of
+from pinecall.channels.telephony.sip import WorldRule, domain_of, rule_name
 from pinecall.domain.call import Route
 from pinecall.domain.errors import (
     Conflict,
@@ -33,7 +34,6 @@ from pinecall.process.connections import Connections
 from pinecall.tenancy import admission
 from pinecall.tenancy.carriers import (
     NO_CARRIER,
-    TwilioAccount,
     WhatsappAccount,
     box_twilio,
     carrier_named,
@@ -230,23 +230,27 @@ async def owned_numbers(
         raise NotFound(NO_CARRIER)
     answering = await routes.of_org(connections.pool, scope.org, scope.env)
     imported = {route.number for route in answering if route.number is not None}
-    twilios = [
-        carrier.account for carrier in carriers if isinstance(carrier.account, TwilioAccount)
+    controlled = [
+        (carrier, control)
+        for carrier in carriers
+        if (control := control_of(connections.http, carrier)) is not None
     ]
     owned = [
         OwnedNumber(
             number=number.phone_number,
             name=number.friendly_name or number.phone_number,
             imported=number.phone_number in imported,
-            account=twilio.account_sid,
+            account=carrier.id,
         )
-        for twilio in twilios
-        for number in await twilio_of(connections.http, twilio).numbers()
+        for carrier, control in controlled
+        for number in await control.numbers()
     ]
     for carrier in carriers:
-        if isinstance(carrier.account, WhatsappAccount):
-            owned += await _at_meta(connections.http, carrier.account, imported)
-    return ("twilio" if twilios else carriers[0].account.kind), owned
+        meta = meta_of(carrier)
+        if meta is not None:
+            owned += await _at_meta(connections.http, meta, imported)
+    lister = controlled[0][0] if controlled else carriers[0]
+    return lister.account.kind, owned
 
 
 async def import_number(connections: Connections, wanted: NumberImport) -> Plan:
@@ -288,14 +292,9 @@ async def _survey_import(connections: Connections, wanted: NumberImport) -> Surv
         fleet=worlds.fleet_of(fleets, env),
         domain=domain,
     )
-    if (
-        carrier is not None
-        and isinstance(carrier.account, TwilioAccount)
-        and wanted.channel == "phone"
-    ):
-        survey.at_twilio = await _at_twilio(
-            connections, carrier.account, number, env, move=wanted.move
-        )
+    control = None if carrier is None else control_of(connections.http, carrier)
+    if control is not None and wanted.channel == "phone":
+        survey.at_twilio = await _at_twilio(connections, control, number, env, move=wanted.move)
     return await _survey_sfu(connections, survey)
 
 
@@ -333,12 +332,11 @@ async def _survey_purchase(connections: Connections, wanted: NumberPurchase) -> 
 
 
 async def _at_twilio(
-    connections: Connections, account: TwilioAccount, number: str, world: Env, *, move: bool
+    connections: Connections, twilio: Twilio, number: str, world: Env, *, move: bool
 ) -> AtTwilio:
-    twilio = twilio_of(connections.http, account)
     owned = await twilio.number(number)
     if owned is None:
-        raise NotFound(NOT_ON_ACCOUNT.format(number=number, account=account.account_sid))
+        raise NotFound(NOT_ON_ACCOUNT.format(number=number, account=twilio.sid))
     trunk = await twilio.trunk_pointing_at(origination_uri(domain_of(connections, world)))
     elsewhere = owned.trunk_sid is not None and (trunk is None or owned.trunk_sid != trunk.sid)
     if elsewhere and owned.trunk_sid is not None and not move:
@@ -348,7 +346,7 @@ async def _at_twilio(
             ON_ANOTHER_TRUNK.format(
                 number=number,
                 trunk=other.friendly_name or other.sid,
-                account=account.account_sid,
+                account=twilio.sid,
                 where=", ".join(where) or "nowhere",
             )
         )

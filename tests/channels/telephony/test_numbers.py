@@ -10,7 +10,8 @@ from cryptography.fernet import Fernet
 from livekit import api
 
 from pinecall.channels import routes
-from pinecall.channels.telephony import dialing, numbers, twilio
+from pinecall.channels.telephony import carrier, dialing, numbers
+from pinecall.channels.telephony._twilio import termination_host
 from pinecall.channels.telephony.numbers import NumberImport, NumberPurchase
 from pinecall.domain.errors import (
     Conflict,
@@ -61,7 +62,7 @@ async def test_an_import_makes_the_trunk_attaches_admits_rules_and_routes_once(
     assert line.twilio.numbers[A_NUMBER][1] == trunk.sid
     sfu = line.trunk(line.org)
     assert list(sfu.numbers) == [A_NUMBER]
-    assert list(sfu.allowed_addresses) == list(twilio.TWILIO_SIGNALLING)
+    assert list(sfu.allowed_addresses) == list(carrier.TWILIO_SIGNALLING)
     rule = line.rule("sandbox")
     assert list(rule.numbers) == [A_NUMBER]
     assert [agent.agent_name for agent in rule.room_config.agents] == ["pinecall-sandbox"]
@@ -183,7 +184,7 @@ async def test_a_number_the_org_hooks_itself_needs_no_account_and_keeps_its_own_
     await numbers.import_number(
         line.connections, NumberImport(line.scope(), "recepcion", "+15550100134", hooked=True)
     )
-    assert list(line.trunk(line.org).allowed_addresses) == list(twilio.TWILIO_SIGNALLING)
+    assert list(line.trunk(line.org).allowed_addresses) == list(carrier.TWILIO_SIGNALLING)
 
 
 @postgres
@@ -383,7 +384,7 @@ async def test_an_agent_answers_at_numbers_of_different_kinds_from_different_acc
     assert kind == "twilio"
     assert {item.account for item in owned} == {first.account_sid, second.account_sid}
     assert len(first.trunks) == len(second.trunks) == 1
-    assert leg.hostname == twilio.termination_host(DOMAIN, second.account_sid)
+    assert leg.hostname == termination_host(DOMAIN, second.account_sid)
 
 
 # ── what the accounts own ──
