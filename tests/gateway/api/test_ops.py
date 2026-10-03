@@ -131,7 +131,7 @@ async def test_an_agent_registered_in_the_wrong_org_moves_with_its_logs_and_numb
     async with knocking.http(knocking.fleet["sandbox"]) as worker:
         await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
     number = Route(org=knocking.org.id, agent=AGENT, channel="phone", number="+59829001199")
-    await routes.put(pool, number, account=None)
+    await routes.put(pool, number, origin="typed", account=None)
     async with knocking.http(THE_OPS_KEY) as operator:
         made = await operator.post(ORGS, json={"slug": "tienda"})
         target = made.json()["id"]

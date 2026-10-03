@@ -114,9 +114,11 @@ async def test_the_box_lists_every_number_how_it_came_and_whether_it_is_answered
     bought = Route(
         org=knocking.org.id, agent=AGENT, channel="phone", number="+59829001199", env="sandbox"
     )
-    await routes.put(pool, replace(bought, managed=True), account=None)
-    await routes.put(pool, replace(bought, agent="nobody", number="+59829001100"), account=None)
-    await routes.put(pool, replace(bought, org=other.id), account=None)
+    await routes.put(pool, replace(bought, managed=True), origin="bought", account=None)
+    await routes.put(
+        pool, replace(bought, agent="nobody", number="+59829001100"), origin="hooked", account=None
+    )
+    await routes.put(pool, replace(bought, org=other.id), origin="typed", account=None)
     socket = await an_app(knocking)
     async with knocking.http(THE_OPS_KEY) as operator:
         listed = await operator.get("/v1/ops/numbers")
@@ -128,7 +130,7 @@ async def test_the_box_lists_every_number_how_it_came_and_whether_it_is_answered
     ] == [
         ("+59829001100", slug, "hooked", False, None),
         ("+59829001199", slug, "bought", True, None),
-        ("+59829001199", "otra", "hooked", False, slug),
+        ("+59829001199", "otra", "typed", False, slug),
     ]
 
 

@@ -28,6 +28,11 @@ type Channel = Literal["phone", "web", "whatsapp"]
 type Direction = Literal["inbound", "outbound"]
 
 
+# How a number's row was written: bought by the box, imported from an account of the org, hooked
+# by the org from its own carrier, or typed by the box's operator.
+type RouteOrigin = Literal["bought", "imported", "hooked", "typed"]
+
+
 # e.g. clinica-norte: an agent's slug, and an org's.
 A_SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 

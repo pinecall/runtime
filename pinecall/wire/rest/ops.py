@@ -11,9 +11,10 @@ from pinecall.wire.rest.accounts import MemberRow
 from pinecall.wire.rest.fleet import FleetTotals, WorkerStatus
 from pinecall.wire.rest.numbers import DialGuards
 
-# `bought` on the box's account; `twilio`, `sip`, `whatsapp` an account of the org; `hooked`
-# nothing the box holds: pointed at the box by the org, or a row an operator typed.
-type NumberCameIn = Literal["bought", "twilio", "sip", "whatsapp", "hooked"]
+# `bought` on the box's account; `twilio`, `sip`, `whatsapp` the org's account it was imported
+# from; `imported` from an account since forgotten; `hooked` pointed at the box by the org itself;
+# `typed` a row the box's operator wrote.
+type NumberCameIn = Literal["bought", "twilio", "sip", "whatsapp", "imported", "hooked", "typed"]
 
 
 class CreateOrgRequest(WireModel):

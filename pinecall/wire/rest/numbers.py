@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import Field
 
 from pinecall.domain.call import Route
-from pinecall.domain.names import Channel, Env
+from pinecall.domain.names import Channel, Env, RouteOrigin
 from pinecall.wire.frames import WireModel
 from pinecall.wire.parts import (
     Projection,
@@ -90,9 +90,10 @@ class AvailableNumbers(WireModel):
 
 
 class NumberRow(WireModel):
-    """GET /v1/numbers, one row: a number of the org and the agent it reaches."""
+    """GET /v1/numbers, one row: a number of the org, the agent it reaches, how it was written."""
 
     route: Route
+    origin: RouteOrigin
 
 
 class ImportNumberResponse(WireModel):

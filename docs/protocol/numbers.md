@@ -90,6 +90,14 @@ the managed numbers alone: `429` before Twilio is asked. `404` when Twilio has n
 there, `503` when the box holds no Twilio account. `?dry_run=true` names the number it would buy
 and buys nothing.
 
+## The org's numbers — `GET /v1/numbers`
+
+One row per number in the key's world, oldest first: `{route, origin}`. `route` is the number, its
+channel, the agent and the world; `origin` is how the row was written — `bought` (by the box),
+`imported` (from one of the org's accounts), `hooked` (the org pointed the number at the box
+itself) or `typed` (by the box's operator, who can route a number into any org). A row the org
+did not write is how it learns the operator did; importing the number again makes it the org's.
+
 ## Letting one go, moving one — `DELETE /v1/numbers/{number}`, `PUT /v1/numbers/{number}/env`
 
 `DELETE` removes the route and takes the number off its trunk and its world's rule; the account

@@ -87,7 +87,9 @@ async def test_the_screens_import_a_dry_run_then_the_import_and_the_listing(
         (trunk,) = twilio.trunks.values()
         assert trunk.origination == [HERE]
         listing = (await console.get("/v1/numbers")).json()
-        assert [item["route"]["number"] for item in listing] == [A_NUMBER]
+        assert [(item["route"]["number"], item["origin"]) for item in listing] == [
+            (A_NUMBER, "imported")
+        ]
         assert (await console.get("/v1/numbers/available")).json()["numbers"][0]["imported"]
         assert (await console.delete(f"/v1/numbers/{A_NUMBER}")).status_code == 204
         assert (await console.get("/v1/numbers")).json() == []

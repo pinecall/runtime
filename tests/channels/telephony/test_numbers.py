@@ -63,6 +63,9 @@ async def test_an_import_makes_the_trunk_attaches_admits_rules_and_routes_once(
     sfu = line.trunk(line.org)
     assert list(sfu.numbers) == [A_NUMBER]
     assert list(sfu.allowed_addresses) == list(carrier.TWILIO_SIGNALLING)
+    kept = await routes.record_of(line.connections.pool, line.org, A_NUMBER)
+    assert kept is not None
+    assert kept.origin == "imported"
     rule = line.rule("sandbox")
     assert list(rule.numbers) == [A_NUMBER]
     assert [agent.agent_name for agent in rule.room_config.agents] == ["pinecall-sandbox"]
@@ -238,7 +241,7 @@ async def test_a_number_moved_between_worlds_moves_between_the_rules_and_never_t
     )
     trunks = dict(line.server.dialled.trunks)
     moved = await numbers.move(line.connections, line.org, A_NUMBER, "sandbox")
-    assert moved.env == "sandbox"
+    assert (moved.route.env, moved.origin) == ("sandbox", "hooked")
     assert line.rules() == [f"{line.org}:sandbox"]
     assert list(line.rule("sandbox").numbers) == [A_NUMBER]
     assert line.server.dialled.trunks == trunks
@@ -251,7 +254,7 @@ async def test_a_whatsapp_number_moves_world_by_its_row_and_nothing_lands_on_the
     wanted = NumberImport(line.scope(), "recepcion", A_NUMBER, channel="whatsapp", hooked=True)
     await numbers.import_number(line.connections, wanted)
     moved = await numbers.move(line.connections, line.org, A_NUMBER, "sandbox")
-    assert (moved.channel, moved.env) == ("whatsapp", "sandbox")
+    assert (moved.route.channel, moved.route.env) == ("whatsapp", "sandbox")
     assert line.server.dialled.trunks == {}
     assert line.rules() == []
 
@@ -282,6 +285,9 @@ async def test_a_purchase_buys_attaches_admits_and_routes_the_number_as_the_boxs
     assert line.twilio.numbers[A_NUMBER][1] is not None
     assert list(line.rule("sandbox").numbers) == [A_NUMBER]
     assert await routes.managed_in(line.connections.pool, line.org, "sandbox") == 1
+    kept = await routes.record_of(line.connections.pool, line.org, A_NUMBER)
+    assert kept is not None
+    assert kept.origin == "bought"
 
 
 @postgres

@@ -128,11 +128,13 @@ channel, env}` (one row per number per org: added again, it moves), `DELETE /v1/
 `GET /v1/ops/numbers` is every route of the box at once, every org and both worlds, by number: what
 a call to each number would do now. A row is `{number, channel, org, env, agent, came_in, running,
 answered_by}`: `org` is the slug; `came_in` is `bought` (on the box's own account), `twilio`, `sip`
-or `whatsapp` (an account of the org), or `hooked` (no account the box holds: the org pointed the
-number itself, a row an operator typed, or an account since forgotten); `running` says a process
-holds the agent in that org and world now, so a call is picked up; `answered_by` names the org whose
-older row answers the number instead of this one (two orgs typed it), and is null when this one
-does. Changing a number is the org's own door, which writes the carrier, the SFU and the row together.
+or `whatsapp` (imported from an account of the org of that kind), `imported` (from an account since
+forgotten), `hooked` (the org pointed the number at the box itself) or `typed` (a row an operator
+wrote here or with `routes add`/`routes seed`), read from the row's `origin`; `running` says a
+process holds the agent in that org and world now, so a call is picked up; `answered_by` names the
+org whose older row answers the number instead of this one (two orgs typed it), and is null when
+this one does. Changing a number is the org's own door, which writes the carrier, the SFU and the
+row together.
 
 ## The fleet
 

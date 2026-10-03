@@ -312,7 +312,7 @@ async def add_box_route(body: RouteRequest, gateway: GatewayDep) -> RouteRow:
         number=body.number,
         env=body.env,
     )
-    await routes.put(gateway.connections.pool, route, account=None)
+    await routes.put(gateway.connections.pool, route, origin="typed", account=None)
     return _route_row(route)
 
 
@@ -429,15 +429,13 @@ def _route_row(route: Route) -> RouteRow:
     )
 
 
-def _came_in(row: routes.BoxRoute) -> NumberCameIn:
-    """How the number reached the box: bought by it, an account of the org, or hooked by hand."""
-    if row.route.managed:
-        return "bought"
-    match row.carrier:
-        case "twilio" | "sip" | "whatsapp" as kind:
+def _came_in(row: routes.RouteRecord) -> NumberCameIn:
+    """How the number reached the box: the kind of the org's account it came from, or its origin."""
+    match row.origin, row.carrier:
+        case "imported", "twilio" | "sip" | "whatsapp" as kind:
             return kind
-        case _:
-            return "hooked"
+        case origin, _:
+            return origin
 
 
 async def _box_mail(gateway: Gateway) -> MailboxStatus | None:
