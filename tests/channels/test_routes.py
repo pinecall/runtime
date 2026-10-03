@@ -48,6 +48,35 @@ async def test_a_number_two_orgs_typed_answers_in_the_older_and_the_other_is_nam
 
 
 @postgres
+async def test_the_box_lists_every_route_by_number_and_the_older_row_answers(pool: Pool) -> None:
+    await typed(pool, "org_a")
+    await typed(pool, "org_b")
+    await typed(pool, "org_b", "sandbox", "+59829001100")
+    found = await routes.on_the_box(pool)
+    assert [(row.route.org, row.route.number, row.answering) for row in found] == [
+        ("org_b", "+59829001100", "org_b"),
+        ("org_a", A_NUMBER, "org_a"),
+        ("org_b", A_NUMBER, "org_a"),
+    ]
+
+
+@postgres
+async def test_a_route_of_the_box_names_the_kind_of_account_its_number_lives_in(
+    pool: Pool,
+) -> None:
+    async with pool.connection() as connection:
+        await connection.execute("insert into orgs (id, slug, name) values ('org_a', 'a', 'A')")
+        await connection.execute(
+            "insert into carriers (org, kind, account, ciphertext) "
+            "values ('org_a', 'twilio', 'AC1', 'sealed')"
+        )
+    await routes.put(pool, a_route(), account="AC1")
+    await routes.put(pool, a_route("org_b"), account=None)
+    found = await routes.on_the_box(pool)
+    assert [(row.route.org, row.carrier) for row in found] == [("org_a", "twilio"), ("org_b", None)]
+
+
+@postgres
 async def test_a_number_nobody_typed_goes_nowhere(pool: Pool) -> None:
     assert await routes.at(pool, "phone", A_NUMBER) is None
 

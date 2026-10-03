@@ -1,5 +1,7 @@
 """The bodies of the box's own doors: orgs and what they hold, their people and keys, the box."""
 
+from typing import Literal
+
 from pydantic import Field
 
 from pinecall.domain.names import Channel, Env
@@ -8,6 +10,10 @@ from pinecall.wire.frames import Entry, WireModel
 from pinecall.wire.rest.accounts import MemberRow
 from pinecall.wire.rest.fleet import FleetTotals, WorkerStatus
 from pinecall.wire.rest.numbers import DialGuards
+
+# `bought` on the box's account; `twilio`, `sip`, `whatsapp` an account of the org; `hooked`
+# nothing the box holds: pointed at the box by the org, or a row an operator typed.
+type NumberCameIn = Literal["bought", "twilio", "sip", "whatsapp", "hooked"]
 
 
 class CreateOrgRequest(WireModel):
@@ -177,6 +183,21 @@ class RouteRow(WireModel):
     channel: Channel
     env: Env
     managed: bool
+
+
+class BoxNumber(WireModel):
+    """GET /v1/ops/numbers: a number the box answers at, how it came, and who picks it up."""
+
+    number: str
+    channel: Channel
+    org: str
+    env: Env
+    agent: str
+    came_in: NumberCameIn
+    # A process holds the agent in the org and world now: a call to the number is answered.
+    running: bool
+    # The org whose older row answers the number instead of this one; null when this one does.
+    answered_by: str | None
 
 
 class FleetListed(WireModel):
