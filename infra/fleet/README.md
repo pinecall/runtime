@@ -33,8 +33,8 @@ $ make tf-apply ENV=production        # the template takes the family's newest i
 From then on nothing is done by hand. The box runs `pinecall-fleet-loop@production`
 (`install.sh` enables it from the box's metadata, which Terraform writes): every 15 s it reads the
 roster, writes `custom.googleapis.com/pinecall/fleet_calls{fleet}` (the calls held), and lets go of
-a machine that is one too many. The autoscaler keeps ⌈calls ÷ 19⌉ machines (32 seats × 0.6, under
-the worker's 0.7 line), between `min` and `max` (`environments/production/main.tf`). A machine it
+a machine that is one too many. The autoscaler keeps ⌈calls ÷ 19⌉ machines (32 seats × 0.6, so a
+machine is asked for well before the last seat is taken), between `min` and `max` (`environments/production/main.tf`). A machine it
 makes boots from the image, reads its world's fleet key, the LiveKit pair and the store's secret
 from Secret Manager (`pinecall-runtime cell enroll`, run by `pinecall-join.service`), seals them
 to its own vTPM, and its worker registers; the box's own workers of the world count in the

@@ -45,7 +45,7 @@ def test_a_worker_holds_at_least_one_call() -> None:
 def test_crossing_the_line_is_said_once_each_way(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.INFO, logger=heartbeat.__name__)
     load = Load(10)
-    for jobs in (7, 8, 3):
+    for jobs in (7, 10, 10, 3):
         load.at(jobs)
     data = [record.getMessage() for record in caplog.records]
     assert len([item for item in data if "routes no job" in item]) == 1

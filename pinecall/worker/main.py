@@ -16,7 +16,7 @@ from pinecall.domain.scope import Scope
 from pinecall.fleet.client import GatewayClient, gateway_at
 from pinecall.fleet.heartbeat import CORDONED_EXIT, Heartbeats, Load, announced_ready
 from pinecall.fleet.measures import LastMinute, listening, measures_path
-from pinecall.fleet.roster import HEARTBEAT_S
+from pinecall.fleet.roster import HEARTBEAT_S, refused_at
 from pinecall.process.settings import Settings, load
 from pinecall.providers.build import installed, tts_of
 from pinecall.providers.credentials import Pipeline
@@ -135,6 +135,9 @@ def server_of(settings: Settings) -> AgentServer:
         port=settings.worker_http_port,
         setup_fnc=prewarm,
         load_fnc=Load(settings.max_jobs),
+        # livekit's 0.7 is for a CPU reading. A worker that counts its calls is refused at every
+        # slot taken, which is also where the gateway says it is full and overflow opens.
+        load_threshold=refused_at(settings.max_jobs),
     )
     # livekit keeps one warm process per CPU; two fleets on one machine hold twice the memory.
     if settings.idle_processes is not None:
