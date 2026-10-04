@@ -28,6 +28,7 @@ media:
   sip: docker.io/livekit/sip:v1.17.0@sha256:d3c6441eb0918a81ab9e48ba7df6f02c1eebbeace42c963b2c6a6e5418675671
   redis: docker.io/library/redis:8.10.2-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
   kubectl: registry.k8s.io/kubectl:v1.35.0
+  kubeip: docker.io/doitintl/kubeip-agent:2.2.1@sha256:a0e4bc33b2027644bd952042e913453365caf2a69179a06482c1ad2673983749
   rtpPorts: 10000-10199
   # The nodes' subnet (terraform/modules/gke): LiveKit on the node's network sees GKE's virtual
   # interfaces too (the pods' bridge, the DNS cache's address) and takes its port on these alone.
@@ -48,6 +49,20 @@ workers:
     sandbox: { replicas: 2, seats: 1 }
   scaled:
     production: { seats: 32, most: 10 }
+
+# The core node's static address (terraform/modules/edge, core_address): kubeip gives it to the
+# node, as the identity terraform/modules/kubeip made, by the address's label (`filter`, gcloud's
+# syntax), and LiveKit and SIP announce it. Unset, they announce the node's ephemeral address.
+core:
+  address: ""
+  filter: ""
+  kubeip: ""
+
+# The names a carrier sends each world's calls to (PINECALL_SIP_DOMAIN): the core node's address,
+# since the worlds' names are Google's HTTPS load balancer, which carries no SIP. Unset, the names.
+sipDomains:
+  production: ""
+  sandbox: ""
 
 # The object store a finished recording moves to (docs/the-environment.md): unset, recordings stay
 # on the pod's disk and go with it. Its secret is the world's `s3-secret-access-key` in Secret

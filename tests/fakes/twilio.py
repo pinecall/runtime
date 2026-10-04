@@ -142,6 +142,10 @@ class Twilio:
         parts: list[str],
         form: dict[str, str],
     ) -> httpx.Response:
+        if parts[0] == "OriginationUrls" and len(parts) == 2:
+            sids = [a_sid("OU", n) for n in range(len(twilio_trunk_held.origination))]
+            twilio_trunk_held.origination[sids.index(parts[1])] = form["SipUrl"]
+            return httpx.Response(200, json={"sid": parts[1], "sip_url": form["SipUrl"]})
         if parts == ["OriginationUrls"]:
             if request.method == "POST":
                 twilio_trunk_held.origination.append(form["SipUrl"])

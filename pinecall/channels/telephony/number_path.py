@@ -114,7 +114,7 @@ async def _carrier_step_asked(
     if record.last_call_at is not None or control is None or record.route.channel != "phone":
         return _carrier_step(record, pointed_by_the_box=record.route.managed)
     number = str(record.route.number)
-    here = origination_uri(sip.domain_of(connections, record.route.env))
+    here = origination_uri(sip.sip_domain_of(connections, record.route.env))
     try:
         owned = await control.number(number)
         trunk = await control.trunk_pointing_at(here)

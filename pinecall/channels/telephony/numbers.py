@@ -28,7 +28,7 @@ from pinecall.channels.telephony.carrier import (
     own_networks,
 )
 from pinecall.channels.telephony.carrier_catalog import known_carrier
-from pinecall.channels.telephony.sip import WorldRule, domain_of, rule_name
+from pinecall.channels.telephony.sip import WorldRule, domain_of, rule_name, sip_domain_of
 from pinecall.domain.call import Route
 from pinecall.domain.errors import (
     Conflict,
@@ -127,6 +127,8 @@ class Survey:
     networks: tuple[str, ...]
     fleet: str
     domain: str
+    # Where a trunk of the account sends the world's calls: its SIP name, else its name.
+    origination: str
     at_twilio: AtTwilio | None = None
     via: str | None = None
     # The networks named for the number that the operator has not approved: no trunk until he does.
@@ -334,6 +336,7 @@ async def _survey_import(connections: Connections, wanted: NumberImport) -> Surv
         networks=networks,
         fleet=worlds.fleet_of(fleets, env),
         domain=domain,
+        origination=origination_uri(sip_domain_of(connections, env)),
         via=wanted.via,
         waiting=waiting,
     )
@@ -357,6 +360,7 @@ async def _check_via(connections: Connections, wanted: NumberImport) -> None:
 async def _survey_purchase(connections: Connections, wanted: NumberPurchase) -> Survey:
     org, env = wanted.scope.org, wanted.scope.env
     domain = domain_of(connections, env)
+    origination = origination_uri(sip_domain_of(connections, env))
     boxs = await box_twilio(connections.pool, connections.vault)
     await admission.admit_number(
         connections.pool, org, env, bought=await routes.managed_in(connections.pool, org, env)
@@ -378,10 +382,11 @@ async def _survey_purchase(connections: Connections, wanted: NumberPurchase) -> 
         networks=(),
         fleet=worlds.fleet_of(fleets, env),
         domain=domain,
+        origination=origination,
         at_twilio=AtTwilio(
             twilio=twilio,
             number=None,
-            trunk=await twilio.trunk_pointing_at(origination_uri(domain)),
+            trunk=await twilio.trunk_pointing_at(origination),
             for_sale=for_sale,
         ),
     )
@@ -394,7 +399,7 @@ async def _at_twilio(
     owned = await twilio.number(number)
     if owned is None:
         raise NotFound(NOT_ON_ACCOUNT.format(number=number, account=twilio.sid))
-    trunk = await twilio.trunk_pointing_at(origination_uri(domain_of(connections, world)))
+    trunk = await twilio.trunk_pointing_at(origination_uri(sip_domain_of(connections, world)))
     elsewhere = owned.trunk_sid is not None and (trunk is None or owned.trunk_sid != trunk.sid)
     if elsewhere and owned.trunk_sid is not None and not move:
         where = await twilio.originations(owned.trunk_sid)
@@ -434,9 +439,7 @@ async def _write_hook(connections: Connections, survey: Survey) -> None:
     route, number = survey.route, str(survey.route.number)
     at = survey.at_twilio
     if at is not None and at.number is not None:
-        trunk = at.trunk or await at.twilio.trunk_made(
-            survey.domain, origination_uri(survey.domain)
-        )
+        trunk = at.trunk or await at.twilio.trunk_made(survey.domain, survey.origination)
         survey.at_twilio = replace(at, trunk=trunk)
         if at.number.trunk_sid not in {None, trunk.sid}:
             await at.twilio.detach(str(at.number.trunk_sid), at.number.sid)
@@ -469,7 +472,7 @@ def _steps(survey: Survey, *, done: bool) -> list[str]:
     if at is not None:
         if at.for_sale is not None:
             steps.append(f"Twilio: buy {at.for_sale} on the box's account: {made}")
-        pointed = f"Twilio: a trunk sending calls to {origination_uri(survey.domain)}"
+        pointed = f"Twilio: a trunk sending calls to {survey.origination}"
         steps.append(f"{pointed}: {'stands' if at.trunk else made}")
         on_it = (
             at.number is not None and at.trunk is not None and at.number.trunk_sid == at.trunk.sid

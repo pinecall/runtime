@@ -242,6 +242,16 @@ class BoxCarriers(WireModel):
     fence: BoxFence
 
 
+class RepointedTrunk(WireModel):
+    """POST /v1/ops/sip/repoint: a trunk of an account sent on from a world's name to its SIP's."""
+
+    account: str
+    trunk: str
+    world: Env
+    was: str
+    now: str
+
+
 class AdmitCarrierRequest(WireModel):
     """PUT /v1/ops/carriers/{kind}: whether orgs may bring numbers through the carrier."""
 

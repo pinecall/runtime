@@ -72,6 +72,18 @@ class Settings(BaseModel):
         alias="PINECALL_SANDBOX_DOMAIN",
         description="The sandbox's name, a second name of the same box. Unset, the box has one.",
     )
+    # Where a carrier sends a world's calls, when that is not the world's name: in a cluster the
+    # name is Google's HTTPS load balancer, which carries no SIP (infra/README.md).
+    sip_domain: str | None = Field(
+        None,
+        alias="PINECALL_SIP_DOMAIN",
+        description="The name a carrier sends production's calls to. Unset: production's name.",
+    )
+    sandbox_sip_domain: str | None = Field(
+        None,
+        alias="PINECALL_SANDBOX_SIP_DOMAIN",
+        description="The name a carrier sends the sandbox's calls to. Unset: the sandbox's name.",
+    )
 
     # ── Postgres ──
     database_url: str = Field(
@@ -420,6 +432,11 @@ class Settings(BaseModel):
     def name_of(self, world: Env) -> str | None:
         """The box's name for that world, or None where it has none."""
         return (self.sandbox_domain or self.domain) if world == SANDBOX else self.domain
+
+    def sip_name_of(self, world: Env) -> str | None:
+        """The name a carrier sends that world's calls to: its SIP name, else the world's name."""
+        named = self.sandbox_sip_domain if world == SANDBOX else self.sip_domain
+        return named or self.name_of(world)
 
     def address_of(self, world: Env) -> str | None:
         """The https address of the box's name for that world, or None where it has none."""

@@ -1,0 +1,54 @@
+{{- if .Values.core.address }}
+# kubeip on the core node: it gives the node the static address modules/edge reserved (found by its
+# label), and gives it again to a node that replaces it; LiveKit and SIP announce that address.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pinecall-kubeip
+  annotations:
+    iam.gke.io/gcp-service-account: {{ required "core.kubeip" .Values.core.kubeip | quote }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pinecall-kubeip
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get]
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [create, get, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pinecall-kubeip
+subjects:
+  - { kind: ServiceAccount, name: pinecall-kubeip, namespace: {{ .Release.Namespace }} }
+roleRef: { kind: ClusterRole, name: pinecall-kubeip, apiGroup: rbac.authorization.k8s.io }
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: pinecall-kubeip
+spec:
+  selector: { matchLabels: { app: pinecall-kubeip } }
+  template:
+    metadata: { labels: { app: pinecall-kubeip } }
+    spec:
+      serviceAccountName: pinecall-kubeip
+      nodeSelector: { pinecall.io/pool: core }
+      priorityClassName: system-node-critical
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: kubeip
+          image: {{ .Values.media.kubeip }}
+          env:
+            - name: NODE_NAME
+              valueFrom: { fieldRef: { fieldPath: spec.nodeName } }
+            - name: FILTER
+              value: {{ required "core.filter" .Values.core.filter | quote }}
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+{{- end }}

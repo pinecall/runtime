@@ -83,6 +83,22 @@ async def test_an_import_makes_the_trunk_attaches_admits_rules_and_routes_once(
 
 
 @postgres
+async def test_a_world_with_a_sip_name_has_its_trunk_send_the_calls_there(line: Line) -> None:
+    await brought(line)
+    line.twilio.owns(A_NUMBER)
+    settings = line.connections.settings.model_copy(update={"sandbox_sip_domain": "sip.box.test"})
+    connections = replace(line.connections, settings=settings)
+    await numbers.import_number(
+        connections, NumberImport(line.scope("sandbox"), "recepcion", A_NUMBER)
+    )
+    (trunk,) = line.twilio.trunks.values()
+    assert (trunk.friendly_name, trunk.origination) == (
+        "box.test",
+        ["sip:sip.box.test:5060;transport=udp"],
+    )
+
+
+@postgres
 async def test_a_dry_run_is_the_plan_and_writes_nothing_anywhere(line: Line) -> None:
     await brought(line)
     line.twilio.owns(A_NUMBER)

@@ -74,6 +74,14 @@ def domain_of(connections: Connections, world: Env) -> str:
     return name
 
 
+def sip_domain_of(connections: Connections, world: Env) -> str:
+    """The name a carrier sends that world's calls to, or NotAvailable: it has none."""
+    name = connections.settings.sip_name_of(world)
+    if not name:
+        raise NotAvailable(NO_DOMAIN)
+    return name
+
+
 def rule_name(org: str, env: Env) -> str:
     """The name of an org's dispatch rule in a world."""
     return f"{org}:{env}"

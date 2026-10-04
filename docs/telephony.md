@@ -26,7 +26,9 @@ which agent answers the number (`GET /v1/routes?number=`), and opens the call.
 
 ## What any carrier must do
 
-- Send the number's calls as SIP INVITEs to `sip:<number>@<the box's name>:5060`, over UDP or TCP
+- Send the number's calls as SIP INVITEs to `sip:<number>@<the world's SIP name>:5060` (the
+  world's name unless `PINECALL_SIP_DOMAIN` names another,
+  [the-environment.md](the-environment.md)), over UDP or TCP
   (livekit-sip listens on both), with the number in E.164 (`+59829001199`) in the Request-URI.
 - Send them from the signalling addresses it publishes, and nowhere else: the box admits a number
   from those networks alone.
