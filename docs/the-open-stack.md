@@ -137,9 +137,7 @@ import { Agent } from "pinecall";
  * Todo lo que dices se lee en voz alta: sin listas, sin markdown, los números como se dicen.
  * Abrimos de martes a sábado, de diez de la mañana a siete de la tarde. El corte cuesta ochocientos pesos.
  */
-export default class Recepcion extends Agent {
-  language = "es";
-}
+export default class Recepcion extends Agent {}
 ```
 
 `pinecall start` in the project, open the console's sandbox, the agent, and talk to it: the
