@@ -9,7 +9,7 @@ made by hand and nothing is built on a laptop.
 |---|---|
 | `terraform/bootstrap` | the bucket every other root module keeps its state in, made once with local state |
 | `terraform/project` | what every cluster of the project shares: the images' registry and the identity Cloud Build builds them as |
-| `terraform/environments/<world-pair>` | one cluster each: `production` (cloud.pinecall.io, sandbox.pinecall.io), Pinecall's own since the cutover of 2026-10-04, and `staging`, made for a proof with calls and destroyed after it |
+| `terraform/environments/<world-pair>` | one cluster each: `production` (cloud.pinecall.io, both worlds), Pinecall's own since the cutover of 2026-10-04, and `staging`, made for a proof with calls and destroyed after it |
 | `terraform/modules/gke` | a cluster: zonal, two node pools (core; workers, sized by the cluster autoscaler alone), Workload Identity |
 | `terraform/modules/registry` · `build` | where images live, and the identity Cloud Build builds them as (`terraform/project`) |
 | `terraform/modules/secrets` | the runtime's secrets, drawn once into Secret Manager, and the identity External Secrets reads them as |
@@ -43,7 +43,7 @@ or give it at `terraform init -backend-config="bucket=<yours>"`.
 
 ## From nothing to a release
 
-With gcloud signed in on the project, and the zone of the two names on Route 53 (`~/.aws`):
+With gcloud signed in on the project, and the zone of the names on Route 53 (`~/.aws`):
 
 ```console
 $ terraform -chdir=infra/terraform/bootstrap init && terraform -chdir=infra/terraform/bootstrap apply   # once
@@ -82,11 +82,11 @@ is not (`docs/scaling.md`).
 
 ## HTTPS
 
-The two names are served by `charts/edge`'s Gateway (the Gateway API, `gke-l7-global-external-managed`)
+The name is served by `charts/edge`'s Gateway (the Gateway API, `gke-l7-global-external-managed`)
 on the global address `terraform/modules/edge` reserves, with a Certificate Manager certificate
 proved by DNS (a CNAME each in Route 53): it is issued before a name points at the address, so a
 cutover moves the names onto a certificate that is valid already. Made on staging on 2026-10-04:
-the certificate active before any load balancer served it, both names answering over HTTPS on it,
+the certificate active before any load balancer served it, the names answering over HTTPS on it,
 plain HTTP redirected, a LiveKit room joined over its WebSocket and calls placed, the address the
 Ingress had served kept.
 

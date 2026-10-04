@@ -326,7 +326,7 @@ async def _surveyed(connections: Connections, carrier: Carrier, world: Env) -> O
 async def _twilio_surveyed(
     connections: Connections, carrier: Carrier, twilio: Twilio, world: Env
 ) -> OutboundSurvey:
-    domain = domain_of(connections, world)
+    domain = domain_of(connections)
     origination = origination_uri(sip_domain_of(connections, world))
     trunk = await twilio.trunk_pointing_at(origination)
     host = termination_host(domain, twilio.sid)
@@ -366,7 +366,7 @@ async def _twilio_surveyed(
 async def _twilio_provisioned(
     connections: Connections, carrier: Carrier, survey: TwilioSurvey, world: Env
 ) -> str:
-    domain = domain_of(connections, world)
+    domain = domain_of(connections)
     twilio = survey.twilio
     trunk = survey.trunk or await twilio.trunk_made(
         domain, origination_uri(sip_domain_of(connections, world))

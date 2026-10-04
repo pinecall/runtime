@@ -52,7 +52,7 @@ async def _served(websocket: WebSocket, gateway: Gateway, call: str) -> Served:
     if verified is None:
         raise NotSignedIn(_deps.TAKES_A_KEY)
     keys.check_opens(verified, "app", "fleet")
-    key = Acting(bearer=verified, env=_deps.world_of_request(websocket, verified, gateway))
+    key = Acting(bearer=verified, env=_deps.world_of_request(websocket, verified))
     return await known(gateway, key, call)
 
 

@@ -21,7 +21,7 @@ from pinecall.domain.errors import (
     Throttled,
     TooManyRequests,
 )
-from pinecall.domain.names import PRODUCTION, Env, parse_env
+from pinecall.domain.names import Env, parse_env
 from pinecall.domain.person import HOLDING, THE_FLEET, THE_RUNNER, THE_TEAM, KeyScope
 from pinecall.domain.scope import Scope
 from pinecall.gateway._call_setup import exhausted
@@ -183,14 +183,11 @@ async def check_knock(gateway: Gateway, name: str, refusal: str) -> None:
         raise TooManyRequests(refusal)
 
 
-# The request's own Host only when it is one of the box's names: a forged host would send a
-# sign-in or a password link to whoever forged it.
+# Never the request's own Host where the box has a name: a forged host would send a sign-in or
+# a password link to whoever forged it.
 def public_url(request: Request, gateway: Gateway) -> str:
-    """The box's name the request came in by, else production's, without a trailing slash."""
-    settings = gateway.connections.settings
-    world = settings.world_named(request.headers.get(HOST))
-    address = settings.address_of(PRODUCTION if world is None else world)
-    return address or str(request.base_url).rstrip("/")
+    """The box's address, else the one the request came in by, without a trailing slash."""
+    return gateway.connections.settings.address or str(request.base_url).rstrip("/")
 
 
 async def admit_call(gateway: Gateway, scope: Scope, agent: str) -> admission.Ceiling | None:
@@ -268,15 +265,14 @@ def sees_every_scope(key: Acting) -> bool:
     return {THE_TEAM, HOLDING} <= key.bearer.key.scopes
 
 
-async def acting(connection: HTTPConnection, key: BearerDep, gateway: GatewayDep) -> Acting:
+async def acting(connection: HTTPConnection, key: BearerDep) -> Acting:
     """The key as it acts here: a server's key in its world, a person's in the world asked."""
-    return Acting(bearer=key, env=world_of_request(connection, key, gateway))
+    return Acting(bearer=key, env=world_of_request(connection, key))
 
 
-def world_of_request(connection: HTTPConnection, key: Bearer, gateway: Gateway) -> Env:
-    """The world a request is for: the name it came in by and the header it carries, agreeing."""
-    at = gateway.connections.settings.world_named(connection.headers.get(HOST))
-    return keys.world_of(key, connection.headers.get(WORLD), at=at)
+def world_of_request(connection: HTTPConnection, key: Bearer) -> Env:
+    """The world a request is for: the key's own, else the one its header asks for."""
+    return keys.world_of(key, connection.headers.get(WORLD))
 
 
 ActingDep = Annotated[Acting, Depends(acting)]
@@ -425,7 +421,7 @@ def reading(*opens: KeyScope) -> Callable[..., Awaitable[Reader]]:
         verified = None if data == token else await gateway.keys.verify(data)
         if verified is None:
             raise NotSignedIn(READ_WITH_A_KEY)
-        key = Acting(bearer=verified, env=world_of_request(connection, verified, gateway))
+        key = Acting(bearer=verified, env=world_of_request(connection, verified))
         keys.check_opens(verified, *opens)
         _check_agent_named(connection, verified)
         await _paced(gateway, key, "calls")

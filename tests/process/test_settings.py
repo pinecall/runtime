@@ -230,28 +230,36 @@ def test_nothing_in_the_runtime_writes_into_the_environment() -> None:
     assert not offenders, f"these modules write an environment variable: {offenders}"
 
 
-def test_a_box_names_a_world_per_domain_and_knows_neither_name_it_was_not_given() -> None:
+def test_a_box_has_one_name_for_both_worlds_and_a_sip_name_per_world() -> None:
     settings = Settings.model_validate(
-        {"PINECALL_DOMAIN": "box.example", "PINECALL_SANDBOX_DOMAIN": "sandbox.example"}
+        {
+            "PINECALL_DOMAIN": "box.example",
+            "PINECALL_SIP_DOMAIN": "sip.example",
+            "PINECALL_SANDBOX_SIP_DOMAIN": "sip.sandbox.example",
+        }
     )
-    assert settings.world_named("box.example") == "production"
-    assert settings.world_named("Sandbox.Example:443") == "sandbox"
-    assert settings.world_named("127.0.0.1:8080") is None
-    assert settings.world_named(None) is None
-    assert (settings.name_of("production"), settings.name_of("sandbox")) == (
-        "box.example",
-        "sandbox.example",
+    assert settings.address == "https://box.example"
+    assert (settings.sip_name_of("production"), settings.sip_name_of("sandbox")) == (
+        "sip.example",
+        "sip.sandbox.example",
     )
-    assert settings.livekit_url_for("sandbox") == "wss://sandbox.example"
+    assert settings.browser_livekit_url == "wss://box.example"
+    one_sip = Settings.model_validate(
+        {"PINECALL_DOMAIN": "box.example", "PINECALL_SIP_DOMAIN": "sip.example"}
+    )
+    assert one_sip.sip_name_of("sandbox") == "sip.example"
 
 
-def test_a_box_of_one_name_serves_both_worlds_at_it_and_its_console_is_productions() -> None:
+def test_a_box_with_no_sip_name_is_reached_by_a_carrier_at_its_own_name() -> None:
     named = Settings.model_validate({"PINECALL_DOMAIN": "one.example"})
-    assert named.world_named("one.example") == "production"
-    assert named.name_of("sandbox") == "one.example"
+    assert (named.sip_name_of("production"), named.sip_name_of("sandbox")) == (
+        "one.example",
+        "one.example",
+    )
     unnamed = Settings.model_validate({"LIVEKIT_URL": "ws://127.0.0.1:7880"})
-    assert unnamed.world_named("anything.example") is None
-    assert unnamed.livekit_url_for("production") == "ws://127.0.0.1:7880"
+    assert unnamed.address is None
+    assert unnamed.sip_name_of("production") is None
+    assert unnamed.browser_livekit_url == "ws://127.0.0.1:7880"
 
 
 def test_a_recordings_bucket_without_its_whole_store_stops_the_process_naming_what_lacks(

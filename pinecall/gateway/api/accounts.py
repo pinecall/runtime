@@ -5,10 +5,9 @@ from importlib.metadata import version
 from fastapi import APIRouter, Request, Response
 
 from pinecall.domain.errors import Conflict, DeclarationRefused, NotAllowed, NotFound, NotSignedIn
-from pinecall.domain.names import PRODUCTION, other_world
+from pinecall.domain.names import PRODUCTION
 from pinecall.domain.person import Member
 from pinecall.gateway._deps import (
-    HOST,
     ActingDep,
     BearerDep,
     GatewayDep,
@@ -75,11 +74,9 @@ FIRST_KEY = "invitation"
 
 
 @router.get("/.well-known/pinecall")
-async def gateway_info(request: Request, gateway: GatewayDep) -> GatewayInfoResponse:
+async def gateway_info(gateway: GatewayDep) -> GatewayInfoResponse:
     """What this gateway is and how it signs people in, before anybody holds a key."""
     connections = gateway.connections
-    settings = connections.settings
-    world = settings.world_named(request.headers.get(HOST))
     box_mail = await mail.box_mail_of(
         connections.pool, connections.vault, gateway.outbox.environment
     )
@@ -91,8 +88,6 @@ async def gateway_info(request: Request, gateway: GatewayDep) -> GatewayInfoResp
         mail=box_mail is not None,
         brand=BrandRow(name=brand.name, logo_url=brand.logo_url, accent=brand.accent),
         google=False,
-        world=world,
-        elsewhere=None if world is None else settings.address_of(other_world(world)),
     )
 
 

@@ -1,9 +1,7 @@
 # A cluster's front door, released apart from the runtime (`make deploy` releases it first): its
 # load balancer takes minutes to make, so it stands before the runtime is installed, and a
-# reinstall of the runtime never makes it again. The world-pair's values file names both.
-domains:
-  production: ""
-  sandbox: ""
+# reinstall of the runtime never makes it again. The world-pair's values file names the name.
+domain: ""
 
 ingress:
   # The global address and the certificate map Terraform makes (modules/edge's outputs): the map's

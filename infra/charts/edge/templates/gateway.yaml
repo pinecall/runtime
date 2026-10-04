@@ -1,4 +1,4 @@
-# The two names on one global address Terraform reserves, on Google's HTTPS load balancer through
+# The one name on the global address Terraform reserves, on Google's HTTPS load balancer through
 # the Gateway API, with Certificate Manager's certificate (modules/edge); plain HTTP sent to HTTPS.
 # LiveKit's signalling paths go to LiveKit, everything else to the gateways; a socket lives up to an
 # hour on either (an app's, a room's).
@@ -24,8 +24,7 @@ metadata:
 spec:
   parentRefs: [{ name: pinecall, sectionName: https }]
   hostnames:
-    - {{ .Values.domains.production | quote }}
-    - {{ .Values.domains.sandbox | quote }}
+    - {{ required "domain" .Values.domain | quote }}
   rules:
     - matches:
         {{- range list "/rtc" "/twirp" "/validate" "/agent" }}

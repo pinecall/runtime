@@ -17,7 +17,6 @@ if [ ! -f "$ENV" ]; then
         echo "LIVEKIT_API_SECRET=a-laptop-only-livekit-secret-0123456789"
         echo "PINECALL_GATEWAY_URL=http://127.0.0.1:8080"
         echo "PINECALL_DOMAIN=localhost"
-        echo "PINECALL_SANDBOX_DOMAIN=sandbox.localhost"
         echo "PINECALL_RECORDINGS=$PWD/.local/recordings"
         echo "PINECALL_FLEET=pinecall-sandbox"
         echo "PINECALL_MAX_JOBS=4"

@@ -21,7 +21,7 @@ cluster, your carrier and your models. One Python package, `pinecall`, in two pr
 **gateway**, which answers every door of the API and serves the console, and the **worker**, which
 runs the calls on [LiveKit](https://livekit.io). Postgres holds every call as an append-only log;
 Redis carries what the gateways say to one another. It runs Pinecall's own production and its
-sandbox, `cloud.pinecall.io` and `sandbox.pinecall.io`, on one Kubernetes cluster.
+sandbox, at `cloud.pinecall.io`, on one Kubernetes cluster.
 
 Agents are written with the SDKs, [`pinecall/agents`](https://github.com/pinecall/agents)
 (TypeScript) or the Ruby SDK, and talk to this runtime over the wire `pinecall/wire/` declares.
@@ -35,8 +35,10 @@ Nothing here is imported by an agent.
   whatever is installed and keyed, per world, from the console. On the org's own keys or the
   runtime's. Nothing in the code names a vendor, and a call can run end to end on open models on
   your own GPU (below).
-- **One cluster, two worlds.** Production and the sandbox on one gateway and one database, each
-  under its own name with its own fleet of workers. One login, one key, a switch in the console.
+- **One cluster, two worlds.** Production and the sandbox on one gateway, one database and one
+  name; the world is the key's (`pc_live_`, `pc_test_`) or, for a person, the one each request
+  asks for, and each world has its own fleet of workers. One login, one key, a switch in the
+  console (`/sandbox/…`).
 - **The log is the product.** What was said, what the model read, every tool call and its answer,
   every measure LiveKit took, the judges' verdicts at hang-up: one append-only log per call, which
   the console, the CLI and the API all read. The database itself refuses to change or delete an

@@ -20,13 +20,9 @@
 - name: LIVEKIT_URL
   value: ws://pinecall-livekit:7880
 - name: LIVEKIT_PUBLIC_URL
-  value: wss://{{ required "domains.production" .Values.domains.production }}
+  value: wss://{{ required "domain" .Values.domain }}
 - name: PINECALL_DOMAIN
-  value: {{ .Values.domains.production | quote }}
-- name: PINECALL_SANDBOX_DOMAIN
-  value: {{ required "domains.sandbox" .Values.domains.sandbox | quote }}
-- name: PINECALL_DOMAINS
-  value: {{ printf "%s, %s" .Values.domains.production .Values.domains.sandbox | quote }}
+  value: {{ .Values.domain | quote }}
 - name: PINECALL_GATEWAY_URL
   value: http://pinecall-gateway:8080
 {{- with .Values.sipDomains }}{{ if .production }}

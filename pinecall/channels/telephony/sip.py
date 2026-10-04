@@ -66,9 +66,9 @@ class Rebuilt:
     refused: list[str]
 
 
-def domain_of(connections: Connections, world: Env) -> str:
-    """The box's name in that world, or NotAvailable: a carrier has nowhere to send a call."""
-    name = connections.settings.name_of(world)
+def domain_of(connections: Connections) -> str:
+    """The box's name, or NotAvailable: a carrier has nowhere to send a call."""
+    name = connections.settings.domain
     if not name:
         raise NotAvailable(NO_DOMAIN)
     return name

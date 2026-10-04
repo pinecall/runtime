@@ -89,7 +89,7 @@ async def _seated(
     read = Read(call, what, _deps.asked_by(key))
     await reads.record(gateway.connections.pool, kept.scope, read)
     return SeatResponse(
-        server_url=gateway.connections.settings.livekit_url_for(kept.scope.env),
+        server_url=gateway.connections.settings.browser_livekit_url,
         participant_token=seat.token,
         call=call,
         identity=seat.identity,

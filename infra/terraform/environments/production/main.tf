@@ -74,7 +74,7 @@ variable "dns_zone" {
 
 variable "names" {
   type        = list(string)
-  description = "The names the worlds are served at: production's, then the sandbox's (PINECALL_DOMAIN, PINECALL_SANDBOX_DOMAIN)."
+  description = "The names the cluster is served at, every one of them both worlds; the first is PINECALL_DOMAIN."
 }
 
 variable "sip_names" {

@@ -75,9 +75,10 @@ independent.
 
 ## Decisions that stand
 
-- **One gateway, one database, two worlds.** The world is the name a request comes in by:
-  `PINECALL_DOMAIN` is production's, `PINECALL_SANDBOX_DOMAIN` the sandbox's; a `pinecall-env`
-  header may only agree. Each world has its own worker fleet.
+- **One gateway, one database, one name, two worlds.** The world of a request is its key's (a
+  server's token opens the world it was made in) or, for a person, the `pinecall-env` header's,
+  the sandbox when it names none; never the name the request came in by. The console is
+  production's at `/` and the sandbox's at `/sandbox/…`. Each world has its own worker fleet.
 - **No vendor is named in code.** Every installed livekit plugin is a vendor; defaults, box keys,
   what the box lends and the prices are the providers row in Postgres, edited from the console.
 - **The wire is ours** (`pinecall/wire/`), pinned to the TypeScript and Ruby SDKs by
@@ -92,8 +93,8 @@ independent.
 
 **Production is the cluster** `pinecall-production` (GKE, `environments/production`, kubectl context
 `gke_example-project_us-central1-c_pinecall-production`) since the cutover of 2026-10-04
-(`../internal-docs/runtime-v2/CUTOVER-K8S-RUNBOOK.md`): `cloud.pinecall.io` and `sandbox.pinecall.io`
-on its Gateway (203.0.113.1, Certificate Manager's certificate), SIP at `sip.pinecall.io` and
+(`../internal-docs/runtime-v2/CUTOVER-K8S-RUNBOOK.md`): `cloud.pinecall.io`, both worlds, on its
+Gateway (203.0.113.1, Certificate Manager's certificate), SIP at `sip.pinecall.io` and
 `sip.sandbox.pinecall.io` on the core node's static address (203.0.113.10, kubeip). Released with
 `make deploy ENV=production TAG=<commit>`; tested against the domain, never a local gateway; local
 is for the suites. Postgres is CloudNativePG's, its WAL and nightly base backups in

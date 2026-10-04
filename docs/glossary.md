@@ -2,7 +2,7 @@
 
 | word | meaning |
 |---|---|
-| **world** | production or sandbox. A property of a row (`env`) and of a key's prefix (`pc_live_`, `pc_test_`), never of a deployment: one gateway and one database serve both, each at a name of its own (`PINECALL_DOMAIN`, `PINECALL_SANDBOX_DOMAIN`), so the address says the world |
+| **world** | production or sandbox. A property of a row (`env`) and of a key's prefix (`pc_live_`, `pc_test_`), never of a deployment: one gateway, one database and one name (`PINECALL_DOMAIN`) serve both, so the key or the `pinecall-env` header says the world, never the address |
 | **fleet** | the set of workers that answer one world's calls, registered under one LiveKit agent name (`PINECALL_FLEET`). The isolation between worlds is that a test call is only ever dispatched to the sandbox fleet |
 | **scope** | the triple `(org, env, holder)` a request acts in: whose data, which world, and which app socket holds the agent. Every door resolves it from the key and the `pinecall-env` header |
 | **door** | one method and path of the gateway's HTTP API. Every door of v1 exists in v2 under the same path and shape |

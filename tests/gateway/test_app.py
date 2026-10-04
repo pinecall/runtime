@@ -11,7 +11,7 @@ from psycopg_pool import PoolTimeout
 
 from pinecall.domain.errors import Conflict, NotSignedIn
 from pinecall.gateway._deps import SCOPES_OF, operator
-from pinecall.gateway.app import ROUTERS, app, busy, origins_allowed, page_marked, refused
+from pinecall.gateway.app import ROUTERS, app, busy, origins_allowed, refused
 from pinecall.process.settings import Settings
 from tests.conftest import Knocking, postgres
 
@@ -157,14 +157,3 @@ async def test_a_gateway_nobody_built_the_console_into_says_so(knocking: Knockin
     assert page.status_code == 404
     assert "make deploy" in page.json()["detail"]
     assert widget.status_code == 404
-
-
-def test_the_page_is_marked_with_the_world_its_name_is_and_where_the_other_world_answers() -> None:
-    settings = Settings.model_validate(
-        {"PINECALL_DOMAIN": "box.example", "PINECALL_SANDBOX_DOMAIN": "sandbox.example"}
-    )
-    page = "<!doctype html><html><head><title>x</title></head><body></body></html>"
-    marked = page_marked(page, settings, "sandbox.example")
-    assert '<meta name="pinecall-world" content="sandbox">' in marked
-    assert '<meta name="pinecall-elsewhere" content="https://box.example">' in marked
-    assert page_marked(page, settings, "127.0.0.1:8080") == page

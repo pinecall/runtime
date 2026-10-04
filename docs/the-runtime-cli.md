@@ -91,7 +91,7 @@ sip repoint [--from <world>=<name>]…
 ```
 
 Every trunk of the box's Twilio account and of each org's that still sends a world's calls to the
-world's name, or to a name `--from` says the world was reached at before
+box's name, or to a name `--from` says the world was reached at before
 (`--from production=sip.box.pinecall.io`), sent on to its SIP name (`PINECALL_SIP_DOMAIN`,
 [the-environment.md](the-environment.md)), a line each: the account, the trunk, the world, where it
 pointed and where it points now. Once, when the box's SIP moves off its names or a name is retired;

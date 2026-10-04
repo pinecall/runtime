@@ -310,7 +310,7 @@ async def _survey_import(connections: Connections, wanted: NumberImport) -> Surv
     if wanted.channel not in {"phone", "whatsapp"}:
         raise DeclarationRefused(NOT_A_PHONE.format(channel=wanted.channel))
     org, env = wanted.scope.org, wanted.scope.env
-    domain = domain_of(connections, env)
+    domain = domain_of(connections)
     route = Route(org=org, agent=wanted.agent, channel=wanted.channel, number=number, env=env)
     fleets = await worlds.fleets(connections.pool)
     await _check_via(connections, wanted)
@@ -359,7 +359,7 @@ async def _check_via(connections: Connections, wanted: NumberImport) -> None:
 
 async def _survey_purchase(connections: Connections, wanted: NumberPurchase) -> Survey:
     org, env = wanted.scope.org, wanted.scope.env
-    domain = domain_of(connections, env)
+    domain = domain_of(connections)
     origination = origination_uri(sip_domain_of(connections, env))
     boxs = await box_twilio(connections.pool, connections.vault)
     await admission.admit_number(

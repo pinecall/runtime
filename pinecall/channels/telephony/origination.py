@@ -53,7 +53,7 @@ def _moves(
         sip = settings.sip_name_of(world)
         if not sip:
             continue
-        names = dict.fromkeys([settings.name_of(world) or "", *former.get(world, ())])
+        names = dict.fromkeys([settings.domain or "", *former.get(world, ())])
         moves.extend(_moved_from(world, [name for name in names if name and name != sip], sip))
     return moves
 

@@ -25,7 +25,6 @@ from pinecall.domain.errors import (
     StoreUnreachable,
     Throttled,
 )
-from pinecall.domain.names import other_world
 from pinecall.evals.runs import Runner
 from pinecall.fleet.roster import Roster
 from pinecall.gateway import _deps
@@ -363,9 +362,10 @@ def widget_file(file: str) -> FileResponse:
 
 
 # The last route: a built file is itself, any other path is the page, so a reload lands where it
-# was. Never cached: a rebuild names new hashed assets in a new index.html.
-def console(path: str, request: Request, gateway: _deps.GatewayDep) -> Response:
-    """The console: an asset of its build, or its page marked with the world its name is."""
+# was (the page reads its world from the path: `/sandbox/…` is the sandbox's). Never cached: a
+# rebuild names new hashed assets in a new index.html.
+def console(path: str) -> Response:
+    """The console: an asset of its build, or its page."""
     if path.startswith(API_PREFIXES):
         raise HTTPException(404, "Not Found")
     root = (BUILT / "console").resolve()
@@ -375,22 +375,7 @@ def console(path: str, request: Request, gateway: _deps.GatewayDep) -> Response:
     if path and root in params.parents and params.is_file() and params.name != THE_PAGE:
         return FileResponse(params)
     page = (root / THE_PAGE).read_text(encoding="utf-8")
-    settings = gateway.connections.settings
-    marked = page_marked(page, settings, request.headers.get(_deps.HOST))
-    return HTMLResponse(marked, headers={"cache-control": "no-store"})
-
-
-# The page reads them once: which world this name is, and the other's address for its switch.
-def page_marked(page: str, settings: Settings, host: str | None) -> str:
-    """The page with the world its name is written into its head; unmarked on an unknown name."""
-    world = settings.world_named(host)
-    if world is None:
-        return page
-    marks = f'<meta name="pinecall-world" content="{world}">'
-    elsewhere = settings.address_of(other_world(world))
-    if elsewhere:
-        marks += f'<meta name="pinecall-elsewhere" content="{elsewhere}">'
-    return page.replace("<head>", f"<head>{marks}", 1)
+    return HTMLResponse(page, headers={"cache-control": "no-store"})
 
 
 # One gateway's app: a test serves two, each with a gateway of its own in its state. Swagger under

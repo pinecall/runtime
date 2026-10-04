@@ -97,22 +97,11 @@ def test_the_public_url_is_the_boxs_name_and_the_requests_only_where_it_has_none
 
 
 @postgres
-def test_the_public_url_is_the_sandboxs_name_for_a_request_that_came_in_by_it(
-    wired: Gateway,
-) -> None:
-    named = wired.connections.settings.model_copy(update={"sandbox_domain": "sandbox.box.test"})
-    both = replace(wired, connections=replace(wired.connections, settings=named))
-    assert public_url(a_request(host="sandbox.box.test"), both) == "https://sandbox.box.test"
-    assert public_url(a_request(host="box.test"), both) == "https://box.test"
-    assert public_url(a_request(host="forged.test"), both) == "https://box.test"
+def test_a_forged_host_never_becomes_the_public_url_of_a_box_with_a_name(wired: Gateway) -> None:
+    assert public_url(a_request(host="forged.test"), wired) == "https://box.test"
 
 
-@postgres
-def test_a_socket_at_the_sandboxs_name_acts_in_the_sandbox_and_may_not_ask_for_production(
-    wired: Gateway,
-) -> None:
-    named = wired.connections.settings.model_copy(update={"sandbox_domain": "sandbox.box.test"})
-    both = replace(wired, connections=replace(wired.connections, settings=named))
+def test_a_sockets_world_is_its_headers_and_a_servers_key_refuses_the_other_world() -> None:
     server = Bearer(Key("k_1", "org_1", env="sandbox", scopes=frozenset({HOLDING})))
 
     def socket(*headers: tuple[bytes, bytes]) -> HTTPConnection:
@@ -120,13 +109,14 @@ def test_a_socket_at_the_sandboxs_name_acts_in_the_sandbox_and_may_not_ask_for_p
             {
                 "type": "websocket",
                 "path": "/v1/chat",
-                "headers": [(b"host", b"sandbox.box.test"), *headers],
+                "headers": [(b"host", b"box.test"), *headers],
             }
         )
 
-    assert world_of_request(socket(), server, both) == "sandbox"
-    with pytest.raises(NotAllowed, match="this name is the sandbox's"):
-        world_of_request(socket((b"pinecall-env", b"production")), server, both)
+    assert world_of_request(socket(), server) == "sandbox"
+    assert world_of_request(socket((b"pinecall-env", b"sandbox")), server) == "sandbox"
+    with pytest.raises(NotAllowed, match="a sandbox server's token"):
+        world_of_request(socket((b"pinecall-env", b"production")), server)
 
 
 # The path's agent, the query's, and a call's by its head: each refused past the member's list.

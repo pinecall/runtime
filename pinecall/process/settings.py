@@ -10,7 +10,7 @@ from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from pinecall.domain.errors import SettingsRefused
-from pinecall.domain.names import PRODUCTION, SANDBOX, Env
+from pinecall.domain.names import SANDBOX, Env
 from pinecall.postgres.pool import POOL_SIZE
 
 # Checked in each directory up to the repository root; `runtime/.env` serves a process started
@@ -61,28 +61,25 @@ class Settings(BaseModel):
         alias="LIVEKIT_PUBLIC_URL",
         description="The LiveKit URL a browser is told to join. Unset, it hears LIVEKIT_URL.",
     )
-    # A box has a name per world: the request's Host says which world it is for.
+    # One name serves both worlds: a request's world is its key's or its header's, never the name
+    # it came in by (tenancy/keys.py, world_of).
     domain: str | None = Field(
         None,
         alias="PINECALL_DOMAIN",
-        description="Production's name: where the public and a carrier reach the box.",
+        description="The box's name: where the public, the SDKs and a carrier reach it.",
     )
-    sandbox_domain: str | None = Field(
-        None,
-        alias="PINECALL_SANDBOX_DOMAIN",
-        description="The sandbox's name, a second name of the same box. Unset, the box has one.",
-    )
-    # Where a carrier sends a world's calls, when that is not the world's name: in a cluster the
-    # name is Google's HTTPS load balancer, which carries no SIP (infra/README.md).
+    # Where a carrier sends a world's calls, when that is not the box's name: in a cluster the
+    # name is Google's HTTPS load balancer, which carries no SIP, and each world's SIP node has
+    # an address of its own (infra/README.md).
     sip_domain: str | None = Field(
         None,
         alias="PINECALL_SIP_DOMAIN",
-        description="The name a carrier sends production's calls to. Unset: production's name.",
+        description="The name a carrier sends production's calls to. Unset: the box's name.",
     )
     sandbox_sip_domain: str | None = Field(
         None,
         alias="PINECALL_SANDBOX_SIP_DOMAIN",
-        description="The name a carrier sends the sandbox's calls to. Unset: the sandbox's name.",
+        description="The name a carrier sends the sandbox's calls to. Unset: production's.",
     )
 
     # ── Postgres ──
@@ -419,34 +416,22 @@ class Settings(BaseModel):
             raise ValueError(NO_STORE.format(missing=", ".join(missing)))
         return self
 
-    def world_named(self, host: str | None) -> Env | None:
-        """The world a request's Host names, or None where the box does not know the name."""
-        name = "" if host is None else host.partition(":")[0].lower()
-        if name and name == self.sandbox_domain:
-            return SANDBOX
-        if name and name == self.domain:
-            return PRODUCTION
-        return None
-
-    # A box of one name serves both worlds at it; the console there is production's.
-    def name_of(self, world: Env) -> str | None:
-        """The box's name for that world, or None where it has none."""
-        return (self.sandbox_domain or self.domain) if world == SANDBOX else self.domain
-
     def sip_name_of(self, world: Env) -> str | None:
-        """The name a carrier sends that world's calls to: its SIP name, else the world's name."""
+        """The name a carrier sends that world's calls to: its SIP name, else the box's name."""
         named = self.sandbox_sip_domain if world == SANDBOX else self.sip_domain
-        return named or self.name_of(world)
+        return named or self.sip_domain or self.domain
 
-    def address_of(self, world: Env) -> str | None:
-        """The https address of the box's name for that world, or None where it has none."""
-        name = self.name_of(world)
-        return None if name is None else f"https://{name}"
+    @property
+    def address(self) -> str | None:
+        """The https address of the box's name, or None where it has none."""
+        return None if self.domain is None else f"https://{self.domain}"
 
-    def livekit_url_for(self, world: Env) -> str:
-        """The LiveKit URL a browser in that world is told to join: its own name, else the box's."""
-        name = self.name_of(world)
-        return f"wss://{name}" if name else (self.livekit_public_url or self.livekit_url)
+    @property
+    def browser_livekit_url(self) -> str:
+        """The LiveKit URL a browser is told to join: the box's name, else LiveKit's own."""
+        if self.domain:
+            return f"wss://{self.domain}"
+        return self.livekit_public_url or self.livekit_url
 
 
 def load() -> Settings:

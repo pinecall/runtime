@@ -391,15 +391,3 @@ def test_talk_publishes_the_microphone_and_chat_publishes_none() -> None:
     assert chat.video is not None
     assert (talk.video.can_publish, talk.video.can_publish_sources) == (True, ["microphone"])
     assert (chat.video.can_publish, chat.video.can_subscribe) == (False, True)
-
-
-def test_the_name_a_request_came_in_by_is_its_world_and_a_header_that_disagrees_is_refused() -> (
-    None
-):
-    ana = persons_of(a_member(production=True))
-    assert world_of(ana, None, at="production") == "production"
-    assert world_of(ana, "production", at="production") == "production"
-    with pytest.raises(NotAllowed, match="this name is the sandbox's: production answers"):
-        world_of(ana, "production", at="sandbox")
-    with pytest.raises(NotAllowed, match="a production server's token"):
-        world_of(Bearer(SERVER), None, at="sandbox")

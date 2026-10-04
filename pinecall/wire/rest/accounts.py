@@ -237,9 +237,6 @@ class GatewayInfoResponse(WireModel):
     mail: bool
     brand: BrandRow
     google: bool
-    # The world this name is, and the other world's address; None on a box that named no world.
-    world: Env | None = None
-    elsewhere: str | None = None
 
 
 # ── signing in ──

@@ -5,9 +5,9 @@ image:
   tag: ""
 
 # The two names a request comes in by: the world is the name (docs/multi-tenancy.md).
-domains:
-  production: ""
-  sandbox: ""
+# The one name both worlds are served at (PINECALL_DOMAIN): the world of a request is its key's
+# or its header's, never the name's.
+domain: ""
 
 fleets:
   production: pinecall

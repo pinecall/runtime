@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **One name, two worlds.** A box has one name (`PINECALL_DOMAIN`) and both worlds answer at it:
+  the world of a request is its key's (a server's token opens the world it was made in) or, for a
+  person, the `pinecall-env` header's, the sandbox when it names none — never the name the request
+  came in by. `PINECALL_SANDBOX_DOMAIN` is gone, and with it the refusal of a header that disagreed
+  with the name. The console is production's at `/` and the sandbox's at `/sandbox/…`, same
+  origin, same sign-in; the gateway writes no `pinecall-world`/`pinecall-elsewhere` marks into the
+  page, and `GET /.well-known/pinecall` no longer says `world` or `elsewhere`. A browser's
+  `server_url` is `wss://<the name>` in both worlds. The SIP names stay one a world
+  (`PINECALL_SIP_DOMAIN`, `PINECALL_SANDBOX_SIP_DOMAIN`): a carrier's, written into its trunk by the
+  runtime, typed by nobody.
 - **v1's machines left the repository** (`../infra-v1`): the box, the cell, the fleet loop and its
   clouds, the Packer image, the AWS fleet and the lab's own Terraform, and with them `box up`,
   `box upgrade`, `box failover`, every `cell` verb, `fleet loop`, `fence apply` (`pinecall-fence`),

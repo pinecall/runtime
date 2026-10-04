@@ -25,7 +25,7 @@ router = APIRouter()
 GZIP = "application/gzip"
 
 
-NO_NAME = "this box has no name for {env}: a hosted app has no gateway address to dial"
+NO_NAME = "this box has no PINECALL_DOMAIN: a hosted app has no gateway address to dial"
 
 
 # In this order: what the runner says is kept first, so what it is answered already counts it.
@@ -84,9 +84,9 @@ async def runner_environment(
 ) -> AppEnvironment:
     """What the app's process is started with: the org's secrets, its token, the gateway."""
     connections = gateway.connections
-    address = connections.settings.address_of(key.env)
+    address = connections.settings.address
     if address is None:
-        raise NotAvailable(NO_NAME.format(env=key.env))
+        raise NotAvailable(NO_NAME)
     app = HostedApp(org=org, env=key.env, name=name)
     secrets = await org_secrets.environment_of(connections.pool, connections.vault, org, key.env)
     token = await hosting.key_of(connections.pool, connections.vault, app)

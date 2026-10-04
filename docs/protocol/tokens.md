@@ -48,10 +48,11 @@ a client may not set.
 The answer is `201` with LiveKit's two fields and two more every SDK ignores:
 
 ```json
-{ "server_url": "wss://sandbox.pinecall.io", "participant_token": "eyJ…", "call": "CA_5f1c…", "log_token": "eyJ…" }
+{ "server_url": "wss://cloud.pinecall.io", "participant_token": "eyJ…", "call": "CA_5f1c…", "log_token": "eyJ…" }
 ```
 
-`server_url` is `LIVEKIT_PUBLIC_URL` when set, else `LIVEKIT_URL`. `call` is the room and the id
+`server_url` is the box's name (`PINECALL_DOMAIN`) over `wss`, else `LIVEKIT_PUBLIC_URL`, else
+`LIVEKIT_URL`. `call` is the room and the id
 its log will have, so the backend can watch it without decoding a JWT.
 
 ## The log token

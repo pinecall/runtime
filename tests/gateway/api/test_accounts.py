@@ -61,10 +61,7 @@ async def test_a_sign_in_page_is_told_the_gateway_before_it_holds_a_key(
         "mail",
         "brand",
         "google",
-        "world",
-        "elsewhere",
     }
-    assert (before["world"], before["elsewhere"]) == (None, None)
     assert (before["signup"], before["min_password"], before["mail"], before["google"]) == (
         False,
         8,

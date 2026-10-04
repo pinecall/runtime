@@ -395,7 +395,7 @@ async def _socket_key(websocket: WebSocket, gateway: Gateway) -> Acting:
     if verified is None:
         raise NotAllowed(_deps.TAKES_A_KEY)
     keys.check_opens(verified, HOLDING)
-    return Acting(bearer=verified, env=_deps.world_of_request(websocket, verified, gateway))
+    return Acting(bearer=verified, env=_deps.world_of_request(websocket, verified))
 
 
 def _named(raw: Json, field: str) -> str:

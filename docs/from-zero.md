@@ -10,7 +10,7 @@ A box is the runtime on a cluster: Terraform makes the cluster on Google Cloud (
 address, firewall, names and secrets) and a Helm chart runs the gateways, the workers, LiveKit,
 SIP, Redis and Postgres on it, all of it in the repository's `infra/`. Your box is an environment
 of your own: a copy of `infra/terraform/environments/staging` and of `infra/values/staging.yaml`
-with your project and your two names, production's and the sandbox's. Then, from a checkout, with
+with your project and your name, the one both worlds answer at. Then, from a checkout, with
 gcloud signed in:
 
 ```console
