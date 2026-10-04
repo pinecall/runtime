@@ -55,8 +55,8 @@ metadata:
   name: pinecall-postgres
 spec:
   schedule: {{ .Values.postgres.backups.schedule | quote }}
-  # A first base backup at once: WAL alone restores nothing.
-  immediate: true
+  # No first backup at install: it would run before the plugin is in the Postgres pod, and fail.
+  # A database restored or written to for the first time is backed up by hand (infra/README.md).
   backupOwnerReference: self
   cluster:
     name: pinecall-postgres
