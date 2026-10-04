@@ -228,11 +228,11 @@ class FenceOpening(WireModel):
 
 
 class BoxFence(WireModel):
-    """What the fence opens to now, and when the root helper last wrote it into nftables."""
+    """What the fence opens to beyond Twilio's, and every network the cloud's firewall admits."""
 
     openings: list[FenceOpening]
-    applied_at: float | None
-    applied: int | None
+    # Twilio's first, then each opening: Terraform's `sip_sources` (`fence export`).
+    networks: list[str]
 
 
 class BoxCarriers(WireModel):

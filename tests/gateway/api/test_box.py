@@ -6,6 +6,7 @@ from livekit.protocol.sip import ListSIPInboundTrunkRequest
 
 from pinecall.channels import routes
 from pinecall.channels.routes import RouteWrite
+from pinecall.channels.telephony.carrier import TWILIO_SIGNALLING
 from pinecall.domain.call import Route
 from pinecall.tenancy import orgs
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
@@ -181,6 +182,9 @@ async def test_the_operator_admits_a_carrier_and_twilio_stays_admitted(knocking:
     assert (kept.status_code, unknown.status_code) == (409, 404)
     assert len(after["fence"]["openings"]) == 12
     assert {opening["reason"] for opening in after["fence"]["openings"]} == {"telnyx"}
+    networks = after["fence"]["networks"]
+    assert networks[: len(TWILIO_SIGNALLING)] == list(TWILIO_SIGNALLING)
+    assert networks[len(TWILIO_SIGNALLING) :] == [o["network"] for o in after["fence"]["openings"]]
 
 
 @postgres

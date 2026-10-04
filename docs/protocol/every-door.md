@@ -185,8 +185,8 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/ops/brand` | operator | What the box's letters and sign-in page are called and painted with. |
 | `PUT` | `/v1/ops/brand` | operator | The brand changed field by field: one left out stays, an empty one goes to the default. |
 | `GET` | `/v1/ops/carrier-networks` | operator | Every network an org asked 5060 to open to, or those in one state, oldest first. |
-| `POST` | `/v1/ops/carrier-networks/{ask}/approve` | operator | Open 5060 to the network within a minute, and admit the org's numbers it fences. |
-| `POST` | `/v1/ops/carrier-networks/{ask}/refuse` | operator | Keep 5060 closed to the network; numbers it alone fenced are let go of on the SFU. |
+| `POST` | `/v1/ops/carrier-networks/{ask}/approve` | operator | Put the network on the firewall's list, and admit the org's numbers it fences. |
+| `POST` | `/v1/ops/carrier-networks/{ask}/refuse` | operator | Keep the network off the fence's list; numbers it alone fenced are let go of on the SFU. |
 | `GET` | `/v1/ops/carriers` | operator | The catalog, each carrier admitted or not with the numbers it brings, and the fence now. |
 | `PUT` | `/v1/ops/carriers/{kind}` | operator | Admit a carrier of the catalog, or stop admitting it; Twilio is admitted always. |
 | `GET` | `/v1/ops/hosted-usage` | operator | The time every org's apps served, both worlds, per UTC day, one month: what bills them. |

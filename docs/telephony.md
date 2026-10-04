@@ -48,7 +48,8 @@ signalling edges alone, twice:
    to the networks Terraform's `sip_sources` names, and denied to everyone else. The networks it
    should name are Twilio's, the other carriers' the operator admits and the addresses he
    approved, the list the console's box screen shows (`GET /v1/ops/carriers`, its `fence`); a
-   change to it reaches the rule by a Terraform change.
+   change to it reaches the rule when the operator exports it for Terraform and applies it
+   (`pinecall-runtime fence export`, [the-runtime-cli.md](the-runtime-cli.md)).
 2. **The trunk on livekit-sip**: a number is admitted by one inbound trunk, which lists the
    networks it may come from. An INVITE for a number no trunk lists gets no answer at all
    (`hide_inbound_port`): a scanner learns nothing and opens no room.

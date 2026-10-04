@@ -21,5 +21,8 @@ crash.log
 .lab/
 .image/
 .suite/
+# `pinecall-runtime fence export`: the carriers' and the orgs' approved networks, which are the
+# orgs' and never published with this repository.
+infra/terraform/environments/*/sip_sources.auto.tfvars.json
 # A saved plan (`make tf-plan`): what `make tf-apply` applies, never committed.
 infra/terraform/environments/*/plan
