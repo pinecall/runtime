@@ -42,7 +42,8 @@ call nothing; the chart runs two (`gateway.replicas`), and a disruption budget k
 through a node's drain. A release never shows a caller a `503`: a stopping gateway serves on for
 30 s (its pod's `preStop`) while the load balancer takes it out of the group, and only then closes;
 and it keeps an idle connection 620 s, past the load balancer's 600, so the load balancer never
-sends a request down a socket the gateway already closed.
+sends a request down a socket the gateway already closed. A new gateway imports every vendor's
+plugin before it listens (5 s), so no request waits on the first door that lists the vendors.
 
 ## A fleet per world
 
