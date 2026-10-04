@@ -25,4 +25,4 @@ crash.log
 # orgs' and never published with this repository.
 infra/terraform/environments/*/sip_sources.auto.tfvars.json
 # A saved plan (`make tf-plan`): what `make tf-apply` applies, never committed.
-infra/terraform/environments/*/plan
+infra/terraform/**/plan

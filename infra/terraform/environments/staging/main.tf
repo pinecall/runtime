@@ -102,16 +102,6 @@ module "addons" {
   secrets_service_account = module.secrets.sync_service_account
 }
 
-module "registry" {
-  source = "../../modules/registry"
-  region = var.region
-}
-
-module "build" {
-  source  = "../../modules/build"
-  project = var.project
-}
-
 module "backups" {
   source  = "../../modules/backups"
   project = var.project
@@ -152,14 +142,6 @@ output "cluster" {
 
 output "location" {
   value = module.gke.location
-}
-
-output "registry" {
-  value = module.registry.url
-}
-
-output "build_service_account" {
-  value = module.build.service_account
 }
 
 output "secrets_sync_service_account" {
