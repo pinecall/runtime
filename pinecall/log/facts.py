@@ -141,7 +141,7 @@ UNSEALED_SPOKEN = """
 select head.log as call, head.agent,
        coalesce(head.started_at, 0) as started_at,
        coalesce(max(entry.ts), head.started_at, extract(epoch from opening.opened_at)) as last_at,
-       null as channel
+       null as channel, head.env
 from call_log_head head
 left join call_facts f on f.call = head.log
 left join call_openings opening on opening.call = head.log
@@ -150,7 +150,7 @@ where head.call is not null and not head.sealed
   and (coalesce(f.spoken, false)
        or not exists (select 1 from call_log began
                        where began.log = head.log and began.type = 'call.started'))
-group by head.log, head.agent, head.started_at, opening.opened_at
+group by head.log, head.agent, head.started_at, head.env, opening.opened_at
 having coalesce(max(entry.ts), head.started_at, extract(epoch from opening.opened_at))
        < %(quiet_since)s
 order by last_at
@@ -161,14 +161,14 @@ limit %(limit)s
 UNSEALED_WRITTEN = """
 select head.log as call, head.agent,
        coalesce(head.started_at, 0) as started_at,
-       coalesce(max(entry.ts), head.started_at, 0) as last_at, f.channel
+       coalesce(max(entry.ts), head.started_at, 0) as last_at, f.channel, head.env
 from call_log_head head
 join call_facts f on f.call = head.log
 left join call_log entry on entry.log = head.log
 where head.call is not null and not head.sealed and not coalesce(f.spoken, false)
   and exists (select 1 from call_log began
                where began.log = head.log and began.type = 'call.started')
-group by head.log, head.agent, head.started_at, f.channel
+group by head.log, head.agent, head.started_at, head.env, f.channel
 having coalesce(max(entry.ts), head.started_at, 0) < %(quiet_since)s
 order by last_at
 limit %(limit)s

@@ -16,6 +16,7 @@ from pinecall.wire.rest.calls import OpenCallRequest
 from pinecall.wire.rest.fleet import HeartbeatRequest
 from tests.conftest import (
     AGENT,
+    BOX_DOMAIN,
     Knocking,
     postgres,
 )
@@ -49,6 +50,8 @@ async def test_a_visitors_token_carries_the_dispatch_to_its_worlds_fleet(
     assert carried["env"] == "sandbox"
     assert carried["contact"] == "c_42"
     assert claims["video"]["room"] == answer["call"]
+    # The sandbox has its own LiveKit, which the load balancer serves under /sandbox.
+    assert answer["server_url"] == f"wss://{BOX_DOMAIN}/sandbox"
     await app.close()
 
 
@@ -98,6 +101,7 @@ async def test_a_full_sandbox_leaves_production_open(knocking: Knocking) -> None
     async with knocking.http(knocking.app["production"]) as tenant:
         minted = await tenant.post("/v1/tokens", json={"agent": AGENT})
     assert minted.status_code == 201
+    assert minted.json()["server_url"] == f"wss://{BOX_DOMAIN}"
     await app.close()
 
 

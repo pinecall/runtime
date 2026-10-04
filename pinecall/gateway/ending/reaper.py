@@ -3,11 +3,13 @@
 import asyncio
 import logging
 import time
+from collections.abc import Mapping
 
 from livekit import api
 
 from pinecall.channels.rooms import room_closed, rooms_with_an_agent
 from pinecall.domain.errors import Conflict, NotAvailable
+from pinecall.domain.names import Env
 from pinecall.gateway._served import Serving
 from pinecall.gateway.ending.seal import LEASED_S, summed_up
 from pinecall.log import queries
@@ -44,18 +46,20 @@ A_THREAD_WAITS_S = 2 * 60 * 60.0
 REAPED = "sealed %s: no agent is in its room and it has said nothing for %.0f s"
 
 
-# A killed job writes no call.ended, and nothing else would close its log.
-async def reaped(serving: Serving, server: api.LiveKitAPI, now: float) -> list[str]:
+# A killed job writes no call.ended, and nothing else would close its log. A call's room is
+# asked of its world's LiveKit; a call no scope claimed, of every one.
+async def reaped(serving: Serving, servers: Mapping[Env, api.LiveKitAPI], now: float) -> list[str]:
     """Seal the quiet calls nothing runs any more, and say which."""
     sealed_now: list[str] = []
     quiet = await queries.unsealed_spoken(serving.connections.pool, now - QUIET_S, limit=AT_MOST)
     existing: set[str] = set()
-    if quiet:
-        existing = await rooms_with_an_agent(server, [item.call for item in quiet])
+    for server, calls in _rooms_by_livekit(servers, quiet).items():
+        existing |= await rooms_with_an_agent(server, calls)
     for orphan in quiet:
         if orphan.call not in existing and await _finished(serving, orphan, "drained"):
             # The room goes too, so whoever is still in it hears the call end.
-            await room_closed(server, orphan.call)
+            for server in _livekits_of(servers, orphan):
+                await room_closed(server, orphan.call)
             logger.warning(REAPED, orphan.call, now - orphan.last_at)
             sealed_now.append(orphan.call)
     for orphan in await queries.unsealed_written(
@@ -77,11 +81,11 @@ async def reaped(serving: Serving, server: api.LiveKitAPI, now: float) -> list[s
 
 
 # A pass that fails is said, and the next one runs: the reaper never stops.
-async def reap_forever(serving: Serving, server: api.LiveKitAPI) -> None:
+async def reap_forever(serving: Serving, servers: Mapping[Env, api.LiveKitAPI]) -> None:
     """A pass now, and one every minute."""
     while True:
         try:
-            await reaped(serving, server, time.time())
+            await reaped(serving, servers, time.time())
             await let_go(serving)
         except (Conflict, NotAvailable, api.TwirpError, OSError):
             logger.warning(
@@ -100,6 +104,25 @@ async def let_go(serving: Serving) -> list[str]:
         serving.logs.forget(call)
         serving.live.close(call)
     return sorted(gone)
+
+
+def _rooms_by_livekit(
+    servers: Mapping[Env, api.LiveKitAPI], quiet: list[queries.Unsealed]
+) -> dict[api.LiveKitAPI, list[str]]:
+    by_livekit: dict[api.LiveKitAPI, list[str]] = {}
+    for orphan in quiet:
+        for server in _livekits_of(servers, orphan):
+            by_livekit.setdefault(server, []).append(orphan.call)
+    return by_livekit
+
+
+# Both worlds hold the one client when they share a LiveKit: it is asked once.
+def _livekits_of(
+    servers: Mapping[Env, api.LiveKitAPI], orphan: queries.Unsealed
+) -> list[api.LiveKitAPI]:
+    if orphan.env is not None:
+        return [servers[orphan.env]]
+    return list(dict.fromkeys(servers.values()))
 
 
 # Duration ends at the last entry, not now: reaping late bills no extra minutes.

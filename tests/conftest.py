@@ -7,7 +7,7 @@ import os
 import socket
 import sys
 import time
-from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Iterator
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Iterator, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 from uuid import uuid4
@@ -39,7 +39,7 @@ from pinecall.log.logs import Logs
 from pinecall.log.store import Store
 from pinecall.postgres.migrate import apply_migrations
 from pinecall.postgres.pool import Pool, Timeouts, connect, open_pool
-from pinecall.process.connections import Connections, vault_of
+from pinecall.process.connections import Connections, closed, vault_of
 from pinecall.process.settings import Settings
 from pinecall.process.signal import LocalSignal, RedisSignal
 from pinecall.providers import catalog
@@ -57,7 +57,7 @@ from pinecall.tenancy.words import Words
 from pinecall.wire.frames import Entry
 from pinecall.wire.rest.fleet import HeartbeatRequest
 from tests.fakes.acme import ACME
-from tests.fakes.livekit import A_SECRET, Server, acme_plugin
+from tests.fakes.livekit import A_SECRET, acme_plugin, per_world
 from tests.fakes.meta import Graph, outside
 from tests.fakes.twilio import Twilio
 
@@ -293,10 +293,11 @@ def graph() -> Graph:
 
 
 def settings_of(domain: str | None = BOX_DOMAIN) -> Settings:
-    """The settings a test gateway runs on: a LiveKit nobody reaches, and the box's public name."""
+    """The settings a test gateway runs on: a LiveKit a world nobody reaches, the box's name."""
     return Settings.model_validate(
         {
             "LIVEKIT_URL": "ws://127.0.0.1:9",
+            "LIVEKIT_SANDBOX_URL": "ws://127.0.0.1:10",
             "LIVEKIT_API_KEY": LIVEKIT_KEY,
             "LIVEKIT_API_SECRET": A_SECRET,
             **({"PINECALL_DOMAIN": domain} if domain else {}),
@@ -311,7 +312,7 @@ def _unreachable(request: httpx.Request) -> httpx.Response:
 @pytest.fixture
 async def connections(pool: Pool) -> AsyncIterator[Connections]:
     """A process's connections on the test's pool, with nothing answering its HTTP or its SFU."""
-    server = Server()
+    servers = per_world()
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unreachable)) as http:
         yield Connections(
             settings=settings_of(),
@@ -319,9 +320,9 @@ async def connections(pool: Pool) -> AsyncIterator[Connections]:
             writing=pool,
             vault=vault_of(Fernet.generate_key().decode()),
             http=http,
-            server=server,
+            servers=servers,
         )
-    await server.aclose()
+    await closed(servers)
 
 
 @dataclass(frozen=True)
@@ -359,7 +360,7 @@ async def wired(pool: Pool, store: Store, acme: str, shared: Shared) -> AsyncIte
 async def a_gateway(pool: Pool, logs: Logs, shared: Shared) -> AsyncGenerator[Gateway]:
     """A gateway wired on these logs, its outside world answered by the transport."""
     store = logs.store
-    server = Server()
+    servers = per_world()
     settings = settings_of()
     http = httpx.AsyncClient(transport=shared.outside)
     roster = Roster(shared.signal)
@@ -373,7 +374,7 @@ async def a_gateway(pool: Pool, logs: Logs, shared: Shared) -> AsyncGenerator[Ga
         writing=pool,
         vault=shared.vault,
         http=http,
-        server=server,
+        servers=servers,
         signal=shared.signal,
     )
     serving = Serving(connections=connections, logs=logs, live=live, embedder=None)
@@ -409,7 +410,7 @@ async def a_gateway(pool: Pool, logs: Logs, shared: Shared) -> AsyncGenerator[Ga
     await store.writer.drained()
     await logs.close()
     await http.aclose()
-    await server.aclose()
+    await closed(servers)
 
 
 @pytest.fixture
@@ -492,8 +493,10 @@ def a_worker_heard(
     roster.report(beat, time.time())
 
 
-def an_offering(pool: Pool, server: api.LiveKitAPI, fleet: str = "pinecall-sandbox") -> Offering:
-    """The gateway's dispatcher on this pool and server, the fleet one worker w1 with seats free."""
+def an_offering(
+    pool: Pool, servers: Mapping[Env, api.LiveKitAPI], fleet: str = "pinecall-sandbox"
+) -> Offering:
+    """The gateway's dispatcher on these LiveKits, the fleet one worker w1 with seats free."""
     roster = Roster()
     a_worker_heard(roster, fleet)
-    return Offering(pool=pool, server=server, roster=roster)
+    return Offering(pool=pool, servers=servers, roster=roster)

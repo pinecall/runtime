@@ -33,7 +33,7 @@ from pinecall.gateway.app import announce_closing, app, embedder_of
 from pinecall.log import days
 from pinecall.postgres.migrate import apply_migrations, migration_files, migrations_behind
 from pinecall.postgres.pool import open_pool
-from pinecall.process.connections import keyring_of, opened, server_of, vault_of
+from pinecall.process.connections import closed, keyring_of, opened, servers_of, vault_of
 from pinecall.process.recordings import recordings_of
 from pinecall.process.settings import Settings, load
 from pinecall.providers import catalog, prices
@@ -476,17 +476,28 @@ async def _archived(settings: Settings) -> tuple[str | None, str]:
     return _archive.archive_finding(archive, datetime.now(UTC))
 
 
+# Each world's LiveKit is asked, and the one that does not answer is named.
 async def _livekit(settings: Settings) -> str | None:
     try:
-        server = server_of(settings)
+        servers = servers_of(settings)
     except PinecallError as refused:
         return str(refused)
+    failed: list[str] = []
+    try:
+        for world, server in servers.items():
+            refused = await _refused_by(server)
+            if refused is not None:
+                failed.append(f"{world} ({settings.livekit_url_of(world)}): {refused}")
+    finally:
+        await closed(servers)
+    return "; ".join(failed) or None
+
+
+async def _refused_by(server: api.LiveKitAPI) -> str | None:
     try:
         await server.room.list_rooms(api.ListRoomsRequest())
     except (api.TwirpError, OSError) as refused:
         return str(refused)
-    finally:
-        await server.aclose()
     return None
 
 

@@ -1,4 +1,4 @@
-"""The SFU's side of a number: a trunk per fence, a dispatch rule per world, the rebuild."""
+"""The SFU's side of a number: on its world's LiveKit, a trunk per fence and the world's rule."""
 
 import logging
 from collections.abc import Sequence
@@ -26,7 +26,7 @@ from pinecall.channels.rooms import Dispatch
 from pinecall.channels.routes import RouteRecord
 from pinecall.channels.telephony.carrier import Fence, declared_networks, fence_of, own_networks
 from pinecall.domain.errors import NotAvailable
-from pinecall.domain.names import Env
+from pinecall.domain.names import ENVS, Env, other_world
 from pinecall.fleet import worlds
 from pinecall.process.connections import Connections
 from pinecall.tenancy import carrier_networks
@@ -59,6 +59,14 @@ class WorldRule:
 
 
 @dataclass(frozen=True)
+class Fencing:
+    """What fences an org's numbers now: its carriers by id, and the networks approved."""
+
+    carriers: dict[str, Carrier]
+    approved: dict[str, tuple[str, ...]]
+
+
+@dataclass(frozen=True)
 class Rebuilt:
     """What the reconcile found: numbers existing on the SFU, orgs it could not rebuild."""
 
@@ -80,6 +88,13 @@ def sip_domain_of(connections: Connections, world: Env) -> str:
     if not name:
         raise NotAvailable(NO_DOMAIN)
     return name
+
+
+# Both worlds hold the one client when the sandbox has no LiveKit of its own.
+def elsewhere(connections: Connections, world: Env) -> api.LiveKitAPI | None:
+    """The other world's LiveKit when it is not this world's too; None where both share one."""
+    other = connections.servers[other_world(world)]
+    return None if other is connections.servers[world] else other
 
 
 def rule_name(org: str, env: Env) -> str:
@@ -208,8 +223,20 @@ async def renumber_rule(
     await server.sip.update_dispatch_rule(rule.sip_dispatch_rule_id, rule)
 
 
+# The rules are listed after the trunks: a trunk emptied takes a rule left with none with it.
+async def let_go(server: api.LiveKitAPI, org: str, number: str) -> None:
+    """Take the number off the org's trunks and off both of its worlds' rules on this LiveKit."""
+    await _unlisted(server, org, number)
+    names = {rule_name(org, env) for env in ENVS}
+    listed = await server.sip.list_dispatch_rule(ListSIPDispatchRuleRequest())
+    for rule in listed.items:
+        if rule.name in names and number in rule.numbers:
+            await renumber_rule(server, rule, [item for item in rule.numbers if item != number])
+
+
 # LiveKit keeps its trunks and rules in Redis, which can be emptied; the tables are the truth.
-# Nothing is deleted, and the carrier's side is never touched.
+# Nothing is deleted but a number the other world's LiveKit still lists, and the carrier's side is
+# never touched.
 async def rebuild(connections: Connections) -> Rebuilt:
     """Admit every routed phone number again on the SFU, with its fence and its world's rule."""
     async with connections.pool.connection() as connection:
@@ -229,29 +256,41 @@ async def rebuild(connections: Connections) -> Rebuilt:
 async def readmit(connections: Connections, org: str) -> int:
     """Admit the org's phone numbers again with the fences they have now; how many stand."""
     fleets = await worlds.fleets(connections.pool)
-    carriers = {
-        carrier.id: carrier
-        for carrier in await carriers_of(connections.pool, connections.vault, org)
-    }
-    approved = await carrier_networks.approved(connections.pool, org)
+    fencing = await fencing_of(connections, org)
     admitted = 0
     for record in await routes.phones_of(connections.pool, org):
-        number = str(record.route.number)
-        fence = fence_now(record, carriers.get(record.account or ""), approved)
-        if fence is None:
-            await _unlisted(connections.server, org, number)
-            continue
-        trunk = await trunk_named(connections.server, fence.trunk)
-        trunk_id = await admit(connections.server, fence, trunk, number)
-        env = record.route.env
-        await rule_in(
-            connections.server,
-            WorldRule(org, env, worlds.fleet_of(fleets, env)),
-            [trunk_id],
-            number,
-        )
-        admitted += 1
+        admitted += await readmitted(connections, record, fencing, fleets)
     return admitted
+
+
+async def fencing_of(connections: Connections, org: str) -> Fencing:
+    """The org's carriers and approved networks, which fence its numbers now."""
+    carriers = await carriers_of(connections.pool, connections.vault, org)
+    approved = await carrier_networks.approved(connections.pool, org)
+    return Fencing(carriers={carrier.id: carrier for carrier in carriers}, approved=approved)
+
+
+# A number lives on its world's LiveKit alone: the other world's, when it has its own, lets it go
+# (a number moved, or one admitted there before the worlds had a LiveKit each). On its own LiveKit
+# the other world's rule lets it go first: two rules of one trunk never list one number.
+async def readmitted(
+    connections: Connections, record: RouteRecord, fencing: Fencing, fleets: worlds.Fleets
+) -> bool:
+    """Admit the number on its world's LiveKit with the fence it has now; whether it stands."""
+    org, number, env = record.route.org, str(record.route.number), record.route.env
+    server, other = connections.servers[env], elsewhere(connections, env)
+    if other is not None:
+        await let_go(other, org, number)
+    fence = fence_now(record, fencing.carriers.get(record.account or ""), fencing.approved)
+    if fence is None:
+        await _unlisted(server, org, number)
+        return False
+    trunk_id = await admit(server, fence, await trunk_named(server, fence.trunk), number)
+    left = await rule_named(server, rule_name(org, other_world(env)))
+    if left is not None and number in left.numbers:
+        await renumber_rule(server, left, [listed for listed in left.numbers if listed != number])
+    await rule_in(server, WorldRule(org, env, worlds.fleet_of(fleets, env)), [trunk_id], number)
+    return True
 
 
 def fence_now(

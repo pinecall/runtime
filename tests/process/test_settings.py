@@ -243,7 +243,7 @@ def test_a_box_has_one_name_for_both_worlds_and_a_sip_name_per_world() -> None:
         "sip.example",
         "sip.sandbox.example",
     )
-    assert settings.browser_livekit_url == "wss://box.example"
+    assert settings.browser_livekit_url("sandbox") == "wss://box.example"
     one_sip = Settings.model_validate(
         {"PINECALL_DOMAIN": "box.example", "PINECALL_SIP_DOMAIN": "sip.example"}
     )
@@ -259,7 +259,38 @@ def test_a_box_with_no_sip_name_is_reached_by_a_carrier_at_its_own_name() -> Non
     unnamed = Settings.model_validate({"LIVEKIT_URL": "ws://127.0.0.1:7880"})
     assert unnamed.address is None
     assert unnamed.sip_name_of("production") is None
-    assert unnamed.browser_livekit_url == "ws://127.0.0.1:7880"
+    assert unnamed.browser_livekit_url("production") == "ws://127.0.0.1:7880"
+
+
+def test_a_sandbox_with_a_livekit_of_its_own_is_reached_at_it_and_joined_under_its_path() -> None:
+    split = Settings.model_validate(
+        {
+            "PINECALL_DOMAIN": "box.example",
+            "LIVEKIT_URL": "ws://livekit-production:7880",
+            "LIVEKIT_SANDBOX_URL": "ws://livekit-sandbox:7880",
+        }
+    )
+    assert (split.livekit_url_of("production"), split.livekit_url_of("sandbox")) == (
+        "ws://livekit-production:7880",
+        "ws://livekit-sandbox:7880",
+    )
+    assert (split.browser_livekit_url("production"), split.browser_livekit_url("sandbox")) == (
+        "wss://box.example",
+        "wss://box.example/sandbox",
+    )
+    shared = Settings.model_validate(
+        {"PINECALL_DOMAIN": "box.example", "LIVEKIT_URL": "ws://livekit:7880"}
+    )
+    assert shared.livekit_url_of("sandbox") == "ws://livekit:7880"
+    assert shared.browser_livekit_url("sandbox") == "wss://box.example"
+    nameless = split.model_copy(update={"domain": None, "livekit_public_url": "wss://sfu.example"})
+    assert (
+        nameless.browser_livekit_url("production"),
+        nameless.browser_livekit_url("sandbox"),
+    ) == (
+        "wss://sfu.example",
+        "ws://livekit-sandbox:7880",
+    )
 
 
 def test_a_recordings_bucket_without_its_whole_store_stops_the_process_naming_what_lacks(

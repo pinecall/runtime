@@ -49,6 +49,13 @@ class Settings(BaseModel):
         alias="LIVEKIT_URL",
         description="LiveKit, which both processes talk to. One port serves ws and http.",
     )
+    # A world's rooms live on its own LiveKit, so a sandbox call never shares a machine with a
+    # production one; a worker is given its world's in LIVEKIT_URL.
+    livekit_sandbox_url: str | None = Field(
+        None,
+        alias="LIVEKIT_SANDBOX_URL",
+        description="The sandbox's own LiveKit, as the gateway reaches it. Unset: LIVEKIT_URL's.",
+    )
     livekit_api_key: str | None = Field(
         None, alias="LIVEKIT_API_KEY", description="The LiveKit API key, as its own config says."
     )
@@ -59,7 +66,7 @@ class Settings(BaseModel):
     livekit_public_url: str | None = Field(
         None,
         alias="LIVEKIT_PUBLIC_URL",
-        description="The LiveKit URL a browser is told to join. Unset, it hears LIVEKIT_URL.",
+        description="The LiveKit URL a browser joins when the box has no name. Unset: LIVEKIT_URL.",
     )
     # One name serves both worlds: a request's world is its key's or its header's, never the name
     # it came in by (tenancy/keys.py, world_of).
@@ -426,12 +433,19 @@ class Settings(BaseModel):
         """The https address of the box's name, or None where it has none."""
         return None if self.domain is None else f"https://{self.domain}"
 
-    @property
-    def browser_livekit_url(self) -> str:
-        """The LiveKit URL a browser is told to join: the box's name, else LiveKit's own."""
+    def livekit_url_of(self, world: Env) -> str:
+        """The LiveKit that world's rooms live on, as this process reaches it."""
+        if world == SANDBOX and self.livekit_sandbox_url:
+            return self.livekit_sandbox_url
+        return self.livekit_url
+
+    # The load balancer sends `/sandbox/rtc…` to the sandbox's own LiveKit, the prefix stripped.
+    def browser_livekit_url(self, world: Env) -> str:
+        """The LiveKit URL a browser is told to join for a call of the world."""
+        own = self.livekit_sandbox_url if world == SANDBOX else None
         if self.domain:
-            return f"wss://{self.domain}"
-        return self.livekit_public_url or self.livekit_url
+            return f"wss://{self.domain}/sandbox" if own else f"wss://{self.domain}"
+        return own or self.livekit_public_url or self.livekit_url
 
 
 def load() -> Settings:

@@ -575,7 +575,7 @@ async def test_a_persona_written_for_another_agent_is_not_put_on_this_ones_line(
         )
     assert refused.status_code == 404
     assert refused.json()["detail"] == "no persona called apurado for clinica-norte"
-    server = knocking.gateway.connections.server
+    server = knocking.gateway.connections.servers["sandbox"]
     assert isinstance(server, Server)
     assert server.dispatcher.made == []
 
@@ -598,7 +598,7 @@ async def test_the_agent_is_dispatched_with_the_persona_and_the_room_is_deleted_
         )
     assert answer.status_code == 503
     assert "could not be held" in answer.json()["detail"]
-    server = knocking.gateway.connections.server
+    server = knocking.gateway.connections.servers["sandbox"]
     assert isinstance(server, Server)
     [dispatch] = server.dispatcher.made
     assert dispatch.room == "call_1"

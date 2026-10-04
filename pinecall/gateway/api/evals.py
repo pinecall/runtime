@@ -522,12 +522,13 @@ async def _on_the_line(
     next_line: spoken.NextLine,
 ) -> int:
     connections = gateway.connections
-    fleet = worlds.fleet_of(await worlds.fleets(connections.pool), dispatch.env or "sandbox")
+    world = dispatch.env or "sandbox"
+    fleet = worlds.fleet_of(await worlds.fleets(connections.pool), world)
     visitor = tokens.Visitor(
         expires_at=time.time() + A_CALL_MAY_LAST_S, identity=spoken.A_SIMULATED_CALLER
     )
     token = tokens.room_token(gateway.signer, line.call, "talk", visitor)
-    joined = dataclasses.replace(line, url=connections.settings.livekit_url, token=token)
+    joined = dataclasses.replace(line, url=connections.settings.livekit_url_of(world), token=token)
     speech = tts_of(voice)
     try:
         await gateway.offering.offer(line.call, fleet, dispatch)
@@ -535,7 +536,7 @@ async def _on_the_line(
     except (TimeoutError, rtc.ConnectError) as broke:
         raise NotAvailable(NO_LINE.format(broke=broke)) from broke
     finally:
-        await rooms.room_closed(connections.server, line.call)
+        await rooms.room_closed(connections.servers[world], line.call)
         await speech.aclose()
 
 

@@ -9,7 +9,7 @@ from psycopg.rows import DictRow
 
 from pinecall.domain.agent import Versions
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.names import CHANNELS, Env
+from pinecall.domain.names import CHANNELS, Env, parse_env
 from pinecall.domain.scope import Scope
 from pinecall.log.facts import (
     A_DAY_S,
@@ -92,13 +92,15 @@ class Found:
 
 @dataclass(frozen=True, slots=True)
 class Unsealed:
-    """A call still open, for the reaper: when it started, when it last moved, its channel."""
+    """A call still open, for the reaper: its start, its last move, its channel and its world."""
 
     call: str
     agent: str
     started_at: float
     last_at: float
     channel: str | None
+    # None for a log no scope ever claimed.
+    env: Env | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -442,6 +444,7 @@ async def _unsealed(
             started_at=float(row["started_at"]),
             last_at=float(row["last_at"]),
             channel=row["channel"],
+            env=None if row["env"] is None else parse_env(str(row["env"])),
         )
         for row in rows
     ]

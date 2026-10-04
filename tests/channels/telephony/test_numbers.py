@@ -22,7 +22,7 @@ from pinecall.domain.errors import (
 from pinecall.domain.org import Quotas
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
-from pinecall.process.connections import Connections, vault_of
+from pinecall.process.connections import Connections, closed, vault_of
 from pinecall.tenancy import admission, carrier_networks, carriers, dial_policy, orgs
 from pinecall.tenancy.carriers import TwilioAccount, WhatsappAccount
 from pinecall.tenancy.dial_policy import Dial
@@ -41,7 +41,7 @@ from tests.channels.conftest import (
 )
 from tests.conftest import postgres, settings_of
 from tests.fakes.idp import a_sid
-from tests.fakes.livekit import Server
+from tests.fakes.livekit import per_world
 from tests.fakes.meta import Graph
 from tests.fakes.twilio import Twilio
 
@@ -62,7 +62,7 @@ async def test_an_import_makes_the_trunk_attaches_admits_rules_and_routes_once(
     (trunk,) = line.twilio.trunks.values()
     assert trunk.origination == [HERE]
     assert line.twilio.numbers[A_NUMBER][1] == trunk.sid
-    sfu = line.trunk(line.org)
+    sfu = line.trunk(line.org, "sandbox")
     assert list(sfu.numbers) == [A_NUMBER]
     assert list(sfu.allowed_addresses) == list(carrier.TWILIO_SIGNALLING)
     kept = await routes.record_of(line.connections.pool, line.org, A_NUMBER)
@@ -79,7 +79,9 @@ async def test_an_import_makes_the_trunk_attaches_admits_rules_and_routes_once(
     )
     assert all(step.endswith("stands") for step in again.steps)
     assert len(line.twilio.trunks) == 1
-    assert len(line.server.dialled.trunks) == len(line.server.dialled.rules) == 1
+    sandbox, production = line.servers["sandbox"], line.servers["production"]
+    assert len(sandbox.dialled.trunks) == len(sandbox.dialled.rules) == 1
+    assert production.dialled.trunks == production.dialled.rules == {}, "the sandbox's alone"
 
 
 @postgres
@@ -109,7 +111,7 @@ async def test_a_dry_run_is_the_plan_and_writes_nothing_anywhere(line: Line) -> 
     assert plan.dry_run
     assert all(step.endswith("to do") for step in plan.steps)
     assert len(line.twilio.written()) == before
-    assert line.server.dialled.trunks == {}
+    assert all(server.dialled.trunks == {} for server in line.servers.values())
     assert await routes.of_number(line.connections.pool, line.org, A_NUMBER) is None
 
 
@@ -168,7 +170,7 @@ async def test_a_number_another_orgs_trunk_lists_is_refused_before_anything_is_w
 ) -> None:
     await brought(line)
     line.twilio.owns(A_NUMBER)
-    await line.server.sip.create_inbound_trunk(
+    await line.servers["production"].sip.create_inbound_trunk(
         api.CreateSIPInboundTrunkRequest(
             trunk=api.SIPInboundTrunkInfo(name="org_other", numbers=[A_NUMBER])
         )
@@ -190,7 +192,7 @@ async def test_a_peer_touches_nothing_outside_and_rides_its_pair_onto_a_trunk_of
     )
     assert line.twilio.requests == []
     assert any("waits for the box's operator to approve" in step for step in waiting.steps)
-    assert line.server.dialled.trunks == {}
+    assert line.servers["production"].dialled.trunks == {}
     routed = await routes.of_number(line.connections.pool, line.org, A_NUMBER)
     assert routed is not None
     await approved(line, "pbx", PEER_NETWORK)
@@ -207,7 +209,7 @@ async def test_a_number_the_org_hooks_itself_needs_no_account_and_keeps_its_own_
         line.scope(), "recepcion", A_NUMBER, hooked=True, networks=("45.60.13.7",)
     )
     await numbers.import_number(line.connections, wanted)
-    assert line.server.dialled.trunks == {}
+    assert line.servers["production"].dialled.trunks == {}
     (request,) = await carrier_networks.of_org(line.connections.pool, line.org)
     assert (request.source, request.network, request.state) == (
         A_NUMBER,
@@ -233,17 +235,22 @@ async def test_a_box_with_no_name_cannot_be_pointed_at(line: Line) -> None:
 
 
 @postgres
-async def test_a_number_imported_again_in_the_other_world_leaves_the_first_worlds_rule(
+async def test_a_number_imported_again_in_the_other_world_leaves_the_first_worlds_livekit(
     line: Line,
 ) -> None:
     await numbers.import_number(
         line.connections, NumberImport(line.scope(), "recepcion", A_NUMBER, hooked=True)
     )
+    again = await numbers.plan_import(
+        line.connections, NumberImport(line.scope("sandbox"), "recepcion", A_NUMBER, hooked=True)
+    )
+    assert f"LiveKit of the production: {A_NUMBER} off trunk {line.org}: to do" in again.steps
     await numbers.import_number(
         line.connections, NumberImport(line.scope("sandbox"), "recepcion", A_NUMBER, hooked=True)
     )
-    assert line.rules() == [f"{line.org}:sandbox"]
+    assert (line.rules("production"), line.rules("sandbox")) == ([], [f"{line.org}:sandbox"])
     assert list(line.rule("sandbox").numbers) == [A_NUMBER]
+    assert line.servers["production"].dialled.trunks == {}
 
 
 # ── letting go, moving between worlds ──
@@ -258,7 +265,7 @@ async def test_letting_a_number_go_removes_the_route_and_the_admission_but_not_t
     await numbers.import_number(line.connections, NumberImport(line.scope(), "recepcion", A_NUMBER))
     await numbers.release(line.connections, line.org, A_NUMBER, "production")
     assert await routes.of_number(line.connections.pool, line.org, A_NUMBER) is None
-    assert line.server.dialled.trunks == {}
+    assert line.servers["production"].dialled.trunks == {}
     assert line.rules() == []
     assert line.twilio.numbers[A_NUMBER][1] is not None
     with pytest.raises(NotFound):
@@ -266,18 +273,39 @@ async def test_letting_a_number_go_removes_the_route_and_the_admission_but_not_t
 
 
 @postgres
-async def test_a_number_moved_between_worlds_moves_between_the_rules_and_never_the_trunk(
+async def test_a_number_moved_between_worlds_leaves_one_livekit_and_lands_on_the_other(
     line: Line,
 ) -> None:
     await numbers.import_number(
         line.connections, NumberImport(line.scope(), "recepcion", A_NUMBER, hooked=True)
     )
-    trunks = dict(line.server.dialled.trunks)
     moved = await numbers.move(line.connections, line.org, A_NUMBER, "sandbox")
     assert (moved.route.env, moved.origin) == ("sandbox", "hooked")
-    assert line.rules() == [f"{line.org}:sandbox"]
+    production = line.servers["production"]
+    assert production.dialled.trunks == production.dialled.rules == {}
+    assert list(line.trunk(line.org, "sandbox").numbers) == [A_NUMBER]
+    assert line.rules("sandbox") == [f"{line.org}:sandbox"]
     assert list(line.rule("sandbox").numbers) == [A_NUMBER]
-    assert line.server.dialled.trunks == trunks
+    back = await numbers.move(line.connections, line.org, A_NUMBER, "production")
+    assert back.route.env == "production"
+    assert line.servers["sandbox"].dialled.trunks == {}
+    assert list(line.rule("production").numbers) == [A_NUMBER]
+
+
+@postgres
+async def test_where_both_worlds_share_a_livekit_a_number_moves_between_rules_not_trunks(
+    line: Line,
+) -> None:
+    shared = line.servers["production"]
+    connections = replace(line.connections, servers={"production": shared, "sandbox": shared})
+    await numbers.import_number(
+        connections, NumberImport(line.scope(), "recepcion", A_NUMBER, hooked=True)
+    )
+    trunks = dict(shared.dialled.trunks)
+    await numbers.move(connections, line.org, A_NUMBER, "sandbox")
+    (rule,) = shared.dialled.rules.values()
+    assert (rule.name, list(rule.numbers)) == (f"{line.org}:sandbox", [A_NUMBER])
+    assert shared.dialled.trunks == trunks
 
 
 @postgres
@@ -288,8 +316,8 @@ async def test_a_whatsapp_number_moves_world_by_its_row_and_nothing_lands_on_the
     await numbers.import_number(line.connections, wanted)
     moved = await numbers.move(line.connections, line.org, A_NUMBER, "sandbox")
     assert (moved.route.channel, moved.route.env) == ("whatsapp", "sandbox")
-    assert line.server.dialled.trunks == {}
-    assert line.rules() == []
+    assert all(server.dialled.trunks == {} for server in line.servers.values())
+    assert line.rules("production") == line.rules("sandbox") == []
 
 
 @postgres
@@ -390,7 +418,7 @@ async def test_an_agent_answers_at_numbers_of_different_kinds_from_different_acc
     second = Twilio(account_sid=a_sid("AC", 2), user=a_sid("SK", 2), secret=THE_OTHER_HALF)
     first.owns(A_NUMBER)
     second.owns("+15550100134")
-    server = Server()
+    servers = per_world()
     sealed = vault_of(Fernet.generate_key().decode())
     scope = Scope(org, "production")
     async with httpx.AsyncClient(transport=either_account(first, second)) as http:
@@ -400,7 +428,7 @@ async def test_an_agent_answers_at_numbers_of_different_kinds_from_different_acc
             writing=pool,
             vault=sealed,
             http=http,
-            server=server,
+            servers=servers,
         )
         for found in (first, second):
             account = TwilioAccount(
@@ -429,7 +457,7 @@ async def test_an_agent_answers_at_numbers_of_different_kinds_from_different_acc
                 scope, "recepcion", HER_PHONE, "+15550100134", "m_ana", "call_x", datetime.now(UTC)
             ),
         )
-    await server.aclose()
+    await closed(servers)
     answering = await routes.of_org(pool, org, "production")
     assert [(item.agent, item.channel, item.number) for item in answering] == [
         ("recepcion", "phone", A_NUMBER),

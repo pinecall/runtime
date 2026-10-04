@@ -257,7 +257,7 @@ async def lifespan(fastapi_app: FastAPI) -> AsyncGenerator[None]:
     async with AsyncExitStack() as stack:
         gateway = await wire(settings, stack)
         fastapi_app.state.gateway = gateway
-        reaper = asyncio.create_task(reap_forever(gateway.serving, gateway.connections.server))
+        reaper = asyncio.create_task(reap_forever(gateway.serving, gateway.connections.servers))
         stack.push_async_callback(_cancelled, reaper)
         sweep = asyncio.create_task(sweep_forever(gateway.offering))
         stack.push_async_callback(_cancelled, sweep)

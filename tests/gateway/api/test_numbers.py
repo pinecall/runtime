@@ -292,7 +292,7 @@ async def test_a_call_back_is_202_with_its_call_and_a_log_token_and_nobody_holdi
     answer = placed.json()
     assert set(answer) == {"call", "agent", "to", "from", "env", "log_token"}
     assert (answer["to"], answer["from"], answer["env"]) == (HER_PHONE, A_NUMBER, "production")
-    server = dialling.gateway.connections.server
+    server = dialling.gateway.connections.servers["production"]
     assert isinstance(server, Server)
     (dispatch,) = server.dispatcher.made
     assert (dispatch.room, dispatch.agent_name) == (answer["call"], "pinecall/w1")

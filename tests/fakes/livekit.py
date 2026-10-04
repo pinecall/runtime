@@ -57,6 +57,7 @@ from livekit.protocol.sip import (
 from livekit.rtc._proto import handle_pb2, participant_pb2, track_pb2
 from livekit.rtc._utils import BroadcastQueue
 
+from pinecall.domain.names import PRODUCTION, SANDBOX, Env
 from tests.fakes.acme import ACME, AcmeLLM, AcmeStreamedTTS, AcmeSTT, AcmeTTS, seat
 
 # Long enough for the JWT livekit signs with it; a secret of nothing.
@@ -303,6 +304,7 @@ class Rooms(RoomService):
     @override
     async def list_participants(self, list: ListParticipantsRequest) -> ListParticipantsResponse:
         """An agent in the room if the test says so, and its caller if one is left."""
+        self.requests.append(list)
         agent = api.ParticipantInfo(identity="agent", kind=api.ParticipantInfo.Kind.AGENT)
         caller = api.ParticipantInfo(identity="sip_caller", kind=api.ParticipantInfo.Kind.SIP)
         seated = [agent] if self.existing.get(list.room) else []
@@ -397,6 +399,11 @@ class Server(api.LiveKitAPI):
     def agent_dispatch(self) -> AgentDispatchService:
         """The dispatch door."""
         return self.dispatcher
+
+
+def per_world() -> dict[Env, Server]:
+    """A LiveKit of each world's own, as the cluster runs them: what one holds, the other lacks."""
+    return {PRODUCTION: Server(), SANDBOX: Server()}
 
 
 class Player(BackgroundAudioPlayer):

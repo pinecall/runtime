@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **A LiveKit per world.** A sandbox call never shares a machine with a production one: each
+  world's rooms, trunks and rules live on a LiveKit of its own. The gateway reaches production's at
+  `LIVEKIT_URL` and the sandbox's at `LIVEKIT_SANDBOX_URL` (unset, the sandbox shares production's,
+  as before), on the one key pair, and asks each world's of its own: a room is offered on the
+  LiveKit of its fleet's world, the reaper asks a quiet call's world's, a simulated caller joins
+  its world's, and a number's trunk and rule are on its world's alone — moving it between worlds
+  takes it off the old world's LiveKit and admits it on the new one's, and the start's rebuild takes
+  a number off the other world's where it is still listed. LiveKit's webhook names the world that
+  sent it, `POST /v1/livekit/webhook?world=sandbox` (none is production's; another word, `422`). A
+  browser joining a sandbox call is told `wss://<the name>/sandbox` when the sandbox has its own
+  LiveKit. `doctor` asks each world's LiveKit and names the one that does not answer.
 - **One name, two worlds.** A box has one name (`PINECALL_DOMAIN`) and both worlds answer at it:
   the world of a request is its key's (a server's token opens the world it was made in) or, for a
   person, the `pinecall-env` header's, the sandbox when it names none — never the name the request

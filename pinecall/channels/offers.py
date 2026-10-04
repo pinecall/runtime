@@ -2,6 +2,7 @@
 
 import logging
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from livekit import api
@@ -9,6 +10,8 @@ from livekit import api
 from pinecall.channels import rooms
 from pinecall.channels._chooser import HEARD_WITHIN_S, any_heard, chosen, free_seats
 from pinecall.channels.rooms import Dispatch
+from pinecall.domain.names import Env
+from pinecall.fleet import worlds
 from pinecall.fleet.roster import Roster, overflow_name
 from pinecall.postgres.pool import Pool
 
@@ -79,6 +82,8 @@ OFFERED_AGAIN = "room %s: no worker opened it in %.0f s; offered to %s (offer %d
 
 TO_THE_OVERFLOW = "room %s: %s; the overflow says the sentence"
 
+NO_WORLD = "room %s: fleet %s is no world's, so no LiveKit holds its room; not offered"
+
 
 @dataclass(frozen=True)
 class Offer:
@@ -92,14 +97,15 @@ class Offer:
     offers: int
 
 
-# What a process holds to send a call to a worker: the offers' table, LiveKit, and the fleet's
-# workers as their heartbeats say. Every door that sends a call into a room goes through it.
+# What a process holds to send a call to a worker: the offers' table, each world's LiveKit, and
+# the fleet's workers as their heartbeats say. Every door that sends a call into a room goes
+# through it. A room lives on the LiveKit of its fleet's world, which the fleets row says.
 @dataclass(frozen=True)
 class Offering:
     """The gateway's dispatcher: a room offered to the worker it chose, by the worker's name."""
 
     pool: Pool
-    server: api.LiveKitAPI
+    servers: Mapping[Env, api.LiveKitAPI]
     roster: Roster
 
     async def offer(self, room: str, fleet: str, dispatch: Dispatch) -> str | None:
@@ -115,13 +121,18 @@ class Offering:
     async def offered(self, offer: Offer) -> str | None:
         """Offer the room to the worker it should go to now; the name, or None if not offered."""
         now = time.time()
+        world = worlds.world_of(await worlds.fleets(self.pool), offer.fleet)
+        if world is None:
+            logger.warning(NO_WORLD, offer.room, offer.fleet)
+            return None
         target, why = await _target(self.pool, self.roster, offer, now)
         if target is None:
             logger.info(NOT_YET, offer.room, why)
             return None
         if not await claimed(self.pool, offer, target, now):
             return None
-        await rooms.dispatched(self.server, offer.room, target, rooms.read_dispatch(offer.dispatch))
+        dispatch = rooms.read_dispatch(offer.dispatch)
+        await rooms.dispatched(self.servers[world], offer.room, target, dispatch)
         if target == overflow_name(offer.fleet):
             await forgotten(self.pool, offer.room)
             logger.warning(TO_THE_OVERFLOW, offer.room, why)

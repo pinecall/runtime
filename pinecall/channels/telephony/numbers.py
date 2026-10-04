@@ -36,7 +36,7 @@ from pinecall.domain.errors import (
     NotFound,
     UpstreamFailed,
 )
-from pinecall.domain.names import Channel, Env, RouteOrigin, parse_e164
+from pinecall.domain.names import Channel, Env, RouteOrigin, other_world, parse_e164
 from pinecall.domain.scope import Scope
 from pinecall.fleet import worlds
 from pinecall.process.connections import Connections
@@ -135,6 +135,8 @@ class Survey:
     waiting: tuple[str, ...] = ()
     # The org's own other trunks that list the number and must let it go.
     leaving: list[SIPInboundTrunkInfo] = field(default_factory=list[SIPInboundTrunkInfo])
+    # The org's trunks on the other world's own LiveKit that list it: it lives on one LiveKit.
+    elsewhere: list[SIPInboundTrunkInfo] = field(default_factory=list[SIPInboundTrunkInfo])
     trunk: SIPInboundTrunkInfo | None = None
     rule: SIPDispatchRuleInfo | None = None
     other_rule: SIPDispatchRuleInfo | None = None
@@ -198,24 +200,18 @@ async def buy_number(connections: Connections, wanted: NumberPurchase) -> Plan:
 
 
 async def release(connections: Connections, org: str, number: str, env: Env) -> None:
-    """Let the number go: the route, the SFU's admission, its world's rule; the account keeps it."""
+    """Let the number go: the route, its world's LiveKit's trunks and rule; the account keeps it."""
     route = await routes.of_number(connections.pool, org, number)
     if route is None or route.env != env:
         raise NotFound(NO_ROUTE.format(number=number, env=env))
     await routes.remove(connections.pool, org, number)
-    for trunk in await sip.trunks_admitting(connections.server, number):
-        if sip.belongs_to(trunk.name, org):
-            kept = [listed for listed in trunk.numbers if listed != number]
-            await sip.renumber_trunk(connections.server, org, trunk, kept)
-    rule = await sip.rule_named(connections.server, rule_name(org, env))
-    if rule is not None:
-        await sip.renumber_rule(
-            connections.server, rule, [listed for listed in rule.numbers if listed != number]
-        )
+    await sip.let_go(connections.servers[env], org, number)
 
 
+# Where both worlds share a LiveKit the number keeps its trunk and changes rules; where each has
+# its own, it leaves the old world's LiveKit and is admitted on the new one's.
 async def move(connections: Connections, org: str, number: str, env: Env) -> RouteRecord:
-    """Move the number into the other world: its row and the two rules, the trunk untouched."""
+    """Move the number into the other world: its row, and its trunk and rule on that LiveKit."""
     record = await routes.record_of(connections.pool, org, number)
     if record is None:
         raise NotFound(NO_ROUTE.format(number=number, env="either world"))
@@ -228,19 +224,7 @@ async def move(connections: Connections, org: str, number: str, env: Env) -> Rou
         await routes.moved(connections.pool, org, number, env)
         return moved
     fleets = await worlds.fleets(connections.pool)
-    trunks = [
-        trunk.sip_trunk_id
-        for trunk in await sip.trunks_admitting(connections.server, number)
-        if sip.belongs_to(trunk.name, org)
-    ]
-    left = await sip.rule_named(connections.server, rule_name(org, route.env))
-    if left is not None:
-        await sip.renumber_rule(
-            connections.server, left, [listed for listed in left.numbers if listed != number]
-        )
-    await sip.rule_in(
-        connections.server, WorldRule(org, env, worlds.fleet_of(fleets, env)), trunks, number
-    )
+    await sip.readmitted(connections, moved, await sip.fencing_of(connections, org), fleets)
     await routes.moved(connections.pool, org, number, env)
     return moved
 
@@ -421,17 +405,23 @@ async def _survey_sfu(connections: Connections, survey: Survey) -> Survey:
     survey.routed = await routes.of_number(connections.pool, route.org, number)
     if route.channel != "phone":
         return survey
-    listing = await sip.trunks_admitting(connections.server, number)
+    server, other = connections.servers[route.env], sip.elsewhere(connections, route.env)
+    listing = await sip.trunks_admitting(server, number)
     stranger = next((trunk for trunk in listing if not sip.belongs_to(trunk.name, route.org)), None)
     if stranger is not None:
         raise Conflict(HELD_ELSEWHERE.format(number=number, trunk=stranger.name))
     survey.leaving = [trunk for trunk in listing if fence is None or trunk.name != fence.trunk]
+    if other is not None:
+        survey.elsewhere = [
+            trunk
+            for trunk in await sip.trunks_admitting(other, number)
+            if sip.belongs_to(trunk.name, route.org)
+        ]
     if fence is None:
         return survey
-    survey.trunk = await sip.trunk_named(connections.server, fence.trunk)
-    survey.rule = await sip.rule_named(connections.server, rule_name(route.org, route.env))
-    other = "sandbox" if route.env == "production" else "production"
-    survey.other_rule = await sip.rule_named(connections.server, rule_name(route.org, other))
+    survey.trunk = await sip.trunk_named(server, fence.trunk)
+    survey.rule = await sip.rule_named(server, rule_name(route.org, route.env))
+    survey.other_rule = await sip.rule_named(server, rule_name(route.org, other_world(route.env)))
     return survey
 
 
@@ -447,17 +437,20 @@ async def _write_hook(connections: Connections, survey: Survey) -> None:
             await at.twilio.attach(trunk.sid, at.number.sid)
     if survey.origin == "hooked" and survey.networks:
         await carrier_networks.ask(connections.pool, route.org, number, survey.networks)
+    server, other = connections.servers[route.env], sip.elsewhere(connections, route.env)
+    if other is not None and route.channel == "phone":
+        await sip.let_go(other, route.org, number)
     for leaving in survey.leaving:
         kept = [listed for listed in leaving.numbers if listed != number]
-        await sip.renumber_trunk(connections.server, route.org, leaving, kept)
+        await sip.renumber_trunk(server, route.org, leaving, kept)
     if survey.fence is not None:
         # Off the other world's rule first: two rules of one trunk never list one number.
         if survey.other_rule is not None and number in survey.other_rule.numbers:
             kept = [listed for listed in survey.other_rule.numbers if listed != number]
-            await sip.renumber_rule(connections.server, survey.other_rule, kept)
-        trunk_id = await sip.admit(connections.server, survey.fence, survey.trunk, number)
+            await sip.renumber_rule(server, survey.other_rule, kept)
+        trunk_id = await sip.admit(server, survey.fence, survey.trunk, number)
         world = WorldRule(route.org, route.env, survey.fleet)
-        await sip.rule_in(connections.server, world, [trunk_id], number)
+        await sip.rule_in(server, world, [trunk_id], number)
     written = RouteWrite(
         origin=survey.origin, account=survey.account, networks=survey.networks, via=survey.via
     )
@@ -479,6 +472,11 @@ def _steps(survey: Survey, *, done: bool) -> list[str]:
         )
         steps.append(f"Twilio: {number} attached to it: {'stands' if on_it else made}")
     fence = survey.fence
+    other = other_world(route.env)
+    steps += [
+        f"LiveKit of the {other}: {number} off trunk {trunk.name}: {made}"
+        for trunk in survey.elsewhere
+    ]
     steps += [f"LiveKit: {number} off trunk {trunk.name}: {made}" for trunk in survey.leaving]
     if fence is None and survey.waiting and route.channel == "phone":
         waiting = ", ".join(survey.waiting)

@@ -4,7 +4,7 @@ import pytest
 from cryptography.fernet import Fernet
 
 from pinecall.domain.errors import NotAvailable, SettingsRefused
-from pinecall.process.connections import WRITING, keyring_of, opened, server_of, vault_of
+from pinecall.process.connections import WRITING, keyring_of, opened, servers_of, vault_of
 from pinecall.process.settings import Settings
 from pinecall.process.signal import LocalSignal
 from tests.conftest import DSN, postgres, settings_of
@@ -39,7 +39,20 @@ def test_the_keyring_is_the_list_in_its_order_and_an_empty_one_is_refused() -> N
 
 def test_a_process_with_no_livekit_pair_reaches_no_sfu() -> None:
     with pytest.raises(NotAvailable, match="LIVEKIT_API_KEY"):
-        server_of(Settings.model_validate({"LIVEKIT_URL": "ws://127.0.0.1:9"}))
+        servers_of(Settings.model_validate({"LIVEKIT_URL": "ws://127.0.0.1:9"}))
+
+
+@postgres
+async def test_each_world_has_a_livekit_client_of_its_own_and_one_shared_is_one_client() -> None:
+    settings = settings_of().model_copy(
+        update={"database_url": DSN, "vault_key": Fernet.generate_key().decode()}
+    )
+    async with opened(settings) as connections:
+        production, sandbox = connections.servers["production"], connections.servers["sandbox"]
+        assert production is not sandbox
+    shared = settings.model_copy(update={"livekit_sandbox_url": None})
+    async with opened(shared) as connections:
+        assert connections.servers["production"] is connections.servers["sandbox"]
 
 
 @postgres

@@ -150,7 +150,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `DELETE` | `/v1/line/from` | app | Stop sending this person's phones to their scope, and say which were forgotten. |
 | `PUT` | `/v1/line/from` | app | Send rings from this phone to the key's person's own scope. |
 | `GET` | `/v1/line/numbers` | app | The production numbers a developer's phone can dial, and the phones that are theirs. |
-| `POST` | `/v1/livekit/webhook` | — | A room event LiveKit signed with the box's key: an agent lost mid-call has its caller told once and its call ended as `drained`. |
+| `POST` | `/v1/livekit/webhook` | — | A room event LiveKit signed with the box's key, `?world=` naming the LiveKit that sent it (production's unless it says `sandbox`): an agent lost mid-call has its caller told once and its call ended as `drained`. |
 | `POST` | `/v1/login` | — | A key for a person and a device, from a password, or from a one-use code. |
 | `POST` | `/v1/login/codes` | — | A one-use word that gives a browser a key like this one, for five minutes. |
 | `GET` | `/v1/login/google` | — | Box-wide "Continue with Google", which this version does not have. |

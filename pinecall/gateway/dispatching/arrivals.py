@@ -6,6 +6,7 @@ from livekit.protocol.webhook import WebhookEvent
 
 from pinecall.channels import offers, rooms
 from pinecall.channels.offers import Offering
+from pinecall.domain.names import Env
 
 JOINED = "participant_joined"
 
@@ -19,15 +20,17 @@ FINISHED = "room_finished"
 # with the call's metadata, and the gateway reads it there. A caller joining sends the first; a
 # worker handing its caller to another fleet dispatches there and leaves, which sends the other.
 # The newest dispatch decides: a call that ended, or a supervisor joining a live call, has the
-# gateway's own dispatch, to a worker by its name, as the newest, and is left alone.
-async def arrived(offering: Offering, event: WebhookEvent) -> str | None:
+# gateway's own dispatch, to a worker by its name, as the newest, and is left alone. The room is
+# asked of the LiveKit of the world that sent the event.
+async def arrived(offering: Offering, world: Env, event: WebhookEvent) -> str | None:
     """Offer the room a person is alone in to a worker; the name it went to, or None."""
     if not _a_person_may_be_alone(event):
         return None
     room = event.room.name
-    if not await rooms.left_alone(offering.server, room):
+    server = offering.servers[world]
+    if not await rooms.left_alone(server, room):
         return None
-    newest = _newest(await offering.server.agent_dispatch.list_dispatch(room))
+    newest = _newest(await server.agent_dispatch.list_dispatch(room))
     if newest is None or "/" in newest.agent_name or newest.state.jobs:
         return None
     return await offering.offer(room, newest.agent_name, rooms.read_dispatch(newest.metadata))

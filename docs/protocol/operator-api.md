@@ -190,7 +190,9 @@ for twice. `422` without `scaled` and `seats`.
 
 `POST /v1/livekit/webhook` is LiveKit's own door, not the operator's: `livekit.yaml` sends it every
 room event, signed with the box's LiveKit key (`Authorization: <token>`, the body's sha256 in the
-token; anything else is a `403`), and it answers `204` to all of them. One event is acted on: an
+token; anything else is a `403`), and it answers `204` to all of them. Each world's LiveKit names
+its world in the URL it sends to, `?world=production` or `?world=sandbox` (none is production's;
+any other word is a `422`), and the gateway asks that LiveKit of the event's room. One event is acted on: an
 **agent lost** mid-call, `participant_left` of kind `AGENT` whose `disconnect_reason` says its
 connection was lost (`SIGNAL_CLOSE`, `CONNECTION_TIMEOUT`, `STATE_MISMATCH`, `JOIN_FAILURE`,
 `MEDIA_FAILURE`, `AGENT_ERROR`), in a room whose call is open, has no `call.ended`, still holds a

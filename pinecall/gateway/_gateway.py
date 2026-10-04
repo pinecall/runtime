@@ -56,7 +56,7 @@ class Gateway:
     def offering(self) -> Offering:
         """What sends a call to the worker this gateway chose."""
         return Offering(
-            pool=self.connections.pool, server=self.connections.server, roster=self.roster
+            pool=self.connections.pool, servers=self.connections.servers, roster=self.roster
         )
 
     @property

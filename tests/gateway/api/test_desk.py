@@ -10,6 +10,7 @@ from pinecall.tenancy import keys, reads, tokens
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
 from tests.conftest import (
     AGENT,
+    BOX_DOMAIN,
     Knocking,
     postgres,
 )
@@ -98,6 +99,7 @@ async def test_a_seat_that_listens_or_supervises_is_on_the_record_as_who_took_it
     assert server is not None
     rows = await reads.of_org(pool, knocking.org.id, subject=context.call)
     assert (listening.status_code, supervising.status_code) == (200, 200)
+    assert listening.json()["server_url"] == f"wss://{BOX_DOMAIN}/sandbox"
     assert sorted((row.what, row.reader, row.env) for row in rows) == [
         ("listen", server.key.key_id, "sandbox"),
         ("supervise", server.key.key_id, "sandbox"),

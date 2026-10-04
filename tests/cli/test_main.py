@@ -33,7 +33,7 @@ from pinecall.process.connections import vault_of
 from pinecall.process.settings import Settings
 from pinecall.tenancy import orgs, policy, vault
 from pinecall.wire.rest.accounts import OrgPolicy
-from tests.conftest import DSN, configured, postgres
+from tests.conftest import DSN, configured, postgres, settings_of
 from tests.log.conftest import logged_call
 
 
@@ -118,14 +118,20 @@ def test_the_gateway_keeps_an_idle_connection_past_the_load_balancers_600_s(
 def test_the_doctor_says_each_missing_thing_and_exits_one(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    settings = Settings.model_validate(
-        {
-            "DATABASE_URL": "postgresql://nobody@127.0.0.1:1/none",
-            "PINECALL_GATEWAY_URL": "http://127.0.0.1:1",
+    settings = settings_of().model_copy(
+        update={
+            "database_url": "postgresql://nobody@127.0.0.1:1/none",
+            "gateway_url": "http://127.0.0.1:1",
+            "livekit_url": "ws://127.0.0.1:1",
+            "livekit_sandbox_url": "ws://127.0.0.1:2",
         }
     )
     assert doctor(settings, argparse.Namespace()) == 1
     data = capsys.readouterr().out.splitlines()
+    # Each world's LiveKit is asked, and each that does not answer is named.
+    (livekit,) = [line for line in data if line.split()[1] == "livekit:"]
+    assert "production (ws://127.0.0.1:1)" in livekit
+    assert "sandbox (ws://127.0.0.1:2)" in livekit
     assert [line.split()[1].rstrip(":") for line in data] == [
         "vault",
         "database",

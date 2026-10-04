@@ -1,6 +1,6 @@
 """What one process opens at start and closes at the end: the database, the vault, HTTP, LiveKit."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 
@@ -9,6 +9,7 @@ from cryptography.fernet import Fernet, MultiFernet
 from livekit import api
 
 from pinecall.domain.errors import NotAvailable, SettingsRefused
+from pinecall.domain.names import PRODUCTION, SANDBOX, Env
 from pinecall.postgres.pool import Pool, open_pool
 from pinecall.process.settings import Settings
 from pinecall.process.signal import LocalSignal, Signal, opened_signal
@@ -36,8 +37,9 @@ class Connections:
     vault: MultiFernet
     # The carriers', Meta's and the identity providers' HTTP, one pool per process.
     http: httpx.AsyncClient
-    # The SFU's server API, one per process.
-    server: api.LiveKitAPI
+    # Each world's LiveKit server API, one client per LiveKit: both worlds hold the one client
+    # when the sandbox has no LiveKit of its own.
+    servers: Mapping[Env, api.LiveKitAPI]
     # What the gateways tell each other; a process given no Redis keeps it to itself.
     signal: Signal = field(default_factory=LocalSignal)
 
@@ -58,7 +60,7 @@ NOT_A_KEY = (
 async def opened(settings: Settings) -> AsyncGenerator[Connections]:
     """Open everything, the vault first: a box without its key starts nothing; closed in reverse."""
     sealed = vault_of(settings.vault_key)
-    server = server_of(settings)
+    servers = servers_of(settings)
     pool = await open_pool(settings.database_url, max_size=settings.db_pool - WRITING)
     try:
         writing = await open_pool(settings.database_url, max_size=WRITING, min_size=WRITING)
@@ -73,23 +75,35 @@ async def opened(settings: Settings) -> AsyncGenerator[Connections]:
                 writing=writing,
                 vault=sealed,
                 http=http,
-                server=server,
+                servers=servers,
                 signal=signal,
             )
     finally:
-        await server.aclose()
+        await closed(servers)
         await writing.close()
         await pool.close()
 
 
-# livekit-api opens an HTTP session per client: one per process, closed with it.
-def server_of(settings: Settings) -> api.LiveKitAPI:
-    """The SFU's server API, on the box's key pair."""
+# livekit-api opens an HTTP session per client: one per LiveKit and process, closed with it. Both
+# LiveKits take the box's one key pair, so a token the gateway signs opens a room on either.
+def servers_of(settings: Settings) -> dict[Env, api.LiveKitAPI]:
+    """Each world's LiveKit server API, on the box's key pair: one client where they share one."""
     if not settings.livekit_api_key or not settings.livekit_api_secret:
         raise NotAvailable(NO_LIVEKIT)
-    return api.LiveKitAPI(
-        settings.livekit_url, settings.livekit_api_key, settings.livekit_api_secret
-    )
+    key, secret = settings.livekit_api_key, settings.livekit_api_secret
+    production = api.LiveKitAPI(settings.livekit_url_of(PRODUCTION), key, secret)
+    if settings.livekit_url_of(SANDBOX) == settings.livekit_url_of(PRODUCTION):
+        return {PRODUCTION: production, SANDBOX: production}
+    return {
+        PRODUCTION: production,
+        SANDBOX: api.LiveKitAPI(settings.livekit_url_of(SANDBOX), key, secret),
+    }
+
+
+async def closed(servers: Mapping[Env, api.LiveKitAPI]) -> None:
+    """Close each LiveKit's client once, however many worlds hold it."""
+    for server in dict.fromkeys(servers.values()):
+        await server.aclose()
 
 
 def vault_of(keys: str | None) -> MultiFernet:

@@ -83,12 +83,13 @@ $ curl -X POST https://cloud.pinecall.io/v1/numbers -H "authorization: Bearer $P
 
 Each step is looked up before it is written, so a second run of an interrupted import writes
 nothing twice: every step says `stands`. `?dry_run=true` answers the same steps with `to do` and
-writes nothing anywhere. On the SFU an org has one inbound trunk per fence (`<org>` for Twilio's
-networks, `<org>:<peer>` for a SIP peer, `<org>:<number>` for a number hooked from networks of
-its own) and one dispatch rule per world (`<org>:production`, `<org>:sandbox`) whose numbers are
-that world's, dispatched to that world's fleet. A number changes world by moving between the two
-rules; its trunk never moves. A trunk or a rule left listing no number is deleted, because one
-that lists none takes every number.
+writes nothing anywhere. A number lives on its world's LiveKit, where an org has one inbound trunk
+per fence (`<org>` for Twilio's networks, `<org>:<peer>` for a SIP peer, `<org>:<number>` for a
+number hooked from networks of its own) and the world's dispatch rule (`<org>:production` on
+production's, `<org>:sandbox` on the sandbox's), dispatched to that world's fleet. A number imported
+in one world that the other's own LiveKit still lists is taken off it first (`LiveKit of the
+production: … off trunk …`). A trunk or a rule left listing no number is deleted, because one that
+lists none takes every number.
 
 Refusals: `404` no account, or a number the account does not own; `400` a channel with no number
 or a number that is not E.164; `409` several accounts and none named, a number another org's trunk
@@ -127,9 +128,11 @@ of them as `rings` and `last_call_at`; `404` for a number the org has not in the
 
 ## Letting one go, moving one — `DELETE /v1/numbers/{number}`, `PUT /v1/numbers/{number}/env`
 
-`DELETE` removes the route and takes the number off its trunk and its world's rule; the account
-keeps it, so nobody is un-bought by a typo. `PUT …/env {env}` moves a number into the other world:
-its row and the two rules, nothing else. It is how a number tested in the sandbox goes live.
+`DELETE` removes the route and takes the number off its trunk and its org's rules on its world's
+LiveKit; the account keeps it, so nobody is un-bought by a typo. `PUT …/env {env}` moves a number
+into the other world: its row, and off the old world's LiveKit onto the new one's, trunk and rule;
+the carrier is not touched. Where both worlds share one LiveKit it moves between the two rules,
+its trunk untouched. It is how a number tested in the sandbox goes live.
 
 ## Dialling out — `GET` · `POST /v1/carrier/outbound`, `POST /v1/agents/{slug}/dial`
 
@@ -186,8 +189,9 @@ else: Terraform's rule, from the catalog and the approvals ([operator-api.md](op
 ## Reconcile at start
 
 LiveKit keeps its trunks and rules in Redis, which can be emptied; the tables are the truth. At
-start the gateway admits every routed phone number again with its fence and its world's rule, one
-org's refusal logged and the others going on. It never touches the carrier, and it takes a number
+start the gateway admits every routed phone number again on its world's LiveKit with its fence and
+its world's rule, and takes it off the other world's own LiveKit, one org's refusal logged and the
+others going on. It never touches the carrier, and it takes a number
 off its org's trunks when nothing approved fences it any more. The operator's approval or refusal
 of a network does the same for that org at once.
 

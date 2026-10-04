@@ -1,4 +1,4 @@
-"""The line every channels test hooks numbers through: an org, a fake Twilio, Meta, an SFU."""
+"""The line every channels test hooks numbers through: an org, a fake Twilio, Meta, two SFUs."""
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -13,12 +13,12 @@ from pinecall.channels.telephony._twilio import verify
 from pinecall.domain.names import Env
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Pool
-from pinecall.process.connections import Connections, vault_of
+from pinecall.process.connections import Connections, closed, vault_of
 from pinecall.tenancy import carrier_networks, carriers, orgs, vault
 from pinecall.tenancy.carriers import SipPeer, TwilioAccount
 from pinecall.tenancy.dial_policy import Dial
 from tests.conftest import settings_of
-from tests.fakes.livekit import Server
+from tests.fakes.livekit import Server, per_world
 from tests.fakes.meta import Graph, outside
 from tests.fakes.twilio import Twilio
 
@@ -40,7 +40,8 @@ class Line:
     connections: Connections
     org: str
     twilio: Twilio
-    server: Server
+    # Each world's own LiveKit.
+    servers: dict[Env, Server]
 
     def scope(self, env: Env = "production") -> Scope:
         """The org's scope in the world."""
@@ -53,28 +54,30 @@ class Line:
         )
 
     def rule(self, env: Env) -> api.SIPDispatchRuleInfo:
-        """The org's rule of the world on the SFU."""
+        """The org's rule of the world on that world's SFU."""
         return next(
             value
-            for value in self.server.dialled.rules.values()
+            for value in self.servers[env].dialled.rules.values()
             if value.name == f"{self.org}:{env}"
         )
 
-    def rules(self) -> list[str]:
-        """The names of the rules on the SFU."""
-        return sorted(value.name for value in self.server.dialled.rules.values())
+    def rules(self, env: Env = "production") -> list[str]:
+        """The names of the rules on the world's SFU."""
+        return sorted(value.name for value in self.servers[env].dialled.rules.values())
 
-    def trunk(self, name: str) -> api.SIPInboundTrunkInfo:
-        """A trunk on the SFU by name."""
-        return next(value for value in self.server.dialled.trunks.values() if value.name == name)
+    def trunk(self, name: str, env: Env = "production") -> api.SIPInboundTrunkInfo:
+        """A trunk on the world's SFU by name."""
+        return next(
+            value for value in self.servers[env].dialled.trunks.values() if value.name == name
+        )
 
 
 @pytest.fixture
 async def line(pool: Pool, graph: Graph) -> AsyncIterator[Line]:
-    """An org, a Twilio account nobody brought yet, Meta's Graph, an SFU with nothing on it."""
+    """An org, a Twilio account nobody brought yet, Meta's Graph, a bare SFU for each world."""
     org = await orgs.create(pool, "clinica", "Clinica")
     twilio = Twilio()
-    server = Server()
+    servers = per_world()
     async with httpx.AsyncClient(transport=outside(twilio, graph)) as http:
         sealed = vault_of(Fernet.generate_key().decode())
         yield Line(
@@ -84,13 +87,13 @@ async def line(pool: Pool, graph: Graph) -> AsyncIterator[Line]:
                 writing=pool,
                 vault=sealed,
                 http=http,
-                server=server,
+                servers=servers,
             ),
             org.id,
             twilio,
-            server,
+            servers,
         )
-    await server.aclose()
+    await closed(servers)
 
 
 async def brought(line: Line) -> None:

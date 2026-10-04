@@ -63,14 +63,17 @@ async def test_livekit_saying_an_agent_was_lost_ends_its_call_and_sends_the_flee
         context.call, AGENT, knocking.org.id, Claim(Scope(knocking.org.id, "sandbox"))
     )
     await store.append(context.call, AGENT, "call.started", {}, ephemeral=False)
-    server = knocking.gateway.connections.server
+    server = knocking.gateway.connections.servers["sandbox"]
     assert isinstance(server, Server)
     server.rooms.people = {context.call}
     a_worker_heard(knocking.gateway.roster)
     body = agent_lost(context.call)
     async with knocking.http("unused") as livekit:
         answered = await livekit.post(
-            WEBHOOK, content=body, headers={"Authorization": signed(body, LIVEKIT_KEY)}
+            WEBHOOK,
+            params={"world": "sandbox"},
+            content=body,
+            headers={"Authorization": signed(body, LIVEKIT_KEY)},
         )
     assert answered.status_code == 204
     assert [item.type for item in await store.whole(context.call)] == [
@@ -82,11 +85,40 @@ async def test_livekit_saying_an_agent_was_lost_ends_its_call_and_sends_the_flee
     ]
 
 
+# The room of a sandbox call lives on the sandbox's LiveKit: production's is never asked of it.
+@postgres
+async def test_an_event_is_read_against_the_livekit_of_the_world_its_url_names(
+    knocking: Knocking,
+) -> None:
+    context = a_call(knocking)
+    store = knocking.gateway.logs.store
+    await store.claim(
+        context.call, AGENT, knocking.org.id, Claim(Scope(knocking.org.id, "sandbox"))
+    )
+    await store.append(context.call, AGENT, "call.started", {}, ephemeral=False)
+    servers = knocking.gateway.connections.servers
+    sandbox, production = servers["sandbox"], servers["production"]
+    assert isinstance(sandbox, Server)
+    assert isinstance(production, Server)
+    sandbox.rooms.people = {context.call}
+    body = agent_lost(context.call)
+    signature = {"Authorization": signed(body, LIVEKIT_KEY)}
+    async with knocking.http("unused") as livekit:
+        unnamed = await livekit.post(WEBHOOK, content=body, headers=signature)
+        nowhere = await livekit.post(
+            WEBHOOK, params={"world": "staging"}, content=body, headers=signature
+        )
+    assert (unnamed.status_code, nowhere.status_code) == (204, 422)
+    assert [item.type for item in await store.whole(context.call)] == ["call.started"]
+    assert {type(request) for request in production.rooms.requests} == {api.ListParticipantsRequest}
+    assert sandbox.rooms.requests == []
+
+
 @postgres
 async def test_an_event_livekit_did_not_sign_is_refused_and_changes_nothing(
     knocking: Knocking,
 ) -> None:
-    server = knocking.gateway.connections.server
+    server = knocking.gateway.connections.servers["production"]
     assert isinstance(server, Server)
     body = agent_lost("CA_1")
     forged = api.AccessToken(LIVEKIT_KEY, "not the box's secret, thirty-two bytes").to_jwt()

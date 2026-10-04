@@ -16,7 +16,7 @@ staging before production.
 
 | you need | do | holds (measured) |
 |---|---|---|
-| a cluster | `make tf-plan`, `make tf-apply`, `make image`, `make deploy` ([../infra/README.md](../infra/README.md)) | two gateways, Postgres, LiveKit, SIP, two small workers per world |
+| a cluster | `make tf-plan`, `make tf-apply`, `make image`, `make deploy` ([../infra/README.md](../infra/README.md)) | two gateways, Postgres, a LiveKit, a SIP and two small workers per world |
 | more calls at once | nothing: KEDA adds a scaled worker when the gateway asks for one, and the cluster autoscaler a node for it ("The burst", below) | 32 calls a scaled worker, alone on an 8-vCPU node at ~60 % |
 | more gateway processes | `gateway.replicas` in the chart's values | ~330 calls a gateway core |
 | Postgres that outlives a node | `postgres.instances: 2` (`charts/postgres`): CloudNativePG keeps a streaming replica and promotes it; its WAL and nightly base backups are in a bucket either way | — |
@@ -27,7 +27,7 @@ staging before production.
 | plane | what it is | grows with |
 |---|---|---|
 | control | the gateways: logs, keys, routes, quotas, the roster; any serves any door of any call, telling the others what it did on Redis | requests, never calls: another gateway behind the balancer |
-| media | LiveKit rooms, SIP, WebRTC | one per region, beside the callers |
+| media | LiveKit rooms, SIP, WebRTC: a LiveKit per world, so a sandbox call never shares a machine with a production one | one per world and region, beside the callers |
 | workers | the conversations: the ears, the model, the voice | calls |
 
 The control plane is as many gateways as the requests need. Each keeps in memory only a cache of
@@ -261,8 +261,9 @@ call, an agent joins the room or the room ends, whichever LiveKit says first (`c
 offer, and a dispatch on a room that is gone would make the room again. An outbound call, a
 simulated caller and the sentence of a worker gone are offered the same way, by the door that
 makes them. So **the
-gateway needs LiveKit's webhook** (`livekit.yaml`'s `webhook.urls`): a box without it places no
-call. The gateway offers it to the worker of the fleet heard in the last 12 s
+gateway needs LiveKit's webhook** (`livekit.yaml`'s `webhook.urls`), each world's naming its world
+(`?world=sandbox`), so the gateway asks the LiveKit the room is on: a box without it places no
+call. A room is dispatched on the LiveKit of its fleet's world, which the `fleets` row says. The gateway offers it to the worker of the fleet heard in the last 12 s
 with the most seats free, counting the calls offered to it and not opened yet, by its LiveKit name
 (`<fleet>/<worker>`, above): no other worker can take it. A room no worker opened 12 s after its
 offer is offered to another (LiveKit waits 10 s on a worker that does not answer; a live one opens a

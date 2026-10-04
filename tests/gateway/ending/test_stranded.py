@@ -10,7 +10,7 @@ from livekit.protocol.webhook import WebhookEvent
 from pinecall.channels.rooms import read_dispatch
 from pinecall.domain.agent import AgentConfig
 from pinecall.domain.call import CallContext
-from pinecall.domain.names import JsonObject
+from pinecall.domain.names import Env, JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import Served, served_call
@@ -26,9 +26,15 @@ from tests.gateway.conftest import AGENT, OURS, a_call, a_start
 LOST = api.DisconnectReason.CONNECTION_TIMEOUT
 
 
+def both(server: Server) -> dict[Env, Server]:
+    """One LiveKit for both worlds: what is asked of the call's room is asked of it."""
+    return {"production": server, "sandbox": server}
+
+
 async def stranding(wired: Gateway, server: Server, event: WebhookEvent) -> str | None:
-    """What stranded makes of the event, sending the fleet through a dispatcher of one worker."""
-    return await stranded(wired.serving, an_offering(wired.connections.pool, server), event)
+    """What stranded makes of a sandbox event, the fleet sent through a dispatcher of one worker."""
+    offering = an_offering(wired.connections.pool, both(server))
+    return await stranded(wired.serving, offering, "sandbox", event)
 
 
 def left(
@@ -76,7 +82,10 @@ async def test_a_lost_agent_ends_the_call_drained_offers_a_call_back_and_sends_t
     server = a_caller_alone(context)
     assert (
         await stranded(
-            wired.serving, an_offering(wired.connections.pool, server), left(context.call)
+            wired.serving,
+            an_offering(wired.connections.pool, both(server)),
+            "sandbox",
+            left(context.call),
         )
         == context.call
     )
@@ -109,7 +118,10 @@ async def test_the_fleet_is_told_how_many_entries_the_dead_workers_writer_sent(
     server = a_caller_alone(context)
     assert (
         await stranded(
-            wired.serving, an_offering(wired.connections.pool, server), left(context.call)
+            wired.serving,
+            an_offering(wired.connections.pool, both(server)),
+            "sandbox",
+            left(context.call),
         )
         == context.call
     )
@@ -138,7 +150,10 @@ async def test_an_agent_that_left_on_purpose_or_with_its_room_changes_nothing(
     server = a_caller_alone(context)
     assert (
         await stranded(
-            wired.serving, an_offering(wired.connections.pool, server), left(context.call, reason)
+            wired.serving,
+            an_offering(wired.connections.pool, both(server)),
+            "sandbox",
+            left(context.call, reason),
         )
         is None
     )
@@ -165,13 +180,19 @@ async def test_an_event_delivered_twice_tells_the_caller_once(wired: Gateway) ->
     server = a_caller_alone(context)
     assert (
         await stranded(
-            wired.serving, an_offering(wired.connections.pool, server), left(context.call)
+            wired.serving,
+            an_offering(wired.connections.pool, both(server)),
+            "sandbox",
+            left(context.call),
         )
         == context.call
     )
     assert (
         await stranded(
-            wired.serving, an_offering(wired.connections.pool, server), left(context.call)
+            wired.serving,
+            an_offering(wired.connections.pool, both(server)),
+            "sandbox",
+            left(context.call),
         )
         is None
     )
@@ -214,7 +235,10 @@ async def test_a_worker_that_wrote_its_own_end_before_it_was_lost_is_left_to_its
     server = a_caller_alone(context)
     assert (
         await stranded(
-            wired.serving, an_offering(wired.connections.pool, server), left(context.call)
+            wired.serving,
+            an_offering(wired.connections.pool, both(server)),
+            "sandbox",
+            left(context.call),
         )
         is None
     )
@@ -230,13 +254,19 @@ async def test_a_call_already_sealed_or_never_opened_changes_nothing(wired: Gate
     server = a_caller_alone(context)
     assert (
         await stranded(
-            wired.serving, an_offering(wired.connections.pool, server), left(context.call)
+            wired.serving,
+            an_offering(wired.connections.pool, both(server)),
+            "sandbox",
+            left(context.call),
         )
         is None
     )
     assert (
         await stranded(
-            wired.serving, an_offering(wired.connections.pool, server), left("CA_nobody_opened")
+            wired.serving,
+            an_offering(wired.connections.pool, both(server)),
+            "sandbox",
+            left("CA_nobody_opened"),
         )
         is None
     )
@@ -257,7 +287,10 @@ async def test_a_room_with_an_agent_in_it_again_or_with_nobody_left_is_not_told(
     server.rooms.existing = {handed.call: True}
     assert (
         await stranded(
-            wired.serving, an_offering(wired.connections.pool, server), left(handed.call)
+            wired.serving,
+            an_offering(wired.connections.pool, both(server)),
+            "sandbox",
+            left(handed.call),
         )
         is None
     )
@@ -276,7 +309,10 @@ async def test_a_call_in_a_browser_is_told_and_ended_but_has_no_number_to_call_b
     server = a_caller_alone(context)
     assert (
         await stranded(
-            wired.serving, an_offering(wired.connections.pool, server), left(context.call)
+            wired.serving,
+            an_offering(wired.connections.pool, both(server)),
+            "sandbox",
+            left(context.call),
         )
         == context.call
     )
@@ -291,8 +327,8 @@ async def test_a_production_call_sends_the_production_fleet(wired: Gateway) -> N
     context = a_call(live, channel="phone")
     await a_live_call(wired, context, live)
     server = a_caller_alone(context)
-    production = an_offering(wired.connections.pool, server, "pinecall")
-    await stranded(wired.serving, production, left(context.call))
+    production = an_offering(wired.connections.pool, both(server), "pinecall")
+    await stranded(wired.serving, production, "production", left(context.call))
     (sent,) = server.dispatcher.made
     assert (sent.agent_name, read_dispatch(sent.metadata).holder) == ("pinecall/w1", "m_1")
     await server.aclose()
@@ -329,12 +365,15 @@ async def test_a_call_this_gateway_forgot_is_ended_and_the_reaper_seals_it_if_no
     server = a_caller_alone(context)
     assert (
         await stranded(
-            wired.serving, an_offering(wired.connections.pool, server), left(context.call)
+            wired.serving,
+            an_offering(wired.connections.pool, both(server)),
+            "sandbox",
+            left(context.call),
         )
         == context.call
     )
     assert wired.logs.opened(context.call) is None
-    assert await reaped(wired.serving, server, 10_000.0) == [context.call]
+    assert await reaped(wired.serving, both(server), 10_000.0) == [context.call]
     entries = await wired.logs.store.whole(context.call)
     assert [item.type for item in entries] == [
         "call.started",

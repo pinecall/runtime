@@ -180,8 +180,8 @@ async def ready_to_dial(line: Line) -> None:
 
 
 def dispatching(line: Line) -> Offering:
-    """The gateway's dispatcher on the line's pool and server, production's fleet one worker."""
-    return an_offering(line.connections.pool, line.server, "pinecall")
+    """The gateway's dispatcher on the line's pool and LiveKits, production's fleet one worker."""
+    return an_offering(line.connections.pool, line.servers, "pinecall")
 
 
 def placing(line: Line, shown: str | None = None) -> Placement:
@@ -211,7 +211,9 @@ async def test_a_call_placed_opens_its_log_dialing_and_dispatches_its_worlds_fle
         "m_ana",
     )
     (request,) = [
-        made_one for made_one in line.server.dispatcher.made if made_one.room == placed.call
+        made_one
+        for made_one in line.servers["production"].dispatcher.made
+        if made_one.room == placed.call
     ]
     assert request.agent_name == "pinecall/w1"
     data = rooms.read_dispatch(request.metadata)
@@ -272,7 +274,9 @@ async def test_a_dispatch_the_sfu_refuses_ends_the_call_dial_failed_and_seals_it
     line: Line, store: Store
 ) -> None:
     await ready_to_dial(line)
-    line.server.dispatcher.refusal = api.TwirpError("unavailable", "no fleet", status=503)
+    line.servers["production"].dispatcher.refusal = api.TwirpError(
+        "unavailable", "no fleet", status=503
+    )
     with pytest.raises(UpstreamFailed, match="no fleet"):
         await dialing.place_call(
             line.connections,

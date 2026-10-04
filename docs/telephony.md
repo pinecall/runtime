@@ -18,7 +18,7 @@ caller → carrier → INVITE to <box>:5060 → livekit-sip → room call-… �
 | plane | who | what it knows | what it never knows |
 |---|---|---|---|
 | the carrier | Twilio, Telnyx, a PBX, a national carrier | the number, and the SIP address its calls go to | the agent, the org's name |
-| the SIP service | `livekit-sip`, in the cluster on its node's own network (`infra/charts/pinecall/templates/sip.yaml`) | one inbound trunk per fence: the numbers it admits and the networks it admits them from; one dispatch rule per org and world | the agent: a rule names the world's fleet, nothing more |
+| the SIP service | a `livekit-sip` per world, beside its world's LiveKit, on its node's own network (`infra/charts/pinecall/templates/sip.yaml`) | on its world's LiveKit, one inbound trunk per fence: the numbers of that world it admits and the networks it admits them from; one dispatch rule per org | the agent: a rule names the world's fleet, nothing more |
 | the gateway | the box's gateway and Postgres | the `routes` row: org, number, agent, world, how it was written | the call's audio |
 
 A call is dispatched to the fleet of its number's world; the worker that takes it asks the gateway
@@ -64,10 +64,16 @@ network would admit every source, so a fence with nothing approved is no trunk a
 
 ## Worlds
 
-An org has one dispatch rule per world, `<org>:production` and `<org>:sandbox`, each sending to that
-world's fleet. The rule's numbers are what make a number production's or the sandbox's; moving a
-number between worlds moves it between the two lists, and its trunk never moves. A rule always
-names its trunks: one that named none would dispatch every trunk's calls.
+Each world has a LiveKit of its own (`LIVEKIT_URL`, `LIVEKIT_SANDBOX_URL`,
+[the-environment.md](the-environment.md)), so a sandbox call never shares a machine with a
+production one, and a number lives on its world's alone: its trunk and its org's rule of the world,
+`<org>:production` on production's LiveKit, `<org>:sandbox` on the sandbox's, each sending to that
+world's fleet. The trunks keep their names on both: they are two clusters. Moving a number between
+worlds takes it off the old world's LiveKit (its trunk, emptied, goes with it) and admits it on the
+new one's; its carrier keeps sending its calls to the SIP name it was pointed at. Where the sandbox
+shares production's LiveKit (`LIVEKIT_SANDBOX_URL` unset), both rules are on the one LiveKit and a
+number moves between the two lists, its trunk untouched. A rule always names its trunks: one that
+named none would dispatch every trunk's calls.
 
 ## The carrier catalog: what the operator admits
 
@@ -140,9 +146,11 @@ transfer and `room.invite` are a second leg of the same kind.
 ## At start, and at scale
 
 LiveKit keeps its trunks and rules in Redis, which can be emptied; Postgres is the truth. At start
-the gateway admits every routed number again with the fence it has now, takes a number off its
-org's trunks when nothing approved fences it, deletes nothing else, and never touches a carrier.
-The operator's approval or refusal of a network does the same for that org at once.
+the gateway admits every routed number again on its world's LiveKit with the fence it has now,
+takes a number off its org's trunks when nothing approved fences it, takes it off the other world's
+LiveKit where it is still listed (one admitted before the worlds had a LiveKit each), deletes
+nothing else, and never touches a carrier. The operator's approval or refusal of a network does
+the same for that org at once.
 
 One livekit-sip holds 200 calls (its RTP range). A second, on the box's Redis, answers every
 number the box routes too, and the carrier spreads calls across both with a second origination

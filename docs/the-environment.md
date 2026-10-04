@@ -15,15 +15,16 @@ Our own knobs carry `PINECALL_`. The vendors' keys are not variables: see
 
 **A runtime is one gateway and one database, serving both worlds.** Production and the sandbox
 are a property of each row and of each key (`pc_live_`, `pc_test_`), never two instances. What
-keeps a test call off a production process is the worker pool: each world has its own fleet of
-workers, and the gateway dispatches a call to the fleet of its world. A variable marked *(the
+keeps a test call off a production machine is the media plane and the worker pool: each world
+has its own LiveKit and its own fleet of workers, and the gateway dispatches a call to the fleet
+of its world, on its world's LiveKit. A variable marked *(the
 pod's)* is set per worker Deployment by the chart (`infra/charts/pinecall`), never for the
 gateway.
 
 | | |
 |---|---|
-| `LIVEKIT_URL` · `LIVEKIT_API_KEY` · `LIVEKIT_API_SECRET` | the media plane both processes talk to. The secret also signs call tokens |
-| `LIVEKIT_PUBLIC_URL` | the URL a browser is told to join, when it differs |
+| `LIVEKIT_URL` · `LIVEKIT_SANDBOX_URL` · `LIVEKIT_API_KEY` · `LIVEKIT_API_SECRET` | the media plane. A worker is given its world's LiveKit in `LIVEKIT_URL` *(the pod's)*; the gateway, production's in `LIVEKIT_URL` and the sandbox's own in `LIVEKIT_SANDBOX_URL` (unset, the sandbox shares production's), and it asks each world's LiveKit of that world's rooms, trunks and rules. Both take the one key pair, so a token the gateway signs opens a room on either; the secret also signs call tokens. Each LiveKit sends its webhook naming its world (`/v1/livekit/webhook?world=sandbox`) |
+| `LIVEKIT_PUBLIC_URL` | the URL a browser is told to join on a box with no `PINECALL_DOMAIN`. With one, a browser joins `wss://<the name>`, and a sandbox call `wss://<the name>/sandbox` when the sandbox has a LiveKit of its own: the load balancer sends `/sandbox/rtc…` there, the prefix taken off |
 | `DATABASE_URL` | Postgres 17 with pgvector and pg_textsearch: the one stateful service. One database for both worlds |
 | `PINECALL_REDIS_URL` | the Redis the gateways tell each other what just happened on (`redis://:password@host:port/db`; in a cluster built from the secret `pinecall-<world>-redis-password`, which LiveKit and SIP use too): what a call just wrote, who holds what. Lossy by design and never a record: a reader that misses a message resumes from Postgres. Unset, the gateway is alone on its box and keeps all of it in its own memory, as it always has; set and not answering, the gateway starts and serves all the same, and says so in its log. In a cluster it is LiveKit's Redis, database 1 (`charts/pinecall/templates/secrets.yaml`) |
 | `PINECALL_DB_POOL` | the connections the gateway holds open to Postgres, 10 unless set: two are its log writer's own, open for the process's life, one per lane, so an append never waits for a door and a door never waits for an append; the doors share the rest. On each one a statement is cancelled at 30 s and a transaction left idle is ended at 60 s; a request that finds every connection taken for 2 s is answered `503`, and so is a statement cancelled at its timeout (a worker retries a `5xx`). What is long on purpose runs with neither timeout: the migrations, an erasure, an export, the nightly retention and a knowledge base's push |

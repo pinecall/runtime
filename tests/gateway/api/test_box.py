@@ -71,8 +71,8 @@ async def test_the_brand_changes_field_by_field_and_an_empty_field_goes_back(
 
 
 async def admitting(knocking: Knocking) -> list[tuple[str, list[str]]]:
-    """Every inbound trunk on the box's SFU, by name, with the numbers it admits."""
-    listed = await knocking.gateway.connections.server.sip.list_inbound_trunk(
+    """Every inbound trunk on production's SFU, by name, with the numbers it admits."""
+    listed = await knocking.gateway.connections.servers["production"].sip.list_inbound_trunk(
         ListSIPInboundTrunkRequest()
     )
     return [(trunk.name, list(trunk.numbers)) for trunk in listed.items]

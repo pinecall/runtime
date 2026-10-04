@@ -1,11 +1,13 @@
 """The fleet doors: a worker's heartbeat, and LiveKit's word on a room's people."""
 
 import time
+from typing import Annotated
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 
 from pinecall.channels import rooms
 from pinecall.domain.errors import NotAllowed
+from pinecall.domain.names import PRODUCTION, Env
 from pinecall.gateway._deps import FleetKey, GatewayDep
 from pinecall.gateway.dispatching.arrivals import arrived, settled
 from pinecall.gateway.ending.stranded import stranded
@@ -25,9 +27,12 @@ async def heartbeat(
 
 
 # livekit sends its token bare in Authorization, and every room event of the box: all but an
-# agent lost mid-call are answered and let be.
+# agent lost mid-call are answered and let be. Each world's LiveKit names its world in the URL
+# its config sends to, so the room is asked of the LiveKit it lives on.
 @router.post("/v1/livekit/webhook", status_code=204)
-async def receive_livekit_event(request: Request, gateway: GatewayDep) -> None:
+async def receive_livekit_event(
+    request: Request, gateway: GatewayDep, world: Annotated[Env, Query()] = PRODUCTION
+) -> None:
     """A room event LiveKit signed: a caller alone is offered a worker; an agent lost, told."""
     # In this order: a worker gone sends the sentence, a caller alone is offered a worker, and a
     # room an agent joined or that ended is let go; each event moves one of the three.
@@ -39,6 +44,6 @@ async def receive_livekit_event(request: Request, gateway: GatewayDep) -> None:
     event = rooms.livekit_event(
         body, token, settings.livekit_api_key or "", settings.livekit_api_secret or ""
     )
-    await stranded(gateway.serving, gateway.offering, event)
-    await arrived(gateway.offering, event)
+    await stranded(gateway.serving, gateway.offering, world, event)
+    await arrived(gateway.offering, world, event)
     await settled(gateway.offering, event)

@@ -51,8 +51,10 @@ The answer is `201` with LiveKit's two fields and two more every SDK ignores:
 { "server_url": "wss://cloud.pinecall.io", "participant_token": "eyJ…", "call": "CA_5f1c…", "log_token": "eyJ…" }
 ```
 
-`server_url` is the box's name (`PINECALL_DOMAIN`) over `wss`, else `LIVEKIT_PUBLIC_URL`, else
-`LIVEKIT_URL`. `call` is the room and the id
+`server_url` is the LiveKit of the token's world: the box's name (`PINECALL_DOMAIN`) over `wss`,
+and for the sandbox `wss://<the name>/sandbox` when it has a LiveKit of its own
+(`LIVEKIT_SANDBOX_URL`); on a box with no name, `LIVEKIT_PUBLIC_URL`, else the world's LiveKit.
+`call` is the room and the id
 its log will have, so the backend can watch it without decoding a JWT.
 
 ## The log token
