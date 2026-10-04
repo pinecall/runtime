@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 
 from pinecall.channels import routes
+from pinecall.channels.telephony import sip
 from pinecall.domain.errors import (
     Conflict,
     NotAllowed,
@@ -85,7 +86,8 @@ async def list_test_numbers(key: AppKey, gateway: GatewayDep) -> TestNumbers:
 
 
 # A developer's own phone dialling the production number reaches their sandbox copy, while they
-# hold it; every other caller reaches production.
+# hold it; every other caller reaches production. Where the sandbox has a LiveKit of its own, the
+# ring is dialled there over SIP, through the trunk the answer carries.
 @router.get("/v1/agents/{slug}/rings-for")
 async def rings_for(
     slug: str,
@@ -101,7 +103,8 @@ async def rings_for(
     if caller not in gateway.sockets.calling(SANDBOX, taking.scope.holder):
         return RingHandoff()
     fleet = worlds.fleet_of(await worlds.fleets(gateway.connections.pool), SANDBOX)
-    return RingHandoff(holder=taking.scope.holder, fleet=fleet)
+    trunk = sip.hand_over_trunk(gateway.connections, caller)
+    return RingHandoff(holder=taking.scope.holder, fleet=fleet, trunk=trunk)
 
 
 def _person_of(key: Acting) -> str:

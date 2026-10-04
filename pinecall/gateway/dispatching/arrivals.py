@@ -6,6 +6,7 @@ from livekit.protocol.webhook import WebhookEvent
 
 from pinecall.channels import offers, rooms
 from pinecall.channels.offers import Offering
+from pinecall.channels.telephony.hand_over import handed_in
 from pinecall.domain.names import Env
 
 JOINED = "participant_joined"
@@ -21,7 +22,8 @@ FINISHED = "room_finished"
 # worker handing its caller to another fleet dispatches there and leaves, which sends the other.
 # The newest dispatch decides: a call that ended, or a supervisor joining a live call, has the
 # gateway's own dispatch, to a worker by its name, as the newest, and is left alone. The room is
-# asked of the LiveKit of the world that sent the event.
+# asked of the LiveKit of the world that sent the event. A ring production handed to the sandbox
+# over SIP is made the developer's by what its leg, the person joining, carries.
 async def arrived(offering: Offering, world: Env, event: WebhookEvent) -> str | None:
     """Offer the room a person is alone in to a worker; the name it went to, or None."""
     if not _a_person_may_be_alone(event):
@@ -33,7 +35,8 @@ async def arrived(offering: Offering, world: Env, event: WebhookEvent) -> str | 
     newest = _newest(await server.agent_dispatch.list_dispatch(room))
     if newest is None or "/" in newest.agent_name or newest.state.jobs:
         return None
-    return await offering.offer(room, newest.agent_name, rooms.read_dispatch(newest.metadata))
+    dispatch = handed_in(rooms.read_dispatch(newest.metadata), event.participant.attributes)
+    return await offering.offer(room, newest.agent_name, dispatch)
 
 
 # A dispatch creates the room it names again if it is gone: a room offered after its caller hung

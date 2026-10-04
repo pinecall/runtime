@@ -17,6 +17,7 @@ from livekit.protocol.sip import CreateSIPParticipantRequest
 from pydantic import TypeAdapter
 
 from pinecall.channels.rooms import Dialling, Dispatch, dispatched, read_dispatch, room_closed
+from pinecall.channels.telephony import hand_over
 from pinecall.channels.telephony.dialing import sip_config
 from pinecall.domain.agent import AgentConfig
 from pinecall.domain.call import CallContext, Contact, Route, today_in
@@ -48,12 +49,14 @@ from pinecall.wire.events import CallEnded, ErrorEvent, ToolCall
 from pinecall.wire.frames import Command, Entry
 from pinecall.wire.metrics import ModelUsage
 from pinecall.wire.parts import EndedBy, EndReason, PlatformTool, ToolResult
+from pinecall.wire.rest.agents import RingHandoff
 from pinecall.wire.rest.calls import (
     BatchedEntry,
     OpenCallRequest,
     OpenCallResponse,
     SealCallRequest,
 )
+from pinecall.wire.rest.numbers import LegTrunk
 from pinecall.wire.state import State
 from pinecall.worker._recorder import recording_path, stored, written
 
@@ -86,6 +89,14 @@ NOBODY_AT = "nobody answers {number} on {channel}"
 
 
 NO_DOOR = "agent {agent} answers no {channel} door: it looked in {looked}"
+
+
+NOT_HANDED = "a ring handed over from production names no agent: its leg carried no X-Pinecall-*"
+
+
+# The sandbox's SIP answers a leg it admits at once: one it does not admit is given up on, and the
+# caller reaches production's agent.
+HAND_OVER_RINGS_S = 10.0
 
 
 # SIP answers: busy and declined; the three ways of nobody picking up.
@@ -215,8 +226,10 @@ async def room_over(
 async def arrival_of(dispatch: Dispatch, where: rtc.Room) -> Arrival:
     """What the job's dispatch and the room's SIP leg say of the call."""
     outbound = dispatch.direction == "outbound"
-    # A dispatch that names its agent does not wait for a SIP leg; an outbound job places it.
-    leg = None if dispatch.agent or outbound else await room.caller_leg(where, "phone")
+    # A dispatch that names its agent does not wait for a SIP leg, but a ring handed over from
+    # production does: its leg says the number dialled. An outbound job places its own.
+    is_placed = outbound or (dispatch.agent is not None and dispatch.diverted_from is None)
+    leg = None if is_placed else await room.caller_leg(where, "phone")
     data = {} if leg is None else dict(leg.attributes)
     dialled = data.get(room.DIALLED_NUMBER)
     return Arrival(
@@ -232,6 +245,8 @@ def resolve(
     dispatch: Dispatch, arrival: Arrival, routes: list[Route], default: str | None
 ) -> Route:
     """The route the call takes."""
+    if dispatch.diverted_from is not None and dispatch.agent is None:
+        raise NotFound(NOT_HANDED)
     agent = dispatch.agent or (None if arrival.number else default)
     if agent is not None:
         return _of_agent(agent, dispatch, arrival, routes)
@@ -298,6 +313,24 @@ def end_reason_of(refused: Exception) -> EndReason:
     return "dial_failed"
 
 
+# Where the worlds share a LiveKit the sandbox's fleet is sent into this room; where each has its
+# own, this room dials the sandbox's SIP, and LiveKit bridges the caller and that leg here.
+async def handed_on(
+    server: api.LiveKitAPI, room_name: str, *, handed: RingHandoff, moved: Dispatch, number: str
+) -> bool:
+    """Send a developer's ring on to their sandbox copy; whether it went."""
+    try:
+        if handed.trunk is None:
+            await dispatched(server, room_name, str(handed.fleet), moved)
+        else:
+            leg = _hand_over_leg(room_name, handed.trunk, moved, number)
+            await server.sip.create_sip_participant(leg)
+    except api.TwirpError:
+        logger.warning("could not hand %s to %s: the call stays here", moved.agent, handed.fleet)
+        return False
+    return True
+
+
 # A widget's route is not stored: every agent answers on the widget, and the token door already
 # checked the agent is the key's. A handed-over ring dialled production's number.
 # The org's sentences said before the greeting: the disclosure, then the notice when it records.
@@ -362,7 +395,7 @@ def _of_agent(agent: str, dispatch: Dispatch, arrival: Arrival, routes: list[Rou
     raise NotFound(NO_DOOR.format(agent=agent, channel=arrival.channel, looked=", ".join(survey)))
 
 
-# The sandbox's fleet is sent into the same room: the caller and the trunk stay where they are.
+# The caller and their trunk stay where they are: production's LiveKit holds their leg.
 async def _handed_over(
     ctx: JobContext, gateway: GatewayClient, dispatch: Dispatch, arrival: Arrival, route: Route
 ) -> bool:
@@ -383,13 +416,29 @@ async def _handed_over(
             "diverted_from": PRODUCTION,
         }
     )
-    try:
-        await dispatched(ctx.api, ctx.room.name, handed.fleet, moved)
-    except api.TwirpError:
-        logger.warning("could not hand %s to %s: the call stays here", route.agent, handed.fleet)
+    number = str(route.number)
+    if not await handed_on(ctx.api, ctx.room.name, handed=handed, moved=moved, number=number):
         return False
     ctx.shutdown(reason=f"handed to {handed.fleet}")
     return True
+
+
+# The production number is dialled at the sandbox's SIP name and the caller is its From, so the
+# sandbox's leg says both as a carrier's would; who the developer is rides in headers.
+def _hand_over_leg(
+    room_name: str, trunk: LegTrunk, moved: Dispatch, number: str
+) -> CreateSIPParticipantRequest:
+    request = CreateSIPParticipantRequest(
+        sip_call_to=number,
+        sip_number=trunk.shown,
+        room_name=room_name,
+        participant_identity=f"{hand_over.LEG_PREFIX}{moved.holder}",
+        headers=hand_over.headers_of(moved),
+        wait_until_answered=True,
+    )
+    request.ringing_timeout.FromTimedelta(timedelta(seconds=HAND_OVER_RINGS_S))
+    request.trunk.CopyFrom(sip_config(trunk))
+    return request
 
 
 def _recorded(config: AgentConfig, settings: Settings, call: str, *, typed: bool) -> Path | None:

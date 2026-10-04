@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **A developer's own phone reaches their sandbox copy across LiveKits.** Where each world has a
+  LiveKit of its own, a ring from a developer's registered phone at a production number can no
+  longer be handed to the sandbox's fleet in production's room, so production's room dials it to
+  the sandbox's livekit-sip: `sip:<the production number>@<the sandbox's SIP name>`, the caller as
+  its From, `X-Pinecall-Org`, `X-Pinecall-Agent` and `X-Pinecall-Holder` saying whose ring it is.
+  The caller and that leg stay bridged in production's room, and the gateway deletes the room when
+  either leaves, so hanging up either side hangs up the other. On the sandbox's LiveKit the start
+  makes a `hand-over` trunk and rule: the trunk lists no number and admits production's media
+  address alone (the one `PINECALL_SIP_DOMAIN` names) with a pair drawn from `LIVEKIT_API_SECRET`,
+  turning the headers into the leg's attributes; the rule sends the leg to the sandbox's fleet, and
+  the gateway offers it as the developer's call. `GET /v1/agents/{slug}/rings-for` answers the
+  `trunk` to dial in that case (null where the worlds share a LiveKit, which keeps the hand-over in
+  one room). A handed-over ring is now opened as a phone call at the production number, its
+  caller read off its leg, in both cases; it was opened as a widget's. The firewall in front of the
+  sandbox's SIP must admit production's media address on 5060.
 - **A LiveKit per world.** A sandbox call never shares a machine with a production one: each
   world's rooms, trunks and rules live on a LiveKit of its own. The gateway reaches production's at
   `LIVEKIT_URL` and the sandbox's at `LIVEKIT_SANDBOX_URL` (unset, the sandbox shares production's,

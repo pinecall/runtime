@@ -147,15 +147,20 @@ async def room_closed(server: api.LiveKitAPI, name: str) -> None:
 
 
 # A room gone is nobody left in it.
-async def left_alone(server: api.LiveKitAPI, name: str) -> bool:
-    """Whether a person is still in the room and no agent is."""
+async def seats_in(server: api.LiveKitAPI, name: str) -> list[api.ParticipantInfo]:
+    """Who is in the room: nobody when it is gone."""
     try:
         seats = await server.room.list_participants(api.ListParticipantsRequest(room=name))
     except api.TwirpError as refused:
         if refused.code != ROOM_GONE:
             raise
-        return False
-    kinds = {seat.kind for seat in seats.participants}
+        return []
+    return list(seats.participants)
+
+
+async def left_alone(server: api.LiveKitAPI, name: str) -> bool:
+    """Whether a person is still in the room and no agent is."""
+    kinds = {seat.kind for seat in await seats_in(server, name)}
     return api.ParticipantInfo.Kind.AGENT not in kinds and bool(kinds & A_PERSON)
 
 

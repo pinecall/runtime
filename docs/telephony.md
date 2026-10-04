@@ -75,6 +75,43 @@ shares production's LiveKit (`LIVEKIT_SANDBOX_URL` unset), both rules are on the
 number moves between the two lists, its trunk untouched. A rule always names its trunks: one that
 named none would dispatch every trunk's calls.
 
+## A developer's own phone: the hand-over
+
+A developer who holds a sandbox copy of an agent and registered their own phone
+(`PUT /v1/line/from`) reaches that copy when the phone calls one of the org's production numbers;
+every other caller reaches production's agent. The call arrives as any other, on production's
+LiveKit, and production's worker asks the gateway whose ring it is
+(`GET /v1/agents/{slug}/rings-for`).
+
+Where the worlds share one LiveKit, the worker sends the sandbox's fleet into the same room and
+leaves. Where each has its own, the sandbox's workers never see production's rooms, so the ring
+is carried across by SIP: production's room dials a leg to the sandbox's livekit-sip,
+`sip:<the production number>@<the sandbox's SIP name>` over UDP, with the caller's number as its
+From and three headers that say whose ring it is, `X-Pinecall-Org`, `X-Pinecall-Agent` and
+`X-Pinecall-Holder`. Once the sandbox answers, production's worker leaves: the caller and the leg
+stay bridged in production's room, the audio passing through production's media node, and the
+agent runs on the sandbox's. A leg the sandbox does not answer within 10 s is given up, and the
+caller reaches production's agent.
+
+On the sandbox's LiveKit one trunk and one rule, both named `hand-over`, admit these legs. The
+trunk lists no number, unlike an org's: it admits whatever production dials, from production's
+media address alone (the address `PINECALL_SIP_DOMAIN` names, looked up at start: production's
+livekit-sip sends from it) and with a username and password drawn from LiveKit's API secret, so
+nothing new is kept. It turns the three headers into the leg's attributes; the rule sends the leg
+to the sandbox's fleet as a ring diverted from production, and the gateway, offering the room,
+makes it the developer's from those attributes: their corner, the org, the agent. The sandbox's
+call is logged there like the in-room one: in the developer's corner, at the production number,
+with the caller's number as the contact. Production keeps no log of it.
+
+LiveKit hangs up neither leg when the other leaves, so the gateway does, from LiveKit's webhook:
+when either leg of a room the hand-over bridges leaves, the room is deleted, which hangs up the
+other. The caller hanging up ends the sandbox's call; the sandbox's agent ending its call hangs
+up the caller.
+
+The cloud's firewall in front of the sandbox's SIP node must admit 5060 from production's media
+address too (Terraform's `sip_sources`, beside the carriers' networks); its RTP range is open to
+every address already.
+
 ## The carrier catalog: what the operator admits
 
 The box knows a catalog of carriers (`channels/telephony/carriers.csv`), each with the signalling
@@ -149,8 +186,9 @@ LiveKit keeps its trunks and rules in Redis, which can be emptied; Postgres is t
 the gateway admits every routed number again on its world's LiveKit with the fence it has now,
 takes a number off its org's trunks when nothing approved fences it, takes it off the other world's
 LiveKit where it is still listed (one admitted before the worlds had a LiveKit each), deletes
-nothing else, and never touches a carrier. The operator's approval or refusal of a network does
-the same for that org at once.
+nothing else, and never touches a carrier. Where the sandbox has a LiveKit of its own and
+production's SIP a name of its own, it makes or mends the sandbox's `hand-over` trunk and rule.
+The operator's approval or refusal of a network does the same for that org at once.
 
 One livekit-sip holds 200 calls (its RTP range). A second, on the box's Redis, answers every
 number the box routes too, and the carrier spreads calls across both with a second origination

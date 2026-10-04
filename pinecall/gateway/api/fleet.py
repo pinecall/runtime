@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query, Request
 
 from pinecall.channels import rooms
+from pinecall.channels.telephony.hand_over import unbridged
 from pinecall.domain.errors import NotAllowed
 from pinecall.domain.names import PRODUCTION, Env
 from pinecall.gateway._deps import FleetKey, GatewayDep
@@ -34,8 +35,9 @@ async def receive_livekit_event(
     request: Request, gateway: GatewayDep, world: Annotated[Env, Query()] = PRODUCTION
 ) -> None:
     """A room event LiveKit signed: a caller alone is offered a worker; an agent lost, told."""
-    # In this order: a worker gone sends the sentence, a caller alone is offered a worker, and a
-    # room an agent joined or that ended is let go; each event moves one of the three.
+    # In this order: a worker gone sends the sentence, a caller alone is offered a worker, a room
+    # an agent joined or that ended is let go, and a room a hand-over bridges goes with either of
+    # its legs; each event moves one of the four.
     token = request.headers.get("Authorization")
     if not token:
         raise NotAllowed(UNSIGNED)
@@ -47,3 +49,4 @@ async def receive_livekit_event(
     await stranded(gateway.serving, gateway.offering, world, event)
     await arrived(gateway.offering, world, event)
     await settled(gateway.offering, event)
+    await unbridged(gateway.offering.servers[world], event)

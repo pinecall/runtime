@@ -5,6 +5,7 @@ from typing import Literal
 from pinecall.domain.names import Channel, Env
 from pinecall.wire.frames import WireModel
 from pinecall.wire.parts import GreetingConfig, WidgetTheme
+from pinecall.wire.rest.numbers import LegTrunk
 from pinecall.wire.rest.providers import ProviderRow
 
 # ── the agents an org holds, and whose terminal a ring lands in ──
@@ -94,6 +95,8 @@ class RingHandoff(WireModel):
 
     holder: str | None = None
     fleet: str | None = None
+    # Where the sandbox has a LiveKit of its own: the ring is dialled to its SIP through this.
+    trunk: LegTrunk | None = None
 
 
 class JudgingSettings(WireModel):

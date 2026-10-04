@@ -5,8 +5,10 @@ from functools import partial
 
 import pytest
 from livekit import api, rtc
+from livekit.protocol.sip import CreateSIPParticipantRequest
 
-from pinecall.channels.rooms import Dispatch
+from pinecall.channels.rooms import Dispatch, read_dispatch
+from pinecall.channels.telephony.hand_over import HEADER_OF, HOLDER, ORG, USERNAME, password_of
 from pinecall.domain.agent import AgentConfig
 from pinecall.domain.call import Route
 from pinecall.domain.errors import GatewayRefused, NotFound
@@ -20,13 +22,16 @@ from pinecall.wire.events import CallEnded
 from pinecall.wire.frames import Command
 from pinecall.wire.metrics import ModelUsage
 from pinecall.wire.parts import EndedBy, EndReason, PlatformTool, ToolResult
+from pinecall.wire.rest.agents import RingHandoff
 from pinecall.wire.rest.calls import OpenCallRequest, OpenCallResponse
+from pinecall.wire.rest.numbers import LegTrunk
 from pinecall.worker._job import (
     Arrival,
     applied,
     arrival_of,
     end_reason_of,
     ended_and_sealed,
+    handed_on,
     may_be_a_developers,
     named_by,
     opening_of,
@@ -36,7 +41,7 @@ from pinecall.worker._job import (
 )
 from tests.conftest import AGENT, Knocking, postgres
 from tests.fakes.acme import ACME, seat
-from tests.fakes.livekit import Room, Server
+from tests.fakes.livekit import A_SECRET, Room, Server
 from tests.fleet.test_client import LosingTheFirstBatchAnswer, a_call, losing_client
 
 NUMBER = "+15550100"
@@ -47,6 +52,23 @@ A_PHONE = Arrival(caller=CALLER, channel="phone", direction="inbound", number=NU
 A_PAGE = Arrival(caller="room_1", channel=THE_WIDGET, direction="inbound")
 AT_THE_NUMBER = Route(org="org_a", agent="front", channel="phone", number=NUMBER)
 IN_THE_SANDBOX = Route(org="org_a", agent="front", channel="phone", number=NUMBER, env="sandbox")
+
+# A developer's sandbox copy, and what a ring from their own phone is sent on to it with.
+MOVED = Dispatch(
+    agent="front",
+    org="org_a",
+    env="sandbox",
+    holder="m_ana",
+    caller=CALLER,
+    diverted_from="production",
+)
+TO_THE_SANDBOX = LegTrunk(
+    hostname="sip.sandbox.box.test",
+    transport="udp",
+    username=USERNAME,
+    password=password_of(A_SECRET),
+    shown=CALLER,
+)
 
 
 async def test_a_sip_leg_says_who_calls_and_which_number_they_dialled() -> None:
@@ -99,6 +121,57 @@ def test_an_agent_with_no_door_on_the_channel_names_where_it_looked() -> None:
 def test_a_ring_handed_to_the_sandbox_keeps_the_production_number_it_dialled() -> None:
     dispatch = Dispatch(agent="front", org="org_a", env="sandbox", diverted_from="production")
     assert resolve(dispatch, A_PHONE, [], None) == IN_THE_SANDBOX
+
+
+async def test_a_ring_handed_over_waits_for_its_leg_to_say_the_number_it_dialled() -> None:
+    leg = seat("sip_1", kind=SIP, attributes={CALLER_NUMBER: CALLER, DIALLED_NUMBER: NUMBER})
+    arrived = await arrival_of(MOVED, Room("call_1", leg))
+    assert arrived == A_PHONE
+    assert resolve(MOVED, arrived, [], None) == IN_THE_SANDBOX
+
+
+def test_a_ring_handed_over_whose_leg_named_nobody_is_refused_rather_than_run_here() -> None:
+    with pytest.raises(NotFound, match="names no agent"):
+        resolve(Dispatch(env="sandbox", diverted_from="production"), A_PHONE, [AT_THE_NUMBER], None)
+
+
+async def test_where_the_sandbox_has_its_own_livekit_the_ring_is_dialled_to_its_sip() -> None:
+    server = Server()
+    handed = RingHandoff(holder="m_ana", fleet="pinecall-sandbox", trunk=TO_THE_SANDBOX)
+    assert await handed_on(server, "call_1", handed=handed, moved=MOVED, number=NUMBER)
+    (leg,) = server.dialled.requests
+    assert isinstance(leg, CreateSIPParticipantRequest)
+    assert (leg.sip_call_to, leg.sip_number, leg.room_name) == (NUMBER, CALLER, "call_1")
+    assert (leg.trunk.hostname, leg.trunk.auth_username) == ("sip.sandbox.box.test", USERNAME)
+    assert (dict(leg.headers)[HEADER_OF[ORG]], dict(leg.headers)[HEADER_OF[HOLDER]]) == (
+        "org_a",
+        "m_ana",
+    )
+    assert leg.wait_until_answered
+    assert server.dispatcher.made == []
+    await server.aclose()
+
+
+async def test_where_the_worlds_share_a_livekit_the_sandboxs_fleet_is_sent_into_the_room() -> None:
+    server = Server()
+    handed = RingHandoff(holder="m_ana", fleet="pinecall-sandbox")
+    assert await handed_on(server, "call_1", handed=handed, moved=MOVED, number=NUMBER)
+    (sent,) = server.dispatcher.made
+    assert (sent.room, sent.agent_name, read_dispatch(sent.metadata)) == (
+        "call_1",
+        "pinecall-sandbox",
+        MOVED,
+    )
+    assert server.dialled.requests == []
+    await server.aclose()
+
+
+async def test_a_hand_over_the_sandbox_does_not_answer_leaves_the_ring_here() -> None:
+    server = Server()
+    server.dialled.refusal = api.TwirpError("unavailable", "no answer", status=503)
+    handed = RingHandoff(holder="m_ana", fleet="pinecall-sandbox", trunk=TO_THE_SANDBOX)
+    assert not await handed_on(server, "call_1", handed=handed, moved=MOVED, number=NUMBER)
+    await server.aclose()
 
 
 def test_only_an_undispatched_ring_at_a_production_number_may_be_a_developers() -> None:

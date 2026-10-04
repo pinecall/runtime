@@ -193,7 +193,10 @@ start the gateway admits every routed phone number again on its world's LiveKit 
 its world's rule, and takes it off the other world's own LiveKit, one org's refusal logged and the
 others going on. It never touches the carrier, and it takes a number
 off its org's trunks when nothing approved fences it any more. The operator's approval or refusal
-of a network does the same for that org at once.
+of a network does the same for that org at once. Where the sandbox has a LiveKit of its own, the
+start also admits there the rings production hands to a developer's own sandbox copy: one trunk
+and one rule named `hand-over`, the trunk listing no number and admitting production's media
+address alone, with its pair ([telephony.md](../telephony.md), "A developer's own phone").
 
 
 ## Consent and the do-not-call list

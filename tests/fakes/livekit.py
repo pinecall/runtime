@@ -292,6 +292,8 @@ class Rooms(RoomService):
     existing: dict[str, bool]
     # The rooms a caller still sits in.
     people: set[str]
+    # Anyone else a test seats in a room: a leg dialled from it.
+    seated: dict[str, list[api.ParticipantInfo]]
 
     @override
     async def list_rooms(self, list: ListRoomsRequest) -> ListRoomsResponse:
@@ -303,13 +305,14 @@ class Rooms(RoomService):
 
     @override
     async def list_participants(self, list: ListParticipantsRequest) -> ListParticipantsResponse:
-        """An agent in the room if the test says so, and its caller if one is left."""
+        """An agent in the room if the test says so, its caller if one is left, and the rest."""
         self.requests.append(list)
         agent = api.ParticipantInfo(identity="agent", kind=api.ParticipantInfo.Kind.AGENT)
         caller = api.ParticipantInfo(identity="sip_caller", kind=api.ParticipantInfo.Kind.SIP)
         seated = [agent] if self.existing.get(list.room) else []
+        people = [caller] if list.room in self.people else []
         return ListParticipantsResponse(
-            participants=[*seated, caller] if list.room in self.people else seated
+            participants=[*seated, *people, *self.seated.get(list.room, [])]
         )
 
     @override
@@ -318,6 +321,7 @@ class Rooms(RoomService):
         self.requests.append(delete)
         self.existing.pop(delete.room, None)
         self.people.discard(delete.room)
+        self.seated.pop(delete.room, None)
         return DeleteRoomResponse()
 
     @override
@@ -378,6 +382,7 @@ class Server(api.LiveKitAPI):
         )
         self.rooms = Rooms.__new__(Rooms)
         self.rooms.requests, self.rooms.existing, self.rooms.people = [], {}, set()
+        self.rooms.seated = {}
         self.dispatcher = Dispatcher.__new__(Dispatcher)
         self.dispatcher.made, self.dispatcher.refusal = [], None
         self.dispatcher.seeded = []

@@ -5,6 +5,7 @@ import time
 
 from livekit import api
 
+from pinecall.channels.telephony.hand_over import LEG_PREFIX
 from pinecall.domain.scope import Scope
 from pinecall.log.store import Claim
 from pinecall.wire.rest.fleet import HeartbeatRequest
@@ -112,6 +113,35 @@ async def test_an_event_is_read_against_the_livekit_of_the_world_its_url_names(
     assert [item.type for item in await store.whole(context.call)] == ["call.started"]
     assert {type(request) for request in production.rooms.requests} == {api.ListParticipantsRequest}
     assert sandbox.rooms.requests == []
+
+
+# A ring handed to the sandbox by SIP is two legs bridged in production's room, and no agent.
+@postgres
+async def test_the_leg_to_the_sandbox_hanging_up_closes_productions_room_and_its_caller(
+    knocking: Knocking,
+) -> None:
+    server = knocking.gateway.connections.servers["production"]
+    assert isinstance(server, Server)
+    server.rooms.people = {"call-_+59899000001_abc"}
+    body = json.dumps(
+        {
+            "event": "participant_left",
+            "id": "EV_1",
+            "room": {"name": "call-_+59899000001_abc"},
+            "participant": {"identity": f"{LEG_PREFIX}m_ana", "kind": "SIP"},
+        }
+    )
+    async with knocking.http("unused") as livekit:
+        answered = await livekit.post(
+            WEBHOOK, content=body, headers={"Authorization": signed(body, LIVEKIT_KEY)}
+        )
+    assert answered.status_code == 204
+    assert [
+        request.room
+        for request in server.rooms.requests
+        if isinstance(request, api.DeleteRoomRequest)
+    ] == ["call-_+59899000001_abc"]
+    assert server.rooms.people == set()
 
 
 @postgres

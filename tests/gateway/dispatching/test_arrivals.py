@@ -6,6 +6,7 @@ from livekit.protocol.webhook import WebhookEvent
 
 from pinecall.channels import offers
 from pinecall.channels.rooms import Dispatch, read_dispatch, written
+from pinecall.channels.telephony.hand_over import AGENT, HOLDER, ORG
 from pinecall.domain.names import Env
 from pinecall.gateway.dispatching.arrivals import FINISHED, JOINED, LEFT, arrived, settled
 from pinecall.postgres.pool import Pool
@@ -53,6 +54,31 @@ async def test_a_caller_joining_is_offered_to_a_worker_with_the_rules_dispatch(p
         CARRIED,
     )
     assert servers["sandbox"].dispatcher.made == []
+    await closed(servers)
+
+
+# The hand-over rule dispatches the same for every ring; whose it is rides the leg joining.
+async def test_a_ring_production_handed_over_is_offered_as_the_developers_sandbox_call(
+    pool: Pool,
+) -> None:
+    servers = per_world()
+    ruled = Dispatch(env="sandbox", diverted_from="production")
+    server = servers["sandbox"]
+    server.rooms.people = {ROOM}
+    server.dispatcher.seeded = [
+        AgentDispatch(room=ROOM, agent_name="pinecall-sandbox", metadata=written(ruled))
+    ]
+    carried = {ORG: "org_a", AGENT: "recepcion", HOLDER: "m_ana"}
+    joined = WebhookEvent(
+        event=JOINED,
+        room=api.Room(name=ROOM),
+        participant=api.ParticipantInfo(identity="sip_1", kind="SIP", attributes=carried),
+    )
+    assert await arrived(an_offering(pool, servers), "sandbox", joined) == "pinecall-sandbox/w1"
+    (made,) = server.dispatcher.made
+    assert read_dispatch(made.metadata) == Dispatch(
+        agent="recepcion", org="org_a", env="sandbox", holder="m_ana", diverted_from="production"
+    )
     await closed(servers)
 
 

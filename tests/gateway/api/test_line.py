@@ -2,6 +2,7 @@
 
 from tests.conftest import (
     AGENT,
+    BOX_DOMAIN,
     Knocking,
     a_developer,
     postgres,
@@ -53,8 +54,11 @@ async def test_a_developers_phone_on_the_production_number_reaches_their_copy(
         handed = (await worker.get(f"/v1/agents/{AGENT}/rings-for", params=params)).json()
         kept = (await worker.get(f"/v1/agents/{AGENT}/rings-for", params=stranger)).json()
     assert said_back == {"calling": [HER_PHONE]}
-    assert handed == {"holder": ana, "fleet": "pinecall-sandbox"}
-    assert kept == {"holder": None, "fleet": None}
+    assert (handed["holder"], handed["fleet"]) == (ana, "pinecall-sandbox")
+    # The test's box gives each world a LiveKit of its own: the ring is dialled to the sandbox's
+    # SIP, shown as the caller.
+    assert (handed["trunk"]["hostname"], handed["trunk"]["shown"]) == (BOX_DOMAIN, HER_PHONE)
+    assert kept == {"holder": None, "fleet": None, "trunk": None}
     await copy.close()
 
 
