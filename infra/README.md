@@ -12,13 +12,14 @@ made by hand and nothing is built on a laptop.
 | `terraform/modules/gke` | a cluster: zonal, two node pools (core; workers, sized by the cluster autoscaler alone), Workload Identity |
 | `terraform/modules/registry` · `build` | where images live, and the identity Cloud Build builds them as |
 | `terraform/modules/secrets` | the runtime's secrets, drawn once into Secret Manager, and the identity External Secrets reads them as |
-| `terraform/modules/addons` | CloudNativePG, External Secrets and KEDA, each its pinned chart |
+| `terraform/modules/addons` | CloudNativePG with its Barman Cloud plugin and cert-manager, External Secrets and KEDA, each its pinned chart |
+| `terraform/modules/backups` | the bucket Postgres's WAL and base backups go to, and the identity that writes them, which touches it alone |
 | `terraform/modules/edge` | the global address, the firewall (media open, 5060 to the carriers alone) and both names in Route 53 |
 | `images/pinecall/` | the runtime's image: one for every process, each a `pinecall-runtime` verb (`make image`) |
 | `images/postgres/` | the cluster's Postgres: CloudNativePG's operand image with pg_textsearch on it |
 | `images/suite/` | every suite, run as a Job inside a cluster (`make suite`) |
 | `images/cloudbuild.yaml` | how an image is built: by Cloud Build, as the builds' own identity |
-| `manifests/postgres.yaml` | the cluster's Postgres under CloudNativePG |
+| `charts/postgres/` | the cluster's Postgres under CloudNativePG: its WAL to a bucket as it is written and a base backup each night (the Barman Cloud plugin), 35 days kept |
 | `manifests/suite.yaml` | the suites' Job, with a Redis made for the run |
 | `charts/pinecall/` | the runtime: two gateways, each world's workers (a few on the core node, the rest scaled by KEDA on the gateway's own number), the overflow, LiveKit and SIP on their node's network, Redis, the migrations, the fleets' keys, the nightly retention, the Ingress with Google's certificate |
 | `values/<world-pair>.yaml` | a release's names, its secrets' project and prefix, its address |
@@ -49,6 +50,40 @@ $ make suite ENV=staging            # every suite inside the cluster
 world's fleet key once at install, waits for every workload, and knocks at the production name.
 The secrets never leave Secret Manager but into the pods' environment; the values file holds no
 secret.
+
+## Backups, and a restore
+
+Postgres's WAL goes to the bucket of `terraform/modules/backups` as it is written, and a base
+backup each night at 03:00 UTC (`charts/postgres`: the Barman Cloud plugin, 35 days kept), as an
+identity that touches that bucket alone. A restore is a second Cluster recovered from the bucket,
+which the same identity reads as `pinecall-postgres-restore`:
+
+```yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pinecall-postgres-restore
+spec:
+  instances: 1
+  imageName: <charts/postgres's image>
+  postgresql:
+    shared_preload_libraries: [pg_textsearch]
+  storage: { size: 20Gi, storageClass: standard-rwo }
+  serviceAccountTemplate:
+    metadata:
+      annotations:
+        iam.gke.io/gcp-service-account: <terraform output postgres_backups_service_account>
+  bootstrap:
+    recovery: { source: origin }      # recoveryTarget: { targetTime: "…" } for a minute of the window
+  externalClusters:
+    - name: origin
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters: { barmanObjectName: pinecall-postgres, serverName: pinecall-postgres }
+```
+
+Drilled on staging on 2026-10-04: a base backup in 9 s, the restore ready in 106 s with the same
+30 514 rows of `call_log`, the same last entry and the same 48 migrations as the live database.
 
 ## Proven
 

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: postgres
+description: Pinecall's Postgres under CloudNativePG — its image, its extensions, its WAL and backups to a bucket.
+type: application
+version: 0.1.0

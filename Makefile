@@ -114,11 +114,12 @@ suite:            ## ENV=…: every suite as a Job on the cluster, TAG=<commit>;
 	kubectl --context $(CONTEXT) wait job/suite --for=condition=complete --timeout=30m; status=$$?; \
 	  kubectl --context $(CONTEXT) logs job/suite | tail -40; exit $$status
 
-# The cluster's Postgres, then charts/pinecall at the image of this commit, waiting for every
-# workload; then the live suite against the world's production name.
+# The cluster's Postgres (charts/postgres), then charts/pinecall at the image of this commit,
+# waiting for every workload; then the live suite against the world's production name.
 DOMAIN    = $(shell sed -n 's/^  production: //p' infra/values/$(ENV).yaml)
 deploy:           ## ENV=staging: charts/pinecall released at TAG=<commit> (make image first)
-	kubectl --context $(CONTEXT) apply -f infra/manifests/postgres.yaml
+	helm upgrade --install pinecall-postgres infra/charts/postgres --kube-context $(CONTEXT) \
+	  -f infra/values/$(ENV).yaml --wait --timeout 10m
 	kubectl --context $(CONTEXT) wait cluster/pinecall-postgres --for=condition=Ready --timeout=600s
 	helm upgrade --install pinecall infra/charts/pinecall --kube-context $(CONTEXT) \
 	  -f infra/values/$(ENV).yaml --set image.tag=$(TAG) --wait --timeout 20m

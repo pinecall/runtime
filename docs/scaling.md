@@ -19,7 +19,7 @@ staging before production.
 | a cluster | `make tf-plan`, `make tf-apply`, `make image`, `make deploy` ([../infra/README.md](../infra/README.md)) | two gateways, Postgres, LiveKit, SIP, two small workers per world |
 | more calls at once | nothing: KEDA adds a scaled worker when the gateway asks for one, and the cluster autoscaler a node for it ("The burst", below) | 32 calls a scaled worker, alone on an 8-vCPU node at ~60 % |
 | more gateway processes | `gateway.replicas` in the chart's values | ~330 calls a gateway core |
-| Postgres that outlives a node | `instances: 2` in `manifests/postgres.yaml`: CloudNativePG keeps a streaming replica and promotes it | — |
+| Postgres that outlives a node | `postgres.instances: 2` (`charts/postgres`): CloudNativePG keeps a streaming replica and promotes it; its WAL and nightly base backups are in a bucket either way | — |
 | past ~15 000–20 000 calls | a second cell: another cluster, an org living in one | Postgres grows ~1.4 cores per 1 000 calls; one database is one cell |
 
 ## Three planes, each grows on its own
@@ -381,12 +381,14 @@ wire), production's world, a turn every 10 s for two minutes, calls placed one a
 | 16, a release of a new image (`make deploy`) while they were up | 16 of 16, none drained | every caller turn | 1.23 / 1.31 s | — |
 | 8, Postgres's pod deleted 40 s in | 8 of 8, 0 errors | every caller turn | — | — |
 
-A scaled worker spent 0.25–0.31 cores a call. The core node's workers are the weak spot: at three
-calls they spent 0.56 cores a call and LiveKit's VAD ran slower than real time beside the box's
-services on a 4-vCPU node, with first audio's p95 at 2.2 s. Postgres, deleted, stopped as
-CloudNativePG stops it, a smart shutdown that waits up to 180 s for its clients: the gateways'
-open connections went on serving and every call in flight was written whole, no new connection
-opened for three minutes, and the database was back at 3 min 4 s.
+A scaled worker spent 0.25–0.31 cores a call. The core node's four seats of production held on
+their 4-vCPU node beside the box's services: two calls, first audio 1.24 / 1.32 s; four, 4 of 4
+started and 46 of 46 turns answered at 1.26 / 1.39 s, the node at 57 %. The first step above, the
+first calls after a release, saw LiveKit's VAD run slower than real time on those workers and a
+p95 of 2.2 s; it did not come back. Postgres, deleted, stopped as
+CloudNativePG stops it, a smart shutdown that waited 180 s for its clients: the gateways' open
+connections went on serving and every call in flight was written whole, no new connection opened
+for three minutes, and the database was back at 3 min 4 s; `charts/postgres` now waits 15 s.
 
 Down, the same night with no call after 23:11 UTC: KEDA let the second scaled worker go at 23:17:53
 and the last at 23:28:11, ten minutes apart as its window says; the cluster autoscaler deleted the
