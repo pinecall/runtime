@@ -102,8 +102,8 @@ is for the suites. Postgres is CloudNativePG's, its WAL and nightly base backups
 
 The old box, `ssh example-box` (203.0.113.20), is kept for a week as the way back: its
 runtime units masked and stopped, its database frozen at the cutover, Prometheus off.
-`pinecall-notify` and `pinecall-billing` still run on it, knocking at `https://box.pinecall.io`,
-until they move into the cluster; `ssh example-replica` is its replica. Its files and
+notify and billing left it for the cluster the same day (`infra/README.md`, "Pinecall's own
+services"); `ssh example-replica` is its replica. Its files and
 Terraform are `../infra-v1/`.
 
 ## Secrets and what never gets committed
@@ -117,6 +117,5 @@ Terraform are `../infra-v1/`.
 ## Open, waiting on Bernardo
 
 - The first real phone call on the new box.
-- Android pushes: the new VM needs the `pinecall-fleet` service account (a VM stop).
-- `notify.pinecall.io` DNS to the new box; WhatsApp needs a Meta token.
+- WhatsApp needs a Meta token.
 - Publishing the `pinecall` CLI and `@pinecall/room` to npm (their GitHub repos do not exist yet).

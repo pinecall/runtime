@@ -52,6 +52,42 @@ resource "google_certificate_manager_certificate_map_entry" "names" {
   certificates = [google_certificate_manager_certificate.names.id]
 }
 
+# Pinecall's own services at the same front door (notify, billing; their charts are their own
+# repositories'): a certificate of their own in the same map, so adding one never reissues the
+# worlds' certificate, which a name in use is served on.
+resource "google_certificate_manager_dns_authorization" "services" {
+  for_each   = toset(var.services)
+  name       = "pinecall-${var.name}-${replace(each.value, ".", "-")}"
+  domain     = each.value
+  depends_on = [google_project_service.certificates]
+}
+
+resource "aws_route53_record" "service_authorizations" {
+  for_each = google_certificate_manager_dns_authorization.services
+  zone_id  = data.aws_route53_zone.zone.zone_id
+  name     = each.value.dns_resource_record[0].name
+  type     = each.value.dns_resource_record[0].type
+  ttl      = 300
+  records  = [each.value.dns_resource_record[0].data]
+}
+
+resource "google_certificate_manager_certificate" "services" {
+  count = length(var.services) > 0 ? 1 : 0
+  name  = "pinecall-${var.name}-services"
+  managed {
+    domains            = var.services
+    dns_authorizations = [for authorization in google_certificate_manager_dns_authorization.services : authorization.id]
+  }
+}
+
+resource "google_certificate_manager_certificate_map_entry" "services" {
+  for_each     = toset(var.services)
+  name         = "pinecall-${var.name}-${replace(each.value, ".", "-")}"
+  map          = google_certificate_manager_certificate_map.names.name
+  hostname     = each.value
+  certificates = [google_certificate_manager_certificate.services[0].id]
+}
+
 # kubeip (charts/pinecall) gives it to the core node by its label, and gives it again to the node
 # that replaces it: a carrier's trunk and a number's SDP name one address for good.
 resource "google_compute_address" "core" {
@@ -128,6 +164,15 @@ resource "aws_route53_record" "names" {
   records  = [google_compute_global_address.ingress.address]
 }
 
+resource "aws_route53_record" "services" {
+  for_each = var.point_services ? toset(var.services) : toset([])
+  zone_id  = data.aws_route53_zone.zone.zone_id
+  name     = each.value
+  type     = "A"
+  ttl      = 300
+  records  = [google_compute_global_address.ingress.address]
+}
+
 resource "aws_route53_record" "sip_names" {
   for_each = toset(var.sip_names)
   zone_id  = data.aws_route53_zone.zone.zone_id
@@ -175,6 +220,19 @@ variable "names" {
 # Off while another stack points the names elsewhere (production's box, until the cutover): the
 # certificate is proved and issued all the same, and the names move when this turns on.
 variable "point_names" {
+  type    = bool
+  default = true
+}
+
+variable "services" {
+  type        = list(string)
+  description = "The names of Pinecall's own services served at this front door, each by its own chart."
+  default     = []
+}
+
+# Off while the services still answer elsewhere (the box): their certificate is issued all the
+# same, and the names move when this turns on.
+variable "point_services" {
   type    = bool
   default = true
 }

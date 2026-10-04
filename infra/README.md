@@ -15,7 +15,8 @@ made by hand and nothing is built on a laptop.
 | `terraform/modules/secrets` | the runtime's secrets, drawn once into Secret Manager, and the identity External Secrets reads them as |
 | `terraform/modules/addons` | CloudNativePG with its Barman Cloud plugin and cert-manager, External Secrets and KEDA, each its pinned chart |
 | `terraform/modules/backups` | the bucket Postgres's WAL and base backups go to, and the identity that writes them, which touches it alone |
-| `terraform/modules/edge` | the global address and the names' certificate, proved by DNS before they point here; the core node's static address and the SIP names; the firewall (media open, 5060 to the carriers alone); the names in Route 53 |
+| `terraform/modules/edge` | the global address and the names' certificate, proved by DNS before they point here, and a certificate of its own for Pinecall's services at the same door (`services`: notify, billing); the core node's static address and the SIP names; the firewall (media open, 5060 to the carriers alone); the names in Route 53 |
+| `terraform/modules/notify` | the Google identity notify signs Android's pushes as (Firebase Cloud Messaging alone), bound to its chart's service account |
 | `terraform/modules/alerts` | the alerts on the gateways' measures, in Cloud Monitoring, and the addresses they are mailed to |
 | `images/pinecall/` | the runtime's image: one for every process, each a `pinecall-runtime` verb (`make image`) |
 | `images/postgres/` | the cluster's Postgres: CloudNativePG's operand image with pg_textsearch on it |
@@ -152,6 +153,16 @@ and `terraform/modules/alerts` makes three alerts on what it read, mailed to the
 `emails`: a write to the log slow (p99 over 250 ms for 5 minutes), a fleet over 80% of its seats
 for 5 minutes, and a vendor over its error line for 2 minutes. Production's channel is verified
 (the code Google mailed it, 2026-10-04).
+
+## Pinecall's own services
+
+notify (`supervisor/apps/notify`) and billing (`cloud/`) run on production's cluster since
+2026-10-04, each its own repository's chart released beside the runtime's and never part of it:
+one pod each, SQLite on its own disk, its name (`notify.pinecall.io`, `billing.pinecall.io`) an
+`HTTPRoute` on this Gateway under `modules/edge`'s services certificate, its credentials Secret
+Manager's (`given`). Both reach the runtime at `http://pinecall-gateway:8080`; notify signs
+Android's pushes as `modules/notify`'s identity. Each repository's `make image` and `make deploy`
+release it; their books came over from the box once (`make restore-from-box`).
 
 ## Staging, made and destroyed
 

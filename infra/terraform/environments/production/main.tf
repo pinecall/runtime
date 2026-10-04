@@ -59,13 +59,22 @@ module "edge" {
   point_names = var.point_names
   # Where a carrier sends each world's calls: the core node's static address (PINECALL_SIP_DOMAIN).
   sip_names = ["sip.box.pinecall.io", "sip.sandbox.pinecall.io"]
-  region    = var.region
+  # Pinecall's own services, each its own repository's chart on this cluster.
+  services       = ["notify.pinecall.io", "billing.pinecall.io"]
+  point_services = var.point_services
+  region         = var.region
   # The fence's networks (sip_sources.auto.tfvars.json, `pinecall-runtime fence export`).
   sip_sources = var.sip_sources
 }
 
 # On since the cutover of 2026-10-04: box.pinecall.io and sandbox.pinecall.io point at this cluster.
 variable "point_names" {
+  type    = bool
+  default = true
+}
+
+# On since notify and billing moved onto this cluster, 2026-10-04.
+variable "point_services" {
   type    = bool
   default = true
 }
@@ -114,13 +123,24 @@ module "kubeip" {
   name    = "production"
 }
 
+module "notify" {
+  source           = "../../modules/notify"
+  project          = var.project
+  name             = "production"
+  firebase_project = "example-firebase"
+}
+
 module "secrets" {
   source  = "../../modules/secrets"
   project = var.project
   name    = "production"
   # The vault key the box's database is sealed under, the box's ops key (billing and notify knock
-  # with it), and the object store's key, made by hand: all the box's own, carried over.
-  given      = ["vault-key", "ops-key", "s3-access-key-id", "s3-secret-access-key"]
+  # with it), and the object store's key, made by hand: all the box's own, carried over; and
+  # notify's and billing's own (their charts read them), carried over from the box the same way.
+  given = [
+    "vault-key", "ops-key", "s3-access-key-id", "s3-secret-access-key",
+    "notify-vapid", "billing-stripe-key", "billing-webhook-secret", "billing-cookie-secret",
+  ]
   depends_on = [module.gke]
 }
 
@@ -174,4 +194,8 @@ output "kubeip_service_account" {
 
 output "certificate_map" {
   value = module.edge.certificate_map
+}
+
+output "notify_service_account" {
+  value = module.notify.service_account
 }
