@@ -191,6 +191,9 @@ async def test_a_box_whose_sip_is_at_its_names_sends_no_trunk_on(
 ) -> None:
     assert await ran(settings_of(knocking), "sip", "repoint") == 0
     assert capsys.readouterr().out.strip().endswith("0 trunks sent on")
+    former = ("sip", "repoint", "--from", "production=sip.gone.test")
+    assert await ran(settings_of(knocking), *former) == 0
+    assert capsys.readouterr().out.strip().endswith("0 trunks sent on")
 
 
 @postgres

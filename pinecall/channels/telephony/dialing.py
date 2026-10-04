@@ -380,6 +380,9 @@ async def _twilio_provisioned(
             host=survey.host, username=survey.username, password=secrets.token_urlsafe(24)
         )
         await twilio.credential_added(listed, outbound.username, outbound.password)
+    elif outbound is not None and outbound.host != survey.host:
+        # The trunk was given the box's host just now (its name changed): dial where it answers.
+        outbound = replace(outbound, host=survey.host)
     if not survey.on_trunk:
         await twilio.list_attached(trunk.sid, listed)
     await seal_carrier(connections.pool, connections.vault, replace(carrier, outbound=outbound))

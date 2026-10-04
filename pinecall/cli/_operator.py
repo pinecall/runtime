@@ -172,9 +172,18 @@ def fence_group(group: argparse.ArgumentParser) -> None:
 def sip_group(group: argparse.ArgumentParser) -> None:
     """`sip repoint`: the carriers' trunks sent on to the worlds' SIP names, once."""
     under = group.add_subparsers(required=True)
-    under.add_parser(
+    repoint = under.add_parser(
         "repoint", help="every Twilio trunk at a world's name, to its SIP name"
-    ).set_defaults(run=_knocking(sip_repoint))
+    )
+    repoint.add_argument(
+        "--from",
+        dest="former",
+        action="append",
+        default=[],
+        metavar="WORLD=NAME",
+        help="a name the world was reached at before, its trunks sent on too",
+    )
+    repoint.set_defaults(run=_knocking(sip_repoint))
 
 
 def fleet_group(group: argparse.ArgumentParser) -> None:
@@ -189,9 +198,13 @@ def fleet_group(group: argparse.ArgumentParser) -> None:
         one_verb.set_defaults(run=_knocking(runner))
 
 
-def sip_repoint(client: httpx.Client, _args: argparse.Namespace) -> int:
+def sip_repoint(client: httpx.Client, args: argparse.Namespace) -> int:
     """Each trunk the gateway sent on to a world's SIP name, a line each."""
-    moved = _list(_answered(client.post("/v1/ops/sip/repoint")))
+    former: dict[str, list[str]] = {}
+    for given in args.former:
+        world, _, name = str(given).partition("=")
+        former.setdefault(parse_env(world), []).append(name)
+    moved = _list(_answered(client.post("/v1/ops/sip/repoint", json={"former": former})))
     for item in moved:
         row = _object(item)
         _line_out(f"{row['account']} {row['trunk']} {row['world']}: {row['was']} -> {row['now']}")

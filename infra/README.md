@@ -9,7 +9,7 @@ made by hand and nothing is built on a laptop.
 |---|---|
 | `terraform/bootstrap` | the bucket every other root module keeps its state in, made once with local state |
 | `terraform/project` | what every cluster of the project shares: the images' registry and the identity Cloud Build builds them as |
-| `terraform/environments/<world-pair>` | one cluster each: `production` (box.pinecall.io, sandbox.pinecall.io), Pinecall's own since the cutover of 2026-10-04, and `staging`, made for a proof with calls and destroyed after it |
+| `terraform/environments/<world-pair>` | one cluster each: `production` (cloud.pinecall.io, sandbox.pinecall.io), Pinecall's own since the cutover of 2026-10-04, and `staging`, made for a proof with calls and destroyed after it |
 | `terraform/modules/gke` | a cluster: zonal, two node pools (core; workers, sized by the cluster autoscaler alone), Workload Identity |
 | `terraform/modules/registry` · `build` | where images live, and the identity Cloud Build builds them as (`terraform/project`) |
 | `terraform/modules/secrets` | the runtime's secrets, drawn once into Secret Manager, and the identity External Secrets reads them as |

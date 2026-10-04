@@ -7,7 +7,7 @@ cluster, your carrier and your models. One Python package, `pinecall`, in two pr
 **gateway**, which answers every door of the API and serves the console, and the **worker**, which
 runs the calls on [LiveKit](https://livekit.io). Postgres holds every call as an append-only log;
 Redis carries what the gateways say to one another. It runs Pinecall's own production and its
-sandbox, `box.pinecall.io` and `sandbox.pinecall.io`, on one Kubernetes cluster.
+sandbox, `cloud.pinecall.io` and `sandbox.pinecall.io`, on one Kubernetes cluster.
 
 Agents are written with the SDKs, [`pinecall/agents`](https://github.com/pinecall/agents)
 (TypeScript) or the Ruby SDK, and talk to this runtime over the wire `pinecall/wire/` declares.
@@ -48,7 +48,7 @@ Nothing here is imported by an agent.
 </picture>
 
 ```
-                 box.pinecall.io · sandbox.pinecall.io            sip.box.pinecall.io · sip.sandbox…
+               cloud.pinecall.io · sandbox.pinecall.io                sip.pinecall.io · sip.sandbox…
                  Google's HTTPS load balancer (Gateway API)       the core node's static address
                               │                                              │
    ┌──────────────────────────┼──────────────────────────────────────────────┼────────────────────┐

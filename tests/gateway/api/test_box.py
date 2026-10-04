@@ -194,9 +194,14 @@ async def test_the_operator_alone_sends_the_trunks_on_and_a_box_at_its_names_mov
     with_an_ops_key(knocking)
     async with knocking.http(THE_OPS_KEY) as operator:
         moved = await operator.post("/v1/ops/sip/repoint")
+        from_a_former = await operator.post(
+            "/v1/ops/sip/repoint", json={"former": {"production": ["sip.gone.test"]}}
+        )
+        no_world = await operator.post("/v1/ops/sip/repoint", json={"former": {"staging": []}})
     async with knocking.http(knocking.app["production"]) as tenant:
         refused = await tenant.post("/v1/ops/sip/repoint")
     assert (moved.status_code, moved.json(), refused.status_code) == (200, [], 401)
+    assert (from_a_former.status_code, from_a_former.json(), no_world.status_code) == (200, [], 422)
 
 
 @postgres

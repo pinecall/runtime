@@ -28,6 +28,22 @@ async def test_a_trunk_sent_to_the_worlds_name_is_sent_to_its_sip_name_once(line
     assert await origination.repointed(connections) == []
 
 
+# A name retired for another: the trunks still at the old SIP name go to the new one.
+@postgres
+async def test_a_trunk_at_a_former_name_is_sent_to_the_worlds_sip_name(line: Line) -> None:
+    await brought(line)
+    retired = "sip:sip.old.test:5060;transport=udp"
+    moved = line.twilio.trunk("old box", retired)
+    settings = line.connections.settings.model_copy(update={"sip_domain": "sip.box.test"})
+    connections = replace(line.connections, settings=settings)
+    assert await origination.repointed(connections) == []
+    done = await origination.repointed(connections, {"production": ["sip.old.test"]})
+    assert [(item.trunk, item.world, item.was, item.now) for item in done] == [
+        (moved, "production", retired, THERE)
+    ]
+    assert line.twilio.trunks[moved].origination == [THERE]
+
+
 @postgres
 async def test_an_account_the_box_and_an_org_both_hold_is_moved_once(line: Line) -> None:
     await brought(line)

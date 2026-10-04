@@ -69,11 +69,11 @@ whose portal the org types the address above into; `sells` says whether `POST /v
 has an account to buy on.
 
 ```
-$ curl -X POST https://box.pinecall.io/v1/numbers -H "authorization: Bearer $PINECALL_KEY" \
+$ curl -X POST https://cloud.pinecall.io/v1/numbers -H "authorization: Bearer $PINECALL_KEY" \
     -d '{"number": "+59829000000", "agent": "recepcion"}'
 {"route": {"org": "org_…", "agent": "recepcion", "channel": "phone", "number": "+59829000000",
            "label": null, "env": "production", "managed": false},
- "steps": ["Twilio: a trunk sending calls to sip:box.pinecall.io:5060;transport=udp: stands",
+ "steps": ["Twilio: a trunk sending calls to sip:sip.pinecall.io:5060;transport=udp: stands",
            "Twilio: +59829000000 attached to it: done",
            "LiveKit: trunk org_… admits +59829000000: done",
            "LiveKit: rule org_…:production sends it to fleet pinecall: done",

@@ -92,8 +92,8 @@ independent.
 
 **Production is the cluster** `pinecall-production` (GKE, `environments/production`, kubectl context
 `gke_example-project_us-central1-c_pinecall-production`) since the cutover of 2026-10-04
-(`../internal-docs/runtime-v2/CUTOVER-K8S-RUNBOOK.md`): `box.pinecall.io` and `sandbox.pinecall.io`
-on its Gateway (203.0.113.1, Certificate Manager's certificate), SIP at `sip.box.pinecall.io` and
+(`../internal-docs/runtime-v2/CUTOVER-K8S-RUNBOOK.md`): `cloud.pinecall.io` and `sandbox.pinecall.io`
+on its Gateway (203.0.113.1, Certificate Manager's certificate), SIP at `sip.pinecall.io` and
 `sip.sandbox.pinecall.io` on the core node's static address (203.0.113.10, kubeip). Released with
 `make deploy ENV=production TAG=<commit>`; tested against the domain, never a local gateway; local
 is for the suites. Postgres is CloudNativePG's, its WAL and nightly base backups in

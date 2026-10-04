@@ -12,8 +12,8 @@ when the person has production access (an admin always has it).
 
 ```
 ~/clinica $ pinecall login
-  https://box.pinecall.io/cli?c=cli_…        opens the browser: email and password, or the org's SSO
-  signed in to https://box.pinecall.io as Ana García
+  https://cloud.pinecall.io/cli?c=cli_…        opens the browser: email and password, or the org's SSO
+  signed in to https://cloud.pinecall.io as Ana García
 
 ~/clinica $ pinecall start                    the sandbox: Ana's own copy of the agents
 ~/clinica $ pinecall start --prod             production: the same host, the same key

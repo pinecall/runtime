@@ -1,5 +1,6 @@
 """Tests for dialling out: provisioning, the guards and their ledger, a call placed, a leg."""
 
+from dataclasses import replace
 from datetime import UTC, date, datetime
 
 import pytest
@@ -76,6 +77,26 @@ async def test_provisioning_twilio_is_written_once_and_a_second_run_finds_it_sta
     assert all(step.endswith("stands") for step in again.steps)
     assert len(line.twilio.credential_lists) == 1
     assert (await dialing.outbound_readiness(line.connections, line.scope())).ready
+
+
+# The box renamed: provisioning gives the trunk its new host, and the org dials where it answers.
+@postgres
+async def test_a_box_renamed_dials_through_the_host_its_trunk_was_given(line: Line) -> None:
+    await brought(line)
+    line.twilio.owns(A_NUMBER)
+    await numbers.import_number(line.connections, NumberImport(line.scope(), "recepcion", A_NUMBER))
+    await dialing.provision_outbound(line.connections, line.org, "production")
+    # Its trunk still sends calls where it did: the SIP name is not the name that changed.
+    renaming = {"domain": "renamed.test", "sip_domain": DOMAIN}
+    settings = line.connections.settings.model_copy(update=renaming)
+    renamed = replace(line.connections, settings=settings)
+    done = await dialing.provision_outbound(renamed, line.org, "production")
+    (trunk,) = line.twilio.trunks.values()
+    assert trunk.domain_name == done.address
+    assert str(done.address).startswith("renamed-test-")
+    carrier = await dialing.carrier_named(renamed.pool, renamed.vault, line.org, None)
+    assert carrier.outbound is not None
+    assert carrier.outbound.host == done.address
 
 
 def credential_of(org: str) -> str:

@@ -100,7 +100,7 @@ variable "firebase_project" {
   default = null
 }
 
-# On since the cutover of 2026-10-04: box.pinecall.io and sandbox.pinecall.io point at this cluster.
+# On since the cutover of 2026-10-04: cloud.pinecall.io and sandbox.pinecall.io point at this cluster.
 variable "point_names" {
   type    = bool
   default = true

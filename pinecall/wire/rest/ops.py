@@ -242,6 +242,12 @@ class BoxCarriers(WireModel):
     fence: BoxFence
 
 
+class RepointRequest(WireModel):
+    """POST /v1/ops/sip/repoint: the names each world was reached at before, sent on from."""
+
+    former: dict[Env, list[str]] = Field(default_factory=dict[Env, list[str]])
+
+
 class RepointedTrunk(WireModel):
     """POST /v1/ops/sip/repoint: a trunk of an account sent on from a world's name to its SIP's."""
 

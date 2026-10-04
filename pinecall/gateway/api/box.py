@@ -73,6 +73,7 @@ from pinecall.wire.rest.ops import (
     PutBrandRequest,
     PutSignInRequest,
     RepointedTrunk,
+    RepointRequest,
     RouteRequest,
     RouteRow,
 )
@@ -415,10 +416,13 @@ async def admit_box_carrier(
     return _box_carrier(carrier_catalog.known_carrier(kind), admitted, through[kind])
 
 
-# Once, when the box's SIP moves off its names: the runtime never touches a carrier on its own.
+# Once, when the box's SIP moves off its names or a name is retired: the runtime never touches a
+# carrier on its own.
 @router.post("/v1/ops/sip/repoint")
-async def repoint_trunks(gateway: GatewayDep) -> list[RepointedTrunk]:
-    """Send every Twilio trunk still pointing at a world's name to that world's SIP name."""
+async def repoint_trunks(
+    gateway: GatewayDep, body: RepointRequest | None = None
+) -> list[RepointedTrunk]:
+    """Send every Twilio trunk at a world's name, or a former one, to that world's SIP name."""
     return [
         RepointedTrunk(
             account=moved.account,
@@ -427,7 +431,9 @@ async def repoint_trunks(gateway: GatewayDep) -> list[RepointedTrunk]:
             was=moved.was,
             now=moved.now,
         )
-        for moved in await origination.repointed(gateway.connections)
+        for moved in await origination.repointed(
+            gateway.connections, None if body is None else body.former
+        )
     ]
 
 
