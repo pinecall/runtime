@@ -13,8 +13,10 @@ spec:
     metadata: { labels: { app: pinecall-gateway } }
     spec:
       nodeSelector: { pinecall.io/pool: core }
-      # A stopping gateway tells its open streams and lets them go; an app socket reconnects to another.
-      terminationGracePeriodSeconds: 60
+      # A stopping gateway first serves on for 30 s, while the load balancer lets go of it (its
+      # network endpoint leaves the group in seconds, not at once: told nothing, it answers 503 to
+      # whoever it still sends there); then it tells its open streams and lets them go, in 60 s.
+      terminationGracePeriodSeconds: 90
       containers:
         - name: gateway
           image: {{ include "pinecall.image" . }}
@@ -28,6 +30,8 @@ spec:
             - name: PINECALL_METRICS_FROM
               value: {{ printf "127.0.0.1,::1,%s" .Values.gateway.podNetwork | quote }}
           ports: [{ name: http, containerPort: 8080 }]
+          lifecycle:
+            preStop: { sleep: { seconds: 30 } }
           readinessProbe:
             httpGet: { path: /, port: 8080 }
             periodSeconds: 5

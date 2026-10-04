@@ -56,6 +56,12 @@ NOT_LOOPBACK = (
 )
 
 
+# Google's load balancer keeps an idle connection to a gateway 600 s and sends the next request
+# down it: the gateway must keep it longer (Google says 620 s), or a request meets a closed socket
+# and the caller a 503.
+KEEP_ALIVE_S = 620
+
+
 # A stream never ends on its own: told nothing, a stop waits out uvicorn's grace and cuts it.
 class Stopping(uvicorn.Server):
     """uvicorn's server, which tells the open streams when it is told to stop."""
@@ -86,7 +92,12 @@ def gateway(settings: Settings, _args: argparse.Namespace) -> int:
     host, port = _listening(settings)
     # The one proxy in front is believed alone: Caddy on loopback, or a cluster's load balancer.
     config = uvicorn.Config(
-        app, host=host, port=port, proxy_headers=True, forwarded_allow_ips=settings.trusted_proxies
+        app,
+        host=host,
+        port=port,
+        proxy_headers=True,
+        forwarded_allow_ips=settings.trusted_proxies,
+        timeout_keep_alive=KEEP_ALIVE_S,
     )
     Stopping(config).run()
     return 0

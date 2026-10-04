@@ -39,7 +39,10 @@ forgotten on every gateway at once, said on the signal; a change made at a shell
 holds for those seconds on a gateway that remembered the key. Any gateway answers any request of
 a call, so the cluster's load balancer sends each wherever it likes and a second gateway costs a
 call nothing; the chart runs two (`gateway.replicas`), and a disruption budget keeps one up
-through a node's drain.
+through a node's drain. A release never shows a caller a `503`: a stopping gateway serves on for
+30 s (its pod's `preStop`) while the load balancer takes it out of the group, and only then closes;
+and it keeps an idle connection 620 s, past the load balancer's 600, so the load balancer never
+sends a request down a socket the gateway already closed.
 
 ## A fleet per world
 
