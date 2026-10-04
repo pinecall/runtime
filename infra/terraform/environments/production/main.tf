@@ -1,5 +1,5 @@
-# Production: Pinecall's own cluster, box.pinecall.io and sandbox.pinecall.io. Until the cutover
-# the names point at v1's box (its own Terraform, ../infra-v1): `point_names` turns on with it.
+# Production: Pinecall's own cluster, box.pinecall.io and sandbox.pinecall.io, since the cutover of
+# 2026-10-04 (before it, v1's box under its own Terraform, ../infra-v1).
 
 terraform {
   required_version = ">= 1.5"
@@ -64,10 +64,10 @@ module "edge" {
   sip_sources = var.sip_sources
 }
 
-# On at the cutover: box.pinecall.io and sandbox.pinecall.io point at this cluster.
+# On since the cutover of 2026-10-04: box.pinecall.io and sandbox.pinecall.io point at this cluster.
 variable "point_names" {
   type    = bool
-  default = false
+  default = true
 }
 
 # Written by `pinecall-runtime fence export` into sip_sources.auto.tfvars.json: the orgs'

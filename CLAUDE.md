@@ -1,8 +1,8 @@
 # runtime-v2 — how to work here
 
 The Pinecall runtime, rewritten: one Python package (`pinecall`), one wheel, the gateway that
-answers the doors and the worker that runs the calls, on LiveKit. It runs the new box today and
-replaces `../runtime` (v1) at the cutover. The full history of decisions is in
+answers the doors and the worker that runs the calls, on LiveKit. It runs on Kubernetes,
+production's cluster since 2026-10-04. The full history of decisions is in
 `../internal-docs/runtime-v2/SESSION-LOG.md`; read it only when a question is not answered here.
 
 ## Talking to Bernardo
@@ -33,10 +33,8 @@ vibesmell check                   the hygiene findings; must say "nothing to fix
 
 The runtime runs on Kubernetes (`infra/`, its README): the cloud (cluster, pools, registry,
 address, firewall, names, secrets) is Terraform's and the runtime on it is `charts/pinecall`;
-nothing cloud-side is made or changed by hand. Production's box still runs v1's machines until
-the cutover; their files (the box, the cell, the fleet loop, the lab, v1's Terraform) left the
-repository on 2026-10-03 and live in `../infra-v1/`, kept for reference and for an urgent fix to
-that box alone.
+nothing cloud-side is made or changed by hand. v1's machines (the box, the cell, the fleet loop,
+the lab, v1's Terraform) left the repository on 2026-10-03 and live in `../infra-v1/`.
 
 Both suites run before a reply says green. No test is skipped or deleted to pass.
 
@@ -90,25 +88,23 @@ independent.
 - `PINECALL_VAULT_KEY` is required: it seals every key and secret the box holds.
 - An applied migration is never edited; the fix is a new one.
 
-## The box
+## Production
 
-`ssh example-box` (GCP, 203.0.113.20) is **production**: `box.pinecall.io` is its production
-name and `sandbox.pinecall.io` its sandbox name, one gateway, since the cutover of 2026-09-29
-(`../internal-docs/runtime-v2/CUTOVER-PLAN.md`; the old box, `pinecall-v2-box`, 203.0.113.21, runs
-v1 stopped and the tenant apps under `/opt/pinecall/apps`). Everything is tested against the box,
-never a local gateway; local is for the suites. `pinecall-notify` runs
-beside the runtime (it pushes calls of both worlds to phones and browsers).
+**Production is the cluster** `pinecall-production` (GKE, `environments/production`, kubectl context
+`gke_example-project_us-central1-c_pinecall-production`) since the cutover of 2026-10-04
+(`../internal-docs/runtime-v2/CUTOVER-K8S-RUNBOOK.md`): `box.pinecall.io` and `sandbox.pinecall.io`
+on its Gateway (203.0.113.1, Certificate Manager's certificate), SIP at `sip.box.pinecall.io` and
+`sip.sandbox.pinecall.io` on the core node's static address (203.0.113.10, kubeip). Released with
+`make deploy ENV=production TAG=<commit>`; tested against the domain, never a local gateway; local
+is for the suites. Postgres is CloudNativePG's, its WAL and nightly base backups in
+`pinecall-production-postgres-000000000000`; recordings in `pinecall-box-recordings-000000000000`
+(S3, its key in Secret Manager); the vault key and the ops key are the box's, carried over.
 
-Since 2026-10-01 the box's database is not alone: its WAL is archived every minute to S3
-(`pinecall-box-backups-000000000000`, us-east-1, the IAM user `pinecall-box-store` that can only
-touch the box's two buckets — all of it, the VMs and the names Terraform's, `../infra-v1/terraform/`; `/etc/pinecall/store.env`), the nightly backup and base backup go there
-too (35-day lifecycle); since 2026-10-02 recordings go to `pinecall-box-recordings-000000000000`
-(same store, same key, no lifecycle), and `ssh example-replica` (34.31.81.33, 10.128.15.203) is a streaming
-replica, `box failover` ready (`docs/a-box-in-production.md`, "A replica"). The backup's private
-age key is never on either machine.
-The four alerts (`../infra-v1/cell/alerts.yaml`) are evaluated on the box by Prometheus and mailed by
-Alertmanager through SES (`../infra-v1/box/alerts.sh`, `/etc/pinecall/alerts.env`, IAM user
-`pinecall-box-alerts`, which can only send as alerts@pinecall.io); `alerts.sh test` proves the path.
+The old box, `ssh example-box` (203.0.113.20), is kept for a week as the way back: its
+runtime units masked and stopped, its database frozen at the cutover, Prometheus off.
+`pinecall-notify` and `pinecall-billing` still run on it, knocking at `https://box.pinecall.io`,
+until they move into the cluster; `ssh example-replica` is its replica. Its files and
+Terraform are `../infra-v1/`.
 
 ## Secrets and what never gets committed
 
