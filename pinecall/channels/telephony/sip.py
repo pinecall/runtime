@@ -47,6 +47,13 @@ NO_DOMAIN = "this box has no PINECALL_DOMAIN: a carrier has nowhere to send a ca
 
 REBUILT = "SIP rebuilt from the tables: %d numbers stand, %d orgs refused, hand-overs admitted: %s"
 
+NOT_WHOLE = "SIP not rebuilt whole (an org refused, or a LiveKit unreachable): again in %.0f s"
+
+# A LiveKit still starting beside the gateway answers in seconds; one that is down, in minutes.
+FIRST_WAIT_S = 2.0
+
+LONGEST_WAIT_S = 60.0
+
 
 NO_ADDRESS = "production's SIP name %s names no address: the sandbox admits no hand-over"
 
@@ -268,6 +275,23 @@ async def rebuild(connections: Connections) -> Rebuilt:
         handing = False
     logger.info(REBUILT, readmitted, len(refused), handing)
     return Rebuilt(numbers=readmitted, refused=refused, hand_over=handing)
+
+
+# A gateway started beside a LiveKit that is still starting, or down, would otherwise leave every
+# number of that world unadmitted until its own next start: it tries again until the rebuild is
+# whole, waiting twice as long each time, a minute at most.
+async def rebuilt_until_whole(connections: Connections, wait_s: float = FIRST_WAIT_S) -> Rebuilt:
+    """The rebuild, again after a wait while an org is refused or a LiveKit cannot be reached."""
+    while True:
+        try:
+            rebuilt = await rebuild(connections)
+        except (api.TwirpError, httpx.HTTPError, OSError, TimeoutError):
+            rebuilt = None
+        if rebuilt is not None and not rebuilt.refused:
+            return rebuilt
+        logger.warning(NOT_WHOLE, wait_s)
+        await asyncio.sleep(wait_s)
+        wait_s = min(wait_s * 2, LONGEST_WAIT_S)
 
 
 # After the operator approves or refuses a network: the org's trunks follow what is approved now.

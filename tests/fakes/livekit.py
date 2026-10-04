@@ -141,6 +141,8 @@ class Sip(SipService):
     requests: list[object]
     answer: TransferSIPParticipantResponse
     refusal: api.TwirpError | None
+    # Listings refused as by a LiveKit still starting, its port closed, before it answers.
+    starting: int
     # The SFU's inbound trunks and dispatch rules, by id, as Redis would hold them.
     trunks: dict[str, SIPInboundTrunkInfo]
     rules: dict[str, SIPDispatchRuleInfo]
@@ -151,6 +153,9 @@ class Sip(SipService):
     ) -> ListSIPInboundTrunkResponse:
         """Every trunk, or those listing one of the numbers asked."""
         self.requests.append(list)
+        if self.starting:
+            self.starting -= 1
+            raise ConnectionRefusedError("LiveKit is starting")
         wanted = set(list.numbers)
         items = [
             value for value in self.trunks.values() if not wanted or wanted & set(value.numbers)
@@ -377,6 +382,7 @@ class Server(api.LiveKitAPI):
         self.dialled = Sip.__new__(Sip)
         self.dialled.requests, self.dialled.refusal = [], None
         self.dialled.trunks, self.dialled.rules = {}, {}
+        self.dialled.starting = 0
         self.dialled.answer = TransferSIPParticipantResponse(
             status=SIPTransferStatus.STS_TRANSFER_SUCCESSFUL
         )

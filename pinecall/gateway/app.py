@@ -15,7 +15,7 @@ from starlette.datastructures import Headers
 from starlette.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from pinecall.channels.telephony.sip import rebuild
+from pinecall.channels.telephony.sip import rebuilt_until_whole
 from pinecall.domain.errors import (
     DeclarationRefused,
     NotAvailable,
@@ -261,8 +261,8 @@ async def lifespan(fastapi_app: FastAPI) -> AsyncGenerator[None]:
         stack.push_async_callback(_cancelled, reaper)
         sweep = asyncio.create_task(sweep_forever(gateway.offering))
         stack.push_async_callback(_cancelled, sweep)
-        # After the start, so a slow SFU never keeps the gateway from answering.
-        rebuilt = asyncio.create_task(rebuild(gateway.connections))
+        # After the start, so a slow SFU never keeps the gateway from answering; again until whole.
+        rebuilt = asyncio.create_task(rebuilt_until_whole(gateway.connections))
         stack.push_async_callback(_cancelled, rebuilt)
         yield
 

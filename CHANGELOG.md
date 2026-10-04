@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **The start-up rebuild of the SIP trunks tries again until whole**: a gateway started beside a
+  LiveKit still starting (or down) left that world's numbers unadmitted until its own next start;
+  it now retries, 2 s and doubling, a minute at most, while an org is refused or a LiveKit cannot
+  be reached.
 - **A developer's own phone reaches their sandbox copy across LiveKits.** Where each world has a
   LiveKit of its own, a ring from a developer's registered phone at a production number can no
   longer be handed to the sandbox's fleet in production's room, so production's room dials it to

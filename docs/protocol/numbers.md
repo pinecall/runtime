@@ -191,7 +191,9 @@ else: Terraform's rule, from the catalog and the approvals ([operator-api.md](op
 LiveKit keeps its trunks and rules in Redis, which can be emptied; the tables are the truth. At
 start the gateway admits every routed phone number again on its world's LiveKit with its fence and
 its world's rule, and takes it off the other world's own LiveKit, one org's refusal logged and the
-others going on. It never touches the carrier, and it takes a number
+others going on; while an org is refused or a LiveKit cannot be reached (one still starting beside
+the gateway), it tries the whole again, waiting 2 s, then twice as long each time, a minute at
+most, until every number stands. It never touches the carrier, and it takes a number
 off its org's trunks when nothing approved fences it any more. The operator's approval or refusal
 of a network does the same for that org at once. Where the sandbox has a LiveKit of its own, the
 start also admits there the rings production hands to a developer's own sandbox copy: one trunk

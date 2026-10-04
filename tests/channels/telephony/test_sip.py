@@ -106,6 +106,23 @@ async def test_the_rebuild_takes_a_number_off_the_livekit_of_the_world_it_is_not
     assert list(line.rule("sandbox").numbers) == [A_NUMBER]
 
 
+@postgres
+async def test_a_rebuild_while_a_livekit_starts_is_tried_again_until_its_numbers_stand(
+    line: Line,
+) -> None:
+    await numbers.import_number(
+        line.connections, NumberImport(line.scope("sandbox"), "recepcion", A_NUMBER, hooked=True)
+    )
+    for server in line.servers.values():
+        server.dialled.trunks.clear()
+        server.dialled.rules.clear()
+    line.servers["sandbox"].dialled.starting = 2
+    rebuilt = await sip.rebuilt_until_whole(line.connections, wait_s=0.0)
+    assert (rebuilt.numbers, rebuilt.refused) == (1, [])
+    assert line.servers["sandbox"].dialled.starting == 0
+    assert list(line.rule("sandbox").numbers) == [A_NUMBER]
+
+
 # ── rings handed over from production ──
 
 
