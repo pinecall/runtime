@@ -1,0 +1,11 @@
+# The gateways' /metrics, collected by Google Cloud Managed Service for Prometheus (on in every GKE
+# cluster): the series terraform/modules/alerts' policies read. A collector knocks from the pods'
+# network, which PINECALL_METRICS_FROM admits.
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: pinecall-gateway
+spec:
+  selector: { matchLabels: { app: pinecall-gateway } }
+  endpoints:
+    - { port: http, path: /metrics, interval: 30s }
