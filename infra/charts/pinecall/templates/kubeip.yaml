@@ -39,7 +39,6 @@ spec:
     spec:
       serviceAccountName: pinecall-kubeip
       nodeSelector: { pinecall.io/pool: core }
-      priorityClassName: system-node-critical
       terminationGracePeriodSeconds: 30
       containers:
         - name: kubeip

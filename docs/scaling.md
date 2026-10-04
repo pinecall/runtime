@@ -390,6 +390,11 @@ CloudNativePG stops it, a smart shutdown that waited 180 s for its clients: the 
 connections went on serving and every call in flight was written whole, no new connection opened
 for three minutes, and the database was back at 3 min 4 s; `charts/postgres` now waits 15 s.
 
+The core node, lost (its VM deleted, 2026-10-04): the node pool made another, kubeip gave it the
+same address, and the gateways answered again 7 minutes after the delete began, Postgres's disk
+attached to the new node; calls started on it as before. Every call of the moment is lost with
+the node: the core node's services are one of each.
+
 Down, the same night with no call after 23:11 UTC: KEDA let the second scaled worker go at 23:17:53
 and the last at 23:28:11, ten minutes apart as its window says; the cluster autoscaler deleted the
 first empty node at 23:30 and marked the second at 23:38, the workers pool back to zero nodes.

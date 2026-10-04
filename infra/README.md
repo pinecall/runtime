@@ -60,6 +60,12 @@ the identity `terraform/modules/kubeip` made) gives the core node that address, 
 to a node that replaces it; LiveKit and SIP announce it (`node_ip`, `nat_1_to_1_ip`). A Twilio
 trunk made before the SIP name moved is sent on once, by `pinecall-runtime sip repoint`.
 
+The core node lost, drilled on staging on 2026-10-04: its VM deleted at 01:27:50 UTC (gone at
+01:29:46), the node pool made another at 01:29:48, kubeip gave it the same address at 01:32:35,
+the gateways answered at 01:34:46 with Postgres ready, and four calls then started, every turn
+answered. A box of one core node is down for those minutes; a second core node is the shape that
+is not (`docs/scaling.md`).
+
 ## The secrets the operator puts
 
 Terraform draws most of a cluster's secrets. The ones a world names in `given`

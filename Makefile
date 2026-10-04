@@ -116,7 +116,7 @@ suite:            ## ENV=…: every suite as a Job on the cluster, TAG=<commit>;
 
 # The cluster's Postgres (charts/postgres), then charts/pinecall at the image of this commit,
 # waiting for every workload; then the live suite against the world's production name.
-DOMAIN    = $(shell sed -n 's/^  production: //p' infra/values/$(ENV).yaml)
+DOMAIN    = $(shell awk '/^domains:/{f=1;next} f && /^  production:/{print $$2; exit}' infra/values/$(ENV).yaml)
 deploy:           ## ENV=staging: charts/pinecall released at TAG=<commit> (make image first)
 	helm upgrade --install pinecall-postgres infra/charts/postgres --kube-context $(CONTEXT) \
 	  -f infra/values/$(ENV).yaml --wait --timeout 10m
