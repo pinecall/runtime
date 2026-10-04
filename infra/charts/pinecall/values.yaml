@@ -49,6 +49,15 @@ workers:
   scaled:
     production: { seats: 32, most: 10 }
 
+# The object store a finished recording moves to (docs/the-environment.md): unset, recordings stay
+# on the pod's disk and go with it. Its secret is the world's `s3-secret-access-key` in Secret
+# Manager, put by the operator (terraform/modules/secrets, `given`).
+store:
+  endpoint: ""
+  region: ""
+  accessKeyId: ""
+  bucket: ""
+
 overflow:
   says: ""
 

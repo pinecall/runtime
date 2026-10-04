@@ -31,6 +31,18 @@
   value: http://pinecall-gateway:8080
 - name: PINECALL_RECORDINGS
   value: /var/lib/pinecall/recordings
+{{- with .Values.store }}{{ if .bucket }}
+- name: PINECALL_S3_ENDPOINT
+  value: {{ required "store.endpoint" .endpoint | quote }}
+- name: PINECALL_S3_REGION
+  value: {{ required "store.region" .region | quote }}
+- name: PINECALL_S3_ACCESS_KEY_ID
+  value: {{ required "store.accessKeyId" .accessKeyId | quote }}
+- name: PINECALL_RECORDINGS_BUCKET
+  value: {{ .bucket | quote }}
+- name: PINECALL_S3_SECRET_ACCESS_KEY
+  valueFrom: { secretKeyRef: { name: pinecall, key: PINECALL_S3_SECRET_ACCESS_KEY } }
+{{- end }}{{ end }}
 {{- end -}}
 
 {{/* A worker of a world: its fleet, its seats, its key, its health port for the pod's probes. */}}

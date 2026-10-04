@@ -51,6 +51,22 @@ world's fleet key once at install, waits for every workload, and knocks at the p
 The secrets never leave Secret Manager but into the pods' environment; the values file holds no
 secret.
 
+## The secrets the operator puts
+
+Terraform draws most of a cluster's secrets. The ones a world names in `given`
+(`terraform/modules/secrets`) are made empty, and the operator puts each once, piped, so that no
+state and no terminal holds it: production's `vault-key` is the key the box's database is already
+sealed under, and `s3-secret-access-key` is the object store's, made by hand.
+
+```console
+$ <the value> | gcloud secrets versions add pinecall-<env>-<name> --data-file=-
+```
+
+A recording moves to the object store `store` names in the world's values (endpoint, region, key
+id, bucket); unset, it stays on the pod's disk and goes with the pod. Proven on staging on
+2026-10-04 with the lab's store (moto on the generator): two calls, each recording in the bucket,
+sealed, under its org and call.
+
 ## Backups, and a restore
 
 Postgres's WAL goes to the bucket of `terraform/modules/backups` as it is written, and a base

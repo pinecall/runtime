@@ -56,7 +56,8 @@ resource "google_compute_instance" "generator" {
   }
 }
 
-# The workers' plugins reach the fakes from the pods' addresses, inside the VPC.
+# The workers' plugins reach the fakes, and the runtime the lab's object store, from the pods'
+# addresses, inside the VPC.
 resource "google_compute_firewall" "fakes" {
   name          = "pinecall-lab-fakes"
   network       = var.network
@@ -64,7 +65,7 @@ resource "google_compute_firewall" "fakes" {
   target_tags   = ["pinecall-lab"]
   allow {
     protocol = "tcp"
-    ports    = ["8700"]
+    ports    = ["8700", "9000"]
   }
 }
 
