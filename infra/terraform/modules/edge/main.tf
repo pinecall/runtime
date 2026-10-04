@@ -8,9 +8,10 @@ resource "google_compute_global_address" "ingress" {
   name = "pinecall-${var.name}-ingress"
 }
 
-# The HTTPS certificate of both names, Google-managed and proved by DNS (a CNAME each in Route 53),
-# so it is issued before a name points at the load balancer: a cutover moves the names onto a
-# certificate already valid. The chart's Gateway serves it through the map.
+# Each name's HTTPS certificate, Google-managed and proved by DNS (a CNAME each in Route 53), so it
+# is issued before the name points at the load balancer: a cutover moves a name onto a certificate
+# already valid. One certificate a name, so adding or retiring a name never reissues another's.
+# The chart's Gateway serves them through the map.
 resource "google_project_service" "certificates" {
   service            = "certificatemanager.googleapis.com"
   disable_on_destroy = false
@@ -32,11 +33,12 @@ resource "aws_route53_record" "authorizations" {
   records  = [each.value.dns_resource_record[0].data]
 }
 
-resource "google_certificate_manager_certificate" "names" {
-  name = "pinecall-${var.name}"
+resource "google_certificate_manager_certificate" "each" {
+  for_each = toset(var.names)
+  name     = "pinecall-${var.name}-${replace(each.value, ".", "-")}"
   managed {
-    domains            = var.names
-    dns_authorizations = [for authorization in google_certificate_manager_dns_authorization.names : authorization.id]
+    domains            = [each.value]
+    dns_authorizations = [google_certificate_manager_dns_authorization.names[each.value].id]
   }
 }
 
@@ -49,7 +51,7 @@ resource "google_certificate_manager_certificate_map_entry" "names" {
   name         = "pinecall-${var.name}-${replace(each.value, ".", "-")}"
   map          = google_certificate_manager_certificate_map.names.name
   hostname     = each.value
-  certificates = [google_certificate_manager_certificate.names.id]
+  certificates = [google_certificate_manager_certificate.each[each.value].id]
 }
 
 # Pinecall's own services at the same front door (notify, billing; their charts are their own
@@ -209,8 +211,8 @@ variable "sip_sources" {
 }
 
 variable "zone" {
-  type    = string
-  default = "pinecall.io"
+  type        = string
+  description = "The Route 53 zone the names are records of."
 }
 
 variable "names" {

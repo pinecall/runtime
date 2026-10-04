@@ -1,5 +1,6 @@
-# Production: Pinecall's own cluster, box.pinecall.io and sandbox.pinecall.io, since the cutover of
-# 2026-10-04 (before it, v1's box under its own Terraform, ../infra-v1).
+# Production: a world-pair's cluster. Every name, address and account of the operator who runs it
+# is a variable, its values in terraform.tfvars (Pinecall's own, committed: since the cutover of
+# 2026-10-04 they are Pinecall's production); the state bucket below is the operator's too.
 
 terraform {
   required_version = ">= 1.5"
@@ -53,18 +54,50 @@ provider "aws" {
 }
 
 module "edge" {
-  source      = "../../modules/edge"
-  name        = "production"
-  names       = ["box.pinecall.io", "sandbox.pinecall.io"]
-  point_names = var.point_names
-  # Where a carrier sends each world's calls: the core node's static address (PINECALL_SIP_DOMAIN).
-  sip_names = ["sip.box.pinecall.io", "sip.sandbox.pinecall.io"]
-  # Pinecall's own services, each its own repository's chart on this cluster.
-  services       = ["notify.pinecall.io", "billing.pinecall.io"]
+  source         = "../../modules/edge"
+  name           = "production"
+  zone           = var.dns_zone
+  names          = var.names
+  point_names    = var.point_names
+  sip_names      = var.sip_names
+  services       = var.services
   point_services = var.point_services
   region         = var.region
   # The fence's networks (sip_sources.auto.tfvars.json, `pinecall-runtime fence export`).
   sip_sources = var.sip_sources
+}
+
+variable "dns_zone" {
+  type        = string
+  description = "The Route 53 zone every name below is a record of."
+}
+
+variable "names" {
+  type        = list(string)
+  description = "The names the worlds are served at: production's, then the sandbox's (PINECALL_DOMAIN, PINECALL_SANDBOX_DOMAIN)."
+}
+
+variable "sip_names" {
+  type        = list(string)
+  description = "The names a carrier sends each world's calls to, at the core node's static address (PINECALL_SIP_DOMAIN)."
+}
+
+variable "services" {
+  type        = list(string)
+  description = "Names of services of your own served at the same Gateway, each by its own chart; none by default."
+  default     = []
+}
+
+variable "alert_emails" {
+  type        = list(string)
+  description = "Who the cluster's alerts are mailed to."
+}
+
+# Pinecall's own notifier (supervisor/apps/notify) signs Android's pushes in this Firebase project;
+# unset, no identity for it is made.
+variable "firebase_project" {
+  type    = string
+  default = null
 }
 
 # On since the cutover of 2026-10-04: box.pinecall.io and sandbox.pinecall.io point at this cluster.
@@ -107,7 +140,7 @@ module "addons" {
 module "alerts" {
   source = "../../modules/alerts"
   name   = "production"
-  emails = ["ops@example.com"]
+  emails = var.alert_emails
 }
 
 module "backups" {
@@ -124,10 +157,16 @@ module "kubeip" {
 }
 
 module "notify" {
+  count            = var.firebase_project == null ? 0 : 1
   source           = "../../modules/notify"
   project          = var.project
   name             = "production"
-  firebase_project = "example-firebase"
+  firebase_project = var.firebase_project
+}
+
+moved {
+  from = module.notify
+  to   = module.notify[0]
 }
 
 module "secrets" {
@@ -197,5 +236,5 @@ output "certificate_map" {
 }
 
 output "notify_service_account" {
-  value = module.notify.service_account
+  value = one(module.notify[*].service_account)
 }

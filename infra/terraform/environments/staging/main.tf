@@ -54,15 +54,30 @@ provider "aws" {
 }
 
 module "edge" {
-  source = "../../modules/edge"
-  name   = "staging"
-  names  = ["staging.pinecall.io", "sandbox.staging.pinecall.io"]
-  # Where a carrier sends each world's calls: the core node's static address (PINECALL_SIP_DOMAIN).
-  sip_names = ["sip.staging.pinecall.io", "sip.sandbox.staging.pinecall.io"]
+  source    = "../../modules/edge"
+  name      = "staging"
+  zone      = var.dns_zone
+  names     = var.names
+  sip_names = var.sip_names
   region    = var.region
   # The fence's networks (sip_sources.auto.tfvars.json, `pinecall-runtime fence export`), and the
   # lab's generator while it stands.
   sip_sources = concat(var.sip_sources, [for lab in module.lab : "${lab.public_address}/32"])
+}
+
+variable "dns_zone" {
+  type        = string
+  description = "The Route 53 zone every name below is a record of."
+}
+
+variable "names" {
+  type        = list(string)
+  description = "The names the worlds are served at: production's, then the sandbox's."
+}
+
+variable "sip_names" {
+  type        = list(string)
+  description = "The names a carrier sends each world's calls to, at the core node's static address."
 }
 
 # Written by `pinecall-runtime fence export` into sip_sources.auto.tfvars.json: the orgs'

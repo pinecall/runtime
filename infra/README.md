@@ -15,7 +15,7 @@ made by hand and nothing is built on a laptop.
 | `terraform/modules/secrets` | the runtime's secrets, drawn once into Secret Manager, and the identity External Secrets reads them as |
 | `terraform/modules/addons` | CloudNativePG with its Barman Cloud plugin and cert-manager, External Secrets and KEDA, each its pinned chart |
 | `terraform/modules/backups` | the bucket Postgres's WAL and base backups go to, and the identity that writes them, which touches it alone |
-| `terraform/modules/edge` | the global address and the names' certificate, proved by DNS before they point here, and a certificate of its own for Pinecall's services at the same door (`services`: notify, billing); the core node's static address and the SIP names; the firewall (media open, 5060 to the carriers alone); the names in Route 53 |
+| `terraform/modules/edge` | the global address and a certificate for each name, proved by DNS before it points here, and a certificate of its own for Pinecall's services at the same door (`services`: notify, billing); the core node's static address and the SIP names; the firewall (media open, 5060 to the carriers alone); the names in Route 53 |
 | `terraform/modules/notify` | the Google identity notify signs Android's pushes as (Firebase Cloud Messaging alone), bound to its chart's service account |
 | `terraform/modules/alerts` | the alerts on the gateways' measures, in Cloud Monitoring, and the addresses they are mailed to |
 | `images/pinecall/` | the runtime's image: one for every process, each a `pinecall-runtime` verb (`make image`) |
@@ -31,6 +31,15 @@ made by hand and nothing is built on a laptop.
 | `local/` | the runtime on a laptop, and the Postgres image of the suites (`make local`, `make db`) |
 | `models/` | the open stack: three model servers on one GPU and the providers row that points a box at them |
 | `seed/prices.csv` | the list prices a box's rates start from (`pinecall-runtime providers prices`) |
+
+## Your own values
+
+Nothing in the modules or the roots names Pinecall's: each environment's `terraform.tfvars` holds
+its operator's values (the DNS zone, the worlds' names, the SIP names, services of their own, who
+alerts mail, the project), and `infra/values/<env>.yaml` the chart's (the same names, the secrets'
+prefix, the addresses Terraform made). Pinecall's own are committed as an example of each. The one
+thing a variable cannot name is the state bucket in each root's `backend "gcs"`: change it there,
+or give it at `terraform init -backend-config="bucket=<yours>"`.
 
 ## From nothing to a release
 
