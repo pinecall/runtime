@@ -143,6 +143,15 @@ spec:
 Drilled on staging on 2026-10-04: a base backup in 9 s, the restore ready in 106 s with the same
 30 514 rows of `call_log`, the same last entry and the same 48 migrations as the live database.
 
+## Production
+
+`environments/production` runs Pinecall's own production since the cutover of 2026-10-04 at
+03:24–03:40 UTC, with 0 calls up: the box's runtime stopped, its database restored here (43 520
+rows of `call_log`, 48 migrations, in 21 s) and backed up, the chart installed on it, the five
+Twilio trunks sent on to the SIP names (`sip repoint`), the names moved onto the Gateway's active
+certificate, notify and billing on the box pointed at the cluster; the live suite green on both
+names, the tenants' agents and the apps runner reconnected on their own.
+
 ## Proven
 
 On 2026-10-03, on staging: every suite, 3 113 tests, green inside the cluster against Postgres
