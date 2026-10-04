@@ -8,6 +8,7 @@ secrets:
   prefix: pinecall-staging-
 ingress:
   address: pinecall-staging-ingress
+  certificateMap: pinecall-staging
 # terraform/modules/backups (environments/staging's outputs): charts/postgres's bucket and identity.
 postgres:
   backups:

@@ -14,14 +14,14 @@ made by hand and nothing is built on a laptop.
 | `terraform/modules/secrets` | the runtime's secrets, drawn once into Secret Manager, and the identity External Secrets reads them as |
 | `terraform/modules/addons` | CloudNativePG with its Barman Cloud plugin and cert-manager, External Secrets and KEDA, each its pinned chart |
 | `terraform/modules/backups` | the bucket Postgres's WAL and base backups go to, and the identity that writes them, which touches it alone |
-| `terraform/modules/edge` | the global address, the firewall (media open, 5060 to the carriers alone) and both names in Route 53 |
+| `terraform/modules/edge` | the global address and the names' certificate, proved by DNS before they point here; the core node's static address and the SIP names; the firewall (media open, 5060 to the carriers alone); the names in Route 53 |
 | `images/pinecall/` | the runtime's image: one for every process, each a `pinecall-runtime` verb (`make image`) |
 | `images/postgres/` | the cluster's Postgres: CloudNativePG's operand image with pg_textsearch on it |
 | `images/suite/` | every suite, run as a Job inside a cluster (`make suite`) |
 | `images/cloudbuild.yaml` | how an image is built: by Cloud Build, as the builds' own identity |
 | `charts/postgres/` | the cluster's Postgres under CloudNativePG: its WAL to a bucket as it is written and a base backup each night (the Barman Cloud plugin), 35 days kept |
 | `manifests/suite.yaml` | the suites' Job, with a Redis made for the run |
-| `charts/pinecall/` | the runtime: two gateways, each world's workers (a few on the core node, the rest scaled by KEDA on the gateway's own number), the overflow, LiveKit and SIP on their node's network, Redis, the migrations, the fleets' keys, the nightly retention, the Ingress with Google's certificate |
+| `charts/pinecall/` | the runtime: two gateways, each world's workers (a few on the core node, the rest scaled by KEDA on the gateway's own number), the overflow, LiveKit and SIP on their node's network, Redis, the migrations, the fleets' keys, the nightly retention, the Gateway (Google's HTTPS load balancer, the Gateway API) with Certificate Manager's certificate |
 | `values/<world-pair>.yaml` | a release's names, its secrets' project and prefix, its address |
 | `lab/` | calls with real audio and the vendors faked, against staging, measured (`terraform/modules/lab` is its generator) |
 | `local/` | the runtime on a laptop, and the Postgres image of the suites (`make local`, `make db`) |
@@ -65,6 +65,16 @@ The core node lost, drilled on staging on 2026-10-04: its VM deleted at 01:27:50
 the gateways answered at 01:34:46 with Postgres ready, and four calls then started, every turn
 answered. A box of one core node is down for those minutes; a second core node is the shape that
 is not (`docs/scaling.md`).
+
+## HTTPS
+
+The two names are served by the chart's Gateway (the Gateway API, `gke-l7-global-external-managed`)
+on the global address `terraform/modules/edge` reserves, with a Certificate Manager certificate
+proved by DNS (a CNAME each in Route 53): it is issued before a name points at the address, so a
+cutover moves the names onto a certificate that is valid already. Made on staging on 2026-10-04:
+the certificate active before any load balancer served it, both names answering over HTTPS on it,
+plain HTTP redirected, a LiveKit room joined over its WebSocket and calls placed, the address the
+Ingress had served kept.
 
 ## The secrets the operator puts
 

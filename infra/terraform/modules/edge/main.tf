@@ -1,4 +1,4 @@
-# Where a cluster meets the world: the global address its Ingress serves both names on; the core
+# Where a cluster meets the world: the global address its Gateway serves both names on; the core
 # node's own address, static, which SIP and LiveKit's media are reached at under SIP names of their
 # own (Google's HTTPS load balancer carries no UDP); the names in Route 53 (the zone's other records
 # are other repositories'); and the core node's ports. LiveKit's media and SIP's RTP are open to
@@ -6,6 +6,50 @@
 
 resource "google_compute_global_address" "ingress" {
   name = "pinecall-${var.name}-ingress"
+}
+
+# The HTTPS certificate of both names, Google-managed and proved by DNS (a CNAME each in Route 53),
+# so it is issued before a name points at the load balancer: a cutover moves the names onto a
+# certificate already valid. The chart's Gateway serves it through the map.
+resource "google_project_service" "certificates" {
+  service            = "certificatemanager.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_certificate_manager_dns_authorization" "names" {
+  for_each   = toset(var.names)
+  name       = "pinecall-${var.name}-${replace(each.value, ".", "-")}"
+  domain     = each.value
+  depends_on = [google_project_service.certificates]
+}
+
+resource "aws_route53_record" "authorizations" {
+  for_each = google_certificate_manager_dns_authorization.names
+  zone_id  = data.aws_route53_zone.zone.zone_id
+  name     = each.value.dns_resource_record[0].name
+  type     = each.value.dns_resource_record[0].type
+  ttl      = 300
+  records  = [each.value.dns_resource_record[0].data]
+}
+
+resource "google_certificate_manager_certificate" "names" {
+  name = "pinecall-${var.name}"
+  managed {
+    domains            = var.names
+    dns_authorizations = [for authorization in google_certificate_manager_dns_authorization.names : authorization.id]
+  }
+}
+
+resource "google_certificate_manager_certificate_map" "names" {
+  name = "pinecall-${var.name}"
+}
+
+resource "google_certificate_manager_certificate_map_entry" "names" {
+  for_each     = toset(var.names)
+  name         = "pinecall-${var.name}-${replace(each.value, ".", "-")}"
+  map          = google_certificate_manager_certificate_map.names.name
+  hostname     = each.value
+  certificates = [google_certificate_manager_certificate.names.id]
 }
 
 # kubeip (charts/pinecall) gives it to the core node by its label, and gives it again to the node
@@ -136,6 +180,10 @@ variable "sip_names" {
 variable "region" {
   type    = string
   default = "us-central1"
+}
+
+output "certificate_map" {
+  value = google_certificate_manager_certificate_map.names.name
 }
 
 output "ingress_address_name" {
