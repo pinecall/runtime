@@ -16,6 +16,7 @@ made by hand and nothing is built on a laptop.
 | `terraform/modules/addons` | CloudNativePG with its Barman Cloud plugin and cert-manager, External Secrets and KEDA, each its pinned chart |
 | `terraform/modules/backups` | the bucket Postgres's WAL and base backups go to, and the identity that writes them, which touches it alone |
 | `terraform/modules/edge` | the global address and the names' certificate, proved by DNS before they point here; the core node's static address and the SIP names; the firewall (media open, 5060 to the carriers alone); the names in Route 53 |
+| `terraform/modules/alerts` | the alerts on the gateways' measures, in Cloud Monitoring, and the addresses they are mailed to |
 | `images/pinecall/` | the runtime's image: one for every process, each a `pinecall-runtime` verb (`make image`) |
 | `images/postgres/` | the cluster's Postgres: CloudNativePG's operand image with pg_textsearch on it |
 | `images/suite/` | every suite, run as a Job inside a cluster (`make suite`) |
@@ -142,6 +143,15 @@ spec:
 
 Drilled on staging on 2026-10-04: a base backup in 9 s, the restore ready in 106 s with the same
 30 514 rows of `call_log`, the same last entry and the same 48 migrations as the live database.
+
+## Alerts
+
+Google's managed Prometheus reads each gateway's `/metrics` every 30 s (`charts/pinecall`'s
+`PodMonitoring`; the collector comes from the pod network, which `PINECALL_METRICS_FROM` admits),
+and `terraform/modules/alerts` makes three alerts on what it read, mailed to the environment's
+`emails`: a write to the log slow (p99 over 250 ms for 5 minutes), a fleet over 80% of its seats
+for 5 minutes, and a vendor over its error line for 2 minutes. Production's channel is verified
+(the code Google mailed it, 2026-10-04).
 
 ## Staging, made and destroyed
 
