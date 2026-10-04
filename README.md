@@ -57,8 +57,8 @@ Nothing here is imported by an agent.
 ## How it runs
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/how-it-runs-dark.webp">
-  <img alt="How it runs: cloud.pinecall.io and sandbox.pinecall.io through Google's HTTPS load balancer, and their sip names on the core node's static address, into the core node (gateway ×2, Postgres on CloudNativePG with its WAL in a bucket, Redis, LiveKit, livekit-sip; worker ×2 per world, overflow, kubeip, notify, billing), above a workers pool that starts at zero, 32 seats a worker, sized by KEDA on the gateway's count" src="docs/images/how-it-runs-light.webp">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/one-name-two-pools-dark.webp">
+  <img alt="How it runs: cloud.pinecall.io, one name for every world, through Google's HTTPS load balancer into the shared core pool (gateway ×2, Postgres, Redis, notify and billing); below it a production pool and a sandbox pool, each with its own LiveKit, livekit-sip, two workers and SIP address, reached by /rtc and /sandbox/rtc; under each, its own workers pool from 0, sized by KEDA with its own ceiling" src="docs/images/one-name-two-pools-light.webp">
 </picture>
 
 - **The cluster** is GKE, made by `infra/terraform`: a zonal cluster with a core pool and a workers
