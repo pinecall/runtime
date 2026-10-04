@@ -43,7 +43,7 @@
 - name: PINECALL_S3_REGION
   value: {{ required "store.region" .region | quote }}
 - name: PINECALL_S3_ACCESS_KEY_ID
-  value: {{ required "store.accessKeyId" .accessKeyId | quote }}
+  valueFrom: { secretKeyRef: { name: pinecall, key: PINECALL_S3_ACCESS_KEY_ID } }
 - name: PINECALL_RECORDINGS_BUCKET
   value: {{ .bucket | quote }}
 - name: PINECALL_S3_SECRET_ACCESS_KEY

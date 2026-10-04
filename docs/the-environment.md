@@ -40,9 +40,10 @@ gateway.
 | `PINECALL_WORKER_NAME` · `PINECALL_WORKER_HTTP_PORT` · `PINECALL_WORKER_HTTP_HOST` · `PINECALL_OVERFLOW_SAYS` | its name in the roster (unset: the hostname), its health port (8082) and the address it binds (unset, loopback; a pod's, `0.0.0.0` for its probes), and the overflow agent's one sentence |
 | `NOTIFY_SOCKET` *(systemd's)* | set by systemd on a `Type=notify` unit: the worker says `READY=1` there once LiveKit registered it and the gateway answered its heartbeat. Unset in a pod, whose start is its startup probe on the health port, livekit's own |
 | `PINECALL_RECORDINGS` | where a kept recording lands. **Whether** audio is kept is the agent's own setting |
-| `PINECALL_S3_ENDPOINT` · `PINECALL_S3_REGION` · `PINECALL_S3_ACCESS_KEY_ID` · `PINECALL_S3_SECRET_ACCESS_KEY` | the object store what leaves the disk goes to: any S3-compatible endpoint (AWS S3, Google Cloud Storage by HMAC key, R2, B2, MinIO), the region its signature names, and the key the box writes with. In a cluster the first three and
-the bucket are `store` in the chart's values, and the secret is the world's `s3-secret-access-key`
-in Secret Manager, put by the operator (`infra/terraform/modules/secrets`, `given`). A runtime given a recordings bucket and not all four does not start, and says which are missing |
+| `PINECALL_S3_ENDPOINT` · `PINECALL_S3_REGION` · `PINECALL_S3_ACCESS_KEY_ID` · `PINECALL_S3_SECRET_ACCESS_KEY` | the object store what leaves the disk goes to: any S3-compatible endpoint (AWS S3, Google Cloud Storage by HMAC key, R2, B2, MinIO), the region its signature names, and the key the box writes with. In a cluster the endpoint, the region and
+the bucket are `store` in the chart's values, and the key is the world's `s3-access-key-id` and
+`s3-secret-access-key` in Secret Manager, put by the operator (`infra/terraform/modules/secrets`,
+`given`). A runtime given a recordings bucket and not all four does not start, and says which are missing |
 | `PINECALL_RECORDINGS_BUCKET` | the bucket of that store a finished recording moves to, as `<org>/<call>/audio.ogg`. Unset, recordings stay on the disk as they always have |
 | `PINECALL_WAL_SPOOL` | the box's WAL spool, whose backlog `doctor`'s `archive` line reads through Postgres (unset, `/var/lib/pinecall/wal`); empty in a cluster, whose Postgres archives through its operator and has no spool: the line then reads the archiver alone |
 | `PINECALL_SMTP_URL` · `PINECALL_MAIL_FROM` | the box's own mail (`smtp://user:pass@host:587`, or `smtps://…:465`) and who its letters are from. A mailbox stored at `PUT /v1/ops/mail` wins over these, and an org's own over both. A URL that does not read is said in the log at start, and the box posts nothing of its own |

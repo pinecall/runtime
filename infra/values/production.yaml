@@ -1,0 +1,36 @@
+# Production's release of charts/pinecall and charts/postgres: the names, the secrets, the
+# addresses Terraform made (environments/production's outputs). The image's tag is the commit,
+# given by `make deploy ENV=production`.
+domains:
+  production: box.pinecall.io
+  sandbox: sandbox.pinecall.io
+secrets:
+  project: hiding-place-447317-c6
+  prefix: pinecall-production-
+ingress:
+  address: pinecall-production-ingress
+  certificateMap: pinecall-production
+# terraform/modules/backups: charts/postgres's bucket and identity.
+postgres:
+  backups:
+    bucket: pinecall-production-postgres-209548925515
+    serviceAccount: pinecall-production-postgres@hiding-place-447317-c6.iam.gserviceaccount.com
+# terraform/modules/edge and kubeip: the core node's static address.
+core:
+  address: 35.193.153.41
+  filter: labels.pinecall-core=production
+  kubeip: pinecall-production-kubeip@hiding-place-447317-c6.iam.gserviceaccount.com
+sipDomains:
+  production: sip.box.pinecall.io
+  sandbox: sip.sandbox.pinecall.io
+# The box's recordings bucket, carried over; its key is the world's s3-access-key-id and
+# s3-secret-access-key in Secret Manager.
+store:
+  endpoint: https://s3.us-east-1.amazonaws.com
+  region: us-east-1
+  bucket: pinecall-box-recordings-905418191085
+# environments/production's ranges (modules/gke).
+media:
+  nodeNetwork: 10.120.0.0/22
+gateway:
+  podNetwork: 10.121.0.0/16

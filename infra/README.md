@@ -9,7 +9,7 @@ made by hand and nothing is built on a laptop.
 |---|---|
 | `terraform/bootstrap` | the bucket every other root module keeps its state in, made once with local state |
 | `terraform/project` | what every cluster of the project shares: the images' registry and the identity Cloud Build builds them as |
-| `terraform/environments/<world-pair>` | one cluster: `staging` today, each phase proven there before production |
+| `terraform/environments/<world-pair>` | one cluster each: `staging`, where each phase is proven with calls, and `production` (box.pinecall.io, sandbox.pinecall.io), whose names move to it at the cutover (`point_names`) |
 | `terraform/modules/gke` | a cluster: zonal, two node pools (core; workers, sized by the cluster autoscaler alone), Workload Identity |
 | `terraform/modules/registry` · `build` | where images live, and the identity Cloud Build builds them as (`terraform/project`) |
 | `terraform/modules/secrets` | the runtime's secrets, drawn once into Secret Manager, and the identity External Secrets reads them as |
@@ -83,16 +83,26 @@ Ingress had served kept.
 Terraform draws most of a cluster's secrets. The ones a world names in `given`
 (`terraform/modules/secrets`) are made empty, and the operator puts each once, piped, so that no
 state and no terminal holds it: production's `vault-key` is the key the box's database is already
-sealed under, and `s3-secret-access-key` is the object store's, made by hand.
+sealed under, and `s3-access-key-id` with `s3-secret-access-key` are the object store's key,
+made by hand.
 
 ```console
 $ <the value> | gcloud secrets versions add pinecall-<env>-<name> --data-file=-
 ```
 
-A recording moves to the object store `store` names in the world's values (endpoint, region, key
-id, bucket); unset, it stays on the pod's disk and goes with the pod. Proven on staging on
+A recording moves to the object store `store` names in the world's values (endpoint, region,
+bucket); unset, it stays on the pod's disk and goes with the pod. Proven on staging on
 2026-10-04 with the lab's store (moto on the generator): two calls, each recording in the bucket,
 sealed, under its org and call.
+
+## From a box
+
+A box's database moves into a cluster's Postgres once, at its cutover:
+`make restore-from-box ENV=<env> BOX=<ssh alias>` empties the cluster's schema, makes its two
+extensions again, and restores the box's schema `public` and its rows into it as the database's
+owner, the dump streamed from the box into the Postgres pod and deleted there. The box's runtime is
+stopped first, and the chart is installed after (`make deploy`), so its fleets' keys are minted in
+the database it will run on.
 
 ## Backups, and a restore
 

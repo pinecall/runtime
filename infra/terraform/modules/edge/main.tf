@@ -120,7 +120,7 @@ data "aws_route53_zone" "zone" {
 }
 
 resource "aws_route53_record" "names" {
-  for_each = toset(var.names)
+  for_each = var.point_names ? toset(var.names) : toset([])
   zone_id  = data.aws_route53_zone.zone.zone_id
   name     = each.value
   type     = "A"
@@ -170,6 +170,13 @@ variable "zone" {
 
 variable "names" {
   type = list(string)
+}
+
+# Off while another stack points the names elsewhere (production's box, until the cutover): the
+# certificate is proved and issued all the same, and the names move when this turns on.
+variable "point_names" {
+  type    = bool
+  default = true
 }
 
 variable "sip_names" {
