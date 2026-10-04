@@ -19,7 +19,7 @@ secrets:
   prefix: ""
   refresh: 1h
 
-# CloudNativePG's application secret of the cluster's Postgres (manifests/postgres.yaml).
+# CloudNativePG's application secret of the cluster's Postgres (charts/postgres).
 postgres:
   secret: pinecall-postgres-app
 

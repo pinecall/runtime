@@ -1,0 +1,67 @@
+# The cluster's Postgres under CloudNativePG. pg_textsearch keeps BM25 statistics in shared memory,
+# so it is preloaded by the operator's own setting; the two extensions are made once, at initdb, by
+# the superuser, as local/postgres/extensions.sql does on a laptop (the migrations make none). Its
+# WAL goes to the bucket as it is written and a base backup each night, by the Barman Cloud plugin,
+# as the identity terraform/modules/backups made: a restore reaches any minute of the window.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pinecall-postgres
+spec:
+  instances: {{ .Values.postgres.instances }}
+  imageName: {{ .Values.postgres.image }}
+  # The superuser makes the two extensions at initdb; the application connects as its owner.
+  enableSuperuserAccess: true
+  # One instance: a stop waits 15 s for the gateways' pooled sessions, not the default 180, during
+  # which no new connection opens (measured on staging, 2026-10-03: three minutes without one).
+  smartShutdownTimeout: 15
+  postgresql:
+    shared_preload_libraries:
+      - pg_textsearch
+  bootstrap:
+    initdb:
+      database: pinecall
+      owner: pinecall
+      postInitTemplateSQL:
+        - CREATE EXTENSION IF NOT EXISTS vector
+        - CREATE EXTENSION IF NOT EXISTS pg_textsearch
+  storage:
+    size: {{ .Values.postgres.size }}
+    storageClass: standard-rwo
+  serviceAccountTemplate:
+    metadata:
+      annotations:
+        iam.gke.io/gcp-service-account: {{ required "postgres.backups.serviceAccount" .Values.postgres.backups.serviceAccount | quote }}
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: pinecall-postgres
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: pinecall-postgres
+spec:
+  retentionPolicy: {{ .Values.postgres.backups.retention | quote }}
+  configuration:
+    destinationPath: {{ printf "gs://%s/postgres" (required "postgres.backups.bucket" .Values.postgres.backups.bucket) | quote }}
+    googleCredentials:
+      gkeEnvironment: true
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: pinecall-postgres
+spec:
+  schedule: {{ .Values.postgres.backups.schedule | quote }}
+  # A first base backup at once: WAL alone restores nothing.
+  immediate: true
+  backupOwnerReference: self
+  cluster:
+    name: pinecall-postgres
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+    parameters:
+      barmanObjectName: pinecall-postgres

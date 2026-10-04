@@ -8,3 +8,8 @@ secrets:
   prefix: pinecall-staging-
 ingress:
   address: pinecall-staging-ingress
+# terraform/modules/backups (environments/staging's outputs): charts/postgres's bucket and identity.
+postgres:
+  backups:
+    bucket: pinecall-staging-postgres-209548925515
+    serviceAccount: pinecall-staging-postgres@hiding-place-447317-c6.iam.gserviceaccount.com

@@ -106,6 +106,13 @@ module "build" {
   project = var.project
 }
 
+module "backups" {
+  source  = "../../modules/backups"
+  project = var.project
+  name    = "staging"
+  region  = var.region
+}
+
 module "secrets" {
   source     = "../../modules/secrets"
   project    = var.project
@@ -155,4 +162,12 @@ output "ingress_address" {
 
 output "lab_generator" {
   value = [for lab in module.lab : { name = lab.name, internal = lab.internal_address, public = lab.public_address }]
+}
+
+output "postgres_backups_bucket" {
+  value = module.backups.bucket
+}
+
+output "postgres_backups_service_account" {
+  value = module.backups.service_account
 }

@@ -1,0 +1,15 @@
+# A cluster's Postgres, released before charts/pinecall (`make deploy`): the runtime's migrations
+# need it up. The world-pair's own values (infra/values/<env>.yaml) name the bucket and identity.
+postgres:
+  # images/postgres, built by Cloud Build: CloudNativePG's operand with pg_textsearch on it.
+  image: us-central1-docker.pkg.dev/hiding-place-447317-c6/pinecall/postgres:17.11-pgvector0.8.6-pgtextsearch1.4.0
+  instances: 1
+  size: 20Gi
+  backups:
+    # terraform/modules/backups' outputs.
+    bucket: ""
+    serviceAccount: ""
+    # What the plugin keeps: base backups and the WAL to restore to any minute inside it.
+    retention: 35d
+    # A base backup a night, at the hour with fewest calls (UTC).
+    schedule: "0 0 3 * * *"
