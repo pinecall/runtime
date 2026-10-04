@@ -94,8 +94,12 @@ independent.
 **Production is the cluster** `pinecall-production` (GKE, `environments/production`, kubectl context
 `gke_example-project_us-central1-c_pinecall-production`) since the cutover of 2026-10-04
 (`../internal-docs/runtime-v2/CUTOVER-K8S-RUNBOOK.md`): `cloud.pinecall.io`, both worlds, on its
-Gateway (203.0.113.1, Certificate Manager's certificate), SIP at `sip.pinecall.io` and
-`sip.sandbox.pinecall.io` on the core node's static address (203.0.113.10, kubeip). Released with
+Gateway (203.0.113.1, Certificate Manager's certificate). A pool a world since the same day
+(`infra/README.md`, "A pool a world"): the core pool shares the gateways, Postgres, Redis, notify
+and billing; each world has a media node of its own (its LiveKit, SIP, Redis and core workers) at
+its own address, `sip.pinecall.io` at 203.0.113.10 (kept) and `sip.sandbox.pinecall.io` at
+203.0.113.11, and a workers pool of its own from 0; a Cloud NAT carries any node left with no
+address. Released with
 `make deploy ENV=production TAG=<commit>`; tested against the domain, never a local gateway; local
 is for the suites. Postgres is CloudNativePG's, its WAL and nightly base backups in
 `pinecall-production-postgres-000000000000`; recordings in `pinecall-box-recordings-000000000000`
