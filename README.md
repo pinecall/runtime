@@ -13,6 +13,8 @@ Agents are written with the SDKs, [`pinecall/agents`](https://github.com/pinecal
 (TypeScript) or the Ruby SDK, and talk to this runtime over the wire `pinecall/wire/` declares.
 Nothing here is imported by an agent.
 
+![The console the gateway serves: an agent's overview, its calls by channel, how calls end, how fast it answers, and a caller asking for a person](docs/images/console-overview.jpg)
+
 ## In short
 
 - **Any vendor, no list.** Every LiveKit plugin is a vendor: the model, the ears and the voice are
