@@ -1,5 +1,6 @@
-# Each world's workers. On the core node, a few small ones: the calls of a quiet hour cost nothing
-# more. On the workers pool, the ones KEDA scales from none on the gateway's own number
+# Each world's workers, on that world's machines alone. On its media node, a few small ones: the
+# calls of a quiet hour cost nothing more. On its workers pool, the ones KEDA scales from none on
+# the gateway's own number
 # (GET /v1/ops/fleet/{fleet}/wanted, fleet/demand.py, counting the core's seats first); the
 # cluster autoscaler makes a node for each and takes it away once it is empty. A worker told to
 # stop drains its calls, up to ten minutes: Kubernetes waits fifteen.
@@ -17,7 +18,7 @@ spec:
   template:
     metadata: { labels: { app: worker, world: {{ $world }}, pool: core } }
     spec:
-      nodeSelector: { pinecall.io/pool: core }
+      {{- include "pinecall.onMedia" $world | nindent 6 }}
       terminationGracePeriodSeconds: 900
       containers:
         - name: worker
@@ -54,9 +55,9 @@ spec:
   template:
     metadata: { labels: { app: worker, world: {{ $world }}, pool: workers } }
     spec:
-      nodeSelector: { pinecall.io/pool: workers }
+      nodeSelector: { pinecall.io/pool: workers-{{ $world }} }
       tolerations:
-        - { key: pinecall.io/pool, operator: Equal, value: workers, effect: NoSchedule }
+        - { key: pinecall.io/pool, operator: Equal, value: workers-{{ $world }}, effect: NoSchedule }
       terminationGracePeriodSeconds: 900
       containers:
         - name: worker

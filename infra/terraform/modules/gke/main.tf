@@ -1,8 +1,10 @@
 # A world's Kubernetes cluster on Google Cloud: zonal (the free tier covers one zonal cluster's
 # fee), public nodes (LiveKit and SIP need the node's own address: LiveKit supports no private
 # cluster), VPC-native on a subnet of its own, Workload Identity for every pod's Google access.
-# Two node pools: core runs the box's services as pods; workers runs the calls, and the cluster
-# autoscaler alone grows and shrinks it, honouring a worker's grace period to drain its calls.
+# A pool for what both worlds share (core: the gateways, Postgres, Redis, the box's services), and
+# per world a media pool (its LiveKit, its SIP, its core workers, on an address of its own) and a
+# workers pool the cluster autoscaler alone grows and shrinks, honouring a worker's grace period
+# to drain its calls: a sandbox call never shares a machine with a production call.
 
 resource "google_project_service" "container" {
   project            = var.project
@@ -116,17 +118,54 @@ resource "google_container_node_pool" "core" {
   }
 }
 
-# Only the calls run here (the taint keeps everything else off); the cluster autoscaler adds a
-# node when a worker pod has nowhere to go and removes one once its pods are gone, waiting out
-# their grace period, so a call is never cut to shrink the pool.
+# A world's media: its LiveKit and its SIP on the node's own network, and its core workers. The
+# taint keeps every other world's pod off; kubeip gives each node its world's static address
+# (modules/edge), which LiveKit and SIP announce.
+resource "google_container_node_pool" "media" {
+  for_each = var.media_type
+  name     = "media-${each.key}"
+  cluster  = google_container_cluster.this.id
+  location = var.zone
+  # One: LiveKit and SIP hold the node's ports and announce the world's one address.
+  node_count = 1
+
+  node_config {
+    machine_type    = each.value
+    disk_type       = "pd-balanced"
+    disk_size_gb    = 50
+    service_account = google_service_account.nodes.email
+    oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
+    labels          = { "pinecall.io/pool" = "media-${each.key}" }
+    tags            = ["pinecall-gke-${var.name}", "pinecall-gke-media"]
+    taint {
+      key    = "pinecall.io/pool"
+      value  = "media-${each.key}"
+      effect = "NO_SCHEDULE"
+    }
+    workload_metadata_config {
+      mode = "GKE_METADATA"
+    }
+  }
+
+  management {
+    auto_repair  = true
+    auto_upgrade = true
+  }
+}
+
+# A world's calls past its core workers (the taint keeps everything else off); the cluster
+# autoscaler adds a node when a worker pod has nowhere to go and removes one once its pods are
+# gone, waiting out their grace period, so a call is never cut to shrink the pool. Each world's
+# ceiling is its own: a sandbox burst never takes production's.
 resource "google_container_node_pool" "workers" {
-  name     = "workers"
+  for_each = var.workers_max
+  name     = "workers-${each.key}"
   cluster  = google_container_cluster.this.id
   location = var.zone
 
   autoscaling {
     min_node_count = 0
-    max_node_count = var.workers_max
+    max_node_count = each.value
   }
 
   node_config {
@@ -135,11 +174,11 @@ resource "google_container_node_pool" "workers" {
     disk_size_gb    = 50
     service_account = google_service_account.nodes.email
     oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
-    labels          = { "pinecall.io/pool" = "workers" }
+    labels          = { "pinecall.io/pool" = "workers-${each.key}" }
     tags            = ["pinecall-gke-${var.name}", "pinecall-gke-workers"]
     taint {
       key    = "pinecall.io/pool"
-      value  = "workers"
+      value  = "workers-${each.key}"
       effect = "NO_SCHEDULE"
     }
     workload_metadata_config {

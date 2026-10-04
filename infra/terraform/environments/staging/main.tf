@@ -76,8 +76,8 @@ variable "names" {
 }
 
 variable "sip_names" {
-  type        = list(string)
-  description = "The names a carrier sends each world's calls to, at the core node's static address."
+  type        = map(string)
+  description = "Each world's SIP name, at the world's media address: a carrier's alone (PINECALL_SIP_DOMAIN, PINECALL_SANDBOX_SIP_DOMAIN)."
 }
 
 # Written by `pinecall-runtime fence export` into sip_sources.auto.tfvars.json: the orgs'
@@ -184,8 +184,8 @@ output "postgres_backups_service_account" {
   value = module.backups.service_account
 }
 
-output "core_address" {
-  value = module.edge.core_address
+output "media_addresses" {
+  value = module.edge.media_addresses
 }
 
 output "kubeip_service_account" {

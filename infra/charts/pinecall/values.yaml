@@ -4,7 +4,6 @@ image:
   repository: us-central1-docker.pkg.dev/example-project/pinecall/runtime
   tag: ""
 
-# The two names a request comes in by: the world is the name (docs/multi-tenancy.md).
 # The one name both worlds are served at (PINECALL_DOMAIN): the world of a request is its key's
 # or its header's, never the name's.
 domain: ""
@@ -33,6 +32,16 @@ media:
   # The nodes' subnet (terraform/modules/gke): LiveKit on the node's network sees GKE's virtual
   # interfaces too (the pods' bridge, the DNS cache's address) and takes its port on these alone.
   nodeNetwork: 10.110.0.0/22
+  # Each world's media address (terraform/modules/edge, media_addresses): kubeip gives it to the
+  # world's media node by the address's label (pinecall-media=<cluster>-<world>), and the world's
+  # LiveKit and SIP announce it. Unset, they announce the node's ephemeral address.
+  addresses:
+    production: ""
+    sandbox: ""
+  # Each world's LiveKit and its SIP keep their state in a Redis database of their own.
+  redisDb:
+    production: 0
+    sandbox: 2
 
 gateway:
   replicas: 2
@@ -41,25 +50,27 @@ gateway:
   # The cluster's pods: /metrics answers them (a forwarded request never).
   podNetwork: 10.111.0.0/16
 
-# Each world's workers on the core node, and the ones KEDA scales on the workers pool from 0 on the
-# gateway's own number (GET /v1/ops/fleet/{fleet}/wanted).
+# Each world's workers on its media node, and the ones KEDA scales on its own workers pool from 0
+# on the gateway's own number (GET /v1/ops/fleet/{fleet}/wanted); `most` is the pool's ceiling
+# (terraform/modules/gke, workers_max).
 workers:
   core:
     production: { replicas: 2, seats: 2 }
     sandbox: { replicas: 2, seats: 1 }
   scaled:
     production: { seats: 32, most: 10 }
+    sandbox: { seats: 32, most: 3 }
 
-# The core node's static address (terraform/modules/edge, core_address): kubeip gives it to the
-# node, as the identity terraform/modules/kubeip made, by the address's label (`filter`, gcloud's
-# syntax), and LiveKit and SIP announce it. Unset, they announce the node's ephemeral address.
-core:
-  address: ""
-  filter: ""
-  kubeip: ""
+# staging or production: the cluster this release is (modules/edge labels its addresses by it).
+cluster: ""
 
-# The names a carrier sends each world's calls to (PINECALL_SIP_DOMAIN): the core node's address,
-# since the worlds' names are Google's HTTPS load balancer, which carries no SIP. Unset, the names.
+# The identity kubeip acts as (terraform/modules/kubeip). Unset, kubeip is not installed.
+kubeip:
+  identity: ""
+
+# The names a carrier sends each world's calls to (PINECALL_SIP_DOMAIN, ..._SANDBOX_SIP_DOMAIN):
+# each world's media address, since the box's name is Google's HTTPS load balancer, which carries
+# no SIP. Unset, the box's name.
 sipDomains:
   production: ""
   sandbox: ""

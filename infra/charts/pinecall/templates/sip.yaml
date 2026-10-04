@@ -1,29 +1,30 @@
-# livekit-sip on the core node's own network: 5060 and the RTP ports are the node's (the firewall,
-# by Terraform, opens them); LiveKit publishes no chart for it, so it is this one. Its config holds
-# the API pair and Redis's password: a Secret (secrets.yaml).
+# Each world's livekit-sip on its media node's own network: 5060 and the RTP ports are the node's
+# (the firewall, by Terraform, opens them), reached at the world's SIP name; LiveKit publishes no
+# chart for it, so it is this one. Its config holds the API pair and Redis's password: a Secret
+# (secrets.yaml).
+{{- range $world, $fleet := .Values.fleets }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: pinecall-sip
+  name: pinecall-sip-{{ $world }}
 spec:
   replicas: 1
   strategy: { type: Recreate }
-  selector: { matchLabels: { app: pinecall-sip } }
+  selector: { matchLabels: { app: pinecall-sip, world: {{ $world }} } }
   template:
     metadata:
-      labels: { app: pinecall-sip }
-      # One instance holds every call, so a release never restarts it on its own: its config, the
-      # Secret External Secrets writes, is read at start and applied by `kubectl rollout restart`
-      # at an hour with no call; a new image is the same (on staging, 2026-10-03, a release that
-      # rolled both restarted them with sixteen calls up).
+      labels: { app: pinecall-sip, world: {{ $world }} }
+      # One instance holds every call of its world, so a release never restarts it on its own: its
+      # config is read at start and applied by `kubectl rollout restart` at an hour with no call.
     spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
-      nodeSelector: { pinecall.io/pool: core }
+      {{- include "pinecall.onMedia" $world | nindent 6 }}
       terminationGracePeriodSeconds: 600
       containers:
         - name: sip
-          image: {{ .Values.media.sip }}
+          image: {{ $.Values.media.sip }}
           args: ["--config", "/sip/config.yaml"]
           readinessProbe:
             httpGet: { path: /, port: 8081 }
@@ -35,4 +36,5 @@ spec:
         - name: config
           secret:
             secretName: pinecall-media
-            items: [{ key: sip.yaml, path: config.yaml }]
+            items: [{ key: sip-{{ $world }}.yaml, path: config.yaml }]
+{{- end }}

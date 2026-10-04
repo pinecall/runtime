@@ -23,6 +23,7 @@ spec:
           args: ["gateway"]
           env:
             {{- include "pinecall.env" . | nindent 12 }}
+            {{- include "pinecall.livekits" . | nindent 12 }}
             - name: PINECALL_GATEWAY_LISTEN
               value: 0.0.0.0:8080
             - name: PINECALL_TRUSTED_PROXIES

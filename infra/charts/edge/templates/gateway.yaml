@@ -1,7 +1,9 @@
 # The one name on the global address Terraform reserves, on Google's HTTPS load balancer through
 # the Gateway API, with Certificate Manager's certificate (modules/edge); plain HTTP sent to HTTPS.
-# LiveKit's signalling paths go to LiveKit, everything else to the gateways; a socket lives up to an
-# hour on either (an app's, a room's).
+# LiveKit's signalling paths go to production's LiveKit, the same paths under /sandbox to the
+# sandbox's with the prefix taken off, everything else to the gateways; a socket lives up to an
+# hour on any of them (an app's, a room's).
+{{- $paths := list "/rtc" "/twirp" "/validate" "/agent" }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -27,10 +29,17 @@ spec:
     - {{ required "domain" .Values.domain | quote }}
   rules:
     - matches:
-        {{- range list "/rtc" "/twirp" "/validate" "/agent" }}
+        {{- range $paths }}
         - path: { type: PathPrefix, value: {{ . }} }
         {{- end }}
-      backendRefs: [{ name: pinecall-livekit, port: 7880 }]
+      backendRefs: [{ name: pinecall-livekit-production, port: 7880 }]
+    {{- range $paths }}
+    - matches: [{ path: { type: PathPrefix, value: /sandbox{{ . }} } }]
+      filters:
+        - type: URLRewrite
+          urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: {{ . }} } }
+      backendRefs: [{ name: pinecall-livekit-sandbox, port: 7880 }]
+    {{- end }}
     - matches: [{ path: { type: PathPrefix, value: / } }]
       backendRefs: [{ name: pinecall-gateway, port: 8080 }]
 ---
@@ -44,7 +53,7 @@ spec:
     - filters:
         - type: RequestRedirect
           requestRedirect: { scheme: https, statusCode: 301 }
-{{- range $service, $port := dict "pinecall-gateway" 8080 "pinecall-livekit" 7880 }}
+{{- range $service, $port := dict "pinecall-gateway" 8080 "pinecall-livekit-production" 7880 "pinecall-livekit-sandbox" 7880 }}
 ---
 apiVersion: networking.gke.io/v1
 kind: GCPBackendPolicy

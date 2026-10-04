@@ -43,14 +43,23 @@ variable "core_nodes" {
   default = 1
 }
 
+# A media node per world: its LiveKit and its SIP carry every call's audio, and its core workers
+# a quiet hour's calls.
+variable "media_type" {
+  type        = map(string)
+  description = "Each world's media node: production's and the sandbox's machine type."
+  default     = { production = "e2-standard-4", sandbox = "e2-standard-2" }
+}
+
 variable "workers_type" {
   type    = string
   default = "e2-standard-8"
 }
 
 variable "workers_max" {
-  type    = number
-  default = 10
+  type        = map(number)
+  description = "Each world's most scaled-worker nodes (32 seats each): its own ceiling."
+  default     = { production = 10, sandbox = 3 }
 }
 
 variable "deletion_protection" {

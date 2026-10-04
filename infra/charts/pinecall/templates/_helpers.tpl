@@ -17,8 +17,6 @@
   valueFrom: { secretKeyRef: { name: pinecall, key: LIVEKIT_API_KEY } }
 - name: LIVEKIT_API_SECRET
   valueFrom: { secretKeyRef: { name: pinecall, key: LIVEKIT_API_SECRET } }
-- name: LIVEKIT_URL
-  value: ws://pinecall-livekit:7880
 - name: LIVEKIT_PUBLIC_URL
   value: wss://{{ required "domain" .Values.domain }}
 - name: PINECALL_DOMAIN
@@ -47,8 +45,25 @@
 {{- end }}{{ end }}
 {{- end -}}
 
-{{/* A worker of a world: its fleet, its seats, its key, its health port for the pod's probes. */}}
+{{/* What reaches both worlds' LiveKits (the gateways, the jobs): production's and the sandbox's. */}}
+{{- define "pinecall.livekits" -}}
+- name: LIVEKIT_URL
+  value: ws://pinecall-livekit-production:7880
+- name: LIVEKIT_SANDBOX_URL
+  value: ws://pinecall-livekit-sandbox:7880
+{{- end -}}
+
+{{/* A world's media node: its pool's selector and the toleration of its taint (modules/gke). */}}
+{{- define "pinecall.onMedia" -}}
+nodeSelector: { pinecall.io/pool: media-{{ . }} }
+tolerations:
+  - { key: pinecall.io/pool, operator: Equal, value: media-{{ . }}, effect: NoSchedule }
+{{- end -}}
+
+{{/* A worker of a world: its LiveKit, its fleet, its seats, its key, its health port. */}}
 {{- define "pinecall.workerEnv" -}}
+- name: LIVEKIT_URL
+  value: ws://pinecall-livekit-{{ .world }}:7880
 - name: PINECALL_FLEET
   value: {{ index .root.Values.fleets .world | quote }}
 - name: PINECALL_MAX_JOBS

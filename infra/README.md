@@ -15,7 +15,7 @@ made by hand and nothing is built on a laptop.
 | `terraform/modules/secrets` | the runtime's secrets, drawn once into Secret Manager, and the identity External Secrets reads them as |
 | `terraform/modules/addons` | CloudNativePG with its Barman Cloud plugin and cert-manager, External Secrets and KEDA, each its pinned chart |
 | `terraform/modules/backups` | the bucket Postgres's WAL and base backups go to, and the identity that writes them, which touches it alone |
-| `terraform/modules/edge` | the global address and a certificate for each name, proved by DNS before it points here, and a certificate of its own for Pinecall's services at the same door (`services`: notify, billing); the core node's static address and the SIP names; the firewall (media open, 5060 to the carriers alone); the names in Route 53 |
+| `terraform/modules/edge` | the global address and a certificate for each name, proved by DNS before it points here, and a certificate of its own for Pinecall's services at the same door (`services`: notify, billing); each world's media address and its SIP name; the firewall (media open, 5060 to the carriers alone); the names in Route 53 |
 | `terraform/modules/notify` | the Google identity notify signs Android's pushes as (Firebase Cloud Messaging alone), bound to its chart's service account |
 | `terraform/modules/alerts` | the alerts on the gateways' measures, in Cloud Monitoring, and the addresses they are mailed to |
 | `images/pinecall/` | the runtime's image: one for every process, each a `pinecall-runtime` verb (`make image`) |
@@ -24,7 +24,7 @@ made by hand and nothing is built on a laptop.
 | `images/cloudbuild.yaml` | how an image is built: by Cloud Build, as the builds' own identity |
 | `charts/postgres/` | the cluster's Postgres under CloudNativePG: its WAL to a bucket as it is written and a base backup each night (the Barman Cloud plugin), 35 days kept |
 | `manifests/suite.yaml` | the suites' Job, with a Redis made for the run |
-| `charts/pinecall/` | the runtime: two gateways, each world's workers (a few on the core node, the rest scaled by KEDA on the gateway's own number), the overflow, LiveKit and SIP on their node's network, Redis, the migrations, the fleets' keys, the nightly retention |
+| `charts/pinecall/` | the runtime: two gateways and Redis on the shared core pool; each world's LiveKit, SIP and a few workers on its media node, and its scaled workers on its own pool (KEDA, on the gateway's own number); the overflow, the migrations, the fleets' keys, the nightly retention |
 | `charts/edge/` | the front door, released apart and first: the Gateway (Google's HTTPS load balancer, the Gateway API) with Certificate Manager's certificate, its routes, the HTTP redirect and the backends' policies; its load balancer takes minutes to make, so a reinstall of the runtime never makes it again |
 | `values/<world-pair>.yaml` | a release's names, its secrets' project and prefix, its address |
 | `lab/` | calls with real audio and the vendors faked, against staging, measured (`terraform/modules/lab` is its generator) |
@@ -65,20 +65,39 @@ world's fleet key once at install, waits for every workload, and knocks at the p
 The secrets never leave Secret Manager but into the pods' environment; the values file holds no
 secret.
 
+## A pool a world
+
+Both worlds share the core pool (`terraform/modules/gke`, `core`): the gateways, Postgres, Redis
+and Pinecall's services. Each world has the rest of a call to itself, so a sandbox call never
+shares a machine with a production call: a **media pool** of one node (`media-<world>`,
+`media_type`; production's an e2-standard-4, the sandbox's an e2-standard-2) with the world's own
+LiveKit, its livekit-sip and its core workers, and a **workers pool** from 0 (`workers-<world>`,
+`workers_max`: 10 nodes for production, 3 for the sandbox) for its scaled workers. Each pool is
+tainted with its name, so nothing of another world lands there. A sandbox burst fills the
+sandbox's node and its pool to its own ceiling, and nothing else.
+
+LiveKit gives a room to a node by load and knows no pool, so each world is a LiveKit cluster of its
+own (`pinecall-livekit-<world>`), on a Redis database of its own (`media.redisDb`), with SIP on
+it; the gateway reaches both (`LIVEKIT_URL`, `LIVEKIT_SANDBOX_URL`) and each tells its webhook
+the world (`?world=`). A browser reaches production's at `wss://<name>` and the sandbox's at
+`wss://<name>/sandbox`: `charts/edge` routes LiveKit's paths under `/sandbox` to the sandbox's
+LiveKit with the prefix taken off.
+
 ## SIP's address
 
-Google's HTTPS load balancer, the worlds' names, carries no UDP: a carrier sends a world's calls to
-a SIP name of its own (`sipDomains` in the values, `PINECALL_SIP_DOMAIN`), which Route 53 points at
-the core node's static address (`terraform/modules/edge`, `core_address`). kubeip (the chart, as
-the identity `terraform/modules/kubeip` made) gives the core node that address, and gives it again
-to a node that replaces it; LiveKit and SIP announce it (`node_ip`, `nat_1_to_1_ip`). A Twilio
+Google's HTTPS load balancer, the name, carries no UDP: a carrier sends a world's calls to the
+world's SIP name (`sipDomains` in the values, `PINECALL_SIP_DOMAIN`, `PINECALL_SANDBOX_SIP_DOMAIN`),
+which Route 53 points at the world's media address (`terraform/modules/edge`, `media_addresses`).
+kubeip (the chart, as the identity `terraform/modules/kubeip` made) gives each world's media node
+its address, found by its label (`pinecall-media=<cluster>-<world>`), and gives it again to a node
+that replaces it; the world's LiveKit and SIP announce it (`node_ip`, `nat_1_to_1_ip`). A Twilio
 trunk made before the SIP name moved is sent on once, by `pinecall-runtime sip repoint`.
 
-The core node lost, drilled on staging on 2026-10-04: its VM deleted at 01:27:50 UTC (gone at
-01:29:46), the node pool made another at 01:29:48, kubeip gave it the same address at 01:32:35,
-the gateways answered at 01:34:46 with Postgres ready, and four calls then started, every turn
-answered. A box of one core node is down for those minutes; a second core node is the shape that
-is not (`docs/scaling.md`).
+The core node lost, drilled on staging on 2026-10-04 (when it also held LiveKit and SIP): its VM
+deleted at 01:27:50 UTC (gone at 01:29:46), the node pool made another at 01:29:48, kubeip gave it
+the same address at 01:32:35, the gateways answered at 01:34:46 with Postgres ready, and four
+calls then started, every turn answered. A core of one node is down for those minutes; a second
+core node is the shape that is not (`docs/scaling.md`).
 
 ## HTTPS
 

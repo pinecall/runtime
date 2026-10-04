@@ -1,8 +1,8 @@
-# Where a cluster meets the world: the global address its Gateway serves both names on; the core
-# node's own address, static, which SIP and LiveKit's media are reached at under SIP names of their
-# own (Google's HTTPS load balancer carries no UDP); the names in Route 53 (the zone's other records
-# are other repositories'); and the core node's ports. LiveKit's media and SIP's RTP are open to
-# anyone; 5060 only from the networks named (the carriers'), everyone else's denied after them.
+# Where a cluster meets the world: the global address its Gateway serves the name on; each world's
+# media address, static, which its SIP and its LiveKit's media are reached at under the world's SIP
+# name (Google's HTTPS load balancer carries no UDP); the names in Route 53 (the zone's other
+# records are other repositories'); and the media nodes' ports. LiveKit's media and SIP's RTP are
+# open to anyone; 5060 only from the networks named (the carriers'), everyone else's denied after.
 
 resource "google_compute_global_address" "ingress" {
   name = "pinecall-${var.name}-ingress"
@@ -90,12 +90,14 @@ resource "google_certificate_manager_certificate_map_entry" "services" {
   certificates = [google_certificate_manager_certificate.services[0].id]
 }
 
-# kubeip (charts/pinecall) gives it to the core node by its label, and gives it again to the node
-# that replaces it: a carrier's trunk and a number's SDP name one address for good.
-resource "google_compute_address" "core" {
-  name   = "pinecall-${var.name}-core"
-  region = var.region
-  labels = { pinecall-core = var.name }
+# A world's media address: kubeip (charts/pinecall) gives it to that world's media node by its
+# label, and gives it again to the node that replaces it, so a carrier's trunk and a number's SDP
+# name one address for good.
+resource "google_compute_address" "media" {
+  for_each = var.sip_names
+  name     = "pinecall-${var.name}-media-${each.key}"
+  region   = var.region
+  labels   = { pinecall-media = "${var.name}-${each.key}" }
 }
 
 data "google_compute_network" "vpc" {
@@ -107,7 +109,7 @@ resource "google_compute_firewall" "media" {
   network       = data.google_compute_network.vpc.self_link
   direction     = "INGRESS"
   source_ranges = ["0.0.0.0/0"]
-  target_tags   = [var.core_tag]
+  target_tags   = [var.media_tag]
   allow {
     protocol = "udp"
     ports    = ["7882", var.rtp_ports]
@@ -125,7 +127,7 @@ resource "google_compute_firewall" "sip" {
   direction     = "INGRESS"
   priority      = 500
   source_ranges = var.sip_sources
-  target_tags   = [var.core_tag]
+  target_tags   = [var.media_tag]
   allow {
     protocol = "udp"
     ports    = ["5060"]
@@ -142,7 +144,7 @@ resource "google_compute_firewall" "sip_deny" {
   direction     = "INGRESS"
   priority      = 600
   source_ranges = ["0.0.0.0/0"]
-  target_tags   = [var.core_tag]
+  target_tags   = [var.media_tag]
   deny {
     protocol = "udp"
     ports    = ["5060"]
@@ -176,12 +178,12 @@ resource "aws_route53_record" "services" {
 }
 
 resource "aws_route53_record" "sip_names" {
-  for_each = toset(var.sip_names)
+  for_each = var.sip_names
   zone_id  = data.aws_route53_zone.zone.zone_id
   name     = each.value
   type     = "A"
   ttl      = 300
-  records  = [google_compute_address.core.address]
+  records  = [google_compute_address.media[each.key].address]
 }
 
 variable "name" {
@@ -193,10 +195,10 @@ variable "network" {
   default = "default"
 }
 
-variable "core_tag" {
+variable "media_tag" {
   type        = string
-  description = "The network tag of the core node pool (modules/gke)."
-  default     = "pinecall-gke-core"
+  description = "The network tag of the worlds' media pools (modules/gke)."
+  default     = "pinecall-gke-media"
 }
 
 variable "rtp_ports" {
@@ -240,8 +242,8 @@ variable "point_services" {
 }
 
 variable "sip_names" {
-  type        = list(string)
-  description = "The names a carrier sends each world's calls to: the core node's static address."
+  type        = map(string)
+  description = "Each world's SIP name, a carrier's alone: the world's media address."
 }
 
 variable "region" {
@@ -261,6 +263,6 @@ output "ingress_address" {
   value = google_compute_global_address.ingress.address
 }
 
-output "core_address" {
-  value = google_compute_address.core.address
+output "media_addresses" {
+  value = { for world, address in google_compute_address.media : world => address.address }
 }

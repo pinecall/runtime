@@ -10,7 +10,7 @@ spec:
   template:
     metadata: { labels: { app: overflow } }
     spec:
-      nodeSelector: { pinecall.io/pool: core }
+      {{- include "pinecall.onMedia" "production" | nindent 6 }}
       terminationGracePeriodSeconds: 120
       containers:
         - name: overflow

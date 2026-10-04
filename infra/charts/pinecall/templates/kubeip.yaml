@@ -1,12 +1,13 @@
-{{- if .Values.core.address }}
-# kubeip on the core node: it gives the node the static address modules/edge reserved (found by its
-# label), and gives it again to a node that replaces it; LiveKit and SIP announce that address.
+{{- if .Values.kubeip.identity }}
+# kubeip on each world's media node: it gives the node the world's static address modules/edge
+# reserved (found by its label), and gives it again to a node that replaces it; the world's LiveKit
+# and SIP announce that address.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: pinecall-kubeip
   annotations:
-    iam.gke.io/gcp-service-account: {{ required "core.kubeip" .Values.core.kubeip | quote }}
+    iam.gke.io/gcp-service-account: {{ .Values.kubeip.identity | quote }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -27,27 +28,29 @@ metadata:
 subjects:
   - { kind: ServiceAccount, name: pinecall-kubeip, namespace: {{ .Release.Namespace }} }
 roleRef: { kind: ClusterRole, name: pinecall-kubeip, apiGroup: rbac.authorization.k8s.io }
+{{- range $world, $fleet := .Values.fleets }}
 ---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: pinecall-kubeip
+  name: pinecall-kubeip-{{ $world }}
 spec:
-  selector: { matchLabels: { app: pinecall-kubeip } }
+  selector: { matchLabels: { app: pinecall-kubeip, world: {{ $world }} } }
   template:
-    metadata: { labels: { app: pinecall-kubeip } }
+    metadata: { labels: { app: pinecall-kubeip, world: {{ $world }} } }
     spec:
       serviceAccountName: pinecall-kubeip
-      nodeSelector: { pinecall.io/pool: core }
+      {{- include "pinecall.onMedia" $world | nindent 6 }}
       terminationGracePeriodSeconds: 30
       containers:
         - name: kubeip
-          image: {{ .Values.media.kubeip }}
+          image: {{ $.Values.media.kubeip }}
           env:
             - name: NODE_NAME
               valueFrom: { fieldRef: { fieldPath: spec.nodeName } }
             - name: FILTER
-              value: {{ required "core.filter" .Values.core.filter | quote }}
+              value: {{ printf "labels.pinecall-media=%s-%s" (required "cluster" $.Values.cluster) $world | quote }}
           resources:
             requests: { cpu: 10m, memory: 32Mi }
+{{- end }}
 {{- end }}

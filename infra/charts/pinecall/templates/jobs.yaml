@@ -115,3 +115,4 @@ spec:
               args: ["retention", "run"]
               env:
                 {{- include "pinecall.env" . | nindent 16 }}
+                {{- include "pinecall.livekits" . | nindent 16 }}
