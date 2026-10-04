@@ -81,6 +81,22 @@ def test_a_pods_gateway_binds_what_it_is_told_and_believes_its_load_balancer(
     )
 
 
+# An idle connection is the load balancer's to close (600 s), never the gateway's first.
+def test_the_gateway_keeps_an_idle_connection_past_the_load_balancers_600_s(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    served: list[uvicorn.Config] = []
+
+    def kept(server: Stopping, *_given: object) -> None:
+        served.append(server.config)
+
+    monkeypatch.setattr(Stopping, "run", kept)
+    pod = {"PINECALL_GATEWAY_LISTEN": "10.111.0.9:8080"}
+    gateway(Settings.model_validate(pod), argparse.Namespace())
+    (config,) = served
+    assert config.timeout_keep_alive > 600
+
+
 def test_the_doctor_says_each_missing_thing_and_exits_one(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
