@@ -99,6 +99,10 @@ def gateway(settings: Settings, _args: argparse.Namespace) -> int:
         forwarded_allow_ips=settings.trusted_proxies,
         timeout_keep_alive=KEEP_ALIVE_S,
     )
+    # Every plugin imported before the server listens: imported at the first door that lists the
+    # vendors (/metrics, /v1/providers) instead, the 45 held the loop 5 s while requests waited
+    # (production, 2026-10-04).
+    installed()
     Stopping(config).run()
     return 0
 
