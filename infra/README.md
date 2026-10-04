@@ -143,6 +143,18 @@ spec:
 Drilled on staging on 2026-10-04: a base backup in 9 s, the restore ready in 106 s with the same
 30 514 rows of `call_log`, the same last entry and the same 48 migrations as the live database.
 
+## Staging, made and destroyed
+
+Staging is made for a proof and destroyed after it (destroyed on 2026-10-04, after the cutover):
+the runtime's own releases first, so no object is left waiting on a controller Terraform removes,
+then Terraform:
+
+```console
+$ for r in pinecall pinecall-edge pinecall-postgres; do helm --kube-context <staging> uninstall $r --wait; done
+$ gcloud storage rm -r "gs://pinecall-staging-postgres-<project number>/**"
+$ terraform -chdir=infra/terraform/environments/staging plan -destroy -var lab=true -out=plan && terraform -chdir=infra/terraform/environments/staging apply plan
+```
+
 ## Production
 
 `environments/production` runs Pinecall's own production since the cutover of 2026-10-04 at
