@@ -20,8 +20,9 @@ setup() {
     sudo useradd -m -s /bin/bash lab 2>/dev/null || true
     sudo chmod 755 /home/lab
     sudo tar xzf /tmp/lab.tgz -C /home/lab && sudo chown -R lab:lab /home/lab
-    sudo systemctl stop fake-vendors lab-agent-production lab-agent-sandbox 2>/dev/null || true
-    sudo systemctl reset-failed fake-vendors lab-agent-production lab-agent-sandbox 2>/dev/null || true
+    # A world's agent is its own verb's to stop: setting the other world up leaves this one running.
+    sudo systemctl stop fake-vendors 2>/dev/null || true
+    sudo systemctl reset-failed fake-vendors 2>/dev/null || true
     cd /home/lab
     sudo -u lab uv run -q --with numpy python caller.py
     sudo systemd-run --unit=fake-vendors --uid=lab --working-directory=/home/lab \

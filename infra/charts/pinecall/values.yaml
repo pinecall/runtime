@@ -38,10 +38,6 @@ media:
   addresses:
     production: ""
     sandbox: ""
-  # Each world's LiveKit and its SIP keep their state in a Redis database of their own.
-  redisDb:
-    production: 0
-    sandbox: 2
 
 gateway:
   replicas: 2

@@ -77,8 +77,9 @@ tainted with its name, so nothing of another world lands there. A sandbox burst 
 sandbox's node and its pool to its own ceiling, and nothing else.
 
 LiveKit gives a room to a node by load and knows no pool, so each world is a LiveKit cluster of its
-own (`pinecall-livekit-<world>`), on a Redis database of its own (`media.redisDb`), with SIP on
-it; the gateway reaches both (`LIVEKIT_URL`, `LIVEKIT_SANDBOX_URL`) and each tells its webhook
+own (`pinecall-livekit-<world>`), with SIP on it, the two talking through a Redis of their own
+on the world's media node (Redis's pub/sub is one per server, whatever its database: a LiveKit
+sharing one with the other world's answered that world's SIP and refused its numbers); the gateway reaches both (`LIVEKIT_URL`, `LIVEKIT_SANDBOX_URL`) and each tells its webhook
 the world (`?world=`). A browser reaches production's at `wss://<name>` and the sandbox's at
 `wss://<name>/sandbox`: `charts/edge` routes LiveKit's paths under `/sandbox` to the sandbox's
 LiveKit with the prefix taken off.

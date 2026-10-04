@@ -120,13 +120,15 @@ resource "google_compute_firewall" "media" {
   }
 }
 
+# The carriers' networks, and production's own media address: a developer's ring at a production
+# number is dialled on to the sandbox's SIP from there (docs/telephony.md, "A developer's own phone").
 resource "google_compute_firewall" "sip" {
   count         = length(var.sip_sources) > 0 ? 1 : 0
   name          = "pinecall-${var.name}-sip"
   network       = data.google_compute_network.vpc.self_link
   direction     = "INGRESS"
   priority      = 500
-  source_ranges = var.sip_sources
+  source_ranges = concat(var.sip_sources, [for world, address in google_compute_address.media : "${address.address}/32" if world == "production"])
   target_tags   = [var.media_tag]
   allow {
     protocol = "udp"

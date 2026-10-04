@@ -1,5 +1,4 @@
-# The gateways' signals to one another and LiveKit's own state between its nodes: nothing to keep
-# across a restart, so no disk.
+# The gateways' signals to one another, on the core: nothing to keep across a restart, so no disk.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -31,3 +30,57 @@ metadata:
 spec:
   selector: { app: pinecall-redis }
   ports: [{ port: 6379 }]
+{{- range $world, $fleet := .Values.fleets }}
+---
+# Each world's LiveKit and its SIP talk through a Redis of their own, on the world's media node:
+# Redis's pub/sub is one per server, whatever database a client picks, so a LiveKit sharing one
+# with the other world's would answer that world's SIP (and refuse its numbers). LiveKit keeps the
+# world's SIP trunks and dispatch rules in it, so it is written to a disk that outlives the node:
+# a media node replaced comes back with its numbers.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pinecall-redis-{{ $world }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: standard-rwo
+  resources: { requests: { storage: 1Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pinecall-redis-{{ $world }}
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: pinecall-redis, world: {{ $world }} } }
+  template:
+    metadata: { labels: { app: pinecall-redis, world: {{ $world }} } }
+    spec:
+      {{- include "pinecall.onMedia" $world | nindent 6 }}
+      containers:
+        - name: redis
+          image: {{ $.Values.media.redis }}
+          args: ["sh", "-c", 'exec redis-server --requirepass "$REDIS_PASSWORD" --save "" --appendonly yes --dir /data']
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: pinecall, key: REDIS_PASSWORD } }
+          ports: [{ containerPort: 6379 }]
+          readinessProbe:
+            exec: { command: ["sh", "-c", 'redis-cli --no-auth-warning -a "$REDIS_PASSWORD" ping'] }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: pinecall-redis-{{ $world }} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pinecall-redis-{{ $world }}
+spec:
+  selector: { app: pinecall-redis, world: {{ $world }} }
+  ports: [{ port: 6379 }]
+{{- end }}
