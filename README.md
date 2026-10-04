@@ -47,19 +47,6 @@ Nothing here is imported by an agent.
   <img alt="How it runs: cloud.pinecall.io and sandbox.pinecall.io through Google's HTTPS load balancer, and their sip names on the core node's static address, into the core node (gateway ×2, Postgres on CloudNativePG with its WAL in a bucket, Redis, LiveKit, livekit-sip; worker ×2 per world, overflow, kubeip, notify, billing), above a workers pool that starts at zero, 32 seats a worker, sized by KEDA on the gateway's count" src="docs/images/how-it-runs-light.webp">
 </picture>
 
-```
-               cloud.pinecall.io · sandbox.pinecall.io                sip.pinecall.io · sip.sandbox…
-                 Google's HTTPS load balancer (Gateway API)       the core node's static address
-                              │                                              │
-   ┌──────────────────────────┼──────────────────────────────────────────────┼────────────────────┐
-   │  core node               ▼                                              ▼                    │
-   │   gateway ×2 ── Postgres (CloudNativePG, WAL to a bucket) ── Redis ── LiveKit ── livekit-sip │
-   │   worker ×2 per world · overflow · kubeip · notify · billing                                 │
-   ├──────────────────────────────────────────────────────────────────────────────────────────────┤
-   │  workers pool, from 0    worker (32 seats) · worker · …   sized by KEDA on the gateway's count │
-   └──────────────────────────────────────────────────────────────────────────────────────────────┘
-```
-
 - **The cluster** is GKE, made by `infra/terraform`: a zonal cluster with a core pool and a workers
   pool that starts at zero; the registry and the build identity; the secrets in Secret Manager,
   read into the pods by External Secrets; the operators (CloudNativePG with its Barman Cloud
