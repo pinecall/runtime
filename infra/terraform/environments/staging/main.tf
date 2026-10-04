@@ -57,6 +57,9 @@ module "edge" {
   source = "../../modules/edge"
   name   = "staging"
   names  = ["staging.pinecall.io", "sandbox.staging.pinecall.io"]
+  # Where a carrier sends each world's calls: the core node's static address (PINECALL_SIP_DOMAIN).
+  sip_names = ["sip.staging.pinecall.io", "sip.sandbox.staging.pinecall.io"]
+  region    = var.region
   # The fence's networks (sip_sources.auto.tfvars.json, `pinecall-runtime fence export`), and the
   # lab's generator while it stands.
   sip_sources = concat(var.sip_sources, [for lab in module.lab : "${lab.public_address}/32"])
@@ -121,6 +124,12 @@ module "backups" {
   region  = var.region
 }
 
+module "kubeip" {
+  source  = "../../modules/kubeip"
+  project = var.project
+  name    = "staging"
+}
+
 module "secrets" {
   source  = "../../modules/secrets"
   project = var.project
@@ -180,4 +189,12 @@ output "postgres_backups_bucket" {
 
 output "postgres_backups_service_account" {
   value = module.backups.service_account
+}
+
+output "core_address" {
+  value = module.edge.core_address
+}
+
+output "kubeip_service_account" {
+  value = module.kubeip.service_account
 }

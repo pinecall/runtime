@@ -186,6 +186,14 @@ async def test_the_fence_is_exported_as_terraforms_sip_sources_twilio_first(
 
 
 @postgres
+async def test_a_box_whose_sip_is_at_its_names_sends_no_trunk_on(
+    knocking: Knocking, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert await ran(settings_of(knocking), "sip", "repoint") == 0
+    assert capsys.readouterr().out.strip().endswith("0 trunks sent on")
+
+
+@postgres
 async def test_without_an_ops_key_the_operators_verbs_say_so(knocking: Knocking) -> None:
     settings = Settings.model_validate({"PINECALL_GATEWAY_URL": knocking.url})
     with pytest.raises(PinecallError, match="PINECALL_OPS_KEY"):

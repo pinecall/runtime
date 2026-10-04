@@ -24,7 +24,7 @@ from pinecall.channels.telephony._twilio import (
     termination_host,
 )
 from pinecall.channels.telephony.carrier import control_of, dialled_of, missing_to_dial
-from pinecall.channels.telephony.sip import domain_of
+from pinecall.channels.telephony.sip import domain_of, sip_domain_of
 from pinecall.domain.call import CallContext, new_call_id
 from pinecall.domain.errors import (
     Conflict,
@@ -327,7 +327,8 @@ async def _twilio_surveyed(
     connections: Connections, carrier: Carrier, twilio: Twilio, world: Env
 ) -> OutboundSurvey:
     domain = domain_of(connections, world)
-    trunk = await twilio.trunk_pointing_at(origination_uri(domain))
+    origination = origination_uri(sip_domain_of(connections, world))
+    trunk = await twilio.trunk_pointing_at(origination)
     host = termination_host(domain, twilio.sid)
     # One list per trunk, as the trunk is per account and box; one credential per org on it,
     # so two orgs that brought the same account each dial with their own.
@@ -340,7 +341,7 @@ async def _twilio_surveyed(
     on_trunk = (
         trunk is not None and listed is not None and listed in await twilio.lists_on(trunk.sid)
     )
-    pointed = f"Twilio: a trunk sending calls to {origination_uri(domain)}"
+    pointed = f"Twilio: a trunk sending calls to {origination}"
     terminated = trunk is not None and trunk.domain_name == host
     steps = [
         f"{pointed}: {'stands' if trunk else 'to do'}",
@@ -367,7 +368,9 @@ async def _twilio_provisioned(
 ) -> str:
     domain = domain_of(connections, world)
     twilio = survey.twilio
-    trunk = survey.trunk or await twilio.trunk_made(domain, origination_uri(domain))
+    trunk = survey.trunk or await twilio.trunk_made(
+        domain, origination_uri(sip_domain_of(connections, world))
+    )
     if trunk.domain_name != survey.host:
         await twilio.terminated(trunk.sid, survey.host)
     listed = survey.listed or await twilio.credential_list_made(survey.list_name)

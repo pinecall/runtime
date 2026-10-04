@@ -1,10 +1,19 @@
-# Where a cluster meets the world: the global address its Ingress serves both names on, the names in
-# Route 53 (the zone's other records are other repositories'), and the core node's ports. LiveKit's
-# media and SIP's RTP are open to anyone; 5060 only from the networks named (the carriers'),
-# everyone else's denied explicitly after them.
+# Where a cluster meets the world: the global address its Ingress serves both names on; the core
+# node's own address, static, which SIP and LiveKit's media are reached at under SIP names of their
+# own (Google's HTTPS load balancer carries no UDP); the names in Route 53 (the zone's other records
+# are other repositories'); and the core node's ports. LiveKit's media and SIP's RTP are open to
+# anyone; 5060 only from the networks named (the carriers'), everyone else's denied after them.
 
 resource "google_compute_global_address" "ingress" {
   name = "pinecall-${var.name}-ingress"
+}
+
+# kubeip (charts/pinecall) gives it to the core node by its label, and gives it again to the node
+# that replaces it: a carrier's trunk and a number's SDP name one address for good.
+resource "google_compute_address" "core" {
+  name   = "pinecall-${var.name}-core"
+  region = var.region
+  labels = { pinecall-core = var.name }
 }
 
 data "google_compute_network" "vpc" {
@@ -75,6 +84,15 @@ resource "aws_route53_record" "names" {
   records  = [google_compute_global_address.ingress.address]
 }
 
+resource "aws_route53_record" "sip_names" {
+  for_each = toset(var.sip_names)
+  zone_id  = data.aws_route53_zone.zone.zone_id
+  name     = each.value
+  type     = "A"
+  ttl      = 300
+  records  = [google_compute_address.core.address]
+}
+
 variable "name" {
   type = string
 }
@@ -110,10 +128,24 @@ variable "names" {
   type = list(string)
 }
 
+variable "sip_names" {
+  type        = list(string)
+  description = "The names a carrier sends each world's calls to: the core node's static address."
+}
+
+variable "region" {
+  type    = string
+  default = "us-central1"
+}
+
 output "ingress_address_name" {
   value = google_compute_global_address.ingress.name
 }
 
 output "ingress_address" {
   value = google_compute_global_address.ingress.address
+}
+
+output "core_address" {
+  value = google_compute_address.core.address
 }

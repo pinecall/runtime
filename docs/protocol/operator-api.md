@@ -163,6 +163,13 @@ when the operator writes the list for Terraform and applies it,
 then `make tf-plan` and `make tf-apply` (the file is the orgs' addresses and is never committed),
 and until then it is closed in the cloud. The gateway never touches the firewall.
 
+`POST /v1/ops/sip/repoint` → `[{account, trunk, world, was, now}]`: every trunk of the box's
+Twilio account and of each org's that still sends a world's calls to the world's name, sent to its
+SIP name (`PINECALL_SIP_DOMAIN`, `PINECALL_SANDBOX_SIP_DOMAIN`), its weight and order kept; `[]`
+when each world's SIP name is its name, or every trunk is there already. The runtime never touches
+a carrier on its own: the operator asks this once, when a box's SIP moves off its names (a box
+moved into a cluster, `infra/README.md`). `pinecall-runtime sip repoint` asks it.
+
 ## The fleet
 
 `GET /v1/ops/fleet`: `{now, stale_after_s, workers: [{fleet, worker, agent_name, active, max_jobs, load,

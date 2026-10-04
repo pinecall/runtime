@@ -169,6 +169,14 @@ def fence_group(group: argparse.ArgumentParser) -> None:
     )
 
 
+def sip_group(group: argparse.ArgumentParser) -> None:
+    """`sip repoint`: the carriers' trunks sent on to the worlds' SIP names, once."""
+    under = group.add_subparsers(required=True)
+    under.add_parser(
+        "repoint", help="every Twilio trunk at a world's name, to its SIP name"
+    ).set_defaults(run=_knocking(sip_repoint))
+
+
 def fleet_group(group: argparse.ArgumentParser) -> None:
     """`fleet`: the workers heard from, and a cordon."""
     under = group.add_subparsers(required=True)
@@ -179,6 +187,16 @@ def fleet_group(group: argparse.ArgumentParser) -> None:
         one_verb = under.add_parser(verb)
         one_verb.add_argument("worker")
         one_verb.set_defaults(run=_knocking(runner))
+
+
+def sip_repoint(client: httpx.Client, _args: argparse.Namespace) -> int:
+    """Each trunk the gateway sent on to a world's SIP name, a line each."""
+    moved = _list(_answered(client.post("/v1/ops/sip/repoint")))
+    for item in moved:
+        row = _object(item)
+        _line_out(f"{row['account']} {row['trunk']} {row['world']}: {row['was']} -> {row['now']}")
+    _line_out(f"{len(moved)} trunks sent on")
+    return 0
 
 
 # The orgs' addresses: written to an ignored tfvars file, never committed (infra/README.md).

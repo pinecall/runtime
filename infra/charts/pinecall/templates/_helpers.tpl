@@ -29,6 +29,12 @@
   value: {{ printf "%s, %s" .Values.domains.production .Values.domains.sandbox | quote }}
 - name: PINECALL_GATEWAY_URL
   value: http://pinecall-gateway:8080
+{{- with .Values.sipDomains }}{{ if .production }}
+- name: PINECALL_SIP_DOMAIN
+  value: {{ .production | quote }}
+- name: PINECALL_SANDBOX_SIP_DOMAIN
+  value: {{ required "sipDomains.sandbox" .sandbox | quote }}
+{{- end }}{{ end }}
 - name: PINECALL_RECORDINGS
   value: /var/lib/pinecall/recordings
 {{- with .Values.store }}{{ if .bucket }}

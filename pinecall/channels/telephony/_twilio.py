@@ -151,13 +151,26 @@ class Twilio:
 
     async def trunk_pointing_at(self, uri: str) -> TwilioTrunk | None:
         """The account's trunk whose origination is this URI, whatever it is named."""
+        found = await self.trunks_pointing_at(uri)
+        return found[0] if found else None
+
+    async def trunks_pointing_at(self, uri: str) -> list[TwilioTrunk]:
+        """Every trunk of the account whose origination is this URI."""
         trunks = _TRUNKS.validate_python(
             await self._every(f"{TRUNKING}/Trunks?PageSize=50", "trunks")
         )
-        for trunk in trunks:
-            if uri in {origination.sip_url for origination in await self._originations(trunk.sid)}:
-                return trunk
-        return None
+        return [
+            trunk
+            for trunk in trunks
+            if uri in {origination.sip_url for origination in await self._originations(trunk.sid)}
+        ]
+
+    async def repointed(self, trunk: str, was: str, now: str) -> None:
+        """The trunk's origination that is `was` sent to `now`, its weight and order kept."""
+        for origination in await self._originations(trunk):
+            if origination.sip_url == was:
+                url = f"{TRUNKING}/Trunks/{trunk}/OriginationUrls/{origination.sid}"
+                await self._post(url, {"SipUrl": now})
 
     async def trunk(self, sid: str) -> TwilioTrunk:
         """One trunk of the account."""

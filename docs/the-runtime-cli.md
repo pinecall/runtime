@@ -11,7 +11,7 @@ writes an agent, nothing there issues a key.
 |---|---|
 | `gateway` · `worker` · `runner` · `doctor` · `providers` | this machine: its settings, its database, its LiveKit |
 | `migrate` · `sessions` · `memory` · `retention` · `traceback` · `facts` · `vault` | Postgres, straight, over `DATABASE_URL` (`vault` with `PINECALL_VAULT_KEY` too) |
-| `init` · `orgs` · `keys` · `routes` · `fleet` · `fence` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` and `keys runner` alone are minted on the database, before any gateway answers |
+| `init` · `orgs` · `keys` · `routes` · `fleet` · `fence` · `sip` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` and `keys runner` alone are minted on the database, before any gateway answers |
 | `load` | a running gateway's sandbox, over the worker's own call doors with the sandbox fleet's key (`PINECALL_WORKER_KEY`) |
 
 ## `gateway` · `worker start` · `worker overflow` · `runner start`
@@ -83,6 +83,17 @@ addresses he approved ([telephony.md](telephony.md), "The fence, twice"), as Ter
 `{"sip_sources": [...]}`. Written to
 `infra/terraform/environments/<env>/sip_sources.auto.tfvars.json` (the orgs' addresses, never
 committed), `make tf-plan` and `make tf-apply` bring the cloud's firewall level with the box.
+
+## `sip`
+
+```
+sip repoint
+```
+
+Every trunk of the box's Twilio account and of each org's that still sends a world's calls to the
+world's name, sent on to its SIP name (`PINECALL_SIP_DOMAIN`,
+[the-environment.md](the-environment.md)), a line each: the account, the trunk, the world, where it pointed and where it points now. Once,
+when the box's SIP moves off its names; run again, it sends nothing on.
 
 ## `fleet`
 

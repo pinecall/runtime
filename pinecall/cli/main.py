@@ -286,6 +286,7 @@ def verbs() -> argparse.ArgumentParser:
     _drift.drift_group(under.add_parser("drift", help="each day's drift, counted at the seal"))
     _usage.usage_group(under.add_parser("usage", help="each org's usage totals, from its log"))
     _operator.fence_group(under.add_parser("fence", help="the networks 5060 opens to"))
+    _operator.sip_group(under.add_parser("sip", help="where the carriers send each world's calls"))
     _traceback.traceback_verb(
         under.add_parser("traceback", help="a number's calls and dials, for a carrier")
     )

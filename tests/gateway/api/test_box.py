@@ -188,6 +188,18 @@ async def test_the_operator_admits_a_carrier_and_twilio_stays_admitted(knocking:
 
 
 @postgres
+async def test_the_operator_alone_sends_the_trunks_on_and_a_box_at_its_names_moves_none(
+    knocking: Knocking,
+) -> None:
+    with_an_ops_key(knocking)
+    async with knocking.http(THE_OPS_KEY) as operator:
+        moved = await operator.post("/v1/ops/sip/repoint")
+    async with knocking.http(knocking.app["production"]) as tenant:
+        refused = await tenant.post("/v1/ops/sip/repoint")
+    assert (moved.status_code, moved.json(), refused.status_code) == (200, [], 401)
+
+
+@postgres
 async def test_a_peers_network_is_approved_by_the_operator_and_its_number_is_admitted(
     knocking: Knocking,
 ) -> None:

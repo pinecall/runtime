@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import StreamingResponse
 
 from pinecall.channels import offers, routes
-from pinecall.channels.telephony import carrier_catalog, firewall, numbers, sip
+from pinecall.channels.telephony import carrier_catalog, firewall, numbers, origination, sip
 from pinecall.channels.telephony.carrier_catalog import KnownCarrier
 from pinecall.channels.telephony.numbers import NumberImport
 from pinecall.domain.call import Route
@@ -72,6 +72,7 @@ from pinecall.wire.rest.ops import (
     NumberCameIn,
     PutBrandRequest,
     PutSignInRequest,
+    RepointedTrunk,
     RouteRequest,
     RouteRow,
 )
@@ -412,6 +413,22 @@ async def admit_box_carrier(
     admitted = await carrier_catalog.admit(pool, kind, on=body.admitted)
     through = Counter(_comes_through(record) for record in await routes.on_the_box(pool))
     return _box_carrier(carrier_catalog.known_carrier(kind), admitted, through[kind])
+
+
+# Once, when the box's SIP moves off its names: the runtime never touches a carrier on its own.
+@router.post("/v1/ops/sip/repoint")
+async def repoint_trunks(gateway: GatewayDep) -> list[RepointedTrunk]:
+    """Send every Twilio trunk still pointing at a world's name to that world's SIP name."""
+    return [
+        RepointedTrunk(
+            account=moved.account,
+            trunk=moved.trunk,
+            world=moved.world,
+            was=moved.was,
+            now=moved.now,
+        )
+        for moved in await origination.repointed(gateway.connections)
+    ]
 
 
 @router.get("/v1/ops/carrier-networks")

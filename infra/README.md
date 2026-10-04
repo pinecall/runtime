@@ -51,6 +51,15 @@ world's fleet key once at install, waits for every workload, and knocks at the p
 The secrets never leave Secret Manager but into the pods' environment; the values file holds no
 secret.
 
+## SIP's address
+
+Google's HTTPS load balancer, the worlds' names, carries no UDP: a carrier sends a world's calls to
+a SIP name of its own (`sipDomains` in the values, `PINECALL_SIP_DOMAIN`), which Route 53 points at
+the core node's static address (`terraform/modules/edge`, `core_address`). kubeip (the chart, as
+the identity `terraform/modules/kubeip` made) gives the core node that address, and gives it again
+to a node that replaces it; LiveKit and SIP announce it (`node_ip`, `nat_1_to_1_ip`). A Twilio
+trunk made before the SIP name moved is sent on once, by `pinecall-runtime sip repoint`.
+
 ## The secrets the operator puts
 
 Terraform draws most of a cluster's secrets. The ones a world names in `given`

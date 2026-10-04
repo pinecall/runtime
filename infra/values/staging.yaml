@@ -13,3 +13,11 @@ postgres:
   backups:
     bucket: pinecall-staging-postgres-209548925515
     serviceAccount: pinecall-staging-postgres@hiding-place-447317-c6.iam.gserviceaccount.com
+# terraform/modules/edge and kubeip (environments/staging's outputs): the core node's static address.
+core:
+  address: 34.121.208.198
+  filter: labels.pinecall-core=staging
+  kubeip: pinecall-staging-kubeip@hiding-place-447317-c6.iam.gserviceaccount.com
+sipDomains:
+  production: sip.staging.pinecall.io
+  sandbox: sip.sandbox.staging.pinecall.io
