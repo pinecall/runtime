@@ -60,6 +60,7 @@ module "edge" {
   names          = var.names
   point_names    = var.point_names
   sip_names      = var.sip_names
+  kept_addresses = var.kept_addresses
   services       = var.services
   point_services = var.point_services
   region         = var.region
@@ -80,6 +81,12 @@ variable "names" {
 variable "sip_names" {
   type        = map(string)
   description = "Each world's SIP name, at the world's media address: a carrier's alone (PINECALL_SIP_DOMAIN, PINECALL_SANDBOX_SIP_DOMAIN)."
+}
+
+variable "kept_addresses" {
+  type        = map(string)
+  description = "A world's media address kept from before, by its reserved name (carriers know it)."
+  default     = {}
 }
 
 variable "services" {
@@ -167,6 +174,24 @@ module "notify" {
 moved {
   from = module.notify
   to   = module.notify[0]
+}
+
+# The core node's address became production's media address on 2026-10-04 (a pool a world): the
+# same address, kept (kept_addresses), so no carrier or PBX that knows it is told another.
+moved {
+  from = module.edge.google_compute_address.core
+  to   = module.edge.google_compute_address.media["production"]
+}
+
+# The SIP names' records, kept by world now: the same records, moved, never made again.
+moved {
+  from = module.edge.aws_route53_record.sip_names["sip.pinecall.io"]
+  to   = module.edge.aws_route53_record.sip_names["production"]
+}
+
+moved {
+  from = module.edge.aws_route53_record.sip_names["sip.sandbox.pinecall.io"]
+  to   = module.edge.aws_route53_record.sip_names["sandbox"]
 }
 
 module "secrets" {

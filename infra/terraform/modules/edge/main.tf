@@ -95,7 +95,7 @@ resource "google_certificate_manager_certificate_map_entry" "services" {
 # name one address for good.
 resource "google_compute_address" "media" {
   for_each = var.sip_names
-  name     = "pinecall-${var.name}-media-${each.key}"
+  name     = lookup(var.kept_addresses, each.key, "pinecall-${var.name}-media-${each.key}")
   region   = var.region
   labels   = { pinecall-media = "${var.name}-${each.key}" }
 }
@@ -246,6 +246,14 @@ variable "point_services" {
 variable "sip_names" {
   type        = map(string)
   description = "Each world's SIP name, a carrier's alone: the world's media address."
+}
+
+# A world whose address carriers and the orgs' PBXs already know keeps it: the address reserved
+# before, by its name, becomes that world's media address instead of a new one.
+variable "kept_addresses" {
+  type        = map(string)
+  description = "A world's media address kept from before, by its reserved name; the rest are made."
+  default     = {}
 }
 
 variable "region" {
