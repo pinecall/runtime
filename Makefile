@@ -21,7 +21,7 @@ ZONE     ?= us-central1-c
 CONTEXT  ?= gke_$(PROJECT)_$(ZONE)_pinecall-$(ENV)
 TF        = terraform -chdir=infra/terraform/environments/$(ENV)
 TF_AUTH   = GOOGLE_OAUTH_ACCESS_TOKEN="$$(gcloud auth print-access-token)"
-TF_ROOTS  = infra/terraform/bootstrap $(wildcard infra/terraform/environments/*)
+TF_ROOTS  = infra/terraform/bootstrap infra/terraform/project $(wildcard infra/terraform/environments/*)
 
 check:            ## the rules and every suite that needs no database, on every core; terraform's form
 	uv run pytest -q -n auto

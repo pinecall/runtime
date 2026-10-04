@@ -8,9 +8,10 @@ made by hand and nothing is built on a laptop.
 | path | what |
 |---|---|
 | `terraform/bootstrap` | the bucket every other root module keeps its state in, made once with local state |
+| `terraform/project` | what every cluster of the project shares: the images' registry and the identity Cloud Build builds them as |
 | `terraform/environments/<world-pair>` | one cluster: `staging` today, each phase proven there before production |
 | `terraform/modules/gke` | a cluster: zonal, two node pools (core; workers, sized by the cluster autoscaler alone), Workload Identity |
-| `terraform/modules/registry` · `build` | where images live, and the identity Cloud Build builds them as |
+| `terraform/modules/registry` · `build` | where images live, and the identity Cloud Build builds them as (`terraform/project`) |
 | `terraform/modules/secrets` | the runtime's secrets, drawn once into Secret Manager, and the identity External Secrets reads them as |
 | `terraform/modules/addons` | CloudNativePG with its Barman Cloud plugin and cert-manager, External Secrets and KEDA, each its pinned chart |
 | `terraform/modules/backups` | the bucket Postgres's WAL and base backups go to, and the identity that writes them, which touches it alone |
@@ -34,13 +35,14 @@ With gcloud signed in on the project, and the zone of the two names on Route 53 
 
 ```console
 $ terraform -chdir=infra/terraform/bootstrap init && terraform -chdir=infra/terraform/bootstrap apply   # once
+$ terraform -chdir=infra/terraform/project init && terraform -chdir=infra/terraform/project plan -out=plan && terraform -chdir=infra/terraform/project apply plan   # once
 $ make tf-init ENV=staging
 $ make tf-plan ENV=staging          # read it; the plan is saved
 $ make tf-apply ENV=staging         # exactly the plan read
 $ gcloud container clusters get-credentials pinecall-staging --zone us-central1-c
 $ gcloud builds submit infra/images/postgres --config infra/images/cloudbuild.yaml \
-    --service-account "$(terraform -chdir=infra/terraform/environments/staging output -raw build_service_account)" \
-    --substitutions _IMAGE="$(terraform -chdir=infra/terraform/environments/staging output -raw registry)/postgres:17.11-pgvector0.8.6-pgtextsearch1.4.0"
+    --service-account "$(terraform -chdir=infra/terraform/project output -raw build_service_account)" \
+    --substitutions _IMAGE="$(terraform -chdir=infra/terraform/project output -raw registry)/postgres:17.11-pgvector0.8.6-pgtextsearch1.4.0"
 $ make image                        # the runtime at this commit
 $ make deploy ENV=staging           # Postgres, the chart at that image, then the live suite
 $ make suite ENV=staging            # every suite inside the cluster
