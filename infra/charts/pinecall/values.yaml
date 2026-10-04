@@ -75,8 +75,3 @@ store:
 overflow:
   says: ""
 
-ingress:
-  # The global address and the certificate map Terraform makes (modules/edge's outputs): the map's
-  # certificate, proved by DNS, is valid before a name points at the address.
-  address: ""
-  certificateMap: ""

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: edge
+description: Where a Pinecall cluster meets the world — its Gateway, routes and backend policies.
+type: application
+version: 0.1.0

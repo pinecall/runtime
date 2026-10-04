@@ -46,6 +46,11 @@ rules:
   - apiGroups: [""]
     resources: [secrets]
     verbs: [create]
+  # A secret an earlier install left holds keys the database it is installed on never minted.
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames: [pinecall-fleet-keys]
+    verbs: [delete]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -73,6 +78,9 @@ spec:
       restartPolicy: Never
       serviceAccountName: pinecall-fleet-keys
       initContainers:
+        - name: forget
+          image: {{ .Values.media.kubectl }}
+          args: ["delete", "secret", "pinecall-fleet-keys", "--ignore-not-found"]
         - name: mint
           image: {{ include "pinecall.image" . }}
           command: ["sh", "-c", "umask 077 && pinecall-runtime keys fleet production > /keys/production && pinecall-runtime keys fleet sandbox > /keys/sandbox"]
