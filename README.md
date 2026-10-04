@@ -1,6 +1,20 @@
 # pinecall
 
-[![check](https://github.com/pinecall/runtime/actions/workflows/check.yml/badge.svg)](https://github.com/pinecall/runtime/actions/workflows/check.yml)
+[![check](https://img.shields.io/github/actions/workflow/status/pinecall/runtime/check.yml?branch=main&label=check&logo=github&style=flat-square)](https://github.com/pinecall/runtime/actions/workflows/check.yml)
+[![release](https://img.shields.io/github/v/tag/pinecall/runtime?label=release&color=9184d9&style=flat-square)](https://github.com/pinecall/runtime/tags)
+[![license](https://img.shields.io/github/license/pinecall/runtime?color=blue&style=flat-square)](LICENSE)
+[![docs](https://img.shields.io/badge/docs-docs.pinecall.io-9184d9?style=flat-square)](https://docs.pinecall.io)
+[![console](https://img.shields.io/badge/console-cloud.pinecall.io-9184d9?style=flat-square)](https://cloud.pinecall.io)
+
+[![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white&style=flat-square)](pyproject.toml)
+[![LiveKit Agents 1.8](https://img.shields.io/badge/LiveKit_Agents-1.8-1F1F1F?logo=webrtc&logoColor=white&style=flat-square)](https://docs.livekit.io/agents/)
+[![Postgres 17](https://img.shields.io/badge/Postgres-17_·_pgvector-4169E1?logo=postgresql&logoColor=white&style=flat-square)](infra/charts/postgres)
+[![GKE](https://img.shields.io/badge/Kubernetes-GKE-326CE5?logo=kubernetes&logoColor=white&style=flat-square)](infra/README.md)
+[![Terraform](https://img.shields.io/badge/Terraform-modules-7B42BC?logo=terraform&logoColor=white&style=flat-square)](infra/terraform)
+[![Helm](https://img.shields.io/badge/Helm-3_charts-0F1689?logo=helm&logoColor=white&style=flat-square)](infra/charts)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json&style=flat-square)](https://github.com/astral-sh/uv)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json&style=flat-square)](https://github.com/astral-sh/ruff)
+[![pyright strict](https://img.shields.io/badge/pyright-strict-2C7BB6?style=flat-square)](pyproject.toml)
 
 The Pinecall runtime: voice agents on the phone, in the browser, in chat and on WhatsApp, on your
 cluster, your carrier and your models. One Python package, `pinecall`, in two processes: the
