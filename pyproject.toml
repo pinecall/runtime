@@ -63,6 +63,9 @@ dependencies = [
 [project.optional-dependencies]
 voice = [
   "livekit-agents[assemblyai,asyncai,baseten,bland,cambai,cartesia,cerebras,clova,deepgram,elevenlabs,fal,fireworksai,fishaudio,gladia,gnani,gradium,groq,hume,inworld,lmnt,meta,minimax,mistralai,murf,neuphonic,nvidia,palabra,perplexity,resemble,respeecher,rime,rtzr,sarvam,simplismart,slng,smallestai,soniox,speechify,spitch,upliftai,vakyam,xai]>=1.8.3,<2",
+  # livekit-plugins-upliftai imports socketio and does not declare it (1.8.3): without it the
+  # plugin does not import, and Uplift AI is no vendor.
+  "python-socketio>=5.11,<6",
 ]
 voice-big = ["livekit-agents[aws,azure,google,speechmatics]>=1.8.3,<2"]
 
@@ -179,7 +182,8 @@ known_first_party = ["pinecall", "tests"]
 # The voice lab runs on a machine of its own with what `uv run --with` gives it, not the package's.
 extend_exclude = ["tests/rules/fixtures", "infra/lab"]
 # The wheel's build hook imports the build backend, which build-system.requires declares.
-per_rule_ignores = { DEP001 = ["hatchling"] }
+# python-socketio is a plugin's import, never ours (the voice extra says why).
+per_rule_ignores = { DEP001 = ["hatchling"], DEP002 = ["python-socketio"] }
 
 [tool.vibesmell]
 # Calling these is the effect a door exists for: its hops are counted up to them.

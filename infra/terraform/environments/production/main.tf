@@ -95,6 +95,12 @@ module "addons" {
   depends_on              = [module.gke]
 }
 
+module "alerts" {
+  source = "../../modules/alerts"
+  name   = "production"
+  emails = ["ops@example.com"]
+}
+
 module "backups" {
   source  = "../../modules/backups"
   project = var.project
