@@ -5,10 +5,14 @@
 #                            the org's key on stdin
 #   number <public> <number> the number routed to the agent, hooked from the generator's public
 #                            address alone (a carrier reaches the cluster from the internet)
+#   store                    an S3 the recordings go to (moto, on 9000), its bucket made
+#   stored                   the keys the bucket holds, one a line
 # A secret comes on stdin and is never an argument or a line printed.
 set -euo pipefail
 
 FAKES_PORT=8700
+STORE_PORT=9000
+BUCKET=lab-recordings
 AGENT_FRAMEWORK=0.9.13
 
 setup() {
@@ -64,9 +68,25 @@ number() {
     esac
 }
 
+# moto answers S3 on its own wire and takes any key: the lab's store proves what the runtime sends.
+store() {
+    sudo systemctl stop lab-store 2>/dev/null || true
+    sudo systemctl reset-failed lab-store 2>/dev/null || true
+    sudo systemd-run --unit=lab-store --uid=lab --working-directory=/home/lab \
+        --setenv=PATH=/usr/local/bin:/usr/bin:/bin \
+        uv run --with "moto[server]" moto_server -H 0.0.0.0 -p "$STORE_PORT" >/dev/null
+    for _ in $(seq 60); do curl -s -o /dev/null "127.0.0.1:$STORE_PORT" && break; sleep 2; done
+    curl -fsS -o /dev/null -X PUT "127.0.0.1:$STORE_PORT/$BUCKET"
+    echo "store ready, bucket $BUCKET"
+}
+
+stored() {
+    curl -fsS "127.0.0.1:$STORE_PORT/$BUCKET" | grep -o '<Key>[^<]*</Key>' | sed 's/<[^>]*>//g'
+}
+
 verb=${1:-}
 shift || true
 case "$verb" in
-    setup | agent | number) "$verb" "$@" ;;
-    *) echo "generator.sh setup|agent <url>|number <public> <number>" >&2; exit 2 ;;
+    setup | agent | number | store | stored) "$verb" "$@" ;;
+    *) echo "generator.sh setup|agent <url>|number <public> <number>|store|stored" >&2; exit 2 ;;
 esac

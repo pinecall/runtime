@@ -122,9 +122,11 @@ module "backups" {
 }
 
 module "secrets" {
-  source     = "../../modules/secrets"
-  project    = var.project
-  name       = "staging"
+  source  = "../../modules/secrets"
+  project = var.project
+  name    = "staging"
+  # The lab's object store takes any key; the operator puts one by hand as production's is put.
+  given      = ["s3-secret-access-key"]
   depends_on = [module.gke]
 }
 

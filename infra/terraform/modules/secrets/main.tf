@@ -1,6 +1,10 @@
-# A cluster's own secrets, drawn here once in the shapes the runtime reads, kept in Secret Manager, and synced into the cluster by External Secrets
-# Operator acting as an identity that reads these alone (Workload Identity). They are in Terraform's
-# state, which is the private, versioned bucket of bootstrap/; nothing prints them.
+# A cluster's own secrets in the shapes the runtime reads, kept in Secret Manager and synced into
+# the cluster by External Secrets Operator acting as an identity that reads these alone (Workload
+# Identity). Most are drawn here once, and are in Terraform's state, the private, versioned bucket
+# of bootstrap/; nothing prints them. Those named in `given` are the operator's to put, once,
+# piped (`gcloud secrets versions add <id> --data-file=-`): a value that already exists elsewhere
+# (the vault key every sealed row of a database is under, an access key made by hand) and that
+# Terraform's state never holds.
 
 # A Fernet key: 32 random bytes, URL-safe base64 with its padding.
 resource "random_id" "vault" {
@@ -25,17 +29,19 @@ resource "random_id" "redis" {
 }
 
 locals {
-  values = {
+  drawn = {
     "vault-key"          = "${random_id.vault.b64_url}="
     "ops-key"            = "pc_ops_${random_id.ops.hex}"
     "livekit-api-key"    = "API${random_id.livekit_key.hex}"
     "livekit-api-secret" = random_password.livekit_secret.result
     "redis-password"     = random_id.redis.hex
   }
+  values = { for name, value in local.drawn : name => value if !contains(var.given, name) }
+  names  = toset(concat(keys(local.values), var.given))
 }
 
 resource "google_secret_manager_secret" "this" {
-  for_each  = local.values
+  for_each  = local.names
   secret_id = "pinecall-${var.name}-${each.key}"
   replication {
     auto {}
@@ -55,7 +61,7 @@ resource "google_service_account" "sync" {
 }
 
 resource "google_secret_manager_secret_iam_member" "sync" {
-  for_each  = local.values
+  for_each  = local.names
   secret_id = google_secret_manager_secret.this[each.key].id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.sync.email}"
@@ -74,6 +80,12 @@ variable "project" {
 variable "name" {
   type        = string
   description = "staging or production: the secrets are pinecall-<name>-*."
+}
+
+variable "given" {
+  type        = list(string)
+  description = "The secrets the operator puts by hand, made here empty: vault-key, s3-secret-access-key."
+  default     = []
 }
 
 output "sync_service_account" {
