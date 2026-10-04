@@ -9,7 +9,7 @@ make test          # every suite on a local Postgres, on every core; T=tests/log
 make hooks         # installs the pre-commit hook, which runs `make check`
 ```
 
-`make test` starts Postgres 17 with pgvector and pg_textsearch from `infra/postgres/` in colima
+`make test` starts Postgres 17 with pgvector and pg_textsearch from `infra/local/postgres/` in colima
 (macOS) or docker; nothing else runs locally: no LiveKit, no gateway. Live tests (`tests/live/`)
 run against a deployed box and are skipped without `PINECALL_URL`.
 
