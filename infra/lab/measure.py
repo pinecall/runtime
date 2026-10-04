@@ -1,15 +1,17 @@
 """The voice lab against a cluster: the generator configured, steps of SIP calls, a table each."""
 
-# uv run --no-project python infra/lab/measure.py up
-# uv run --no-project python infra/lab/measure.py run --calls 4,24,32 [--rate 1] [--kill-at 8]
+# uv run --no-project python infra/lab/measure.py up [--world sandbox]
+# uv run --no-project python infra/lab/measure.py run [--world sandbox] --calls 4,24,32 \
+#   [--rate 1] [--kill-at 8]
 #   up   the generator Terraform made beside the cluster (`-var lab=true`) configured: the vendors
-#        faked, the providers row at them, an org with its quotas open and judging off, its key
-#        (piped to the generator, never printed), the agent connected, a number hooked from the
-#        generator's public address and approved
-#   run  each step's calls placed at --rate a second from SIPp to the SIP node's public address,
-#        held two minutes; one row per step from the call log and the pods' CPU; `--kill-at N`
-#        resets the node of a scaled worker holding calls at the first step's N-th call, at once
-# The world is production: its scaled workers are the ones KEDA grows, which is what is proven.
+#        faked, the providers row at them, an org with its quotas open in the world and judging
+#        off, the world's key (piped to the generator, never printed), the world's agent connected,
+#        the world's number hooked from the generator's public address and approved
+#   run  each step's calls placed at --rate a second from SIPp to the world's SIP node, held two
+#        minutes; one row per step from the call log and the pods' CPU, the other world's beside
+#        it (its media and its workers: what a burst here must leave alone); `--kill-at N` resets
+#        the node of a scaled worker holding calls at the first step's N-th call, at once
+# Each world is its own pools (infra/README.md, "A pool a world"): its media node, its workers.
 
 import argparse
 import json
@@ -30,7 +32,8 @@ PROJECT, ZONE = "example-project", "us-central1-c"
 CONTEXT = f"gke_{PROJECT}_{ZONE}_pinecall-staging"
 URL = "https://staging.pinecall.io"
 OPS_KEY = "pinecall-staging-ops-key"
-NUMBER = "+15550100100"
+NUMBERS = {"production": "+15550100100", "sandbox": "+15550100101"}
+WORLDS = tuple(NUMBERS)
 ORG = "lab"
 GEN = "pinecall-lab-gen"
 QUOTAS = {
@@ -65,22 +68,18 @@ select (select count(*) from c), (select count(*) from s),
 # The scaled worker that started the most of a step's calls, and how many.
 BUSIEST = """
 select data->>'worker', count(*) from call_log
-where type = 'call.started' and ts >= {t0} and data->>'worker' like 'worker-scaled-%'
+where type = 'call.started' and ts >= {t0} and data->>'worker' like 'worker-scaled-{world}-%'
 group by 1 order by 2 desc limit 1
 """
 
-CORE = (
-    "pinecall-gateway",
-    "pinecall-livekit",
-    "pinecall-sip",
-    "pinecall-postgres",
-    "pinecall-redis",
-)
+# What both worlds share; each world adds its own LiveKit and SIP (`media_of`).
+SHARED = ("pinecall-gateway", "pinecall-postgres", "pinecall-redis")
 
 HEADER = (
-    "| calls at once | workers (pods) | per call | the core's services | turns answered "
-    "| first audio p50 / p95 | ring to live | errors | drained | scaled workers · nodes |\n"
-    "|---|---|---|---|---|---|---|---|---|---|"
+    "| calls at once | workers (pods) | per call | its services | turns answered "
+    "| first audio p50 / p95 | ring to live | errors | drained | scaled workers · nodes "
+    "| the other world |\n"
+    "|---|---|---|---|---|---|---|---|---|---|---|"
 )
 
 
@@ -88,15 +87,17 @@ def main() -> None:
     """Parse the verb and run it."""
     verbs = argparse.ArgumentParser(prog="measure.py")
     under = verbs.add_subparsers(dest="verb", required=True)
-    under.add_parser("up", help="the generator configured, the agent connected, the number")
+    up = under.add_parser("up", help="the generator configured, the agent connected, the number")
+    up.add_argument("--world", choices=WORLDS, default="production")
     run = under.add_parser("run", help="each step's calls placed and measured")
+    run.add_argument("--world", choices=WORLDS, default="production")
     run.add_argument("--calls", default="4,24,32", help="each step's calls at once")
     run.add_argument("--rate", type=int, default=1, help="calls placed a second")
     run.add_argument(
         "--kill-at", type=int, default=None, help="the first step's call a node dies at"
     )
     args = verbs.parse_args()
-    lab = Lab()
+    lab = Lab(args.world)
     if args.verb == "up":
         lab.up()
     else:
@@ -106,8 +107,11 @@ def main() -> None:
 class Lab:
     """The generator Terraform made, the cluster's gateway over HTTPS, its pods over kubectl."""
 
-    def __init__(self) -> None:
+    def __init__(self, world: str) -> None:
         """The generator's addresses from Terraform; the ops key from Secret Manager, held here."""
+        self.world = world
+        self.other = next(other for other in WORLDS if other != world)
+        self.number = NUMBERS[world]
         # Google's credentials are the gcloud login's, a short-lived token in the environment.
         token = _ran("gcloud", "auth", "print-access-token")
         made = json.loads(
@@ -151,7 +155,7 @@ class Lab:
         self.ops_call(
             "PUT",
             f"/v1/ops/orgs/{org}/quotas",
-            {"env": "production", "quotas": {"limits": QUOTAS, "budget_usd": None, "lends": None}},
+            {"env": self.world, "quotas": {"limits": QUOTAS, "budget_usd": None, "lends": None}},
         )
         for vendor in ("anthropic", "deepgram", "cartesia"):
             self.ops_call(
@@ -160,18 +164,18 @@ class Lab:
                 {"key": "not-a-key-the-lab-fakes-every-vendor"},
             )
         minted = self.ops_call(
-            "POST", f"/v1/ops/orgs/{org}/keys", {"env": "production", "label": "lab-agent"}
+            "POST", f"/v1/ops/orgs/{org}/keys", {"env": self.world, "label": f"lab-{self.world}"}
         )
         key = str(minted["key"])
-        _call("PUT", "/v1/org/judging", {"on": False}, key)
-        progress("the agent under `pinecall start --prod`, the key by stdin")
-        self.ssh(f"bash /tmp/generator.sh agent {URL}", given=key)
-        progress(f"the number {NUMBER}, hooked from {self.gen_public}, approved")
-        self.ssh(f"bash /tmp/generator.sh number {self.gen_public} {NUMBER}")
+        _call("PUT", "/v1/org/judging", {"on": False}, key, self.world)
+        progress(f"the {self.world} agent under `pinecall start`, the key by stdin")
+        self.ssh(f"bash /tmp/generator.sh agent {URL} {self.world}", given=key)
+        progress(f"the number {self.number}, hooked from {self.gen_public}, approved")
+        self.ssh(f"bash /tmp/generator.sh number {self.gen_public} {self.number} {self.world}")
         waiting = self.ops_call("GET", "/v1/ops/carrier-networks?state=waiting", None)
         for ask in waiting if isinstance(waiting, list) else []:
             self.ops_call("POST", f"/v1/ops/carrier-networks/{ask['id']}/approve", None)
-        path = _call("GET", f"/v1/numbers/{NUMBER}/path", None, key)
+        path = _call("GET", f"/v1/numbers/{self.number}/path", None, key, self.world)
         print(json.dumps(path, indent=1))
 
     def pack(self) -> Path:
@@ -203,7 +207,7 @@ class Lab:
             self.step(calls, rung, rate, kill_at if n == 0 else None)
             for n, calls in enumerate(steps)
         ]
-        print(f"\nstaging · SIP at {rung} · {rate} a second\n\n{HEADER}")
+        print(f"\nstaging · {self.world} · SIP at {rung} · {rate} a second\n\n{HEADER}")
         for row in rows:
             print(row)
         for note in self.notes:
@@ -215,7 +219,7 @@ class Lab:
         t0 = time.time()
         sipp = (
             f"cd /home/lab && sudo rm -f caller_*; sudo timeout {CALL_S + calls + 150} sipp "
-            f"{rung}:5060 -sf caller.xml -s {NUMBER} -i {self.gen_internal} "
+            f"{rung}:5060 -sf caller.xml -s {self.number} -i {self.gen_internal} "
             f"-mi {self.gen_internal} -m {calls} -l {calls} -r {rate} -max_socket 100000 "
             "-nostdin >/dev/null 2>&1; true"
         )
@@ -239,7 +243,7 @@ class Lab:
             time.sleep(waited)
             self.kill_a_node(t0)
         time.sleep(max(0.0, calls / rate + SETTLED_S - waited))
-        workers, core = self.cpu_over(WINDOW_S)
+        workers, core, other = self.cpu_over(WINDOW_S)
         caller.wait()
         t1 = time.time()
         rang, started, ring, user, agent, p50, p95, errors, drained = (
@@ -250,48 +254,54 @@ class Lab:
         return (
             f"| {calls} ({started} of {rang} started) | {workers:.2f} cores | {per:.2f} "
             f"| {core:.2f} cores | {agent} of {user} | {p50} / {p95} s | {ring} s | {errors} "
-            f"| {drained} | {self.scaled()} |"
+            f"| {drained} | {self.scaled(self.world)} "
+            f"| {other:.2f} cores · {self.scaled(self.other)} |"
         )
 
-    def cpu_over(self, seconds: float) -> tuple[float, float]:
-        """The workers' and the core services' cores, averaged over samples of the pods' metrics."""
-        samples: list[tuple[float, float]] = []
+    def cpu_over(self, seconds: float) -> tuple[float, float, float]:
+        """The world's workers', its services' and the other world's cores, sampled and averaged."""
+        samples: list[tuple[float, float, float]] = []
         end = time.time() + seconds
+        mine, theirs = media_of(self.world), media_of(self.other)
         while time.time() < end:
             pods = json.loads(
                 self.kubectl("get", "--raw", "/apis/metrics.k8s.io/v1beta1/namespaces/default/pods")
             )
-            workers = core = 0.0
+            workers = core = other = 0.0
             for pod in pods["items"]:
                 cores = sum(_cores(c["usage"]["cpu"]) for c in pod["containers"])
                 name = pod["metadata"]["name"]
-                if name.startswith(("worker-core-production", "worker-scaled-production")):
+                if name.startswith(mine[2:]):
                     workers += cores
-                elif name.startswith(CORE):
+                elif name.startswith(SHARED + mine[:2]):
                     core += cores
-            samples.append((workers, core))
+                elif name.startswith(theirs):
+                    other += cores
+            samples.append((workers, core, other))
             time.sleep(SAMPLE_S)
         return (
             sum(s[0] for s in samples) / len(samples),
             sum(s[1] for s in samples) / len(samples),
+            sum(s[2] for s in samples) / len(samples),
         )
 
-    def scaled(self) -> str:
-        """KEDA's scaled workers of production now, and the workers pool's nodes."""
+    def scaled(self, world: str) -> str:
+        """KEDA's scaled workers of the world now, and its workers pool's nodes."""
         replicas = (
             self.kubectl(
-                "get", "deployment", "worker-scaled-production", "-o", "jsonpath={.status.replicas}"
+                "get", "deployment", f"worker-scaled-{world}", "-o", "jsonpath={.status.replicas}"
             )
             or "0"
         )
-        nodes = self.kubectl("get", "nodes", "-l", "pinecall.io/pool=workers", "-o", "name")
+        pool = f"pinecall.io/pool=workers-{world}"
+        nodes = self.kubectl("get", "nodes", "-l", pool, "-o", "name")
         return f"{replicas} · {len(nodes.split())}"
 
     # As a machine that dies: a hard reset, no pod stopped, no socket closed, nothing told.
     def kill_a_node(self, since: float) -> None:
         """The node of the scaled worker that started the most of the step's calls reset at once."""
         # The call log, not the roster: a heartbeat is up to 5 s behind the calls a worker took.
-        started = self.psql(BUSIEST.format(t0=since))
+        started = self.psql(BUSIEST.format(t0=since, world=self.world))
         if not started:
             self.notes.append("no scaled worker had started a call: nothing was killed")
             return
@@ -314,9 +324,14 @@ class Lab:
         )
 
     def sip_address(self) -> str:
-        """The public address of the node the SIP pod runs on, where a carrier sends INVITEs."""
+        """The public address of the world's SIP node, where a carrier sends its INVITEs."""
         node = self.kubectl(
-            "get", "pods", "-l", "app=pinecall-sip", "-o", "jsonpath={.items[0].spec.nodeName}"
+            "get",
+            "pods",
+            "-l",
+            f"app=pinecall-sip,world={self.world}",
+            "-o",
+            "jsonpath={.items[0].spec.nodeName}",
         )
         return self.kubectl(
             "get",
@@ -416,16 +431,26 @@ class Lab:
         )
 
 
+def media_of(world: str) -> tuple[str, ...]:
+    """A world's own pods by name: its LiveKit, its SIP, then its workers."""
+    return (
+        f"pinecall-livekit-{world}",
+        f"pinecall-sip-{world}",
+        f"worker-core-{world}",
+        f"worker-scaled-{world}",
+    )
+
+
 def progress(text: str) -> None:
     """One line of progress."""
     print(f"→ {text}", flush=True)
 
 
-def _call(method: str, path: str, body: Any, key: str) -> Any:
+def _call(method: str, path: str, body: Any, key: str, world: str = "production") -> Any:
     data = None if body is None else json.dumps(body).encode()
     request = urllib.request.Request(f"{URL}{path}", data=data, method=method)
     request.add_header("Authorization", f"Bearer {key}")
-    request.add_header("pinecall-env", "production")
+    request.add_header("pinecall-env", world)
     if data is not None:
         request.add_header("content-type", "application/json")
     try:

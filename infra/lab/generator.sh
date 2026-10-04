@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # The lab's generator configured, one verb a step, run on it by measure.py over gcloud ssh:
 #   setup                    the vendors faked (port 8700), the caller's audio, the agent installed
-#   agent <url>              the tenant's agent under `pinecall start --prod`, until it connects;
-#                            the org's key on stdin
-#   number <public> <number> the number routed to the agent, hooked from the generator's public
-#                            address alone (a carrier reaches the cluster from the internet)
+#   agent <url> <world>      the tenant's agent in that world (`pinecall start`, `--prod` for
+#                            production), until it connects; the world's key on stdin
+#   number <public> <number> <world>
+#                            the number routed to the world's agent, hooked from the generator's
+#                            public address alone (a carrier reaches the cluster from the internet)
 #   store                    an S3 the recordings go to (moto, on 9000), its bucket made
 #   stored                   the keys the bucket holds, one a line
 # A secret comes on stdin and is never an argument or a line printed.
@@ -19,8 +20,8 @@ setup() {
     sudo useradd -m -s /bin/bash lab 2>/dev/null || true
     sudo chmod 755 /home/lab
     sudo tar xzf /tmp/lab.tgz -C /home/lab && sudo chown -R lab:lab /home/lab
-    sudo systemctl stop fake-vendors lab-agent 2>/dev/null || true
-    sudo systemctl reset-failed fake-vendors lab-agent 2>/dev/null || true
+    sudo systemctl stop fake-vendors lab-agent-production lab-agent-sandbox 2>/dev/null || true
+    sudo systemctl reset-failed fake-vendors lab-agent-production lab-agent-sandbox 2>/dev/null || true
     cd /home/lab
     sudo -u lab uv run -q --with numpy python caller.py
     sudo systemd-run --unit=fake-vendors --uid=lab --working-directory=/home/lab \
@@ -34,32 +35,33 @@ setup() {
     echo "generator ready"
 }
 
-# The key reaches the file by the pipe alone.
+# The key reaches the world's file by the pipe alone; one agent a world, each its own unit.
 agent() {
-    local url=$1
-    { printf 'PINECALL_KEY='; grep -o -m1 'pc_live_[A-Za-z0-9_.-]*'; echo "PINECALL_URL=$url"; } |
-        sudo sh -c 'umask 077; cat > /home/lab/agent/.env; chown lab:lab /home/lab/agent/.env'
-    sudo systemctl stop lab-agent 2>/dev/null || true
-    sudo systemctl reset-failed lab-agent 2>/dev/null || true
-    sudo systemd-run --unit=lab-agent --uid=lab --working-directory=/home/lab/agent \
+    local url=$1 world=$2 prod=""
+    [ "$world" = production ] && prod=--prod
+    { printf 'PINECALL_KEY='; grep -o -m1 'pc_\(live\|test\)_[A-Za-z0-9_.-]*'; echo "PINECALL_URL=$url"; } |
+        sudo sh -c "umask 077; cat > /home/lab/agent/$world.env; chown lab:lab /home/lab/agent/$world.env"
+    sudo systemctl stop "lab-agent-$world" 2>/dev/null || true
+    sudo systemctl reset-failed "lab-agent-$world" 2>/dev/null || true
+    sudo systemd-run --unit="lab-agent-$world" --uid=lab --working-directory=/home/lab/agent \
         -p Restart=on-failure -p RestartSec=3 \
-        -p EnvironmentFile=/home/lab/agent/.env --setenv=PATH=/usr/local/bin:/usr/bin:/bin \
-        /home/lab/agent/node_modules/.bin/pinecall start --prod >/dev/null
-    for _ in $(seq 60); do sudo journalctl -u lab-agent -o cat | grep -q connected && break; sleep 2; done
-    sudo journalctl -u lab-agent -o cat | grep -q connected || {
-        sudo journalctl -u lab-agent -o cat | tail -20
-        echo "the agent did not connect"
+        -p EnvironmentFile="/home/lab/agent/$world.env" --setenv=PATH=/usr/local/bin:/usr/bin:/bin \
+        /home/lab/agent/node_modules/.bin/pinecall start $prod >/dev/null
+    for _ in $(seq 60); do sudo journalctl -u "lab-agent-$world" -o cat | grep -q connected && break; sleep 2; done
+    sudo journalctl -u "lab-agent-$world" -o cat | grep -q connected || {
+        sudo journalctl -u "lab-agent-$world" -o cat | tail -20
+        echo "the $world agent did not connect"
         exit 1
     }
-    echo "agent connected"
+    echo "the $world agent connected"
 }
 
 number() {
-    local public=$1 number=$2 status
+    local public=$1 number=$2 world=$3 status
     printf '{"number": "%s", "agent": "clinica-norte", "hooked": true, "networks": ["%s/32"]}\n' \
         "$number" "$public" > /tmp/number.json
-    status=$(sudo sh -c 'set -a; . /home/lab/agent/.env; set +a; curl -s -o /tmp/number.out -w "%{http_code}" \
-        -X POST -H "Authorization: Bearer $PINECALL_KEY" -H "pinecall-env: production" \
+    status=$(sudo env WORLD="$world" sh -c 'set -a; . "/home/lab/agent/$WORLD.env"; set +a; curl -s -o /tmp/number.out -w "%{http_code}" \
+        -X POST -H "Authorization: Bearer $PINECALL_KEY" -H "pinecall-env: $WORLD" \
         -H "content-type: application/json" "$PINECALL_URL/v1/numbers" -d @/tmp/number.json')
     case "$status" in
         2*) echo "number $status" ;;
@@ -88,5 +90,5 @@ verb=${1:-}
 shift || true
 case "$verb" in
     setup | agent | number | store | stored) "$verb" "$@" ;;
-    *) echo "generator.sh setup|agent <url>|number <public> <number>|store|stored" >&2; exit 2 ;;
+    *) echo "generator.sh setup|agent <url> <world>|number <public> <number> <world>|store|stored" >&2; exit 2 ;;
 esac
