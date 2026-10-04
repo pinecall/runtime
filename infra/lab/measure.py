@@ -51,7 +51,8 @@ WINDOW_S = CALL_S - 40
 SAMPLE_S = 15
 
 CALLS = """
-with c as (select call, ts from call_log where type='call.ringing' and ts between {t0} and {t1}),
+with c as (select call, ts from call_log where type='call.ringing' and ts between {t0} and {t1}
+           and data->>'to' = '{number}'),
  s as (select l.ts - c.ts setup from call_log l join c using (call) where l.type='call.started'),
  a as (select (l.data->'metrics'->>'e2e_latency')::float e2e from call_log l join c using (call)
        where l.type='turn.agent' and l.data->'metrics' ? 'e2e_latency')
@@ -247,7 +248,8 @@ class Lab:
         caller.wait()
         t1 = time.time()
         rang, started, ring, user, agent, p50, p95, errors, drained = (
-            value or "—" for value in self.psql(CALLS.format(t0=t0, t1=t1)).split("|")
+            value or "—"
+            for value in self.psql(CALLS.format(t0=t0, t1=t1, number=self.number)).split("|")
         )
         live = int(started) if started.isdigit() else 0
         per = workers / live if live else 0.0

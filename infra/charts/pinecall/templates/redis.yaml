@@ -36,7 +36,8 @@ spec:
 # Redis's pub/sub is one per server, whatever database a client picks, so a LiveKit sharing one
 # with the other world's would answer that world's SIP (and refuse its numbers). LiveKit keeps the
 # world's SIP trunks and dispatch rules in it, so it is written to a disk that outlives the node:
-# a media node replaced comes back with its numbers.
+# a media node replaced comes back with its numbers. Its label is not the core Redis's: that
+# Service selects by `app: pinecall-redis`, and would hand the gateways' connections to these too.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -53,9 +54,9 @@ metadata:
 spec:
   replicas: 1
   strategy: { type: Recreate }
-  selector: { matchLabels: { app: pinecall-redis, world: {{ $world }} } }
+  selector: { matchLabels: { app: pinecall-media-redis, world: {{ $world }} } }
   template:
-    metadata: { labels: { app: pinecall-redis, world: {{ $world }} } }
+    metadata: { labels: { app: pinecall-media-redis, world: {{ $world }} } }
     spec:
       {{- include "pinecall.onMedia" $world | nindent 6 }}
       containers:
@@ -81,6 +82,6 @@ kind: Service
 metadata:
   name: pinecall-redis-{{ $world }}
 spec:
-  selector: { app: pinecall-redis, world: {{ $world }} }
+  selector: { app: pinecall-media-redis, world: {{ $world }} }
   ports: [{ port: 6379 }]
 {{- end }}
