@@ -9,7 +9,7 @@ made by hand and nothing is built on a laptop.
 |---|---|
 | `terraform/bootstrap` | the bucket every other root module keeps its state in, made once with local state |
 | `terraform/project` | what every cluster of the project shares: the images' registry and the identity Cloud Build builds them as |
-| `terraform/environments/<world-pair>` | one cluster each: `staging`, where each phase is proven with calls, and `production` (box.pinecall.io, sandbox.pinecall.io), whose names move to it at the cutover (`point_names`) |
+| `terraform/environments/<world-pair>` | one cluster each: `production` (box.pinecall.io, sandbox.pinecall.io), Pinecall's own since the cutover of 2026-10-04, and `staging`, made for a proof with calls and destroyed after it |
 | `terraform/modules/gke` | a cluster: zonal, two node pools (core; workers, sized by the cluster autoscaler alone), Workload Identity |
 | `terraform/modules/registry` · `build` | where images live, and the identity Cloud Build builds them as (`terraform/project`) |
 | `terraform/modules/secrets` | the runtime's secrets, drawn once into Secret Manager, and the identity External Secrets reads them as |
@@ -39,16 +39,16 @@ With gcloud signed in on the project, and the zone of the two names on Route 53 
 ```console
 $ terraform -chdir=infra/terraform/bootstrap init && terraform -chdir=infra/terraform/bootstrap apply   # once
 $ terraform -chdir=infra/terraform/project init && terraform -chdir=infra/terraform/project plan -out=plan && terraform -chdir=infra/terraform/project apply plan   # once
-$ make tf-init ENV=staging
-$ make tf-plan ENV=staging          # read it; the plan is saved
-$ make tf-apply ENV=staging         # exactly the plan read
-$ gcloud container clusters get-credentials pinecall-staging --zone us-central1-c
+$ make tf-init ENV=<env>
+$ make tf-plan ENV=<env>            # read it; the plan is saved
+$ make tf-apply ENV=<env>           # exactly the plan read
+$ gcloud container clusters get-credentials pinecall-<env> --zone us-central1-c
 $ gcloud builds submit infra/images/postgres --config infra/images/cloudbuild.yaml \
     --service-account "$(terraform -chdir=infra/terraform/project output -raw build_service_account)" \
     --substitutions _IMAGE="$(terraform -chdir=infra/terraform/project output -raw registry)/postgres:17.11-pgvector0.8.6-pgtextsearch1.4.0"
 $ make image                        # the runtime at this commit
-$ make deploy ENV=staging           # Postgres, the chart at that image, then the live suite
-$ make suite ENV=staging            # every suite inside the cluster
+$ make deploy ENV=<env>             # the front door, Postgres, the runtime at that image, the live suite
+$ make suite ENV=<env>              # every suite inside the cluster
 ```
 
 `make deploy` runs the migrations before anything new starts (a pre-upgrade hook), mints each
@@ -113,10 +113,11 @@ fleet and carriers served.
 ## Backups, and a restore
 
 Postgres's WAL goes to the bucket of `terraform/modules/backups` as it is written, and a base
-backup each night at 03:00 UTC (and one by hand after an install or a restore, a `Backup` of
-`method: plugin`: WAL alone restores nothing) (`charts/postgres`: the Barman Cloud plugin, 35 days kept), as an
-identity that touches that bucket alone. A restore is a second Cluster recovered from the bucket,
-which the same identity reads as `pinecall-postgres-restore`:
+backup is taken each night at 03:00 UTC (`charts/postgres`: the Barman Cloud plugin, 35 days
+kept), as an identity that touches that bucket alone. WAL alone restores nothing, so a database
+just installed or just restored is backed up once by hand, a `Backup` of `method: plugin`. A
+restore is a second Cluster recovered from the bucket, which the same identity reads as
+`pinecall-postgres-restore`:
 
 ```yaml
 apiVersion: postgresql.cnpg.io/v1
@@ -162,7 +163,9 @@ one pod each, SQLite on its own disk, its name (`notify.pinecall.io`, `billing.p
 `HTTPRoute` on this Gateway under `modules/edge`'s services certificate, its credentials Secret
 Manager's (`given`). Both reach the runtime at `http://pinecall-gateway:8080`; notify signs
 Android's pushes as `modules/notify`'s identity. Each repository's `make image` and `make deploy`
-release it; their books came over from the box once (`make restore-from-box`).
+release it. Their SQLite files came over from the box once, on 2026-10-04: each service's units
+stopped there, the file copied whole by SQLite's own backup onto the pod's disk while no pod ran,
+then the pod started.
 
 ## Staging, made and destroyed
 

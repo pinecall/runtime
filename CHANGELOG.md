@@ -2,7 +2,20 @@
 
 ## Unreleased
 
-- **The runtime runs in Kubernetes pods** (infra-v2), with the box's behaviour unchanged unless
+- **v1's machines left the repository** (`../infra-v1`): the box, the cell, the fleet loop and its
+  clouds, the Packer image, the AWS fleet and the lab's own Terraform, and with them `box up`,
+  `box upgrade`, `box failover`, every `cell` verb, `fleet loop`, `fence apply` (`pinecall-fence`),
+  the join door and its scope. The fence is the cloud's firewall: `fence export` prints the
+  networks 5060 opens to as Terraform's `sip_sources`, and `GET /v1/ops/carriers` says them
+  (`networks`, in place of `applied_at` and `applied`). A carrier sends a world's calls to its SIP
+  name (`PINECALL_SIP_DOMAIN`, `PINECALL_SANDBOX_SIP_DOMAIN`; unset, the world's name), and
+  `sip repoint` (`POST /v1/ops/sip/repoint`) sends every Twilio trunk at a world's name on to it,
+  once. A worker registers with LiveKit under its name and its start, so a container started again
+  under the same name is never taken for the dead one. A gateway keeps an idle connection 620 s
+  (Google's load balancer keeps its own 600) and imports every plugin before it listens;
+  `pinecall_vendor_failing` carries every installed vendor, 0 while it is sound. Uplift AI imports
+  (`python-socketio`, which its plugin needs and does not declare).
+- **The runtime runs in Kubernetes pods** (`infra/`), with the box's behaviour unchanged unless
   said: `PINECALL_GATEWAY_LISTEN` binds a pod's gateway on its network and
   `PINECALL_TRUSTED_PROXIES` names the load balancer it believes (a box keeps loopback and Caddy);
   `PINECALL_METRICS_FROM` lets a cluster's Prometheus scrape `/metrics`, never a forwarded

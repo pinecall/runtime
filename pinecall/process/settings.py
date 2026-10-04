@@ -122,8 +122,8 @@ class Settings(BaseModel):
         description="The bucket a finished recording moves to, under its org. Unset: the disk.",
     )
 
-    # The box's WAL spool: archive_command copies each segment there and a timer
-    # ships it. A cluster's Postgres archives through its operator, and has no spool to read.
+    # A box's WAL spool: archive_command copied each segment there and a timer shipped it. A
+    # cluster's Postgres archives through its operator, and has no spool to read.
     wal_spool: str | None = Field(
         "/var/lib/pinecall/wal",
         alias="PINECALL_WAL_SPOOL",

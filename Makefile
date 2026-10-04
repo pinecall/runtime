@@ -1,4 +1,4 @@
-# check · test · db · hooks · local · tf-* · image · suite · deploy · logs.
+# check · test · db · hooks · local · tf-* · image · suite · deploy · restore-from-box · logs.
 
 # The laptop's Postgres and Redis, for the suites only: in colima, on tmpfs, thrown away with
 # their containers.
@@ -132,7 +132,8 @@ deploy:           ## ENV=staging: charts/pinecall released at TAG=<commit> (make
 # staging): the box's schema `public` and its rows, dumped on the box and streamed into the
 # Postgres pod, never onto this laptop; the cluster's own schema emptied first and its two
 # extensions made again, as initdb made them; restored as the database's owner, the extensions
-# and the schema itself left out. The box's runtime must be stopped first: a row written after the dump is lost.
+# and the schema itself left out. The box's runtime must be stopped first: a row written after
+# the dump is lost.
 BOX      ?= example-box
 PG        = kubectl --context $(CONTEXT) exec -i pinecall-postgres-1 -c postgres --
 DUMP      = /var/lib/postgresql/data/box.dump
@@ -151,4 +152,4 @@ logs:             ## ENV=…: the gateways' and the workers' logs of the last ho
 	kubectl --context $(CONTEXT) logs --since=1h --prefix --max-log-requests 20 \
 	  -l 'app in (pinecall-gateway,worker,overflow)'
 
-.PHONY: check test db hooks local local-gateway local-worker local-down tf-check tf-init tf-plan tf-apply image suite deploy logs
+.PHONY: check test db hooks local local-gateway local-worker local-down tf-check tf-init tf-plan tf-apply image suite deploy restore-from-box logs

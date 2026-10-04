@@ -31,7 +31,6 @@ from pinecall.log.store import Store
 from pinecall.postgres.pool import open_pool
 from pinecall.process.connections import vault_of
 from pinecall.process.settings import Settings
-from pinecall.providers.build import installed
 from pinecall.tenancy import orgs, policy, vault
 from pinecall.wire.rest.accounts import OrgPolicy
 from tests.conftest import DSN, configured, postgres
@@ -63,18 +62,18 @@ def test_the_gateway_refuses_to_bind_anything_but_loopback() -> None:
 def test_the_gateway_imports_every_plugin_before_it_listens(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    imported: list[int] = []
+    order: list[str] = []
 
     def listening(_server: Stopping, *_given: object) -> None:
-        imported.append(installed.cache_info().currsize)
+        order.append("listening")
 
+    monkeypatch.setattr(cli, "installed", lambda: order.append("plugins imported"))
     monkeypatch.setattr(Stopping, "run", listening)
-    installed.cache_clear()
     gateway(
         Settings.model_validate({"PINECALL_GATEWAY_LISTEN": "10.111.0.9:8080"}),
         argparse.Namespace(),
     )
-    assert imported == [1]
+    assert order == ["plugins imported", "listening"]
 
 
 # A pod's gateway says where it binds, and believes the proxies it names, not loopback's.
