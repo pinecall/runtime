@@ -82,7 +82,8 @@ two minutes: then it is back in its place, and the next calls try it again. With
 no failures, the order is exactly the row's; an agent that names its own vendor runs it whatever
 its failures. Nothing is ordered by price. The window is in each gateway process's memory, counted
 from what the worker's append doors take: a restarted gateway starts it empty, and with several
-gateways each orders by what it saw itself. A written call, which the gateway runs itself and
+gateways each orders by what it saw itself. `/metrics` says it as `pinecall_vendor_failing{vendor}`: 1 for a vendor over
+the line, 0 for every other one installed, so the family is there before anything fails. A written call, which the gateway runs itself and
 whose failures reach no append door, runs the row's order.
 
 Each switch is a `vendor.switched` entry on the call's log (which vendor went down or came back, and

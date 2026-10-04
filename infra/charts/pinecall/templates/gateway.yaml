@@ -29,6 +29,10 @@ spec:
               value: {{ .Values.gateway.trustedProxies | quote }}
             - name: PINECALL_METRICS_FROM
               value: {{ printf "127.0.0.1,::1,%s" .Values.gateway.podNetwork | quote }}
+            {{- with .Values.billingUrl }}
+            - name: PINECALL_BILLING_URL
+              value: {{ . | quote }}
+            {{- end }}
           ports: [{ name: http, containerPort: 8080 }]
           lifecycle:
             preStop: { sleep: { seconds: 30 } }

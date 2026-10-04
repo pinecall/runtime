@@ -86,6 +86,7 @@ async def test_a_failing_vendor_and_each_replicas_lag_are_families_of_their_own(
     async with httpx.AsyncClient(base_url=knocking.url) as scraper:
         read = (await scraper.get("/metrics")).text
     assert 'pinecall_vendor_failing{vendor="deepgram"} 1.0' in read
+    assert 'pinecall_vendor_failing{vendor="openai"} 0.0' in read
     assert "# TYPE pinecall_replication_lag_seconds gauge" in read
 
 

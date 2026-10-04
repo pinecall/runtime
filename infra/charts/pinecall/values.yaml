@@ -72,6 +72,10 @@ store:
   region: ""
   bucket: ""
 
+# Where this runtime's orgs pay (PINECALL_BILLING_URL, docs/charging-for-it.md): GET /v1/limits
+# answers it and the console's Upgrade opens it. Unset, the runtime bills nobody.
+billingUrl: ""
+
 overflow:
   says: ""
 
