@@ -13,6 +13,7 @@ from pinecall.fleet.roster import heard_lately, worker_state
 from pinecall.gateway._deps import GatewayDep, client_of
 from pinecall.gateway._gateway import Gateway
 from pinecall.process.metrics import family, histogram
+from pinecall.providers import build
 
 router = APIRouter()
 
@@ -88,6 +89,10 @@ def _measures_of(
     totals = [gateway.roster.totals(fleet, now) for fleet in fleets]
     workers = {fleet: gateway.roster.of(fleet, now) for fleet in fleets}
     errors = sorted(counted.errors.items())
+    # Every vendor installed is a series, 0 while it is sound: a query (an alert's) on the family
+    # finds it before any vendor has failed.
+    failing = counted.failing(now)
+    vendors = sorted(set(build.installed()) | failing)
     return "".join(
         (
             histogram(
@@ -169,9 +174,10 @@ def _measures_of(
             ),
             family(
                 "pinecall_vendor_failing",
-                "Vendors over their error line in the last two minutes, as this gateway saw.",
+                "1 for a vendor over its error line in the last two minutes, as this gateway saw; "
+                "0 for every other vendor installed.",
                 "gauge",
-                [({"vendor": vendor}, 1) for vendor in sorted(counted.failing(now))],
+                [({"vendor": vendor}, int(vendor in failing)) for vendor in vendors],
             ),
             family(
                 "pinecall_replication_lag_seconds",

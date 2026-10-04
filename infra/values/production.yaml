@@ -29,6 +29,8 @@ store:
   endpoint: https://s3.us-east-1.amazonaws.com
   region: us-east-1
   bucket: pinecall-box-recordings-905418191085
+# Pinecall's own billing (pinecall/cloud), where every org buys more.
+billingUrl: https://billing.pinecall.io/
 # environments/production's ranges (modules/gke).
 media:
   nodeNetwork: 10.120.0.0/22
