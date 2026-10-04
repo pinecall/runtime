@@ -22,7 +22,8 @@ made by hand and nothing is built on a laptop.
 | `images/cloudbuild.yaml` | how an image is built: by Cloud Build, as the builds' own identity |
 | `charts/postgres/` | the cluster's Postgres under CloudNativePG: its WAL to a bucket as it is written and a base backup each night (the Barman Cloud plugin), 35 days kept |
 | `manifests/suite.yaml` | the suites' Job, with a Redis made for the run |
-| `charts/pinecall/` | the runtime: two gateways, each world's workers (a few on the core node, the rest scaled by KEDA on the gateway's own number), the overflow, LiveKit and SIP on their node's network, Redis, the migrations, the fleets' keys, the nightly retention, the Gateway (Google's HTTPS load balancer, the Gateway API) with Certificate Manager's certificate |
+| `charts/pinecall/` | the runtime: two gateways, each world's workers (a few on the core node, the rest scaled by KEDA on the gateway's own number), the overflow, LiveKit and SIP on their node's network, Redis, the migrations, the fleets' keys, the nightly retention |
+| `charts/edge/` | the front door, released apart and first: the Gateway (Google's HTTPS load balancer, the Gateway API) with Certificate Manager's certificate, its routes, the HTTP redirect and the backends' policies; its load balancer takes minutes to make, so a reinstall of the runtime never makes it again |
 | `values/<world-pair>.yaml` | a release's names, its secrets' project and prefix, its address |
 | `lab/` | calls with real audio and the vendors faked, against staging, measured (`terraform/modules/lab` is its generator) |
 | `local/` | the runtime on a laptop, and the Postgres image of the suites (`make local`, `make db`) |
@@ -70,7 +71,7 @@ is not (`docs/scaling.md`).
 
 ## HTTPS
 
-The two names are served by the chart's Gateway (the Gateway API, `gke-l7-global-external-managed`)
+The two names are served by `charts/edge`'s Gateway (the Gateway API, `gke-l7-global-external-managed`)
 on the global address `terraform/modules/edge` reserves, with a Certificate Manager certificate
 proved by DNS (a CNAME each in Route 53): it is issued before a name points at the address, so a
 cutover moves the names onto a certificate that is valid already. Made on staging on 2026-10-04:
@@ -101,8 +102,11 @@ A box's database moves into a cluster's Postgres once, at its cutover:
 `make restore-from-box ENV=<env> BOX=<ssh alias>` empties the cluster's schema, makes its two
 extensions again, and restores the box's schema `public` and its rows into it as the database's
 owner, the dump streamed from the box into the Postgres pod and deleted there. The box's runtime is
-stopped first, and the chart is installed after (`make deploy`), so its fleets' keys are minted in
-the database it will run on.
+stopped first, and the runtime's chart is installed after, so its fleets' keys are minted in the
+database it will run on (the install replaces a key secret an earlier install left). Rehearsed on
+staging on 2026-10-04 with production's database: restored in 43 s, the same 43 515 rows of
+`call_log` and 48 migrations, the chart installed on it, the live suite green, production's orgs,
+fleet and carriers served.
 
 ## Backups, and a restore
 

@@ -114,10 +114,13 @@ suite:            ## ENV=…: every suite as a Job on the cluster, TAG=<commit>;
 	kubectl --context $(CONTEXT) wait job/suite --for=condition=complete --timeout=30m; status=$$?; \
 	  kubectl --context $(CONTEXT) logs job/suite | tail -40; exit $$status
 
-# The cluster's Postgres (charts/postgres), then charts/pinecall at the image of this commit,
-# waiting for every workload; then the live suite against the world's production name.
+# The cluster's front door (charts/edge) and Postgres (charts/postgres), then charts/pinecall at
+# the image of this commit, waiting for every workload; then the live suite against the world's
+# production name.
 DOMAIN    = $(shell awk '/^domains:/{f=1;next} f && /^  production:/{print $$2; exit}' infra/values/$(ENV).yaml)
 deploy:           ## ENV=staging: charts/pinecall released at TAG=<commit> (make image first)
+	helm upgrade --install pinecall-edge infra/charts/edge --kube-context $(CONTEXT) \
+	  -f infra/values/$(ENV).yaml --wait --timeout 10m
 	helm upgrade --install pinecall-postgres infra/charts/postgres --kube-context $(CONTEXT) \
 	  -f infra/values/$(ENV).yaml --wait --timeout 10m
 	kubectl --context $(CONTEXT) wait cluster/pinecall-postgres --for=condition=Ready --timeout=600s
@@ -129,7 +132,7 @@ deploy:           ## ENV=staging: charts/pinecall released at TAG=<commit> (make
 # staging): the box's schema `public` and its rows, dumped on the box and streamed into the
 # Postgres pod, never onto this laptop; the cluster's own schema emptied first and its two
 # extensions made again, as initdb made them; restored as the database's owner, the extensions
-# left out. The box's runtime must be stopped first: a row written after the dump is lost.
+# and the schema itself left out. The box's runtime must be stopped first: a row written after the dump is lost.
 BOX      ?= pinecall-runtime-v2
 PG        = kubectl --context $(CONTEXT) exec -i pinecall-postgres-1 -c postgres --
 DUMP      = /var/lib/postgresql/data/box.dump
@@ -139,7 +142,7 @@ restore-from-box: ## ENV=…: the box's database restored into the cluster's Pos
 	  -c 'CREATE EXTENSION vector' -c 'CREATE EXTENSION pg_textsearch'
 	ssh $(BOX) 'sudo podman exec pinecall-postgres pg_dump -U pinecall -d pinecall -n public -Fc --no-owner --no-privileges' \
 	  | $(PG) sh -c 'cat > $(DUMP)'
-	$(PG) sh -c 'pg_restore -l $(DUMP) | grep -v " EXTENSION \| COMMENT - EXTENSION " > $(DUMP).list \
+	$(PG) sh -c 'pg_restore -l $(DUMP) | grep -v " EXTENSION \| COMMENT - EXTENSION \| SCHEMA - public \| COMMENT - SCHEMA public " > $(DUMP).list \
 	  && pg_restore --exit-on-error --no-owner --role=pinecall -d pinecall -L $(DUMP).list $(DUMP); \
 	  status=$$?; rm -f $(DUMP) $(DUMP).list; exit $$status'
 	$(PG) psql -d pinecall -At -c 'select count(*) from call_log' -c 'select count(*) from schema_migrations'
