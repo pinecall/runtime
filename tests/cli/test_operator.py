@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from pinecall.channels.telephony.carrier import TWILIO_SIGNALLING
 from pinecall.cli.main import main, verbs
 from pinecall.domain.errors import GatewayRefused, PinecallError
 from pinecall.process.settings import Settings
@@ -172,6 +173,16 @@ async def test_the_fleet_is_listed_and_a_worker_cordoned_and_let_be(
     assert "full" in listed
     assert await ran(settings, "fleet", "cordon", "pinecall-worker-1") == 0
     assert await ran(settings, "fleet", "uncordon", "pinecall-worker-1") == 0
+
+
+@postgres
+async def test_the_fence_is_exported_as_terraforms_sip_sources_twilio_first(
+    knocking: Knocking, capsys: pytest.CaptureFixture[str]
+) -> None:
+    settings = settings_of(knocking)
+    assert await ran(settings, "fence", "export") == 0
+    exported = json.loads(capsys.readouterr().out)
+    assert exported == {"sip_sources": list(TWILIO_SIGNALLING)}
 
 
 @postgres

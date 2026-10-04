@@ -11,7 +11,7 @@ writes an agent, nothing there issues a key.
 |---|---|
 | `gateway` · `worker` · `runner` · `doctor` · `providers` | this machine: its settings, its database, its LiveKit |
 | `migrate` · `sessions` · `memory` · `retention` · `traceback` · `facts` · `vault` | Postgres, straight, over `DATABASE_URL` (`vault` with `PINECALL_VAULT_KEY` too) |
-| `init` · `orgs` · `keys` · `routes` · `fleet` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` and `keys runner` alone are minted on the database, before any gateway answers |
+| `init` · `orgs` · `keys` · `routes` · `fleet` · `fence` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` and `keys runner` alone are minted on the database, before any gateway answers |
 | `load` | a running gateway's sandbox, over the worker's own call doors with the sandbox fleet's key (`PINECALL_WORKER_KEY`) |
 
 ## `gateway` · `worker start` · `worker overflow` · `runner start`
@@ -71,6 +71,18 @@ world's runner the same way ([protocol/hosting.md](protocol/hosting.md)).
 routes list [--org] [--env] · routes add <number> <agent> [--channel phone|whatsapp] [--org] [--env]
 routes rm <number> [--org] · routes seed [--file infra/seed/routes.json]
 ```
+
+## `fence`
+
+```
+fence export
+```
+
+The networks 5060 opens to, Twilio's first, then the carriers the operator admits and the
+addresses he approved ([telephony.md](telephony.md), "The fence, twice"), as Terraform reads them:
+`{"sip_sources": [...]}`. Written to
+`infra/terraform/environments/<env>/sip_sources.auto.tfvars.json` (the orgs' addresses, never
+committed), `make tf-plan` and `make tf-apply` bring the cloud's firewall level with the box.
 
 ## `fleet`
 

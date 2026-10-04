@@ -1,4 +1,4 @@
-"""The operator's verbs over the runtime's own doors: init, orgs, keys, routes and the fleet."""
+"""The operator's verbs over the runtime's doors: init, orgs, keys, routes, the fleet, the fence."""
 
 import argparse
 import asyncio
@@ -161,6 +161,14 @@ def routes_group(group: argparse.ArgumentParser) -> None:
     seed.set_defaults(run=_knocking(routes_seed))
 
 
+def fence_group(group: argparse.ArgumentParser) -> None:
+    """`fence export`: the networks the cloud's firewall admits to 5060, as Terraform reads them."""
+    under = group.add_subparsers(required=True)
+    under.add_parser("export", help="the list, as sip_sources").set_defaults(
+        run=_knocking(fence_export)
+    )
+
+
 def fleet_group(group: argparse.ArgumentParser) -> None:
     """`fleet`: the workers heard from, and a cordon."""
     under = group.add_subparsers(required=True)
@@ -171,6 +179,14 @@ def fleet_group(group: argparse.ArgumentParser) -> None:
         one_verb = under.add_parser(verb)
         one_verb.add_argument("worker")
         one_verb.set_defaults(run=_knocking(runner))
+
+
+# The orgs' addresses: written to an ignored tfvars file, never committed (infra/README.md).
+def fence_export(client: httpx.Client, _args: argparse.Namespace) -> int:
+    """Every network 5060 opens to, Twilio's first, as Terraform's `sip_sources`."""
+    fence = _object(_object(_answered(client.get("/v1/ops/carriers")))["fence"])
+    _line_out(json.dumps({"sip_sources": _list(fence["networks"])}, indent=2))
+    return 0
 
 
 # Printed to stdout once, where the unit that mints it seals it: never to a terminal on a box.

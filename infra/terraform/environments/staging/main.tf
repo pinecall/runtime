@@ -57,8 +57,16 @@ module "edge" {
   source = "../../modules/edge"
   name   = "staging"
   names  = ["staging.pinecall.io", "sandbox.staging.pinecall.io"]
-  # Staging takes calls from the lab's generator alone, while it stands.
-  sip_sources = [for lab in module.lab : "${lab.public_address}/32"]
+  # The fence's networks (sip_sources.auto.tfvars.json, `pinecall-runtime fence export`), and the
+  # lab's generator while it stands.
+  sip_sources = concat(var.sip_sources, [for lab in module.lab : "${lab.public_address}/32"])
+}
+
+# Written by `pinecall-runtime fence export` into sip_sources.auto.tfvars.json: the orgs'
+# addresses, never committed. Unset, 5060 opens to nobody.
+variable "sip_sources" {
+  type    = list(string)
+  default = []
 }
 
 # The voice lab beside the cluster, for a proof with calls (infra/lab): `-var lab=true`.

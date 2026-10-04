@@ -386,7 +386,7 @@ async def list_box_carriers(gateway: GatewayDep) -> BoxCarriers:
     pool = gateway.connections.pool
     admitted = await carrier_catalog.admitted(pool)
     through = Counter(_comes_through(record) for record in await routes.on_the_box(pool))
-    applied = await firewall.last_applied(pool)
+    found = await firewall.openings(pool)
     return BoxCarriers(
         carriers=[
             _box_carrier(carrier, admitted, through[carrier.kind])
@@ -394,16 +394,15 @@ async def list_box_carriers(gateway: GatewayDep) -> BoxCarriers:
         ],
         fence=BoxFence(
             openings=[
-                FenceOpening(network=opening.network, reason=opening.reason)
-                for opening in await firewall.openings(pool)
+                FenceOpening(network=opening.network, reason=opening.reason) for opening in found
             ],
-            applied_at=None if applied is None else applied.at,
-            applied=None if applied is None else applied.networks,
+            networks=firewall.every_network(found),
         ),
     )
 
 
-# On, every org sees it under Add a number and the fence opens to its networks within a minute.
+# On, every org sees it under Add a number, and its networks join the fence's list for the cloud's
+# firewall (`fence export`, then Terraform).
 @router.put("/v1/ops/carriers/{kind}")
 async def admit_box_carrier(
     kind: str, body: AdmitCarrierRequest, gateway: GatewayDep
@@ -429,7 +428,7 @@ async def list_carrier_networks(
 async def approve_carrier_network(
     ask: int, gateway: GatewayDep, operating: OperatorDep
 ) -> CarrierNetworkRow:
-    """Open 5060 to the network within a minute, and admit the org's numbers it fences."""
+    """Put the network on the firewall's list, and admit the org's numbers it fences."""
     return await _decided(gateway, ask, "approved", operating)
 
 
@@ -437,7 +436,7 @@ async def approve_carrier_network(
 async def refuse_carrier_network(
     ask: int, gateway: GatewayDep, operating: OperatorDep
 ) -> CarrierNetworkRow:
-    """Keep 5060 closed to the network; numbers it alone fenced are let go of on the SFU."""
+    """Keep the network off the fence's list; numbers it alone fenced are let go of on the SFU."""
     return await _decided(gateway, ask, "refused", operating)
 
 

@@ -141,9 +141,8 @@ signalling networks, the page they were read from and the day). `GET /v1/ops/car
 `{carriers, fence}`: each carrier `{kind, name, control, networks, source, read_on, admitted, fixed,
 numbers}` (`control` when the box drives its API, `fixed` for Twilio, the box's own carrier,
 admitted always, `numbers` the numbers of every org that reach the box through it), and the fence,
-`{openings: [{network, reason}], applied_at, applied}` (`applied_at` and `applied`: when a root
-helper on a box last wrote the list into nftables and how many networks; null in a cluster, which
-has none). `PUT /v1/ops/carriers/{kind} {admitted}`
+`{openings: [{network, reason}], networks}` (`networks`: every network the cloud's firewall admits
+to 5060, Twilio's first, then each opening). `PUT /v1/ops/carriers/{kind} {admitted}`
 admits a carrier or stops: admitted, every org sees it in `GET /v1/carriers/catalog` and may hook
 numbers `via` it; `409` for Twilio off, `404` for a kind the catalog lacks.
 
@@ -157,10 +156,12 @@ follow at once (a number fenced by nothing approved is taken off them). A networ
 In a cluster the fence is the cloud's firewall (`infra/terraform/modules/edge`): its rule
 `pinecall-<world>-sip` (priority 500) admits the networks of Terraform's `sip_sources`, and
 `pinecall-<world>-sip-deny` (600) denies everyone else's 5060, ending a flow the allow no longer
-covers. The networks it should admit are the fence's openings above, Twilio's with them, each
-checked again (none wider than a `/16` from the catalog or a `/24` from an org); a network the
-operator approves reaches the rule by a Terraform change, and until then it is closed in the
-cloud. The gateway never touches the firewall.
+covers. The networks it admits are the fence's `networks`, each checked again (none wider than a
+`/16` from the catalog or a `/24` from an org); a network the operator approves reaches the rule
+when the operator writes the list for Terraform and applies it,
+`pinecall-runtime fence export > infra/terraform/environments/<env>/sip_sources.auto.tfvars.json`
+then `make tf-plan` and `make tf-apply` (the file is the orgs' addresses and is never committed),
+and until then it is closed in the cloud. The gateway never touches the firewall.
 
 ## The fleet
 
