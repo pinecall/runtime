@@ -129,6 +129,16 @@ def test_a_hash_inside_a_code_fence_is_a_comment_and_never_a_heading() -> None:
     assert "## tampoco" in only.text
 
 
+def test_a_code_block_with_blank_lines_is_one_part_and_never_cut_between_its_lines() -> None:
+    prose = " ".join(["palabra"] * 150)
+    code = (
+        "```ts\nexport default class Desk extends Agent {\n  a = 1;\n\n  b = 2;\n\n  c = 3;\n}\n```"
+    )
+    pieces = chunks_of("clase.md", f"# Guía\n\n## Clase\n\n{prose}\n\n{prose}\n\n{code}\n\n{prose}")
+    assert all(piece.text.count("```") % 2 == 0 for piece in pieces)
+    assert any(code in piece.text for piece in pieces)
+
+
 def test_a_file_with_no_headings_is_read_by_paragraph_groups() -> None:
     paragraphs = [f"El párrafo {n} tiene unas cuantas palabras." for n in range(4)]
     [only] = chunks_of("notas.md", "\n\n".join(paragraphs))
@@ -434,6 +444,19 @@ async def test_a_chunk_both_branches_find_scores_one_and_min_score_drops_the_res
     floored = SearchQuery(query="turnos", k=8, bases={THE_BASE: 0.6})
     kept = (await knowledge.search(pool, embedder, at(org), floored)).found
     assert [chunk.heading for chunk in kept] == [joined("Clínica Norte", "Turnos")]
+
+
+@postgres
+async def test_a_found_chunk_comes_back_as_its_whole_section_in_the_files_order(
+    pool: Pool, embedder: Embedder, org: str
+) -> None:
+    first, second, third = (" ".join([word] * 200) for word in ("uno", "dos", "tres"))
+    guide = KnowledgeFile("guia.md", f"# Guía\n\n## Clase\n\n{first}\n\n{second} café\n\n{third}\n")
+    assert len(chunks_of(guide.path, guide.text)) == 3
+    await pushed(pool, embedder, at(org), THE_BASE, guide)
+    [section] = await found(pool, embedder, at(org), "café", k=1)
+    assert section.heading == joined("Guía", "Clase")
+    assert section.text == f"{first}\n\n{second} café\n\n{third}"
 
 
 @postgres

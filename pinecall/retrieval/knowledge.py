@@ -25,6 +25,7 @@ from pinecall.retrieval._search import (
     relative_to_the_best,
     top_cosine,
 )
+from pinecall.retrieval._sections import section_texts, sections_chosen
 from pinecall.retrieval.embed import Embedder, estimated_tokens, halfvec
 
 # Small enough for eight chunks a turn, large enough for a whole tariff table.
@@ -453,26 +454,33 @@ async def search(pool: Pool, embedder: Embedder, scope: Scope, query: SearchQuer
             "bases": [copy["base"] for copy in copies],
             "holders": [copy["holder"] for copy in copies],
         },
-        columns=("base", "path", "heading", "text"),
+        columns=("base", "holder", "path", "heading", "ordinal", "text"),
     )
     room = CANDIDATES_PER_BRANCH * len(copies)
+    # independent: two reads, the sections only widening the chunks the search already found
     async with pool.connection() as connection:
         hits = await hybrid(connection, table, vector=vector, words=query.query, room=room)
+        floor = query.bases
+        floored = [hit for hit in relative_to_the_best(hits) if hit.fused >= floor[hit.row["base"]]]
+        chosen = sections_chosen([hit.row for hit in floored], query.k)
+        texts = await section_texts(connection, scope, [floored[at].row for at in chosen])
     found = [
         Found(
-            id=hit.id,
-            base=hit.row["base"],
-            path=hit.row["path"],
-            heading=hit.row["heading"],
-            text=body_of(hit.row["text"], hit.row["heading"]),
-            score=hit.fused,
-            cosine=hit.cosine,
+            id=floored[at].id,
+            base=floored[at].row["base"],
+            path=floored[at].row["path"],
+            heading=floored[at].row["heading"],
+            text=HEADING_JOINT.join(
+                body_of(text, floored[at].row["heading"])
+                for text in texts.get(place, [floored[at].row["text"]])
+            ),
+            score=floored[at].fused,
+            cosine=floored[at].cosine,
         )
-        for hit in relative_to_the_best(hits)
-        if hit.fused >= query.bases[hit.row["base"]]
+        for place, at in enumerate(chosen)
     ]
     best = top_cosine(hits)
-    return Searched(found=found[: query.k], evidence=evidence_of(best), model=model)
+    return Searched(found=found, evidence=evidence_of(best), model=model)
 
 
 def where(found: Found) -> str:
@@ -534,13 +542,27 @@ def _path_of(trail: Sequence[tuple[int, str]]) -> str | None:
 # The heading's tokens count against the cap: it is indexed with every piece under it.
 def _under_the_cap(body: str, heading: str | None) -> list[str]:
     room = CHUNK_TOKENS - estimated_tokens(heading or "")
-    paragraphs = [paragraph.strip() for paragraph in A_PARAGRAPH_BREAK.split(body)]
-    parts = [part for paragraph in paragraphs if paragraph for part in _within(paragraph, room)]
+    parts = [part for paragraph in _paragraphs(body) for part in _within(paragraph, room)]
     return _grouped(parts, HEADING_JOINT, room)
 
 
+# A blank line inside a code fence is the code's own: the block stays one paragraph, so a class
+# is never cut between two of its members and handed back as two halves.
+def _paragraphs(body: str) -> list[str]:
+    paragraphs: list[str] = []
+    in_code = False
+    for paragraph in A_PARAGRAPH_BREAK.split(body):
+        if in_code:
+            paragraphs[-1] += HEADING_JOINT + paragraph
+        else:
+            paragraphs.append(paragraph)
+        if sum(1 for line in paragraph.splitlines() if A_FENCE.match(line)) % 2:
+            in_code = not in_code
+    return [paragraph.strip() for paragraph in paragraphs if paragraph.strip()]
+
+
 def _within(paragraph: str, room: int) -> list[str]:
-    if estimated_tokens(paragraph) <= room:
+    if estimated_tokens(paragraph) <= room or A_FENCE.match(paragraph):
         return [paragraph]
     return _grouped(A_SENTENCE_END.split(paragraph), " ", room)
 

@@ -57,7 +57,7 @@ core under `_` names.
 | `postgres/` | 2 | 283 | `domain` |
 | `process/` | 9 | 1896 | `domain`, `postgres` |
 | `providers/` | 6 | 1308 | `domain`, `postgres`, `process`, `wire` |
-| `retrieval/` | 6 | 2352 | `domain`, `log`, `postgres`, `providers`, `wire` |
+| `retrieval/` | 7 | 2444 | `domain`, `log`, `postgres`, `providers`, `wire` |
 | `runner/` | 3 | 866 | `domain`, `process`, `wire` |
 | `session/` | 14 | 3672 | `domain`, `log`, `providers`, `wire` |
 | `tenancy/` | 38 | 7845 | `domain`, `log`, `postgres`, `process`, `wire` |

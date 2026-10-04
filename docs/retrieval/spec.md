@@ -47,13 +47,20 @@ measured on a golden of real questions, and it gates nothing.
 A base is a folder of Markdown pushed whole (`PUT /v1/knowledge/{base}`) or a file at a time
 (`PUT /v1/knowledge/{base}/files/{path}`). Each file is cut at its headings, one to three hashes,
 each piece kept under 350 tokens and cut again at a paragraph or a sentence when a section runs
-long; a piece carries its heading path in the text both indexes read, `Tarifas › Revisión`. Front
-matter is not a chunk. A file keeps the SHA-256 of the text it was cut from, so a push embeds only
+long; a fenced code block is one paragraph whatever blank lines it holds, and is never cut, so a
+class is never split between two of its members. A piece carries its heading path in the text
+both indexes read, `Tarifas › Revisión`. Front matter is not a chunk. A file keeps the SHA-256 of the text it was cut from, so a push embeds only
 the files that changed and the rest are kept as they were; a push that changes nothing costs one
 statement and no embedding.
 
 Every chunk is found by its vector and by its words: one query embedded once, two index scans
-(`halfvec` cosine, BM25 in Spanish text configuration), fused by rank in SQL. An org's chunks
+(`halfvec` cosine, BM25 in Spanish text configuration), fused by rank in SQL.
+
+What a turn is handed is sections, not loose pieces, as megabrain handed them in v1: a chunk found
+comes back as its section, the chunks of the same heading two either side of it joined in the
+file's order, so a section cut at 350 tokens reads whole again. Two hits in one section come back
+once. The two best pages give every section found in them; every page after them gives only its
+best one, so the answer reads the right page whole and the rest of the base one line each. An org's chunks
 count against its `knowledge_chunks` quota, sized before the push, and a plan with the quota at
 zero searches nothing and writes no entry.
 
