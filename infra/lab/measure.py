@@ -7,6 +7,9 @@
 #        faked, the providers row at them, an org with its quotas open in the world and judging
 #        off, the world's key (piped to the generator, never printed), the world's agent connected,
 #        the world's number hooked from the generator's public address and approved
+#   hand-over  a developer of the org, their sandbox copy under the SDK at ../../../agents, their
+#        phone (SIPp's first caller): one call from it to production's number, and which world's
+#        worker took it
 #   run  each step's calls placed at --rate a second from SIPp to the world's SIP node, held two
 #        minutes; one row per step from the call log and the pods' CPU, the other world's beside
 #        it (its media and its workers: what a burst here must leave alone); `--kill-at N` resets
@@ -15,6 +18,7 @@
 
 import argparse
 import json
+import secrets
 import shlex
 import subprocess
 import sys
@@ -33,6 +37,10 @@ CONTEXT = f"gke_{PROJECT}_{ZONE}_pinecall-staging"
 URL = "https://staging.pinecall.io"
 OPS_KEY = "pinecall-staging-ops-key"
 NUMBERS = {"production": "+15550100100", "sandbox": "+15550100101"}
+# SIPp's first caller (caller.xml), the lab developer's own phone; and the developer.
+DEVELOPERS_PHONE = "+15557001"
+DEVELOPER = "dev@lab.pinecall.test"
+SDK = RUNTIME.parent / "agents"
 WORLDS = tuple(NUMBERS)
 ORG = "lab"
 GEN = "pinecall-lab-gen"
@@ -66,6 +74,14 @@ select (select count(*) from c), (select count(*) from s),
         where l.type='call.ended' and l.data->>'reason' = 'drained') from a
 """
 
+# Every call since t0 that started: the number it rang, its worker, the turns it answered.
+HANDED = """
+select l.data->>'to', s.data->>'worker',
+       (select count(*) from call_log t where t.call = l.call and t.type = 'turn.agent')
+from call_log l join call_log s on s.call = l.call and s.type = 'call.started'
+where l.type = 'call.ringing' and l.ts >= {t0} order by l.ts
+"""
+
 # The scaled worker that started the most of a step's calls, and how many.
 BUSIEST = """
 select data->>'worker', count(*) from call_log
@@ -90,6 +106,7 @@ def main() -> None:
     under = verbs.add_subparsers(dest="verb", required=True)
     up = under.add_parser("up", help="the generator configured, the agent connected, the number")
     up.add_argument("--world", choices=WORLDS, default="production")
+    under.add_parser("hand-over", help="a developer's own phone at production's number")
     run = under.add_parser("run", help="each step's calls placed and measured")
     run.add_argument("--world", choices=WORLDS, default="production")
     run.add_argument("--calls", default="4,24,32", help="each step's calls at once")
@@ -98,9 +115,12 @@ def main() -> None:
         "--kill-at", type=int, default=None, help="the first step's call a node dies at"
     )
     args = verbs.parse_args()
-    lab = Lab(args.world)
+    # A developer's phone rings production's number.
+    lab = Lab(getattr(args, "world", "production"))
     if args.verb == "up":
         lab.up()
+    elif args.verb == "hand-over":
+        lab.hand_over()
     else:
         lab.run([int(step) for step in args.calls.split(",")], args.rate, args.kill_at)
 
@@ -178,6 +198,48 @@ class Lab:
             self.ops_call("POST", f"/v1/ops/carrier-networks/{ask['id']}/approve", None)
         path = _call("GET", f"/v1/numbers/{self.number}/path", None, key, self.world)
         print(json.dumps(path, indent=1))
+
+    def hand_over(self) -> None:
+        """A developer's copy in the sandbox, their phone, one ring at production's number."""
+        org = self.org()
+        progress("the developer: invited, a password chosen, their key piped to the generator")
+        key = self.developer(org)
+        self.copy(str(self.sdk()), "/tmp/sdk.tgz")
+        self.copy(str(HERE / "generator.sh"), "/tmp/generator.sh")
+        self.ssh(f"bash /tmp/generator.sh developer {URL}", given=key)
+        _call("PUT", "/v1/line/from", {"number": DEVELOPERS_PHONE}, key, "sandbox")
+        progress(f"one ring from {DEVELOPERS_PHONE} at {NUMBERS['production']}")
+        t0 = time.time()
+        print(self.step(1, self.sip_address(), 1, None))
+        rows = self.psql(HANDED.format(t0=t0))
+        print(f"\ncalls since the ring, by who took them:\n{rows or '(none)'}")
+
+    def developer(self, org: str) -> str:
+        """The lab developer, made again: invited, their password chosen; their first key."""
+        members = self.ops_call("GET", f"/v1/ops/orgs/{org}/members", None)
+        for row in members.get("members", []) if isinstance(members, dict) else members:
+            if row.get("email") == DEVELOPER:
+                self.ops_call("DELETE", f"/v1/ops/orgs/{org}/members/{row['id']}", None)
+        invited = self.ops_call(
+            "POST",
+            f"/v1/ops/orgs/{org}/members",
+            {"email": DEVELOPER, "name": "Lab Developer", "role": "developer"},
+        )
+        password = secrets.token_urlsafe(24)
+        token = invited["token"]
+        accepted = _call("POST", f"/v1/invitations/{token}", {"password": password}, "", "sandbox")
+        return str(accepted["key"])
+
+    def sdk(self) -> Path:
+        """The SDK at its commit, packed: what a developer runs, never another session's edits."""
+        staged = RUNTIME / ".lab" / "sdk"
+        _ran("rm", "-rf", str(staged))
+        staged.mkdir(parents=True)
+        _ran("sh", "-c", f"git -C {SDK} archive HEAD | tar -x -C {staged}")
+        _ran("sh", "-c", f"cd {staged} && pnpm install --frozen-lockfile --silent && pnpm build")
+        # pnpm's pack, as release.yml: npm's applies no publishConfig (its bin is the source).
+        _ran("sh", "-c", f"cd {staged} && pnpm pack --pack-destination {staged}/packed")
+        return next((staged / "packed").glob("*.tgz"))
 
     def pack(self) -> Path:
         """The lab's files and the agent's project as the generator's tarball, under .lab/."""

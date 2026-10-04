@@ -3,6 +3,8 @@
 #   setup                    the vendors faked (port 8700), the caller's audio, the agent installed
 #   agent <url> <world>      the tenant's agent in that world (`pinecall start`, `--prod` for
 #                            production), until it connects; the world's key on stdin
+#   developer <url>          the developer's sandbox copy, under the SDK packed at /tmp/sdk.tgz;
+#                            their key on stdin
 #   number <public> <number> <world>
 #                            the number routed to the world's agent, hooked from the generator's
 #                            public address alone (a carrier reaches the cluster from the internet)
@@ -57,6 +59,31 @@ agent() {
     echo "the $world agent connected"
 }
 
+# A developer's own copy: the person's key, no --prod, the SDK as the repository has it now.
+developer() {
+    local url=$1
+    sudo rm -rf /home/lab/developer && sudo cp -R /home/lab/agent /home/lab/developer
+    sudo rm -f /home/lab/developer/*.env /home/lab/developer/.env
+    sudo chown -R lab:lab /home/lab/developer
+    cd /home/lab/developer
+    sudo -u lab npm install --silent /tmp/sdk.tgz >/dev/null 2>&1
+    { printf 'PINECALL_KEY='; grep -o -m1 'pc_live_[A-Za-z0-9_.-]*'; echo "PINECALL_URL=$url"; } |
+        sudo sh -c 'umask 077; cat > /home/lab/developer/developer.env; chown lab:lab /home/lab/developer/developer.env'
+    sudo systemctl stop lab-developer 2>/dev/null || true
+    sudo systemctl reset-failed lab-developer 2>/dev/null || true
+    sudo systemd-run --unit=lab-developer --uid=lab --working-directory=/home/lab/developer \
+        -p Restart=on-failure -p RestartSec=3 \
+        -p EnvironmentFile=/home/lab/developer/developer.env --setenv=PATH=/usr/local/bin:/usr/bin:/bin \
+        /home/lab/developer/node_modules/.bin/pinecall start >/dev/null
+    for _ in $(seq 60); do sudo journalctl -u lab-developer -o cat | grep -q connected && break; sleep 2; done
+    sudo journalctl -u lab-developer -o cat | grep -q connected || {
+        sudo journalctl -u lab-developer -o cat | tail -20
+        echo "the developer's copy did not connect"
+        exit 1
+    }
+    echo "the developer's copy connected"
+}
+
 number() {
     local public=$1 number=$2 world=$3 status
     printf '{"number": "%s", "agent": "clinica-norte", "hooked": true, "networks": ["%s/32"]}\n' \
@@ -90,6 +117,6 @@ stored() {
 verb=${1:-}
 shift || true
 case "$verb" in
-    setup | agent | number | store | stored) "$verb" "$@" ;;
+    setup | agent | developer | number | store | stored) "$verb" "$@" ;;
     *) echo "generator.sh setup|agent <url> <world>|number <public> <number> <world>|store|stored" >&2; exit 2 ;;
 esac
