@@ -88,17 +88,12 @@ module "lab" {
 # Helm reaches the cluster as the gcloud login, by a token Terraform reads, never a stored file.
 data "google_client_config" "me" {}
 
-data "google_container_cluster" "this" {
-  name       = module.gke.cluster
-  location   = var.zone
-  depends_on = [module.gke]
-}
 
 provider "helm" {
   kubernetes = {
-    host                   = "https://${data.google_container_cluster.this.endpoint}"
+    host                   = "https://${module.gke.endpoint}"
     token                  = data.google_client_config.me.access_token
-    cluster_ca_certificate = base64decode(data.google_container_cluster.this.master_auth[0].cluster_ca_certificate)
+    cluster_ca_certificate = base64decode(module.gke.ca_certificate)
   }
 }
 
@@ -197,4 +192,8 @@ output "core_address" {
 
 output "kubeip_service_account" {
   value = module.kubeip.service_account
+}
+
+output "certificate_map" {
+  value = module.edge.certificate_map
 }

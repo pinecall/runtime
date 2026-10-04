@@ -43,14 +43,12 @@ spec:
             secretName: pinecall-media
             items: [{ key: livekit.yaml, path: livekit.yaml }]
 ---
-# Signalling inside the cluster (the gateways, SIP, the workers) and, through the Ingress, from
+# Signalling inside the cluster (the gateways, SIP, the workers) and, through the Gateway, from
 # outside (/rtc and the rest, as v1's Caddy routed them).
 apiVersion: v1
 kind: Service
 metadata:
   name: pinecall-livekit
-  annotations:
-    cloud.google.com/backend-config: '{"default": "pinecall-livekit"}'
 spec:
   selector: { app: pinecall-livekit }
   ports: [{ name: http, port: 7880, targetPort: 7880 }]

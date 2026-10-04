@@ -73,6 +73,12 @@ resource "google_container_cluster" "this" {
     workload_pool = "${var.project}.svc.id.goog"
   }
 
+  # The Gateway API: the HTTPS load balancer charts/pinecall declares, with Certificate Manager's
+  # certificate (issued by DNS before a name points here, modules/edge).
+  gateway_api_config {
+    channel = "CHANNEL_STANDARD"
+  }
+
   # Upgrades of the control plane and the nodes only in the window, when calls are fewest.
   maintenance_policy {
     recurring_window {
