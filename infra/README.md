@@ -111,7 +111,8 @@ fleet and carriers served.
 ## Backups, and a restore
 
 Postgres's WAL goes to the bucket of `terraform/modules/backups` as it is written, and a base
-backup each night at 03:00 UTC (`charts/postgres`: the Barman Cloud plugin, 35 days kept), as an
+backup each night at 03:00 UTC (and one by hand after an install or a restore, a `Backup` of
+`method: plugin`: WAL alone restores nothing) (`charts/postgres`: the Barman Cloud plugin, 35 days kept), as an
 identity that touches that bucket alone. A restore is a second Cluster recovered from the bucket,
 which the same identity reads as `pinecall-postgres-restore`:
 
