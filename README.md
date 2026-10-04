@@ -43,8 +43,8 @@ Nothing here is imported by an agent.
 ## How it runs
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.webp">
-  <img alt="How it runs: cloud.pinecall.io and sandbox.pinecall.io through Google's HTTPS load balancer, and their sip names on the core node's static address, into the core node (gateway ×2, Postgres on CloudNativePG with its WAL in a bucket, Redis, LiveKit, livekit-sip; worker ×2 per world, overflow, kubeip, notify, billing), above a workers pool that starts at zero, 32 seats a worker, sized by KEDA on the gateway's count" src="docs/images/architecture-light.webp">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/how-it-runs-dark.webp">
+  <img alt="How it runs: cloud.pinecall.io and sandbox.pinecall.io through Google's HTTPS load balancer, and their sip names on the core node's static address, into the core node (gateway ×2, Postgres on CloudNativePG with its WAL in a bucket, Redis, LiveKit, livekit-sip; worker ×2 per world, overflow, kubeip, notify, billing), above a workers pool that starts at zero, 32 seats a worker, sized by KEDA on the gateway's count" src="docs/images/how-it-runs-light.webp">
 </picture>
 
 ```
