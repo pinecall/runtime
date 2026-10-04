@@ -1,6 +1,5 @@
-# Staging: the whole cluster on Google Cloud, where each phase is proven with calls before
-# production. Made for the proof and destroyed after it (a second cluster's fee is paid while it
-# stands; the free tier covers one zonal cluster).
+# Production: Pinecall's own cluster, box.pinecall.io and sandbox.pinecall.io. Until the cutover
+# the names point at v1's box (its own Terraform, ../infra-v1): `point_names` turns on with it.
 
 terraform {
   required_version = ">= 1.5"
@@ -24,7 +23,7 @@ terraform {
   }
   backend "gcs" {
     bucket = "pinecall-terraform-state-000000000000"
-    prefix = "cluster/staging"
+    prefix = "cluster/production"
   }
 }
 
@@ -54,15 +53,21 @@ provider "aws" {
 }
 
 module "edge" {
-  source = "../../modules/edge"
-  name   = "staging"
-  names  = ["staging.pinecall.io", "sandbox.staging.pinecall.io"]
+  source      = "../../modules/edge"
+  name        = "production"
+  names       = ["box.pinecall.io", "sandbox.pinecall.io"]
+  point_names = var.point_names
   # Where a carrier sends each world's calls: the core node's static address (PINECALL_SIP_DOMAIN).
-  sip_names = ["sip.staging.pinecall.io", "sip.sandbox.staging.pinecall.io"]
+  sip_names = ["sip.box.pinecall.io", "sip.sandbox.pinecall.io"]
   region    = var.region
-  # The fence's networks (sip_sources.auto.tfvars.json, `pinecall-runtime fence export`), and the
-  # lab's generator while it stands.
-  sip_sources = concat(var.sip_sources, [for lab in module.lab : "${lab.public_address}/32"])
+  # The fence's networks (sip_sources.auto.tfvars.json, `pinecall-runtime fence export`).
+  sip_sources = var.sip_sources
+}
+
+# On at the cutover: box.pinecall.io and sandbox.pinecall.io point at this cluster.
+variable "point_names" {
+  type    = bool
+  default = false
 }
 
 # Written by `pinecall-runtime fence export` into sip_sources.auto.tfvars.json: the orgs'
@@ -70,19 +75,6 @@ module "edge" {
 variable "sip_sources" {
   type    = list(string)
   default = []
-}
-
-# The voice lab beside the cluster, for a proof with calls (infra/lab): `-var lab=true`.
-variable "lab" {
-  type    = bool
-  default = false
-}
-
-module "lab" {
-  count      = var.lab ? 1 : 0
-  source     = "../../modules/lab"
-  zone       = var.zone
-  pods_range = "10.111.0.0/16"
 }
 
 # Helm reaches the cluster as the gcloud login, by a token Terraform reads, never a stored file.
@@ -106,35 +98,36 @@ module "addons" {
 module "backups" {
   source  = "../../modules/backups"
   project = var.project
-  name    = "staging"
+  name    = "production"
   region  = var.region
 }
 
 module "kubeip" {
   source  = "../../modules/kubeip"
   project = var.project
-  name    = "staging"
+  name    = "production"
 }
 
 module "secrets" {
   source  = "../../modules/secrets"
   project = var.project
-  name    = "staging"
-  # The lab's object store takes any key; the operator puts one by hand as production's is put.
-  given      = ["s3-access-key-id", "s3-secret-access-key"]
+  name    = "production"
+  # The vault key the box's database is sealed under, the box's ops key (billing and notify knock
+  # with it), and the object store's key, made by hand: all the box's own, carried over.
+  given      = ["vault-key", "ops-key", "s3-access-key-id", "s3-secret-access-key"]
   depends_on = [module.gke]
 }
 
 module "gke" {
   source              = "../../modules/gke"
   project             = var.project
-  name                = "staging"
+  name                = "production"
   region              = var.region
   zone                = var.zone
-  nodes_range         = "10.110.0.0/22"
-  pods_range          = "10.111.0.0/16"
-  services_range      = "10.112.0.0/20"
-  deletion_protection = false
+  nodes_range         = "10.120.0.0/22"
+  pods_range          = "10.121.0.0/16"
+  services_range      = "10.122.0.0/20"
+  deletion_protection = true
 }
 
 output "cluster" {
@@ -155,10 +148,6 @@ output "ingress_address_name" {
 
 output "ingress_address" {
   value = module.edge.ingress_address
-}
-
-output "lab_generator" {
-  value = [for lab in module.lab : { name = lab.name, internal = lab.internal_address, public = lab.public_address }]
 }
 
 output "postgres_backups_bucket" {

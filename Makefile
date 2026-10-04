@@ -125,6 +125,25 @@ deploy:           ## ENV=staging: charts/pinecall released at TAG=<commit> (make
 	  -f infra/values/$(ENV).yaml --set image.tag=$(TAG) --wait --timeout 20m
 	PINECALL_URL=https://$(DOMAIN) uv run pytest -q tests/live
 
+# A box's database into the cluster's Postgres, once, at its cutover (and its rehearsal on
+# staging): the box's schema `public` and its rows, dumped on the box and streamed into the
+# Postgres pod, never onto this laptop; the cluster's own schema emptied first and its two
+# extensions made again, as initdb made them; restored as the database's owner, the extensions
+# left out. The box's runtime must be stopped first: a row written after the dump is lost.
+BOX      ?= example-box
+PG        = kubectl --context $(CONTEXT) exec -i pinecall-postgres-1 -c postgres --
+DUMP      = /var/lib/postgresql/data/box.dump
+restore-from-box: ## ENV=…: the box's database restored into the cluster's Postgres (BOX=<ssh alias>)
+	$(PG) psql -v ON_ERROR_STOP=1 -d pinecall -c 'DROP SCHEMA public CASCADE' \
+	  -c 'CREATE SCHEMA public AUTHORIZATION pinecall' \
+	  -c 'CREATE EXTENSION vector' -c 'CREATE EXTENSION pg_textsearch'
+	ssh $(BOX) 'sudo podman exec pinecall-postgres pg_dump -U pinecall -d pinecall -n public -Fc --no-owner --no-privileges' \
+	  | $(PG) sh -c 'cat > $(DUMP)'
+	$(PG) sh -c 'pg_restore -l $(DUMP) | grep -v " EXTENSION \| COMMENT - EXTENSION " > $(DUMP).list \
+	  && pg_restore --exit-on-error --no-owner --role=pinecall -d pinecall -L $(DUMP).list $(DUMP); \
+	  status=$$?; rm -f $(DUMP) $(DUMP).list; exit $$status'
+	$(PG) psql -d pinecall -At -c 'select count(*) from call_log' -c 'select count(*) from schema_migrations'
+
 logs:             ## ENV=…: the gateways' and the workers' logs of the last hour
 	kubectl --context $(CONTEXT) logs --since=1h --prefix --max-log-requests 20 \
 	  -l 'app in (pinecall-gateway,worker,overflow)'
