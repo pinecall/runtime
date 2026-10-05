@@ -17,5 +17,5 @@ appsNamespace: pinecall-apps
 # A world's runner serves its releases' sources at a fixed address of the services range: an
 # app's pod resolves nothing of the cluster's (public resolvers only), so it reaches it by address.
 worlds:
-  production: { address: 10.132.0.10 }
-  sandbox: { address: 10.132.0.11 }
+  production: { address: 10.132.15.200 }
+  sandbox: { address: 10.132.15.201 }

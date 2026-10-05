@@ -78,7 +78,10 @@ spec:
             limits: { cpu: 250m, memory: 512Mi }
           volumeMounts:
             - { name: key, mountPath: /run/secrets/runner, readOnly: true }
+            # The root is read-only; the runtime asks for a temporary directory when it loads.
+            - { name: tmp, mountPath: /tmp }
       volumes:
+        - { name: tmp, emptyDir: { sizeLimit: 64Mi } }
         - name: key
           csi:
             driver: secrets-store-gke.csi.k8s.io
