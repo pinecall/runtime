@@ -299,27 +299,36 @@ class Settings(BaseModel):
         repr=False,
         description="The key a world's runner knocks with, as `keys runner` printed it.",
     )
-    runner_root: str = Field(
-        "/var/lib/pinecall/runner",
-        alias="PINECALL_RUNNER_ROOT",
-        description="Where the runner unpacks each release and installs its dependencies.",
-    )
-    # A tmpfs the unit mounts: an org's secrets are written here for its containers, never on a
-    # disk.
-    runner_environments: str = Field(
-        "/run/pinecall-runner",
-        alias="PINECALL_RUNNER_ENVIRONMENTS",
-        description="Where the runner writes each container's environment, a folder per host.",
-    )
     runner_image: str = Field(
         "docker.io/library/node:24-slim",
         alias="PINECALL_RUNNER_IMAGE",
         description="The image every hosted app installs and runs in.",
     )
-    runner_runtime: str = Field(
-        "runsc",
-        alias="PINECALL_RUNNER_RUNTIME",
-        description="The OCI runtime a hosted app runs under: runsc (gVisor), or crun.",
+    runner_runtime_class: str = Field(
+        "gvisor",
+        alias="PINECALL_RUNNER_RUNTIME_CLASS",
+        description="The runtime class a hosted app's pod runs under: gvisor, GKE Sandbox's.",
+    )
+    runner_namespace: str = Field(
+        "pinecall-apps",
+        alias="PINECALL_RUNNER_NAMESPACE",
+        description="The namespace of the hosting cluster the runner starts every app's pod in.",
+    )
+    runner_sources_url: str = Field(
+        "http://127.0.0.1:8080",
+        alias="PINECALL_RUNNER_SOURCES_URL",
+        description="The runner as an app's pod reaches it, to fetch its release's sources.",
+    )
+    # Loopback unless told: in a pod, its chart says every address, which its Service reaches.
+    runner_listen: str = Field(
+        "127.0.0.1",
+        alias="PINECALL_RUNNER_LISTEN",
+        description="The address the runner serves the releases' sources on.",
+    )
+    runner_port: int = Field(
+        8080,
+        alias="PINECALL_RUNNER_PORT",
+        description="The port the runner serves the releases' sources on, to its world's pods.",
     )
     # Kept out of the database so a stolen dump does not expose tenants' secrets. To rotate: a
     # comma-separated list, the new key first; a secret seals under the first and opens under

@@ -1,12 +1,12 @@
-"""What a runner does this beat: decided from what the gateway wants and what podman has."""
+"""What a runner does this beat: decided from what the gateway wants and what the cluster has."""
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from pinecall.runner._podman import Container
+from pinecall.runner._kube import Container
 from pinecall.wire.rest.hosting import WantedApp
 
-# From `podman run` to the gateway seeing the release's agents: past it, the release failed.
+# From the app's process starting to the gateway seeing its agents: past it, the release failed.
 REGISTERS_WITHIN_S = 120.0
 
 
@@ -83,8 +83,8 @@ def crashes_within(times: Sequence[float], now: float) -> list[float]:
     return [at for at in times if now - at < CRASH_WINDOW_S]
 
 
-# Numbers in, steps out: nothing here touches podman or the gateway. The steps of one app are in
-# the order they are to be done, and two apps' steps never depend on each other.
+# Numbers in, steps out: nothing here touches the cluster or the gateway. The steps of one app are
+# in the order they are to be done, and two apps' steps never depend on each other.
 def planned(
     wanted: Sequence[WantedApp],
     containers: Sequence[Container],

@@ -1,5 +1,6 @@
 """Tests for the runner's plan: what one beat does to an app, from numbers alone."""
 
+from pinecall.runner._kube import Container
 from pinecall.runner._plan import (
     CRASH_WINDOW_S,
     MOST_CRASHES,
@@ -12,7 +13,6 @@ from pinecall.runner._plan import (
     crashes_within,
     planned,
 )
-from pinecall.runner._podman import Container
 from pinecall.wire.rest.hosting import WantedApp
 
 NOW = 10_000.0
@@ -39,7 +39,7 @@ def wanted(
     )
 
 
-def container(name: str, state: str = "running", started_at: float = NOW) -> Container:
+def container(name: str, state: str = "Running", started_at: float = NOW) -> Container:
     return Container(
         name=name,
         app="org_1/support",
@@ -56,7 +56,7 @@ NEW = container("support-r2-bbbbbbbb")
 
 
 def test_an_app_with_no_container_is_started_and_one_nobody_wants_is_stopped() -> None:
-    stray = Container(name="x-r1-cccccccc", app="org_2/x", release=1, state="running", started_at=0)
+    stray = Container(name="x-r1-cccccccc", app="org_2/x", release=1, state="Running", started_at=0)
     assert planned([wanted(live_host=None)], [stray], {}, NOW) == {
         "org_1/support": [Start(wanted(live_host=None))],
         "org_2/x": [Stop(stray)],
@@ -72,7 +72,7 @@ def test_the_old_host_serves_until_the_new_registers_then_goes() -> None:
 
 
 def test_a_new_host_that_exits_before_registering_failed_and_the_old_one_stays() -> None:
-    exited = container(NEW.name, "exited")
+    exited = container(NEW.name, "Failed")
     [step, *rest] = planned([wanted()], [OLD, exited], {}, NOW)["org_1/support"]
     assert isinstance(step, Failed)
     assert step.container == exited
@@ -98,7 +98,7 @@ def test_a_failed_host_is_stopped_and_the_live_one_kept() -> None:
 
 def test_a_live_host_that_exits_is_run_again_until_it_has_exited_too_often() -> None:
     settled = wanted(host=OLD.name, release=1, live_host=OLD.name)
-    gone = container(OLD.name, "exited")
+    gone = container(OLD.name, "Failed")
     assert planned([settled], [gone], {}, NOW) == {"org_1/support": [Revive(settled, gone)]}
     crashes = {OLD.name: [NOW - 10 * each for each in range(MOST_CRASHES)]}
     [step, stop] = planned([settled], [gone], crashes, NOW)["org_1/support"]
@@ -110,7 +110,7 @@ def test_a_live_host_that_exits_is_run_again_until_it_has_exited_too_often() -> 
 
 
 def test_the_old_host_exiting_while_the_new_installs_is_run_again_too() -> None:
-    gone = container(OLD.name, "exited")
+    gone = container(OLD.name, "Failed")
     assert planned([wanted()], [gone], {}, NOW) == {
         "org_1/support": [Start(wanted()), Revive(wanted(), gone)]
     }
@@ -122,6 +122,6 @@ def test_crashes_outside_the_window_are_forgotten() -> None:
 
 # Found in production: a container listed while podman was still creating it was taken for dead.
 def test_a_container_still_being_created_is_left_alone() -> None:
-    assert planned([wanted()], [OLD, container(NEW.name, "created")], {}, NOW) == {}
+    assert planned([wanted()], [OLD, container(NEW.name, "Pending")], {}, NOW) == {}
     settled = wanted(host=OLD.name, release=1, live_host=OLD.name)
     assert planned([settled], [container(OLD.name, "initialized")], {}, NOW) == {}

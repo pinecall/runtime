@@ -1,4 +1,4 @@
-# check · test · db · hooks · local · tf-* · image · suite · deploy · restore-from-box · logs.
+# check · test · db · hooks · local · tf-* · image · suite · deploy · hosting · restore-from-box · logs.
 
 # The laptop's Postgres and Redis, for the suites only: in colima, on tmpfs, thrown away with
 # their containers.
@@ -128,6 +128,17 @@ deploy:           ## ENV=staging: charts/pinecall released at TAG=<commit> (make
 	  -f infra/values/$(ENV).yaml --set image.tag=$(TAG) --wait --timeout 20m
 	PINECALL_URL=https://$(DOMAIN) uv run pytest -q tests/live
 
+# The hosting cluster (modules/hosting, when the environment has one): the runners of both worlds,
+# at TAG=<commit>, the same image as the runtime's. Its context is the regional Autopilot cluster's.
+REGION   ?= us-central1
+HOSTING   = gke_$(PROJECT)_$(REGION)_pinecall-$(ENV)-hosting
+hosting:          ## ENV=…: charts/hosting released on the hosting cluster at TAG=<commit>
+	gcloud container clusters get-credentials pinecall-$(ENV)-hosting --region $(REGION) \
+	  --project $(PROJECT) >/dev/null
+	helm upgrade --install pinecall-hosting infra/charts/hosting --kube-context $(HOSTING) \
+	  --namespace pinecall-runner --create-namespace \
+	  -f infra/values/hosting-$(ENV).yaml --set image.tag=$(TAG) --wait --timeout 15m
+
 # A box's database into the cluster's Postgres, once, at its cutover (and its rehearsal on
 # staging): the box's schema `public` and its rows, dumped on the box and streamed into the
 # Postgres pod, never onto this laptop; the cluster's own schema emptied first and its two
@@ -152,4 +163,4 @@ logs:             ## ENV=…: the gateways' and the workers' logs of the last ho
 	kubectl --context $(CONTEXT) logs --since=1h --prefix --max-log-requests 20 \
 	  -l 'app in (pinecall-gateway,worker,overflow)'
 
-.PHONY: check test db hooks local local-gateway local-worker local-down tf-check tf-init tf-plan tf-apply image suite deploy restore-from-box logs
+.PHONY: hosting check test db hooks local local-gateway local-worker local-down tf-check tf-init tf-plan tf-apply image suite deploy restore-from-box logs

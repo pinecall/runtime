@@ -127,6 +127,27 @@ bucket); unset, it stays on the pod's disk and goes with the pod. Proven on stag
 2026-10-04 with the lab's store (moto on the generator): two calls, each recording in the bucket,
 sealed, under its org and call.
 
+## Hosting
+
+The orgs' hosted apps (`pinecall deploy`, `docs/protocol/hosting.md`) run on a cluster of their
+own, `terraform/modules/hosting`, made where the environment says `hosting = true`: a GKE
+Autopilot cluster in a VPC of its own, so an org's code never shares a network with the box's
+database, its gateways or its calls. Off, the runtime serves everything but hosted apps.
+
+| what | where |
+|---|---|
+| each app | one pod in `pinecall-apps`, under GKE Sandbox's gVisor (`runtimeClassName: gvisor`): installed by its first container from its runner's sources, run by its second, read-only, as a user that is not root, with no service account token |
+| the fence | `charts/hosting`'s network policy: an app's pod reaches the internet and its runner's sources, nothing private (no pod, node or network address), and nothing reaches it |
+| each world's runner | a pod of `pinecall-runner` (`pinecall-runtime runner start`), knocking the box at its public name with its world's runner key, read off Secret Manager by the one identity that may (`pinecall-<env>-runner`) |
+
+The two runner keys are minted by the box and put once, piped, never printed:
+
+```console
+$ kubectl --context <the box's> exec deploy/pinecall-gateway -- pinecall-runtime keys runner production \
+    | gcloud secrets versions add pinecall-<env>-runner-key-production --data-file=-
+$ make hosting ENV=<env> TAG=<commit>       # the runners, the namespace and its fence
+```
+
 ## From a box
 
 A box's database moves into a cluster's Postgres once, at its cutover:

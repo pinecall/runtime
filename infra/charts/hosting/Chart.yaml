@@ -1,0 +1,5 @@
+apiVersion: v2
+name: pinecall-hosting
+description: The hosting cluster's workloads — a runner per world and the namespace their apps run in, fenced.
+type: application
+version: 0.1.0

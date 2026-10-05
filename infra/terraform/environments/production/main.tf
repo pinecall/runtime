@@ -107,6 +107,18 @@ variable "firebase_project" {
   default = null
 }
 
+# The hosting cluster (modules/hosting): where the orgs' hosted apps run. Off, the runtime serves
+# everything but `pinecall deploy`.
+variable "hosting" {
+  type    = bool
+  default = false
+}
+
+locals {
+  # Each world's runner key, minted by the gateway (`keys runner`) and put by the operator.
+  runner_keys = var.hosting ? ["runner-key-production", "runner-key-sandbox"] : []
+}
+
 # On since the cutover of 2026-10-04: cloud.pinecall.io and sandbox.pinecall.io point at this cluster.
 variable "point_names" {
   type    = bool
@@ -201,11 +213,23 @@ module "secrets" {
   # The vault key the box's database is sealed under, the box's ops key (billing and notify knock
   # with it), and the object store's key, made by hand: all the box's own, carried over; and
   # notify's and billing's own (their charts read them), carried over from the box the same way.
-  given = [
+  given = concat([
     "vault-key", "ops-key", "s3-access-key-id", "s3-secret-access-key",
     "notify-vapid", "billing-stripe-key", "billing-webhook-secret", "billing-cookie-secret",
-  ]
+  ], local.runner_keys)
   depends_on = [module.gke]
+}
+
+module "hosting" {
+  count          = var.hosting ? 1 : 0
+  source         = "../../modules/hosting"
+  project        = var.project
+  name           = "production"
+  region         = var.region
+  nodes_range    = "10.130.0.0/22"
+  pods_range     = "10.131.0.0/16"
+  services_range = "10.132.0.0/20"
+  runner_keys    = { for world in ["production", "sandbox"] : world => module.secrets.ids["runner-key-${world}"] }
 }
 
 module "gke" {
@@ -222,6 +246,10 @@ module "gke" {
 
 output "cluster" {
   value = module.gke.cluster
+}
+
+output "hosting" {
+  value = var.hosting ? module.hosting[0] : null
 }
 
 output "location" {

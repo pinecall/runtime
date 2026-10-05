@@ -5,8 +5,9 @@ A tenant's agent is a process the tenant runs ([the-smallest-app.md](the-smalles
 and the box keeps them as a **release**. Every door here takes a key that opens `app`, and acts in
 the world the request names: an app hosted in production is not hosted in the sandbox.
 
-The box's **runner** of that world installs each release and starts it, one gVisor container
-each, on a machine of its own, outside the box's cluster;
+The box's **runner** of that world installs each release and starts it, one pod each under gVisor,
+on a cluster of its own — the hosting cluster, apart from the one the box runs on, in a network of
+its own, which a runtime may have or not (`infra/README.md`, "Hosting");
 `GET /v1/hosted` says which release serves and why the newest failed. What the process is started
 with is the org's secrets, its token and the world's address, and the command is always
 `pinecall start` (`--prod` in production): a hosted project is a Node project with `pinecall` in
@@ -88,8 +89,8 @@ that host: the release is serving.
 A report says a host went `live` or `failed` (with `why`, 2 000 characters at most). It is kept
 only while that host is still the one wanted. A host reported failed comes back `failed: true`, and
 the runner leaves it alone until a release or a secret makes the next host. `logs_wanted` is true
-for a minute after somebody asked for the app's logs: the runner reads its container's last 300
-lines and sends them with its next beat.
+for a minute after somebody asked for the app's logs: the runner reads its pod's last 300 lines —
+its install's, when it never got to run — and sends them with its next beat.
 
 **A host that went live and whose process exits is run again**, as the same host, with its last
 lines kept as the app's logs. Five exits in ten minutes and the runner gives up: the host is
@@ -97,6 +98,11 @@ reported `failed` with its last lines (`the process exited 5 times in 10 minutes
 answers nothing until the next release or secret makes a new host. A host that never went live and
 exits is failed at once: a release that does not start is not tried again.
 
-The environment never rides podman's: the runner writes it to a file on a tmpfs, root's, that is
-mounted read-only into that one container, and the container's own shell reads it before it becomes
-`pinecall start`. A secret named like `LD_PRELOAD` or `PATH` is the app's own, never podman's.
+A host is one pod: its first container fetches the release's sources from the runner of its world
+by their digest (the runner checked them against the uploaded one) and installs the dependencies
+the lockfile names, its second runs `pinecall start` over them, read-only. Both run as a user that
+is not root, with no service account token, no capability, the public resolvers, and a scratch
+of their own (`TMPDIR`); the hosting cluster's network policy lets a pod reach the internet and
+its runner's sources, and nothing private. The environment is a secret of that one pod, mounted
+read-only, which the container's own shell reads before it becomes `pinecall start`: a secret named
+like `LD_PRELOAD` or `PATH` is the app's own, never the runner's.

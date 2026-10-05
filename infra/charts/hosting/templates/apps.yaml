@@ -1,0 +1,38 @@
+# Where every org's hosted app runs, one pod a host, under gVisor. The fence the apps' machine had
+# (infra-v1's fence.nft) is this policy: an app's pod reaches the internet and its runner's sources,
+# and nothing private — no other pod, no node, no address of a network — and nothing reaches it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.appsNamespace }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: an-app-reaches-the-internet-and-its-runner
+  namespace: {{ .Values.appsNamespace }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16]
+    - to:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: {{ .Release.Namespace }} } }
+          podSelector: { matchLabels: { app: runner } }
+      ports: [{ port: 8080, protocol: TCP }]
+---
+# A runner is reached by its world's apps, for their sources, and by nothing else.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: a-runner-is-reached-by-the-apps-alone
+spec:
+  podSelector: { matchLabels: { app: runner } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: {{ .Values.appsNamespace }} } }
+      ports: [{ port: 8080, protocol: TCP }]
