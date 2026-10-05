@@ -72,7 +72,11 @@ when an app holds the agent, a bare one otherwise, its lexicon in the scope, and
 org's keys, so a vendor this build has no plugin for, a blank knob, an opening with both verbs or a turn or
 voice knob the vendor takes under no name ([provider-keys.md](provider-keys.md)) is `400` in its
 own sentence, and a vendor the box does not lend this org is refused here and not on
-the next call. `409` when the scope is not at `if_version`. Answers the `GET` shape.
+the next call. A `pipeline` key's set is held to the bands the ears take the thresholds in —
+`eot_threshold` 0.5 to 0.9, `eager_eot_threshold` 0.3 to 0.9, outside which they refuse the
+connection — and `400 eot_threshold 0.1 is outside 0.5 to 0.9` otherwise; a version kept before
+this check is still read. A model or a voice is not: no plugin says which ids its vendor has, so a
+typo in one is the vendor's refusal on the next call. `409` when the scope is not at `if_version`. Answers the `GET` shape.
 
 ## `GET …/settings/history?team=&limit=` · `GET …/settings/diff?against=team|production` · `POST …/settings/rollback {version, team}`
 

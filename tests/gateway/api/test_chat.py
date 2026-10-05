@@ -159,3 +159,22 @@ async def test_a_supervisors_end_on_a_chat_seals_the_call_and_closes_the_socket(
     assert kinds[-3:] == ["call.ended", "call.summary", "call.score"]
     assert await knocking.gateway.logs.store.sealed(call)
     await app.close()
+
+
+# A caller gone while the answer is on its way: the send fails before the loop hears the close.
+@postgres
+async def test_a_caller_who_leaves_before_the_answer_ends_the_call(knocking: Knocking) -> None:
+    await catalog.configure(knocking.gateway.connections.pool, configured([["hola"]]))
+    app = await an_app(knocking)
+    chat = await knocking.socket(f"/v1/chat?agent={AGENT}", knocking.app["sandbox"])
+    started = await received_until(chat, "call.started")
+    await chat.send(json.dumps({"text": "quiero un turno"}))
+    await chat.close()
+    call = started.call or ""
+    for _ in range(50):
+        if await knocking.gateway.logs.store.sealed(call):
+            break
+        await asyncio.sleep(0.1)
+    ended = [e for e in await knocking.gateway.logs.store.whole(call) if e.type == "call.ended"]
+    assert ended[0].data["reason"] == "caller_hung_up"
+    await app.close()

@@ -161,6 +161,10 @@ async def _turns(websocket: WebSocket, gateway: Gateway, session: Session) -> No
     except WebSocketDisconnect as gone:
         if gone.code != SERVICE_RESTART and not session.closed:
             await text.end(session, "caller_hung_up", "caller")
+        return
+    # A send that found the caller gone closed the socket under the loop, with no close to hear.
+    if not session.closed:
+        await text.end(session, "caller_hung_up", "caller")
 
 
 async def _sent(websocket: WebSocket, heard: Subscription) -> None:

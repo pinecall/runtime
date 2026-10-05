@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Query
 from pydantic import ValidationError
 
-from pinecall.domain.agent import AgentConfig, Lexicon, Tuning, Version
+from pinecall.domain.agent import AgentConfig, Lexicon, Tuning, Turn, Version
 from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotFound
 from pinecall.domain.names import Env
 from pinecall.domain.scope import THE_ORGS_OWN, Scope
@@ -69,6 +69,14 @@ NOT_WORDS = "{fields}: the pipeline's, and this key opens words alone"
 NO_SUCH_VERSION = "no version {version} in this scope of {slug}"
 
 
+# The ears that take these knobs take them only inside these bands, and refuse the connection
+# outside one, so the call runs deaf. Checked where a set is written, never where one is read.
+BANDS = {"eot_threshold": (0.5, 0.9), "eager_eot_threshold": (0.3, 0.9)}
+
+
+OUT_OF_BAND = "{knob} {value} is outside {low} to {high}, the band the ears take it in"
+
+
 NO_SUCH_CALL = "no call {call} in this org"
 
 
@@ -98,6 +106,7 @@ async def put_settings(
     stages = await _checked(gateway, written_to, slug, wanted)
     # A words key carries the pipeline over untouched: only a knob this set sets is refused.
     if "pipeline" in key.bearer.key.scopes:
+        _refuse_out_of_band(wanted.turn)
         build.refuse_untaken(stages.stt, stages.tts, wanted)
     written = Written(author=_author(key), note=body.note, if_version=body.if_version)
     await scopes.put_tuning(pool, written_to, slug, wanted, written)
@@ -332,6 +341,13 @@ async def _checked(gateway: Gateway, scope: Scope, slug: str, wanted: Tuning) ->
     config = apply_tuning(declared, wanted, words.lexicon, defaults=configured.defaults)
     keyring = await keys_of(pool, gateway.connections.vault, scope)
     return credentials.pipeline(config, configured, keyring)
+
+
+def _refuse_out_of_band(turn: Turn | None) -> None:
+    for knob, (low, high) in BANDS.items():
+        value = None if turn is None else getattr(turn, knob)
+        if value is not None and not low <= value <= high:
+            raise DeclarationRefused(OUT_OF_BAND.format(knob=knob, value=value, low=low, high=high))
 
 
 def _words_only(wanted: Tuning, newest: Tuning) -> Tuning:

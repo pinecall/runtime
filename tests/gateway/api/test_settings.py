@@ -106,6 +106,20 @@ async def test_a_knob_the_vendor_takes_under_no_name_is_refused_where_it_is_set(
 
 
 @postgres
+async def test_a_threshold_outside_the_band_the_ears_take_is_refused_where_it_is_set(
+    knocking: Knocking,
+) -> None:
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        low = await org.put(SETTINGS, json={"config": {"turn": {"eot_threshold": 0.1}}})
+        high = await org.put(SETTINGS, json={"config": {"turn": {"eot_threshold": 0.95}}})
+        edge = await org.put(SETTINGS, json={"config": {"turn": {"eot_threshold": 0.5}}})
+    assert low.status_code == 400
+    assert "eot_threshold 0.1 is outside 0.5 to 0.9" in low.json()["detail"]
+    assert high.status_code == 400
+    assert edge.status_code == 200, edge.text
+
+
+@postgres
 async def test_a_words_key_is_never_refused_a_knob_it_carried_over_untouched(
     knocking: Knocking,
 ) -> None:
