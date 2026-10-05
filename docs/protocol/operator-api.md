@@ -20,7 +20,9 @@ An org is named by its **id or its slug** wherever a path says `{named}`.
 Four rows of `box_settings`, each read and written whole, the console's box screens their editor:
 
 - `GET` · `PUT /v1/ops/providers`: the providers row: the default vendor and model of each stage,
-  the models a vendor named alone runs, the voice per vendor and language, what each vendor is told
+  the models a vendor named alone runs, the voice per vendor and language, the voices a picker
+  offers per vendor and language where the vendor's plugin lists none (`listed`: `"cartesia/es":
+  [{id, name, gender, country, accent, description}]`, [provider-keys.md](provider-keys.md#the-voices)), what each vendor is told
   (`tuning`), the language hints, the rates a call is priced at in dollars, the judge model and what
   judging one call may spend on it (`judge.ceiling_usd`: a model judge past it is `skipped`), the
   embedder. A vendor not installed, or not doing the stage it is named for, is `400` where it is

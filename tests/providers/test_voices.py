@@ -8,7 +8,9 @@ import pytest
 from pinecall.domain.errors import NotFound, UpstreamFailed
 from pinecall.domain.names import JsonObject
 from pinecall.providers.build import Running
-from pinecall.providers.voices import sample, voices
+from pinecall.providers.catalog import KeptVoice, Providers
+from pinecall.providers.voices import kept, lists_any, sample, voices
+from tests.conftest import configured
 from tests.fakes.acme import A_RATE
 
 
@@ -33,6 +35,26 @@ async def test_a_row_with_no_id_is_passed_over_and_the_rest_still_read(acme: str
 async def test_a_plugin_that_lists_nothing_is_refused_by_name() -> None:
     with pytest.raises(NotFound, match="deepgram lists no voices here"):
         await voices(Running("deepgram", "k"))
+
+
+def a_row_listing(listed: dict[str, tuple[KeptVoice, ...]]) -> Providers:
+    """The box's configuration listing these voices, keyed `vendor/language`."""
+    return configured().model_copy(update={"listed": listed})
+
+
+MARTA = KeptVoice(id="v-marta", name="Marta", gender="feminine", country="ES")
+JOE = KeptVoice(id="v-joe", name="Joe", gender="masculine", country="US")
+
+
+def test_the_row_lists_a_vendors_voices_in_the_language_asked_or_in_every_one() -> None:
+    row = a_row_listing({"deepgram/es": (MARTA,), "deepgram/en": (JOE,), "acme/es": (JOE,)})
+    spanish = kept(row, "deepgram", "es")
+    assert [(item.id, item.name) for item in spanish] == [("v-marta", "Marta")]
+    assert spanish[0].detail["language"] == "es"
+    assert spanish[0].detail["country"] == "ES"
+    assert [item.id for item in kept(row, "deepgram", None)] == ["v-marta", "v-joe"]
+    assert kept(row, "deepgram", "pt") == []
+    assert (lists_any(row, "deepgram"), lists_any(row, "nobody")) == (True, False)
 
 
 async def test_a_line_is_spoken_as_wav_at_the_voices_own_rate(acme: str) -> None:

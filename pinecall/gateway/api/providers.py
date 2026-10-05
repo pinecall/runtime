@@ -116,13 +116,18 @@ async def list_voices(
     tts: Annotated[str, Query(min_length=1)],
     language: Annotated[str | None, Query()] = None,
 ) -> VoicesListed:
-    """A vendor's own voices, as its plugin lists them; a vendor that lists none is a 404."""
+    """The voices the providers row lists for a vendor, else its plugin's; neither is a 404."""
     pool = gateway.connections.pool
     configured = await catalog.providers(pool)
-    keyring = await keys_of(pool, gateway.connections.vault, scope)
-    stage = credentials.stage("tts", Voice(provider=installed_vendor(tts)), configured, keyring)
+    named = installed_vendor(tts)
     spoken = primary(language)
-    listed = await voices.voices(dataclasses.replace(stage, language=spoken))
+    listed = voices.kept(configured, named, spoken)
+    if not listed and not _lists_voices(named, ("tts",)):
+        raise NotFound(voices.NOT_LISTED.format(vendor=named))
+    if not listed:
+        keyring = await keys_of(pool, gateway.connections.vault, scope)
+        stage = credentials.stage("tts", Voice(provider=named), configured, keyring)
+        listed = await voices.voices(dataclasses.replace(stage, language=spoken))
     return VoicesListed(
         tts=tts,
         language=language,
@@ -178,7 +183,8 @@ def catalogue_of(configured: Providers, keyring: Keyring) -> Catalogue:
                 ready=vendor.availability in READY,
                 env=None,
                 extra=vendor.name,
-                voices_listed=_lists_voices(vendor.name, vendor.does),
+                voices_listed=_lists_voices(vendor.name, vendor.does)
+                or voices.lists_any(configured, vendor.name),
                 availability=vendor.availability,
                 broken=vendor.broken,
             )

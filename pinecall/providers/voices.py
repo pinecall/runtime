@@ -15,6 +15,7 @@ from livekit.agents.utils import http_context
 from pinecall.domain.errors import NotFound, UpstreamFailed
 from pinecall.domain.names import Json, JsonObject
 from pinecall.providers.build import Running, a_list, a_mapping, tts_of
+from pinecall.providers.catalog import Providers
 
 SAMPLE_WIDTH = 2  # 16-bit PCM, as every plugin emits it
 
@@ -61,6 +62,24 @@ async def voices(running: Running) -> list[ListedVoice]:
         finally:
             await speech.aclose()
     return [voice for row in _rows(answered) if (voice := _listed(row)) is not None]
+
+
+def kept(configured: Providers, vendor: str, language: str | None) -> list[ListedVoice]:
+    """The voices the providers row lists for a vendor, in that language or in every one."""
+    found: list[ListedVoice] = []
+    for key, listed in configured.listed.items():
+        named, _, spoken = key.partition("/")
+        if named != vendor or (language is not None and spoken != language):
+            continue
+        for voice in listed:
+            detail: JsonObject = {**voice.model_dump(), "language": spoken}
+            found.append(ListedVoice(id=voice.id, name=voice.name, detail=detail))
+    return found
+
+
+def lists_any(configured: Providers, vendor: str) -> bool:
+    """Whether the providers row lists a voice of this vendor in any language."""
+    return any(key.partition("/")[0] == vendor for key in configured.listed)
 
 
 async def sample(running: Running, line: str) -> Sample:

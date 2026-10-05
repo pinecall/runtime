@@ -79,6 +79,24 @@ async def test_the_voices_are_the_vendors_own_in_the_language_asked(knocking: Kn
 
 
 @postgres
+async def test_a_vendor_whose_plugin_lists_none_is_listed_from_the_row(knocking: Knocking) -> None:
+    row = configured().model_dump(mode="json")
+    row["listed"] = {"deepgram/es": [{"id": "v-marta", "name": "Marta", "country": "ES"}]}
+    await catalog.configure(knocking.gateway.connections.pool, Providers.model_validate(row))
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        catalogue = await org.get(PROVIDERS)
+        spanish = await org.get(VOICES, params={"tts": "deepgram", "language": "es-ES"})
+        english = await org.get(VOICES, params={"tts": "deepgram", "language": "en"})
+    deepgram = next(item for item in catalogue.json()["providers"] if item["name"] == "deepgram")
+    assert deepgram["voices_listed"] is True
+    assert [(voice["id"], voice["country"]) for voice in spanish.json()["voices"]] == [
+        ("v-marta", "ES")
+    ]
+    assert english.status_code == 404
+    assert "deepgram lists no voices here" in english.json()["detail"]
+
+
+@postgres
 async def test_a_sample_is_the_line_said_as_wav_with_its_timing(knocking: Knocking) -> None:
     await catalog.configure(knocking.gateway.connections.pool, with_voices())
     async with knocking.http(knocking.app["sandbox"]) as org:

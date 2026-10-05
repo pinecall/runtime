@@ -93,10 +93,14 @@ actually ran, and a lent fallback's usage is the operator's like any lent stage'
 
 ## The voices
 
-`GET /v1/voices?tts=&language=` lists a vendor's own voices as its plugin lists them, on the key a
-call would use, in the vendor's order, filtered to the language's primary tag when one is named:
-`{tts, language, voices: [{id, name, language, description, gender, country, accent}]}`. A vendor
-whose plugin lists none is `404`; one this build lacks is `400`.
+`GET /v1/voices?tts=&language=` lists a vendor's voices, filtered to the language's primary tag
+when one is named: `{tts, language, voices: [{id, name, language, description, gender, country,
+accent}]}`. The voices the providers row lists for that vendor and language come first, in the
+row's order (`listed`, keyed `vendor/language`, [operator-api.md](operator-api.md)); where it lists
+none, the vendor's own as its plugin lists them, on the key a call would use, in the vendor's
+order. So a vendor whose plugin lists nothing — Cartesia's, among most — is listed by the row, as
+data, and no vendor is written in code. One listed by neither is `404`, before any key is asked
+for; one this build lacks is `400`. `voices_listed` in the catalogue is true for either.
 
 `POST /v1/voices/sample {tts, voice, model?, language?, text?}` says a line with that voice over
 the same path a call speaks on and answers the WAV itself, `audio/wav`, with `Server-Timing:

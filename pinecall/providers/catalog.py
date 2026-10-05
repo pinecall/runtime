@@ -80,6 +80,20 @@ class StageOptions(BaseModel):
     turn_model: TurnModel = "v1-mini"
 
 
+class KeptVoice(BaseModel):
+    """A voice the row lists for a vendor, as a picker shows it: its id and what to choose by."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    name: str
+    gender: str = ""
+    # Where the accent is from: `ES`, `MX`; a language code does not tell them apart.
+    country: str = ""
+    accent: str = ""
+    description: str = ""
+
+
 class Judge(BaseModel):
     """The model that judges a finished call, on the box's key, and what one call may spend."""
 
@@ -114,6 +128,10 @@ class Providers(BaseModel):
     models: dict[str, str] = Field(default_factory=dict[str, str])
     # `cartesia/es`: the voice an agent that names none speaks with.
     voices: dict[str, str] = Field(default_factory=dict[str, str])
+    # `cartesia/es`: the voices a picker offers, where the vendor's plugin lists none of its own.
+    listed: dict[str, tuple[KeptVoice, ...]] = Field(
+        default_factory=dict[str, tuple[KeptVoice, ...]]
+    )
     # `stt/deepgram`: what that vendor is told for that stage.
     tuning: dict[str, StageOptions] = Field(default_factory=dict[str, StageOptions])
     # Languages the ears listen for beside the call's own.
@@ -171,7 +189,7 @@ def checked(written: Providers) -> Providers:
         if modality not in MODALITIES:
             raise DeclarationRefused(f"{key!r}: a stage is one of {', '.join(MODALITIES)}")
         doing(vendor, modality)
-    for key in written.voices:
+    for key in (*written.voices, *written.listed):
         doing(key.partition("/")[0], "tts")
     if written.judge is not None:
         doing(written.judge.llm.vendor, "llm")
