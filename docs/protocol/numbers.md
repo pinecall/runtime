@@ -21,7 +21,9 @@ carrier with no API here), a WhatsApp number at Meta. Each is one row, sealed un
 `PUT /v1/carrier` adds an account, or replaces the secret of one the org already holds. A Twilio
 account is opened once first: `user` is an API key SID (make one at Twilio → Account → API keys,
 revoke it there any time) or the account SID again with the auth token, and a pair Twilio refuses
-is `400 Twilio refused these credentials`. A peer's `addresses` are the networks it calls from:
+is `400 Twilio refused these credentials`. A WhatsApp number is asked of Meta the same way first
+— its number and name, with the token given — and an id or a token Meta does not open is `400 Meta
+does not open WhatsApp number <id> with this token: <Meta's words>`. A peer's `addresses` are the networks it calls from:
 each is an IPv4 address or a network no wider than a `/24`, public (a private, shared, loopback or
 documentation range is `400`), and each waits for the box's operator to approve it before 5060
 opens to it or a trunk lists it ([operator-api.md](operator-api.md), "Carriers and the fence").

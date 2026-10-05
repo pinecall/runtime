@@ -4,9 +4,10 @@ from dataclasses import dataclass
 
 import httpx
 
+from pinecall.channels import whatsapp
 from pinecall.channels.telephony._twilio import Twilio, twilio_of, verify
 from pinecall.channels.telephony.carrier_catalog import BOX_CARRIER, known_carrier
-from pinecall.domain.errors import Conflict, DeclarationRefused
+from pinecall.domain.errors import Conflict, DeclarationRefused, UpstreamFailed
 from pinecall.tenancy import carrier_networks
 from pinecall.tenancy.carriers import (
     Account,
@@ -37,6 +38,9 @@ PLACES_NO_CALL = "{account} is a WhatsApp number: it places no call"
 
 
 ON_NO_TRUNK = "{account} is a WhatsApp number: it is on no SIP trunk"
+
+
+META_REFUSED = "Meta does not open WhatsApp number {number} with this token: {why}"
 
 
 @dataclass(frozen=True)
@@ -175,9 +179,22 @@ def meta_of(carrier: Carrier) -> WhatsappAccount | None:
 
 
 async def verify_account(http: httpx.AsyncClient, account: Account) -> None:
-    """Refuse an account its carrier does not open with the pair given; a peer is not asked."""
+    """Refuse an account its carrier does not open with what was given; a peer is not asked."""
     match account:
         case TwilioAccount():
             await verify(http, account)
-        case SipPeer() | WhatsappAccount():
+        case WhatsappAccount():
+            await _whatsapp_opens(http, account)
+        case SipPeer():
             return
+
+
+# Meta is asked for the number the id names, as the inbox asks it: a token that does not open it
+# is refused here, in Meta's words, and not on the first message.
+async def _whatsapp_opens(http: httpx.AsyncClient, account: WhatsappAccount) -> None:
+    try:
+        await whatsapp.display_number(http, account.access_token, account.phone_number_id)
+    except UpstreamFailed as refused:
+        raise DeclarationRefused(
+            META_REFUSED.format(number=account.phone_number_id, why=refused)
+        ) from refused

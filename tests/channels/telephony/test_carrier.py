@@ -10,6 +10,7 @@ from pinecall.domain.errors import Conflict, DeclarationRefused
 from pinecall.tenancy.carriers import Carrier, Termination, TwilioAccount, WhatsappAccount
 from tests.channels.conftest import PEER_NETWORK, a_peer
 from tests.fakes.idp import a_sid
+from tests.fakes.meta import Graph
 
 A_NUMBER = "+59829001199"
 
@@ -102,3 +103,14 @@ async def test_only_twilio_has_an_api_the_box_drives_and_only_meta_is_whatsapp()
         await carrier.verify_account(http, a_peer())
     assert carrier.meta_of(a_whatsapp()) is not None
     assert carrier.meta_of(a_twilio()) is None
+
+
+async def test_a_whatsapp_number_is_kept_only_when_meta_opens_it_with_the_token() -> None:
+    account = a_whatsapp().account
+    assert isinstance(account, WhatsappAccount)
+    graph = Graph()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(graph.answer)) as http:
+        await carrier.verify_account(http, account)
+        graph.refusal = (401, "Invalid OAuth access token - Cannot parse access token")
+        with pytest.raises(DeclarationRefused, match="Meta does not open WhatsApp number 1171"):
+            await carrier.verify_account(http, account)
