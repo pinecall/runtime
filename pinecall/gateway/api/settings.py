@@ -84,7 +84,7 @@ OUT_OF_BAND = "{knob} {value} is outside {low} to {high}, the band the ears take
 STAGE_KNOBS: dict[Modality, tuple[str, ...]] = {
     "tts": ("voice", "tts", "tts_model"),
     "llm": ("llm",),
-    "stt": ("stt",),
+    "stt": ("stt", "turn"),
 }
 
 
@@ -364,7 +364,7 @@ async def _tried_where_changed(stages: Pipeline, wanted: Tuning, newest: Tuning)
     running = {"llm": stages.llm, "stt": stages.stt, "tts": stages.tts}
     for stage, knobs in STAGE_KNOBS.items():
         if any(_changes(wanted, newest, knob) for knob in knobs):
-            await tried.tried(stage, running[stage])
+            await tried.tried(stage, running[stage], wanted.turn)
 
 
 def _changes(wanted: Tuning, newest: Tuning, knob: str) -> bool:

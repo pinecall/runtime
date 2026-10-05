@@ -272,7 +272,12 @@ async def approve_pairing(
     )
     if not await pairings.fill(code, signed.secret, signed.key.org):
         raise Conflict(ANSWERED)
-    return PairingApprovedResponse(device=waiting.device, org=signed.key.org)
+    org = await orgs.find(gateway.connections.pool, signed.key.org)
+    return PairingApprovedResponse(
+        device=waiting.device,
+        org=signed.key.org,
+        org_name=signed.key.org if org is None else org.name,
+    )
 
 
 # 202 is "ask again"; 404 is a word gone, and an empty 200 would read as a key of "".

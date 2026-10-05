@@ -402,7 +402,11 @@ async def test_the_terminal_waits_until_the_browser_answers_and_then_gets_a_key_
         collected = await terminal.get(f"{PAIRINGS}/{code}/key")
         again = await terminal.get(f"{PAIRINGS}/{code}/key")
     assert (waiting.status_code, waiting.json()) == (202, {})
-    assert approved.json() == {"device": A_LAPTOP, "org": knocking.org.id}
+    assert approved.json() == {
+        "device": A_LAPTOP,
+        "org": knocking.org.id,
+        "org_name": knocking.org.name,
+    }
     key = collected.json()["key"]
     assert key != browsers
     bearer = await keys.verify(knocking.gateway.connections.pool, key)

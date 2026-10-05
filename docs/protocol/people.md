@@ -87,7 +87,8 @@ and no seat. A server's token names nobody and is refused both.
 `pinecall login` asks `POST /v1/login/pairings {device}` for a word, `{code: "cli_…",
 expires_at}`, and opens `/cli?c=<word>` in a browser. The page reads `GET
 /v1/login/pairings/{code}` (`{device, expires_at, answered}`, spending nothing) and a signed-in
-person approves with `POST /v1/login/pairings/{code}`: the terminal gets a key of its own, for the
+person approves with `POST /v1/login/pairings/{code}` (`{device, org, org_name}`, the org by its
+id and by the name the page says it signed in to): the terminal gets a key of its own, for the
 same person, labelled with its `device` and dying with the browser's key. The terminal polls `GET
 /v1/login/pairings/{code}/key`: `202 {}` while nobody approved, `{key}` once, `404` after. A word
 lives ten minutes; one collected, dead or invented is the same `404`, and a second approval `409`.

@@ -336,6 +336,8 @@ class PairingApprovedResponse(WireModel):
 
     device: str | None
     org: str
+    # What the page says it signed in to: the org's name, as a person knows it.
+    org_name: str
 
 
 class KeyCollectedResponse(WireModel):

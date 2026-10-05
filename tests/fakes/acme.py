@@ -30,6 +30,9 @@ A_RATE = 24_000
 # An id the vendor has no voice or model under: it answers 404, as a real one would.
 UNKNOWN = "acme-unknown"
 
+# The shortest silence its ears take to close a turn; below it they refuse the connection.
+SHORTEST_SILENCE_MS = 100
+
 
 @dataclass
 class AcmeContext:
@@ -197,11 +200,14 @@ class _Listened(stt.RecognizeStream):
     def __init__(self, ears: AcmeSTT, conn_options: APIConnectOptions) -> None:
         super().__init__(stt=ears, conn_options=conn_options)  # pyright: ignore[reportUnknownMemberType]
         self.model = ears.given["model"]
+        self.silence_ms = ears.given["eot_timeout_ms"]
 
     @override
     async def _run(self) -> None:
         if self.model == UNKNOWN:
             raise APIStatusError("no such model", status_code=404)
+        if isinstance(self.silence_ms, int) and self.silence_ms < SHORTEST_SILENCE_MS:
+            raise APIStatusError("eot_timeout_ms is out of range", status_code=400)
         async for _ in self._input_ch:
             continue
 

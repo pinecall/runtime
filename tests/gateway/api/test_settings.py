@@ -138,6 +138,16 @@ async def test_a_voice_or_a_model_the_vendor_does_not_have_is_refused_where_it_i
 
 
 @postgres
+async def test_a_turn_the_ears_do_not_take_is_refused_where_it_is_set(knocking: Knocking) -> None:
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        short = await org.put(SETTINGS, json={"config": {"turn": {"endpointing_ms": 5}}})
+        taken = await org.put(SETTINGS, json={"config": {"turn": {"endpointing_ms": 700}}})
+    assert short.status_code == 400
+    assert "refused the ears this sets: eot_timeout_ms is out of range" in short.json()["detail"]
+    assert taken.status_code == 200, taken.text
+
+
+@postgres
 async def test_a_words_key_is_never_refused_a_knob_it_carried_over_untouched(
     knocking: Knocking,
 ) -> None:

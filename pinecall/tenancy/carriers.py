@@ -37,7 +37,7 @@ NO_CARRIER = "the org has no carrier account: PUT /v1/carrier brings a Twilio ac
 NO_SUCH_ACCOUNT = "the org has no carrier account {account}"
 
 
-WHICH_ACCOUNT = "the org has {count} carrier accounts ({accounts}): say which one with account"
+WHICH_ACCOUNT = "the org has {count} carrier accounts ({accounts}): name one of them"
 
 
 NO_BOX_TWILIO = (
