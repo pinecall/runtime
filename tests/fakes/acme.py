@@ -27,6 +27,9 @@ ACME = "acme"
 
 A_RATE = 24_000
 
+# An id the vendor has no voice or model under: it answers 404, as a real one would.
+UNKNOWN = "acme-unknown"
+
 
 @dataclass
 class AcmeContext:
@@ -97,7 +100,9 @@ class AcmeTTS(tts.TTS[Never]):
         return [AcmeVoice(**row) if "category" in row else row for row in self.listed]
 
     def refuse(self) -> None:
-        """Raise the refusal it was built with, if any."""
+        """Raise the refusal it was built with, if any, or a 404 for a voice it does not have."""
+        if UNKNOWN in (self.given["voice_name"], self.given["model"]):
+            raise APIStatusError("no such voice", status_code=404)
         if self.refusal == "status":
             raise APIStatusError("no credit", status_code=402)
         if self.refusal == "connection":
@@ -166,6 +171,16 @@ class AcmeSTT(stt.STT[Never]):
         }
 
     @override
+    def stream(
+        self,
+        *,
+        language: NotGivenOr[str] = NOT_GIVEN,
+        conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS,
+    ) -> stt.RecognizeStream:
+        """Ears that take the audio and hear nothing in it, or refuse a model they do not have."""
+        return _Listened(self, conn_options)
+
+    @override
     async def _recognize_impl(
         self,
         buffer: AudioBuffer,
@@ -174,6 +189,19 @@ class AcmeSTT(stt.STT[Never]):
         conn_options: APIConnectOptions,
     ) -> stt.SpeechEvent:
         raise NotImplementedError
+
+
+class _Listened(stt.RecognizeStream):
+    def __init__(self, ears: AcmeSTT, conn_options: APIConnectOptions) -> None:
+        super().__init__(stt=ears, conn_options=conn_options)  # pyright: ignore[reportUnknownMemberType]
+        self.model = ears.given["model"]
+
+    @override
+    async def _run(self) -> None:
+        if self.model == UNKNOWN:
+            raise APIStatusError("no such model", status_code=404)
+        async for _ in self._input_ch:
+            continue
 
 
 @dataclass(frozen=True)
@@ -284,6 +312,8 @@ class _Streamed(llm.LLMStream):
     async def _run(self) -> None:
         if self.refusing:
             raise APIConnectionError(self.refusing)
+        if self.scripted.model == UNKNOWN:
+            raise APIStatusError("no such model", status_code=404)
         await asyncio.sleep(self.scripted.thinks_s)
         for part in self.reply:
             if isinstance(part, str):

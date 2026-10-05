@@ -6,6 +6,7 @@ from pinecall.tenancy import scopes
 from pinecall.tenancy.scopes import Written
 from pinecall.wire.rest.calls import OpenCallRequest
 from tests.conftest import AGENT, Knocking, a_developer, issued, postgres
+from tests.fakes.acme import ACME, UNKNOWN
 from tests.gateway.api.conftest import a_call, an_app
 
 SETTINGS = f"/v1/agents/{AGENT}/settings"
@@ -117,6 +118,23 @@ async def test_a_threshold_outside_the_band_the_ears_take_is_refused_where_it_is
     assert "eot_threshold 0.1 is outside 0.5 to 0.9" in low.json()["detail"]
     assert high.status_code == 400
     assert edge.status_code == 200, edge.text
+
+
+@postgres
+async def test_a_voice_or_a_model_the_vendor_does_not_have_is_refused_where_it_is_set(
+    knocking: Knocking,
+) -> None:
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        voice = await org.put(SETTINGS, json={"config": {"voice": UNKNOWN}})
+        model = await org.put(SETTINGS, json={"config": {"llm": f"{ACME}/{UNKNOWN}"}})
+        taken = await org.put(SETTINGS, json={"config": {"voice": "v-ana"}})
+        kept = await org.get(SETTINGS)
+    assert voice.status_code == 400
+    assert "acme refused the voice this sets" in voice.json()["detail"]
+    assert model.status_code == 400
+    assert "acme refused the model this sets" in model.json()["detail"]
+    assert taken.status_code == 200, taken.text
+    assert kept.json()["team"]["config"] == {"voice": "v-ana"}
 
 
 @postgres

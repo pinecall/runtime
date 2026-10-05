@@ -75,8 +75,12 @@ own sentence, and a vendor the box does not lend this org is refused here and no
 the next call. A `pipeline` key's set is held to the bands the ears take the thresholds in —
 `eot_threshold` 0.5 to 0.9, `eager_eot_threshold` 0.3 to 0.9, outside which they refuse the
 connection — and `400 eot_threshold 0.1 is outside 0.5 to 0.9` otherwise; a version kept before
-this check is still read. A model or a voice is not: no plugin says which ids its vendor has, so a
-typo in one is the vendor's refusal on the next call. `409` when the scope is not at `if_version`. Answers the `GET` shape.
+this check is still read. A stage the set changes — the voice, its vendor or model, the model, the
+ears — is tried once before anything is kept, on the key a call would use: a line said, one word
+answered, half a second of silence heard (ears that take only a whole utterance are tried by their
+first call). The vendor's no is `400 acme refused the voice this sets: no such voice`, in its words;
+a vendor that does not answer is `502 … nothing was kept, try again`. A save that changes no stage
+asks no vendor anything. `409` when the scope is not at `if_version`. Answers the `GET` shape.
 
 ## `GET …/settings/history?team=&limit=` · `GET …/settings/diff?against=team|production` · `POST …/settings/rollback {version, team}`
 

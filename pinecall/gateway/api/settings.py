@@ -15,7 +15,9 @@ from pinecall.gateway._call_setup import keys_of
 from pinecall.gateway._deps import Acting, CallsKey, GatewayDep, PipelineKey, ScopeDep, WordsKey
 from pinecall.gateway._gateway import Gateway
 from pinecall.log import queries
-from pinecall.providers import build, catalog, credentials
+from pinecall.postgres.pool import Pool
+from pinecall.providers import build, catalog, credentials, tried
+from pinecall.providers.build import Modality
 from pinecall.providers.credentials import Pipeline
 from pinecall.providers.declared import apply_tuning
 from pinecall.tenancy import canary, keys, scopes
@@ -77,6 +79,15 @@ BANDS = {"eot_threshold": (0.5, 0.9), "eager_eot_threshold": (0.3, 0.9)}
 OUT_OF_BAND = "{knob} {value} is outside {low} to {high}, the band the ears take it in"
 
 
+# The knobs of each stage: a set that changes one has the stage tried before it is kept, and a
+# save that changes none asks no vendor anything.
+STAGE_KNOBS: dict[Modality, tuple[str, ...]] = {
+    "tts": ("voice", "tts", "tts_model"),
+    "llm": ("llm",),
+    "stt": ("stt",),
+}
+
+
 NO_SUCH_CALL = "no call {call} in this org"
 
 
@@ -99,15 +110,15 @@ async def put_settings(
     pool = gateway.connections.pool
     written_to = _written_to(scope, team=body.team)
     wanted = _tuning_of(body.config)
+    newest = await _newest(pool, written_to, slug)
     if "pipeline" not in key.bearer.key.scopes:
-        kept = await scopes.tuning_side_by_side(pool, written_to, slug)
-        newest = kept.team if written_to.holder == THE_ORGS_OWN else kept.yours
-        wanted = _words_only(wanted, Tuning() if newest is None else newest.value)
+        wanted = _words_only(wanted, newest)
     stages = await _checked(gateway, written_to, slug, wanted)
     # A words key carries the pipeline over untouched: only a knob this set sets is refused.
     if "pipeline" in key.bearer.key.scopes:
         _refuse_out_of_band(wanted.turn)
         build.refuse_untaken(stages.stt, stages.tts, wanted)
+        await _tried_where_changed(stages, wanted, newest)
     written = Written(author=_author(key), note=body.note, if_version=body.if_version)
     await scopes.put_tuning(pool, written_to, slug, wanted, written)
     return await _side_by_side(gateway, scope, slug, world=key.env)
@@ -341,6 +352,24 @@ async def _checked(gateway: Gateway, scope: Scope, slug: str, wanted: Tuning) ->
     config = apply_tuning(declared, wanted, words.lexicon, defaults=configured.defaults)
     keyring = await keys_of(pool, gateway.connections.vault, scope)
     return credentials.pipeline(config, configured, keyring)
+
+
+async def _newest(pool: Pool, written_to: Scope, slug: str) -> Tuning:
+    kept = await scopes.tuning_side_by_side(pool, written_to, slug)
+    newest = kept.team if written_to.holder == THE_ORGS_OWN else kept.yours
+    return Tuning() if newest is None else newest.value
+
+
+async def _tried_where_changed(stages: Pipeline, wanted: Tuning, newest: Tuning) -> None:
+    running = {"llm": stages.llm, "stt": stages.stt, "tts": stages.tts}
+    for stage, knobs in STAGE_KNOBS.items():
+        if any(_changes(wanted, newest, knob) for knob in knobs):
+            await tried.tried(stage, running[stage])
+
+
+def _changes(wanted: Tuning, newest: Tuning, knob: str) -> bool:
+    value: object = getattr(wanted, knob)
+    return value is not None and value != getattr(newest, knob)
 
 
 def _refuse_out_of_band(turn: Turn | None) -> None:
