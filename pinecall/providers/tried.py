@@ -6,6 +6,7 @@ import contextlib
 from livekit import rtc
 from livekit.agents import APIConnectionError, APIConnectOptions, APIError, APITimeoutError
 from livekit.agents.llm import ChatContext
+from livekit.agents.utils import http_context
 
 from pinecall.domain.errors import DeclarationRefused, UpstreamFailed
 from pinecall.providers import voices
@@ -43,7 +44,8 @@ async def tried(stage: Modality, running: Running) -> None:
     """The stage asked one small thing; the vendor's no refused, its silence UpstreamFailed."""
     named = STAGE_NAMES[stage]
     try:
-        async with asyncio.timeout(TRY_S):
+        # Outside a call there is no job to lend the plugins its HTTP session: it is opened here.
+        async with asyncio.timeout(TRY_S), http_context.open():
             await _ask(stage, running)
     except TimeoutError as slow:
         why = f"no answer in {TRY_S:.0f} s"

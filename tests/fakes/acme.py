@@ -178,6 +178,8 @@ class AcmeSTT(stt.STT[Never]):
         conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS,
     ) -> stt.RecognizeStream:
         """Ears that take the audio and hear nothing in it, or refuse a model they do not have."""
+        # As deepgram's and soniox's do: the session is a job's, opened by hand outside one.
+        utils.http_context.http_session()
         return _Listened(self, conn_options)
 
     @override
