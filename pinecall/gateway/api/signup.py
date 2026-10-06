@@ -1,5 +1,6 @@
 """Sign-up: the code mailed, the org founded on the code, the code sent again."""
 
+import time
 from hmac import compare_digest
 from typing import Annotated
 
@@ -48,13 +49,6 @@ TOO_MANY = "too many sign-ups from here: try again in a minute"
 NOT_THE_SHIELD = "the sign-up doors take the key of the page in front of them"
 
 
-# A sign-up for an invited address would choose that person's password for them.
-ALREADY_INVITED = (
-    "{email} was invited to an org on this box: accept that invitation first, then sign up with "
-    "the password you chose there"
-)
-
-
 NOT_AN_ADDRESS = "an email has one @ and a domain, not {email!r}"
 
 
@@ -91,7 +85,9 @@ def signup_client(request: Request, gateway: GatewayDep) -> str:
 SignupClient = Annotated[str, Depends(signup_client)]
 
 
-# No org exists until the code comes back: an address nobody proves never takes a slug.
+# No org exists until the code comes back: an address nobody proves never takes a slug. Every
+# address is answered alike, so the door says nobody whether one has an account: a person with a
+# password signs up with it, and otherwise their mailbox, not the page, is told why no code came.
 @router.post("/v1/signup", status_code=202)
 async def sign_up(
     body: SignupRequest, client: SignupClient, gateway: GatewayDep
@@ -109,17 +105,23 @@ async def sign_up(
     if not body.person.strip():
         raise DeclarationRefused(NO_NAME)
     hashed = await people.hash_password(body.password, connections.settings.min_password)
-    # Somebody who has a password signs up with it, or anybody could mint keys in their name.
+    brand = await letters.brand_of(pool)
+    # Somebody who has a password signs up with it, or anybody could mint keys in their name; a
+    # sign-up for an invited address would choose that person's password for them.
     known = await people.password_of(pool, email)
+    notice = None
     if known is not None and not await people.matches(body.password, known):
-        raise NotSignedIn(signin.NOBODY)
-    if known is None and await people.orgs_of(pool, email):
-        raise Conflict(ALREADY_INVITED.format(email=email))
+        notice = letters.account_kept_letter(email, brand)
+    elif known is None and await people.orgs_of(pool, email):
+        notice = letters.invitation_waiting_letter(email, brand)
+    if notice is not None:
+        await gateway.outbox.post(None, notice)
+        return CodeMailedResponse(email=email, code_expires_at=time.time() + signin.CODE_TTL_S)
     if await orgs.find(pool, slug) is not None:
         raise Conflict(orgs.SLUG_TAKEN.format(slug=slug))
     signup = Signup(email, slug, body.person, hashed, name=body.name, device=body.device)
     code, expires_at = await gateway.signins.signups.begin(signup)
-    letter = letters.signup_code_letter(email, code, body.person, await letters.brand_of(pool))
+    letter = letters.signup_code_letter(email, code, body.person, brand)
     await gateway.outbox.post(None, letter)
     return CodeMailedResponse(email=email, code_expires_at=expires_at)
 

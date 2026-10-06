@@ -10,9 +10,11 @@ from pinecall.process.connections import Connections
 from pinecall.tenancy.letters import (
     Brand,
     Link,
+    account_kept_letter,
     brand_of,
     card_link,
     invitation_letter,
+    invitation_waiting_letter,
     probe_letter,
     put_brand,
     signup_code_letter,
@@ -60,6 +62,18 @@ def test_no_letter_fetches_anything_but_the_operators_own_logo() -> None:
         assert "<img" not in letter.html
     logo = Brand(logo_url="https://box.test/logo.png")
     assert 'src="https://box.test/logo.png"' in invitation_letter("a@b.test", LINK, logo).html
+
+
+# A sign-up answers every address alike; these say the why to the address's owner, with no link.
+def test_a_sign_up_for_a_kept_address_tells_its_owner_and_carries_no_link_or_code() -> None:
+    kept = account_kept_letter("ana@b.test", Brand(name="Acme Voice"))
+    waiting = invitation_waiting_letter("ana@b.test", Brand())
+    assert (kept.to, kept.subject) == ("ana@b.test", "You already have an account on Acme Voice")
+    assert "the password you have" in kept.text
+    assert "Accept that invitation first" in waiting.text
+    for letter in (kept, waiting):
+        assert "/invitations/" not in letter.html
+        assert "ignore this email" in letter.text
 
 
 def test_the_operators_brand_is_the_name_and_the_accent_everywhere_pinecall_was() -> None:

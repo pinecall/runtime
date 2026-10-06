@@ -180,8 +180,10 @@ the three doors take that bearer key alone, and the address they count is the
 
 `POST {org, name, email, person, password, device}` keeps the sign-up and mails six digits:
 `202 {email, code_expires_at}`, never the code, and no org yet. A box that cannot mail takes
-none (`503`). An address with a password signs up with it (`401` otherwise); one invited somewhere
-accepts that first (`409`); a slug taken is `409`. `POST /v1/signup/verify {email, code}` makes
+none (`503`). Every address is answered alike, so the door says nobody whether one has an
+account: an address with a password signs up with it, and with another is mailed that it has an
+account instead of a code; one invited somewhere is mailed to accept that first. A slug taken is
+`409`. `POST /v1/signup/verify {email, code}` makes
 the org, allowed what the box's admission gives a newborn org, its admin active, and answers
 `201` with the key shape plus `slug`, `member`, and a login `code` for the console. A code lives
 15 minutes and six tries; a wrong, burned or expired code is `400` in its words, and an address

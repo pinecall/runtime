@@ -188,24 +188,30 @@ async def test_the_refusals_are_sentences_and_a_refused_sign_up_makes_no_org(
     assert [org.slug for org in await orgs.listed(pool)][-1] == "tienda-sur", "nothing half-made"
 
 
+# The page answers 202 alike: whether an address has an account is told to its mailbox alone.
 @postgres
-async def test_a_sign_up_naming_somebody_elses_email_is_refused_and_their_own_password_works(
+async def test_a_sign_up_naming_somebody_elses_email_mails_them_and_their_own_password_works(
     knocking: Knocking, mailing: Postbox
 ) -> None:
     pool = knocking.gateway.connections.pool
     async with stranger(knocking) as page:
         assert (await signed_up(knocking, mailing, page)).status_code == 201
-        stolen = await signed_up(knocking, mailing, page, org="otra-org", password=NOT_HERS)
+        stolen = await page.post(SIGNUP, json={**TIENDA, "org": "otra-org", "password": NOT_HERS})
+        await delivered(knocking, mailing)
+        notice = text_of(mailing.sent[-1])
         second = await signed_up(
             knocking, mailing, page, org="tienda-norte", email=" ANA@tiendasur.test "
         )
-    assert stolen.status_code == 401
+    assert stolen.status_code == 202
+    assert stolen.json()["email"] == TIENDA["email"]
+    assert "already has an account" in notice
+    assert A_CODE.search(notice) is None, "no code"
     assert await orgs.find(pool, "otra-org") is None
     assert second.status_code == 201, second.text
 
 
 @postgres
-async def test_an_address_invited_somewhere_accepts_that_invitation_first(
+async def test_an_address_invited_somewhere_is_answered_alike_and_mailed_to_accept_first(
     knocking: Knocking, mailing: Postbox
 ) -> None:
     async with knocking.http(knocking.app["production"]) as console:
@@ -213,10 +219,12 @@ async def test_an_address_invited_somewhere_accepts_that_invitation_first(
             "/v1/members", json={"email": TIENDA["email"], "name": "Ana", "role": "qa"}
         )
     async with stranger(knocking) as page:
-        refused = await page.post(SIGNUP, json=TIENDA)
-    assert refused.status_code == 409
-    assert "accept that invitation first" in refused.json()["detail"]
-    assert await delivered(knocking, mailing) == [TIENDA["email"]], "the invitation, no code"
+        answered = await page.post(SIGNUP, json=TIENDA)
+    assert answered.status_code == 202
+    assert await delivered(knocking, mailing) == [TIENDA["email"]] * 2, "the invitation, a notice"
+    notice = text_of(mailing.sent[-1])
+    assert "Accept that invitation first" in notice
+    assert A_CODE.search(notice) is None, "no code"
 
 
 @postgres

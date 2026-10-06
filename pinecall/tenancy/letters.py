@@ -172,6 +172,35 @@ def probe_letter(to: str, brand: Brand) -> Letter:
     return Letter(to, f"{brand.name} test message", text, _framed(text, body, brand.name, brand))
 
 
+# A sign-up answers every address alike, so whether one has an account is said here, to its owner.
+def account_kept_letter(to: str, brand: Brand) -> Letter:
+    """The letter a sign-up with an address that has an account sends instead of a code."""
+    return _notice(
+        to,
+        brand,
+        "You already have an account",
+        (
+            f"Somebody tried to sign up for {brand.name} with this address, which already has an "
+            "account. To make another org, sign up again with the password you have; if you "
+            "forgot it, reset it from the sign-in page."
+        ),
+    )
+
+
+def invitation_waiting_letter(to: str, brand: Brand) -> Letter:
+    """The letter a sign-up with an address invited somewhere sends instead of a code."""
+    return _notice(
+        to,
+        brand,
+        "You have an invitation waiting",
+        (
+            f"Somebody tried to sign up for {brand.name} with this address, which was invited to "
+            "an org. Accept that invitation first, from the letter it came in; then sign up with "
+            "the password you chose there."
+        ),
+    )
+
+
 # The code rides the preheader, never the subject: the outbox logs subjects, and a logged code is
 # a code anybody reading the log could spend.
 def signup_code_letter(to: str, code: str, person: str, brand: Brand) -> Letter:
@@ -250,6 +279,14 @@ def _linked(to: str, link: Link, brand: Brand, wording: Wording) -> Letter:
 
 def _day(moment: datetime) -> str:
     return f"{moment.day} {moment.strftime('%B')} {moment.year}"
+
+
+def _notice(to: str, brand: Brand, title: str, text: str) -> Letter:
+    unbidden = "If it was not you, ignore this email: nothing was changed."
+    footer = f"Sent by {brand.name}"
+    body = _heading(title) + _paragraph(text) + _small(unbidden)
+    plain = f"{title}\n\n{text}\n\n{unbidden}\n\n{footer}"
+    return Letter(to, f"{title} on {brand.name}", plain, _framed(text, body, footer, brand))
 
 
 def _heading(text: str) -> str:
