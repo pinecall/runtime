@@ -48,7 +48,6 @@ async def test_an_invite_makes_a_row_still_invited_and_a_token_shown_once(pool: 
     invited = await invite(pool, org.id, ANA, seats=None)
     assert invited.member.status == "invited"
     assert invited.member.email == "ana@clinica.test"
-    assert invited.token is not None
     assert invited.token.startswith("inv_")
     async with pool.connection() as connection:
         rows = await (await connection.execute("SELECT token_hash FROM invitations")).fetchall()
@@ -61,7 +60,6 @@ async def test_accepting_spends_the_token_sets_the_password_and_makes_the_member
 ) -> None:
     org = await _an_org(pool)
     invited = await invite(pool, org.id, ANA, seats=None)
-    assert invited.token is not None
     member = await accept(pool, invited.token, await hash_password(WHAT_ANA_TYPES, FLOOR))
     assert member is not None
     assert member.status == "active"
@@ -82,8 +80,6 @@ async def test_re_inviting_someone_still_invited_replaces_the_token(pool: Pool) 
     org = await _an_org(pool)
     first = await invite(pool, org.id, ANA, seats=None)
     second = await invite(pool, org.id, ANA, seats=None)
-    assert first.token is not None
-    assert second.token is not None
     assert second.member.id == first.member.id
     assert await accept(pool, first.token, await hash_password(WHAT_ANA_TYPES, FLOOR)) is None
     assert await accept(pool, second.token, await hash_password(WHAT_ANA_TYPES, FLOOR)) is not None
@@ -95,24 +91,22 @@ async def test_an_address_that_accepted_here_is_refused_in_the_sentence_that_nam
 ) -> None:
     org = await _an_org(pool)
     invited = await invite(pool, org.id, ANA, seats=None)
-    assert invited.token is not None
     await accept(pool, invited.token, await hash_password(WHAT_ANA_TYPES, FLOOR))
     with pytest.raises(Conflict, match=r"ana@clinica\.test is a member of this org already"):
         await invite(pool, org.id, ANA, seats=None)
 
 
 @postgres
-async def test_a_person_proven_elsewhere_with_a_password_is_seated_at_once_with_no_link(
+async def test_a_person_proven_elsewhere_is_invited_like_anyone_and_seated_by_nobody_else(
     pool: Pool,
 ) -> None:
     home = await _an_org(pool)
     invited = await invite(pool, home.id, ANA, seats=None, vouched=True)
-    assert invited.token is not None
     await accept(pool, invited.token, await hash_password(WHAT_ANA_TYPES, FLOOR))
     other = await _an_org(pool, "northwind")
-    seated_at_once = await invite(pool, other.id, ANA, seats=None)
-    assert seated_at_once.token is None
-    assert seated_at_once.member.status == "active"
+    elsewhere = await invite(pool, other.id, ANA, seats=None)
+    assert elsewhere.token.startswith("inv_")
+    assert (elsewhere.member.status, elsewhere.member.verified) == ("invited", True)
     assert [item.org for item in await orgs_of(pool, "ana@clinica.test")] == [home.id, other.id]
 
 
@@ -120,7 +114,6 @@ async def test_a_person_proven_elsewhere_with_a_password_is_seated_at_once_with_
 async def test_only_a_vouched_link_proves_the_address(pool: Pool) -> None:
     home = await _an_org(pool)
     invited = await invite(pool, home.id, ANA, seats=None)
-    assert invited.token is not None
     member = await accept(pool, invited.token, await hash_password(WHAT_ANA_TYPES, FLOOR))
     assert member is not None
     assert not member.verified
@@ -189,12 +182,10 @@ async def test_a_reset_link_sets_an_active_members_password_and_never_revives_a_
 ) -> None:
     org = await _an_org(pool)
     invited = await invite(pool, org.id, ANA, seats=None)
-    assert invited.token is not None
     member = await accept(pool, invited.token, await hash_password(WHAT_ANA_TYPES, FLOOR))
     assert member is not None
     link = await reset(pool, org.id, member.id)
     assert link is not None
-    assert link.token is not None
     await accept(pool, link.token, await hash_password("a brand new password", FLOOR))
     assert await matches("a brand new password", await password_of(pool, member.email))
     await update(pool, org.id, member.id, Change(status="disabled"))
@@ -219,13 +210,11 @@ async def test_removing_takes_the_row_and_its_links_and_stays_within_the_org(poo
 async def test_the_last_active_admin_stays_and_a_second_one_lets_the_first_go(pool: Pool) -> None:
     org = await _an_org(pool)
     first = await invite(pool, org.id, BRUNO, seats=None)
-    assert first.token is not None
     admin = await accept(pool, first.token, await hash_password(WHAT_ANA_TYPES, FLOOR))
     assert admin is not None
     with pytest.raises(Conflict, match="one active admin"):
         await remove(pool, org.id, admin.id)
     second = await invite(pool, org.id, Invitee("carla@clinica.test", "Carla", "admin"), seats=None)
-    assert second.token is not None
     await accept(pool, second.token, await hash_password(WHAT_ANA_TYPES, FLOOR))
     await remove(pool, org.id, admin.id)
     assert [listed_one.name for listed_one in await listed(pool, org.id)] == ["Carla"]

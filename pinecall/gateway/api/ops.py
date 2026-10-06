@@ -244,18 +244,10 @@ async def invite_member(
         body.email, body.name, parse_role(body.role), frozenset(body.agents), body.production
     )
     invited = await people.invite(pool, org.id, invitee, seats=None, vouched=True)
-    mailed = False
-    card = None
-    if invited.token is not None:
-        card = letters.card_link(public_url(request, gateway), invited.token)
-        link = Link(
-            org=org.name,
-            link=card,
-            by=THE_OPERATOR,
-            dies=invited.expires_at,
-        )
-        letter = letters.invitation_letter(invited.member.email, link, await letters.brand_of(pool))
-        mailed = await gateway.outbox.post(org.id, letter)
+    card = letters.card_link(public_url(request, gateway), invited.token)
+    link = Link(org=org.name, link=card, by=THE_OPERATOR, dies=invited.expires_at)
+    letter = letters.invitation_letter(invited.member.email, link, await letters.brand_of(pool))
+    mailed = await gateway.outbox.post(org.id, letter)
     return InvitationResponse(
         member=MemberRow.of(invited.member),
         token=invited.token,

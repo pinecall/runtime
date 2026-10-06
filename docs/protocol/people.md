@@ -79,8 +79,10 @@ key never rides a URL. `POST /v1/login/orgs {email, password}` lists the orgs a 
 A person's key. The list is every org of the person, oldest first, with `role`, `status`, whether
 this key is the one opening it (`here`) and `member: true`. A person who runs the box also sees
 every other org, `member: false` and `role: "operator"`. The switch mints the same person's key in
-another org of theirs; a person who runs the box enters any org as a visit, with an admin's scopes
-and no seat. A server's token names nobody and is refused both.
+another org of theirs; switching to one where they are still `invited` takes the seat (a proven
+address and a password elsewhere; an org that signs in only with its provider seats nobody this
+way). A person who runs the box enters any org as a visit, with an admin's scopes and no seat. A
+server's token names nobody and is refused both.
 
 ## A terminal — `/v1/login/pairings`
 
@@ -121,8 +123,10 @@ under `min_password` is `400`.
 within the org's `seats` (`429` past them). The invitation is mailed where a mailbox can post it;
 `mailed` says it was queued. The token is handed to the admin only when the address is in no other
 org: the link sets the person's one password, so for somebody known elsewhere it is mailed only,
-and `token` is `null`. A person proven elsewhere who has a password is seated at once, `token:
-null`. An address already a member is `409`.
+and `token` is `null`. Nobody is seated by being named: the member is `invited` until the person
+takes the seat, by the link, or, proven elsewhere and with a password, by opening the org
+(`POST /v1/login/org`, or a sign-in that names it). A sign-in that names no org never takes an
+invitation. An address already a member is `409`.
 
 A key grants only what it holds: a manager invites a `qa` and is refused an `admin` (`403` naming
 what the key opens), and production access only by somebody who has it.

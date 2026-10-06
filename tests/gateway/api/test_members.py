@@ -26,7 +26,6 @@ async def seated(
     pool = knocking.gateway.connections.pool
     invitee = people.Invitee(email, email.split("@", maxsplit=1)[0].title(), role)
     invited = await people.invite(pool, knocking.org.id, invitee, seats=None)
-    assert invited.token is not None
     member = await people.accept(pool, invited.token, await people.hash_password(WHAT_THEY_TYPE, 8))
     assert member is not None
     if production:
@@ -98,7 +97,7 @@ async def test_somebody_in_another_org_is_mailed_the_link_and_the_admin_is_never
 
 
 @postgres
-async def test_a_person_proven_elsewhere_with_a_password_is_seated_at_once(
+async def test_a_person_proven_elsewhere_is_invited_by_mail_and_never_seated_unasked(
     knocking: Knocking,
 ) -> None:
     pool = knocking.gateway.connections.pool
@@ -106,11 +105,11 @@ async def test_a_person_proven_elsewhere_with_a_password_is_seated_at_once(
     elsewhere = await people.invite(
         pool, other.id, people.Invitee(BERNAS, "Berna", "qa"), seats=None, vouched=True
     )
-    assert elsewhere.token is not None
     await people.accept(pool, elsewhere.token, await people.hash_password(WHAT_THEY_TYPE, 8))
     async with knocking.http(knocking.app["production"]) as console:
         answer = await invited(console)
-    assert (answer["token"], answer["member"]["status"]) == (None, "active")
+    # The link is the person's alone: mailed, never handed to an admin of another org.
+    assert (answer["token"], answer["link"], answer["member"]["status"]) == (None, None, "invited")
 
 
 @postgres

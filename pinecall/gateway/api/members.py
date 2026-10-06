@@ -174,8 +174,6 @@ async def _member_elsewhere(gateway: Gateway, org: str, email: str) -> bool:
 async def _mailed(
     request: Request, gateway: Gateway, *, key: Acting, invited: people.Invited, worded: Worded
 ) -> bool:
-    if invited.token is None:
-        return False
     pool = gateway.connections.pool
     org = await orgs.find(pool, key.org)
     link = Link(

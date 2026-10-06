@@ -27,6 +27,7 @@ from pinecall.tenancy.people import (
     Change,
     Invitee,
     accept,
+    by_email,
     hash_password,
     invite,
     make_operator,
@@ -70,7 +71,6 @@ async def org_of(pool: Pool, slug: str = "clinica-norte") -> Org:
 
 async def seated(pool: Pool, org: Org, who: Invitee = ANA, *, vouched: bool = True) -> Member:
     invited = await invite(pool, org.id, who, seats=None, vouched=vouched)
-    assert invited.token is not None
     member = await accept(pool, invited.token, await hash_password(WHAT_ANA_TYPES, 8))
     assert member is not None
     return member
@@ -162,6 +162,19 @@ async def test_a_proven_person_still_invited_elsewhere_is_seated_by_signing_in_t
     )
     assert signed.member is not None
     assert signed.member.status == "active"
+
+
+@postgres
+async def test_a_sign_in_that_names_no_org_never_takes_an_invitation(pool: Pool) -> None:
+    home = await org_of(pool, "zeta")
+    other = await org_of(pool, "acme")
+    await seated(pool, home)
+    invited = (await invite(pool, other.id, ANA, seats=None)).member
+    signed = await sign_in_with_password(pool, Asking("ana@clinica.test", WHAT_ANA_TYPES))
+    assert signed.key.org == home.id
+    kept = await by_email(pool, other.id, "ana@clinica.test")
+    assert kept is not None
+    assert (kept.id, kept.status) == (invited.id, "invited")
 
 
 @postgres
@@ -371,9 +384,14 @@ async def test_a_person_opens_another_org_of_theirs_and_an_operator_opens_any(po
     other = await org_of(pool, "northwind")
     stranger = await org_of(pool, "acme")
     member = await seated(pool, home)
-    # Proven at home with a password, she is seated in the other org at once.
+    # Invited elsewhere, she is not a member there until she opens it: opening it takes the seat.
     await invite(pool, other.id, ANA, seats=None)
-    assert (await key_in(pool, member, other.id)).key.org == other.id
+    there = await by_email(pool, other.id, "ana@clinica.test")
+    assert there is not None
+    assert there.status == "invited"
+    opened = await key_in(pool, member, other.id)
+    assert opened.member is not None
+    assert (opened.key.org, opened.member.status) == (other.id, "active")
     with pytest.raises(NotAllowed, match="not an org of this person's"):
         await key_in(pool, member, stranger.id)
     operator = await make_operator(pool, home.id, member.id, on=True)

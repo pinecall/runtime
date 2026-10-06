@@ -494,6 +494,9 @@ async def another_key(
 async def key_in(pool: Pool, member: Member, org: str, *, label: str | None = None) -> SignedIn:
     """The person's key in another org: their membership there, or a visit if they run the box."""
     there = await by_email(pool, org, member.email)
+    # Opening an org one was invited to is taking the seat: the person chose it, by its name.
+    if there is not None and there.status == "invited" and there.verified:
+        there = await _joined(pool, there) or there
     if there is not None and there.status == "active":
         key, secret = await person_key(pool, there, label=label)
         return SignedIn(key, secret, there)
@@ -524,7 +527,7 @@ async def forgotten(pool: Pool, outbox: Outbox, email: str, base: str) -> None:
         if await outbox.mailbox_for(row.org) is None:
             continue
         link = await reset(pool, row.org, row.id)
-        if link is None or link.token is None:
+        if link is None:
             continue
         org = await find(pool, row.org)
         data = Link(
@@ -540,10 +543,8 @@ async def found(pool: Pool, signup: Signup, codes: OneUse[Holder]) -> Founded:
     already = len(await orgs_of(pool, signup.email))
     org = await create(pool, signup.slug, signup.name or signup.slug, already=already)
     invited = await invite(pool, org.id, Invitee(signup.email, signup.person, "admin"), seats=None)
-    # A person with a password here is seated at once and keeps it: one password per person.
-    admin = invited.member
-    if invited.token is not None:
-        admin = await accept(pool, invited.token, signup.hashed) or admin
+    # The founder takes the seat at once, with the password the sign-up proved: one per person.
+    admin = await accept(pool, invited.token, signup.hashed) or invited.member
     key, secret = await person_key(pool, admin, label=signup.device or SIGNED_UP)
     code, code_expires_at = await codes.mint(admin)
     return Founded(
@@ -579,11 +580,23 @@ async def _row_for(pool: Pool, asking: Asking) -> Member | None:
         org = await find(pool, asking.org)
         return None if org is None else await by_email(pool, org.id, asking.email)
     rows = await orgs_of(pool, asking.email)
+    enabled = [row for row in rows if row.status != "disabled"]
+    # A sign-in that names no org opens one the person took: an invitation is taken by naming it.
+    taken = [row for row in enabled if row.status == "active"] or enabled
     # An org a password opens first; one that signs in only with its provider is refused after.
-    for row in rows:
-        if row.status != "disabled" and not await _sso_only(pool, row.org):
+    for row in taken:
+        if not await _sso_only(pool, row.org):
             return row
-    return next((row for row in rows if row.status != "disabled"), rows[0] if rows else None)
+    return next(iter(taken), rows[0] if rows else None)
+
+
+# Seated with the one password the person already has; an org that signs in only with its
+# provider seats nobody this way.
+async def _joined(pool: Pool, invited: Member) -> Member | None:
+    known = await password_of(pool, invited.email)
+    if known is None or await _sso_only(pool, invited.org):
+        return None
+    return await join(pool, invited.org, invited.id, known)
 
 
 async def _sso_only(pool: Pool, org: str) -> bool:

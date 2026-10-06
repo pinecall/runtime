@@ -148,11 +148,11 @@ class Change:
 
 @dataclass(frozen=True)
 class Invited:
-    """The member invited, and the link's token once; no token when seated at once."""
+    """The member invited, and the link's token once."""
 
     member: Member
-    token: str | None = None
-    expires_at: datetime | None = None
+    token: str
+    expires_at: datetime
 
 
 LISTED = sql.SQL("SELECT {row} FROM members WHERE org = %(org)s ORDER BY created_at, id").format(
@@ -266,9 +266,8 @@ async def invite(
         found = 0 if seated is None else int(seated["seated"])
         if seats is not None and found >= seats:
             raise QuotaExhausted(NO_SEAT_LEFT.format(seated=found))
-        password = await _password_of(connection, email)
-        # A person proven elsewhere, with a password, is seated at once: no link to accept.
-        at_once = password is not None and await _verified_anywhere(connection, email)
+        # Nobody is seated by being named: a person proven elsewhere takes the seat by opening the
+        # org (signin.key_in, or a sign-in that names it), anybody else by the link.
         member = Member(
             id=f"{MEMBER_PREFIX}{secrets.token_hex(MEMBER_BYTES)}",
             org=org,
@@ -276,13 +275,11 @@ async def invite(
             name=invitee.name,
             role=invitee.role,
             agents=invitee.agents,
-            status="active" if at_once else "invited",
+            status="invited",
             production=invitee.production,
-            verified=at_once,
+            verified=await _verified_anywhere(connection, email),
         )
-        await connection.execute(INSERT, _written(member, password if at_once else None))
-        if at_once:
-            return Invited(member=member)
+        await connection.execute(INSERT, _written(member, None))
         return await _link(connection, member, vouched=vouched)
 
 
