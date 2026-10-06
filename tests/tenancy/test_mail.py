@@ -1,5 +1,6 @@
 """Mail: which mailbox a letter goes through, what the five letters say, and what SMTP answers."""
 
+import ipaddress
 from datetime import UTC, datetime
 
 import pytest
@@ -8,6 +9,7 @@ from cryptography.fernet import Fernet
 from pinecall.domain.errors import DeclarationRefused, UpstreamFailed
 from pinecall.postgres.pool import Pool
 from pinecall.process.connections import vault_of
+from pinecall.tenancy import mail
 from pinecall.tenancy.letters import (
     Brand,
     Letter,
@@ -21,6 +23,7 @@ from pinecall.tenancy.letters import (
 from pinecall.tenancy.mail import (
     Mailbox,
     box_mail_of,
+    check_public,
     drop_box_mail,
     drop_mail,
     mail_of,
@@ -31,7 +34,7 @@ from pinecall.tenancy.mail import (
 )
 from pinecall.tenancy.orgs import create
 from tests.conftest import postgres
-from tests.fakes.mail import Postbox
+from tests.fakes.mail import Postbox, resolving_to
 
 VAULT = vault_of(Fernet.generate_key().decode())
 SENDER = "Clínica <no-reply@clinica.test>"
@@ -172,3 +175,26 @@ async def test_the_boxs_stored_mailbox_wins_over_the_environments(pool: Pool) ->
     assert (stored.mailbox, stored.source) == (THE_BOXS, "stored")
     await drop_box_mail(pool)
     assert await box_mail_of(pool, VAULT, None) is None
+
+
+# An org's mailbox is a server on the internet over TLS: plain is refused where it is kept, and a
+# name that puts it inside the box's network, or resolves to nothing, where a letter would leave.
+@postgres
+async def test_an_orgs_mailbox_reaches_only_a_public_server_over_tls(
+    pool: Pool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    org = await create(pool, "clinica-norte", "Clínica Norte")
+    with pytest.raises(DeclarationRefused, match="reached over TLS"):
+        await put_mail(pool, VAULT, org.id, Mailbox("10.0.0.7", 25, "none", "", "", SENDER))
+    monkeypatch.setattr(mail, "addresses_of", resolving_to("10.111.0.9"))
+    with pytest.raises(UpstreamFailed, match="resolves to no public address"):
+        check_public(THE_ORGS)
+
+    def unresolved(_host: str) -> list[ipaddress.IPv4Address]:
+        raise OSError
+
+    monkeypatch.setattr(mail, "addresses_of", unresolved)
+    with pytest.raises(UpstreamFailed, match="resolves to no public address"):
+        check_public(THE_ORGS)
+    monkeypatch.setattr(mail, "addresses_of", resolving_to("93.184.215.14"))
+    check_public(THE_ORGS)

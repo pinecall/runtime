@@ -1,6 +1,8 @@
 """A mail server the outbox posts to, and the postbox it lands in."""
 
+import ipaddress
 import smtplib
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from email.message import Message
 from typing import ClassVar, Self, override
@@ -59,3 +61,15 @@ class MailServer(smtplib.SMTP):
             raise smtplib.SMTPDataError(code, data.encode())
         self.postbox.sent.append(msg)
         return {}
+
+
+type Address = ipaddress.IPv4Address | ipaddress.IPv6Address
+
+
+def resolving_to(address: str) -> Callable[[str], list[Address]]:
+    """A name resolver that answers this one address for every name."""
+
+    def resolved(_host: str) -> list[Address]:
+        return [ipaddress.ip_address(address)]
+
+    return resolved

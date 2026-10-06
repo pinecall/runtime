@@ -13,7 +13,7 @@ from pinecall.tenancy import mail, reads, sso
 from pinecall.tenancy.reads import Read
 from tests.conftest import Knocking, postgres
 from tests.fakes.idp import IdentityProvider
-from tests.fakes.mail import Postbox
+from tests.fakes.mail import Postbox, resolving_to
 from tests.gateway.api.conftest import delivered
 
 THE_SSO = "/v1/org/sso"
@@ -169,7 +169,14 @@ async def test_an_org_with_no_mailbox_answers_one_shape_with_every_field_empty(
 
 @postgres
 @pytest.mark.parametrize(
-    "wrong", [{"security": "carrier-pigeon"}, {"port": 0}, {"from": "Pinecall"}, {"host": "a b"}]
+    "wrong",
+    [
+        {"security": "carrier-pigeon"},
+        {"port": 0},
+        {"from": "Pinecall"},
+        {"host": "a b"},
+        {"security": "none"},
+    ],
 )
 async def test_a_mailbox_that_is_not_one_is_refused_and_nothing_is_kept(
     knocking: Knocking, wrong: dict[str, object]
@@ -285,3 +292,18 @@ async def test_the_orgs_reads_are_listed_newest_first_and_of_one_call_when_named
     assert [(row["what"], row["reader"]) for row in of_one.json()["reads"]] == [
         ("recording", "m_ana")
     ]
+
+
+# An org's server is on the internet: a name that puts it inside the box's network is never
+# reached, and the test letter says so instead of what a server there would have answered.
+@postgres
+async def test_an_orgs_mailbox_inside_the_boxs_network_is_never_reached(
+    knocking: Knocking, postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(mail, "addresses_of", resolving_to("10.111.0.9"))
+    async with knocking.http(knocking.app["production"]) as console:
+        await console.put(THE_MAIL, json=A_MAILBOX)
+        tried = await console.post(f"{THE_MAIL}/test", json={"to": "ana@clinica.test"})
+    assert tried.json()["sent"] is False
+    assert "resolves to no public address" in tried.json()["error"]
+    assert postbox.hosts == []

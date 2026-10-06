@@ -206,9 +206,10 @@ provider signs in that address's domain, and nothing about who exists.
 ## The org's mailbox — `/v1/org/mail`
 
 `team`. `PUT {host, port, security, username, password, from}` keeps the SMTP account the org's
-letters go out through before the box's (`security` is `starttls`, `tls` or `none`, and `none`
-reaches only a server on the box's own machine or a private network: its password would cross in
-clear); it sends nothing. `GET` answers `{configured, host, port, security, username, from, verified_at,
+letters go out through before the box's: a server on the internet, reached over TLS (`security`
+is `starttls` or `tls`; `none` is `400`, the box's own relay alone). Every address its name
+resolves to must be public: one inside the box's network, or a name that resolves to nothing, is
+never reached, and the letter's error says so. It sends nothing. `GET` answers `{configured, host, port, security, username, from, verified_at,
 last_error}`, never the password, and `DELETE` goes back to the box's. `POST /v1/org/mail/test
 {to}` sends one letter and waits: `{sent, error}` with what the server said, `409` when nothing
 can send.

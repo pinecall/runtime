@@ -75,6 +75,18 @@ NOT_PRIVATE = (
 )
 
 
+# An org's server is on the internet: one inside the box's network is the box's, not the org's.
+NOT_PUBLIC = (
+    "{host} resolves to no public address, or to one that is not: an org's mailbox is a mail "
+    "server on the internet"
+)
+
+
+NOT_PLAIN = (
+    "an org's mailbox is reached over TLS, starttls or tls: none is the box's own relay alone"
+)
+
+
 BOX_MAIL = "mail"
 
 
@@ -190,6 +202,8 @@ class Outbox:
         if existing is None:
             return None
         try:
+            if existing.source == "org":
+                await asyncio.to_thread(check_public, existing.mailbox)
             await post(existing.mailbox, letter)
         except UpstreamFailed as refused:
             await self._went(org, existing.source, str(refused))
@@ -271,6 +285,8 @@ async def mail_of(pool: Pool, vault: MultiFernet, org: str) -> MailboxStatus | N
 
 async def put_mail(pool: Pool, vault: MultiFernet, org: str, mailbox: Mailbox) -> None:
     """Keep the org's own mailbox, the password sealed; how it went is forgotten."""
+    if mailbox.security == "none":
+        raise DeclarationRefused(NOT_PLAIN)
     values = {**_fields(mailbox), "org": org, "ciphertext": sealed(vault, mailbox.password)}
     async with pool.connection() as connection:
         await connection.execute(PUT_ORG_MAIL, values)
@@ -326,6 +342,26 @@ async def post(mailbox: Mailbox, letter: Letter, *, within_s: float = TIMEOUT_S)
     except TimeoutError:
         text = TIMED_OUT.format(host=mailbox.host, port=mailbox.port, seconds=within_s)
         raise UpstreamFailed(text) from None
+
+
+# Every address the name resolves to is checked, and a name that does not resolve is refused: the
+# server reached is on the internet, never a service inside the box's network.
+def check_public(mailbox: Mailbox) -> None:
+    """Refuse an org's mailbox that is plain, or that its name puts anywhere but the internet."""
+    if mailbox.security == "none":
+        raise UpstreamFailed(NOT_PLAIN)
+    try:
+        addresses = addresses_of(mailbox.host)
+    except OSError:
+        raise UpstreamFailed(NOT_PUBLIC.format(host=mailbox.host)) from None
+    if not addresses or not all(address.is_global for address in addresses):
+        raise UpstreamFailed(NOT_PUBLIC.format(host=mailbox.host))
+
+
+def addresses_of(host: str) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]:
+    """Every address the name resolves to."""
+    found = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    return [ipaddress.ip_address(str(item[4][0]).partition("%")[0]) for item in found]
 
 
 def parse_security(word: str) -> Security:
