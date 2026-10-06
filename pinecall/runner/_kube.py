@@ -240,7 +240,7 @@ class Cluster:
 
     async def _gone(self, name: str, grace_s: int) -> None:
         body: JsonObject = {"gracePeriodSeconds": grace_s}
-        for path in (f"pods/{name}", f"secrets/{secret_of(name)}"):
+        for path in (f"pods/{name}", f"secrets/{_secret_of(name)}"):
             answer = await self._request(_Knock("delete", "DELETE", self._at(path), body=body))
             if not answer.is_success and answer.status_code != NOT_THERE:
                 raise UpstreamFailed(_refusal("delete", answer))
@@ -292,11 +292,6 @@ def app_stamp(app: str) -> str:
     return hashlib.sha256(app.encode()).hexdigest()[:16]
 
 
-def secret_of(host: str) -> str:
-    """The secret a host's environment is kept in."""
-    return f"{host}-env"
-
-
 # Single-quoted, so any value is itself: a key of several lines, a quote, a dollar sign.
 def exported(environment: Mapping[str, str]) -> str:
     """The environment as a shell reads it: one `export NAME='value'` a variable."""
@@ -314,7 +309,7 @@ def environment_secret(host: str, environment: Mapping[str, str]) -> JsonObject:
     return {
         "apiVersion": "v1",
         "kind": "Secret",
-        "metadata": {"name": secret_of(host)},
+        "metadata": {"name": _secret_of(host)},
         "type": "Opaque",
         "stringData": {"env": exported(environment)},
     }
@@ -355,7 +350,7 @@ def pod(engine: Engine, launch: Launch) -> JsonObject:
                 {"name": "scratch", "emptyDir": {"medium": "Memory", "sizeLimit": SCRATCH_SIZE}},
                 {
                     "name": "environment",
-                    "secret": {"secretName": secret_of(launch.host), "defaultMode": 0o444},
+                    "secret": {"secretName": _secret_of(launch.host), "defaultMode": 0o444},
                 },
             ],
             "initContainers": [
@@ -427,6 +422,11 @@ def containers_in(items: list[Json]) -> list[Container]:
             )
         )
     return found
+
+
+def _secret_of(host: str) -> str:
+    """The secret a host's environment is kept in."""
+    return f"{host}-env"
 
 
 # What every container of an org's code runs under: no privilege, no root, nothing writable but

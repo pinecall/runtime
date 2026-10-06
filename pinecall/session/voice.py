@@ -70,19 +70,19 @@ def context_of(config: AgentConfig, ears: Ears) -> NotGivenOr[STTContextOptions]
     return {"keyterms": keyterms(config, {})}
 
 
-def end_of_turn(model: TurnModel) -> TurnDetectionMode:
-    """The local model that reads the end of the caller's turn off the audio, no transcript."""
-    if model == SMART_TURN:
-        return smart_turn()
-    return inference.TurnDetector(version=LOCAL_TURN_VERSION)
-
-
 # One Smart Turn per process: its weights load once and its first inference runs when it is made,
 # so only the first call that asks for it pays. Each session streams to it on its own.
 @cache
 def smart_turn() -> SmartTurnDetector:
     """Smart Turn v3, the row's alternative to livekit's own detector."""
     return SmartTurnDetector(SMART_TURN)
+
+
+def _end_of_turn(model: TurnModel) -> TurnDetectionMode:
+    """The local model that reads the end of the caller's turn off the audio, no transcript."""
+    if model == SMART_TURN:
+        return smart_turn()
+    return inference.TurnDetector(version=LOCAL_TURN_VERSION)
 
 
 # The parameter replaces livekit's defaults, so they come first and the tenant's words after.
@@ -110,7 +110,7 @@ def _spoken_turns(config: AgentConfig, ears: Running) -> TurnHandlingOptions:
     return {
         # Ears that end the turn themselves decide it; the local detector stacked on them waits
         # its whole delay after a pause in the middle of a sentence.
-        "turn_detection": "stt" if ears.ends_the_turn else end_of_turn(ears.turn_model),
+        "turn_detection": "stt" if ears.ends_the_turn else _end_of_turn(ears.turn_model),
         # A reply started inside a tool's window, on a context without its result, answers its
         # own question.
         "preemptive_generation": {"enabled": False},

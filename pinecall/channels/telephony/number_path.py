@@ -49,7 +49,7 @@ async def path_of(connections: Connections, record: RouteRecord, *, running: boo
         _world_step(record),
         _agent_step(record, running=running),
     ]
-    return NumberPath(steps=steps, rings=worst(step.state for step in steps))
+    return NumberPath(steps=steps, rings=_worst(step.state for step in steps))
 
 
 async def rings_of(
@@ -60,7 +60,7 @@ async def rings_of(
         return []
     carriers, approved = await _what_fences(connections, records[0].route.org)
     return [
-        worst(
+        _worst(
             step.state
             for step in (
                 _carrier_step(record, pointed_by_the_box=_pointed(connections, record, carriers)),
@@ -72,7 +72,7 @@ async def rings_of(
     ]
 
 
-def worst(states: Iterable[StepState]) -> StepState:
+def _worst(states: Iterable[StepState]) -> StepState:
     """The state that stops a call most, of several."""
     found: StepState = "ok"
     for state in states:

@@ -40,9 +40,6 @@ from pinecall.wire.rest.calls import ReadKind
 # The world a person's key acts in; a server's key is its own world whatever this says.
 WORLD = "pinecall-env"
 
-HOST = "host"
-
-
 # An admin, in the sandbox, looking into a colleague's scope.
 LOOKING_AT = "pinecall-corner"
 

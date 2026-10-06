@@ -13,13 +13,15 @@ spec:
       containers:
         - name: redis
           image: {{ .Values.media.redis }}
-          args: ["sh", "-c", 'exec redis-server --requirepass "$REDIS_PASSWORD" --save "" --appendonly no']
+          # The password goes in a file of the container's own, never in argv: a process's command
+          # line is read by anything that lists processes, its files by itself alone.
+          args: ["sh", "-c", 'umask 077; printf "requirepass %s\n" "$REDIS_PASSWORD" > /tmp/redis.conf; exec redis-server /tmp/redis.conf --save "" --appendonly no']
           env:
             - name: REDIS_PASSWORD
               valueFrom: { secretKeyRef: { name: pinecall, key: REDIS_PASSWORD } }
           ports: [{ containerPort: 6379 }]
           readinessProbe:
-            exec: { command: ["sh", "-c", 'redis-cli --no-auth-warning -a "$REDIS_PASSWORD" ping'] }
+            exec: { command: ["sh", "-c", 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG'] }
           resources:
             requests: { cpu: 50m, memory: 64Mi }
 ---
@@ -62,13 +64,13 @@ spec:
       containers:
         - name: redis
           image: {{ $.Values.media.redis }}
-          args: ["sh", "-c", 'exec redis-server --requirepass "$REDIS_PASSWORD" --save "" --appendonly yes --dir /data']
+          args: ["sh", "-c", 'umask 077; printf "requirepass %s\n" "$REDIS_PASSWORD" > /tmp/redis.conf; exec redis-server /tmp/redis.conf --save "" --appendonly yes --dir /data']
           env:
             - name: REDIS_PASSWORD
               valueFrom: { secretKeyRef: { name: pinecall, key: REDIS_PASSWORD } }
           ports: [{ containerPort: 6379 }]
           readinessProbe:
-            exec: { command: ["sh", "-c", 'redis-cli --no-auth-warning -a "$REDIS_PASSWORD" ping'] }
+            exec: { command: ["sh", "-c", 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG'] }
           volumeMounts:
             - { name: data, mountPath: /data }
           resources:

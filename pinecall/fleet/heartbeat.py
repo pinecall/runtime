@@ -120,7 +120,7 @@ class Heartbeats:
             first_audio_p95_s=last.first_audio_p95_s,
         )
 
-    # The gateway's scale: calls over slots, full at 1.0 (roster.refused_at); a worker on CPU
+    # The gateway's scale: calls over slots, full at 1.0 (roster._refused_at); a worker on CPU
     # reports the share LiveKit reads, which is the same number on both scales.
     def gateways_load(self, active: int) -> float:
         """The load the gateway reads for this worker."""

@@ -217,7 +217,7 @@ def overflow_name(fleet: str) -> str:
     return agent_name(fleet, OVERFLOW)
 
 
-def refused_at(max_jobs: int | None) -> float:
+def _refused_at(max_jobs: int | None) -> float:
     """The load a heartbeat says full at: every slot of a worker that counts, 0.7 of a CPU."""
     return REFUSED_AT if max_jobs is None else EVERY_SLOT
 
@@ -228,5 +228,5 @@ def _accepting_now(seat: WorkerStatus, now: float) -> bool:
         heard_lately(seat, now)
         and not seat.cordoned
         and not seat.draining
-        and seat.load < refused_at(seat.max_jobs)
+        and seat.load < _refused_at(seat.max_jobs)
     )
