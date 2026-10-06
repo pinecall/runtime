@@ -62,6 +62,16 @@ hooked from networks of its own. Two trunks may never list one number: livekit-s
 INVITE, so the box refuses the second import before anything is written. A trunk that lists no
 network would admit every source, so a fence with nothing approved is no trunk at all.
 
+The two layers say a call came from Twilio, not from whose Twilio: Twilio's networks are every
+Twilio customer's. So the gateway asks a third thing when a call opens. Twilio stamps every call
+with the account it came from (`X-Twilio-AccountSid`, which livekit-sip puts on the leg as
+`sip.twilio.accountSid`); the worker passes it on (`POST /v1/calls`, `carrier_account`), and a call
+to a number the box bought that did not come from the box's account, or to one imported from an
+org's Twilio account that did not come from that account, is refused (`403`). A number hooked or
+typed has no account known here and is not asked; a hooked one waits for the operator's approval
+instead ([protocol/numbers.md](protocol/numbers.md)). A carrier other than Twilio stamps no account,
+and a call from it is not asked either.
+
 ## Worlds
 
 Each world has a LiveKit of its own (`LIVEKIT_URL`, `LIVEKIT_SANDBOX_URL`,

@@ -15,7 +15,7 @@ from pinecall.domain.names import JsonObject
 from pinecall.domain.person import KEY_SCOPES
 from pinecall.domain.scope import Scope
 from pinecall.log.store import Claim
-from pinecall.tenancy import keys, orgs, policy, reads, tokens
+from pinecall.tenancy import keys, orgs, policy, reads, tokens, vault
 from pinecall.wire.rest.accounts import OrgPolicy
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
 from tests.conftest import (
@@ -28,6 +28,7 @@ from tests.conftest import (
     received_until,
     sent,
 )
+from tests.fakes.twilio import Twilio
 from tests.gateway.api.conftest import A_NUMBER, a_call, an_app, first_data
 
 
@@ -84,6 +85,36 @@ async def test_a_phone_call_the_worker_opens_marks_its_number_as_reached_once_a_
     assert second is not None
     assert first.last_call_at is not None
     assert second.last_call_at == first.last_call_at
+    await app.close()
+
+
+# Twilio's networks are every Twilio customer's: a call to a number the box bought that Twilio
+# sent from another account is refused, one from the box's own opens, and one that says no
+# account (another carrier, an older worker) is not asked.
+@postgres
+async def test_a_call_twilio_sent_from_another_account_than_its_numbers_is_refused(
+    knocking: Knocking, twilio: Twilio
+) -> None:
+    app = await an_app(knocking)
+    pool, sealed = knocking.gateway.connections.pool, knocking.gateway.connections.vault
+    boxs: JsonObject = {
+        "account_sid": twilio.account_sid,
+        "user": twilio.user,
+        "secret": twilio.secret,
+    }
+    await vault.put_box_credentials(pool, sealed, "twilio", boxs)
+    context = a_call(knocking)
+    await routes.put(pool, replace(context.route, managed=True), RouteWrite("bought"))
+    requests = [
+        OpenCallRequest(
+            agent=AGENT, context=replace(context, call=new_call_id()), carrier_account=sid
+        )
+        for sid in ("AC_somebody_else", twilio.account_sid, None)
+    ]
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        answers = [await worker.post("/v1/calls", json=item.written()) for item in requests]
+    assert [answer.status_code for answer in answers] == [403, 200, 200]
+    assert "another Twilio account" in answers[0].json()["detail"]
     await app.close()
 
 

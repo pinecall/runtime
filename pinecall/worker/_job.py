@@ -120,6 +120,8 @@ class Arrival:
     # The number dialled, read off the caller's SIP leg: phone jobs are room jobs, and livekit
     # leaves job.participant empty for them.
     number: str | None = None
+    # The Twilio account the leg came from, when Twilio sent it.
+    carrier_account: str | None = None
 
 
 async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) -> None:
@@ -148,7 +150,12 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
         gateway.hold_audio(route.agent, scope),
     )
     opened = await gateway.open(
-        OpenCallRequest(agent=route.agent, context=context, app=dispatch.app or settings.app)
+        OpenCallRequest(
+            agent=route.agent,
+            context=context,
+            app=dispatch.app or settings.app,
+            carrier_account=arrival.carrier_account,
+        )
     )
     # An outbound call is its far end answering: nothing is built for a leg that never came up.
     if dispatch.dial is not None and not await _answered(ctx, gateway, context, dispatch.dial):
@@ -241,6 +248,7 @@ async def arrival_of(dispatch: Dispatch, where: rtc.Room) -> Arrival:
         channel="phone" if outbound or dialled else THE_WIDGET,
         direction="outbound" if outbound else "inbound",
         number=dialled,
+        carrier_account=data.get(room.TWILIO_ACCOUNT),
     )
 
 

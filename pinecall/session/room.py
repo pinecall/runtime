@@ -575,6 +575,10 @@ CALLER_NUMBER = f"{SIP_PREFIX}phoneNumber"
 DIALLED_NUMBER = f"{SIP_PREFIX}trunkPhoneNumber"
 
 
+# The Twilio account a leg Twilio sent came from: livekit-sip reads X-Twilio-AccountSid into it.
+TWILIO_ACCOUNT = f"{SIP_PREFIX}twilio.accountSid"
+
+
 # livekit's wait never times out; a room that never connected raises, and has no leg either.
 # The first SIP seat is the caller; later ones came from room.invite or a warm transfer.
 async def caller_leg(room: rtc.Room, channel: Channel) -> rtc.RemoteParticipant | None:

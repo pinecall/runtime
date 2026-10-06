@@ -1,6 +1,7 @@
 """Tests for how a job finds its call, and for the entries it writes outside its session."""
 
 import time
+from dataclasses import replace
 from functools import partial
 
 import pytest
@@ -16,7 +17,7 @@ from pinecall.domain.names import THE_WIDGET, JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.providers.build import Running
 from pinecall.session.call import Call, Platform, ToolUse
-from pinecall.session.room import CALLER_NUMBER, DIALLED_NUMBER
+from pinecall.session.room import CALLER_NUMBER, DIALLED_NUMBER, TWILIO_ACCOUNT
 from pinecall.session.text import text_session
 from pinecall.wire.events import CallEnded
 from pinecall.wire.frames import Command
@@ -75,6 +76,15 @@ async def test_a_sip_leg_says_who_calls_and_which_number_they_dialled() -> None:
     leg = seat("sip_1", kind=SIP, attributes={CALLER_NUMBER: CALLER, DIALLED_NUMBER: NUMBER})
     arrived = await arrival_of(Dispatch(), Room("call_1", leg))
     assert arrived == A_PHONE
+
+
+# Twilio stamps its leg with the account it came from; the gateway checks it against the number's.
+async def test_a_leg_twilio_sent_says_the_account_it_came_from() -> None:
+    attributes = {CALLER_NUMBER: CALLER, DIALLED_NUMBER: NUMBER, TWILIO_ACCOUNT: "AC_theirs"}
+    arrived = await arrival_of(
+        Dispatch(), Room("call_1", seat("sip_1", kind=SIP, attributes=attributes))
+    )
+    assert arrived == replace(A_PHONE, carrier_account="AC_theirs")
 
 
 async def test_a_dispatch_naming_its_agent_does_not_wait_for_a_leg() -> None:

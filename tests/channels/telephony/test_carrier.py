@@ -3,12 +3,15 @@
 import httpx
 import pytest
 
-from pinecall.channels.telephony import carrier
+from pinecall.channels.telephony import carrier, numbers
 from pinecall.channels.telephony._twilio import Twilio
 from pinecall.channels.telephony.carrier_catalog import known_carrier
+from pinecall.channels.telephony.numbers import NumberImport
 from pinecall.domain.errors import Conflict, DeclarationRefused
 from pinecall.tenancy.carriers import Carrier, Termination, TwilioAccount, WhatsappAccount
-from tests.channels.conftest import PEER_NETWORK, a_peer
+from tests.channels import conftest
+from tests.channels.conftest import PEER_NETWORK, Line, a_peer
+from tests.conftest import postgres
 from tests.fakes.idp import a_sid
 from tests.fakes.meta import Graph
 
@@ -114,3 +117,23 @@ async def test_a_whatsapp_number_is_kept_only_when_meta_opens_it_with_the_token(
         graph.refusal = (401, "Invalid OAuth access token - Cannot parse access token")
         with pytest.raises(DeclarationRefused, match="Meta does not open WhatsApp number 1171"):
             await carrier.verify_account(http, account)
+
+
+# A number imported from the org's Twilio account must be called from that account; a number the
+# org hooked has no account known here, and a number nobody holds neither.
+@postgres
+async def test_a_numbers_twilio_account_is_the_one_it_was_imported_from_and_a_hooked_ones_none(
+    line: Line,
+) -> None:
+    await conftest.brought(line)
+    line.twilio.owns(A_NUMBER)
+    await numbers.import_number(line.connections, NumberImport(line.scope(), "recepcion", A_NUMBER))
+    hooked = "+59829001100"
+    await numbers.import_number(
+        line.connections, NumberImport(line.scope(), "recepcion", hooked, hooked=True)
+    )
+    accounts = [
+        await carrier.twilio_account_of(line.connections, line.org, number)
+        for number in (A_NUMBER, hooked, "+59829001101")
+    ]
+    assert accounts == [line.account().account_sid, None, None]

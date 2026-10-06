@@ -4,10 +4,17 @@ from dataclasses import dataclass
 
 import httpx
 
-from pinecall.channels import whatsapp
+from pinecall.channels import routes, whatsapp
 from pinecall.channels.telephony._twilio import Twilio, twilio_of, verify
 from pinecall.channels.telephony.carrier_catalog import BOX_CARRIER, known_carrier
-from pinecall.domain.errors import Conflict, DeclarationRefused, UpstreamFailed
+from pinecall.domain.errors import (
+    Conflict,
+    DeclarationRefused,
+    NotAvailable,
+    NotFound,
+    UpstreamFailed,
+)
+from pinecall.process.connections import Connections
 from pinecall.tenancy import carrier_networks
 from pinecall.tenancy.carriers import (
     Account,
@@ -16,6 +23,8 @@ from pinecall.tenancy.carriers import (
     Transport,
     TwilioAccount,
     WhatsappAccount,
+    box_twilio,
+    carrier_named,
 )
 
 # Twilio's signalling edges, from the catalog: the fence of every Twilio number on the SFU, and the
@@ -187,6 +196,26 @@ async def verify_account(http: httpx.AsyncClient, account: Account) -> None:
             await _whatsapp_opens(http, account)
         case SipPeer():
             return
+
+
+# Twilio's networks are every Twilio customer's, so the firewall says only that a call came from
+# Twilio; the account Twilio stamps on it says whose. A number the box bought is the box's account,
+# one imported is the org's; a number hooked or typed has no account known here, and goes unasked.
+async def twilio_account_of(connections: Connections, org: str, number: str) -> str | None:
+    """The Twilio account a call to the org's number must come from; None where none is known."""
+    pool, vault = connections.pool, connections.vault
+    record = await routes.record_of(pool, org, number)
+    if record is None:
+        return None
+    try:
+        if record.route.managed:
+            return (await box_twilio(pool, vault)).account_sid
+        if record.account is None:
+            return None
+        found = await carrier_named(pool, vault, org, record.account)
+    except (NotAvailable, NotFound):
+        return None
+    return found.account.account_sid if isinstance(found.account, TwilioAccount) else None
 
 
 # Meta is asked for the number the id names, as the inbox asks it: a token that does not open it

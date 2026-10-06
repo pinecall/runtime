@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from pinecall.channels import offers, routes
+from pinecall.channels.telephony import carrier
 from pinecall.domain.agent import AgentConfig, Versions
 from pinecall.domain.call import CallContext, Opener
 from pinecall.domain.errors import (
@@ -114,6 +115,11 @@ NOT_OPEN = "this gateway is not writing call {call!r}: open it with POST /v1/cal
 SEALED = "call {call!r} is over: nothing more can be written to it"
 
 
+NOT_ITS_ACCOUNT = (
+    "{number} lives in another Twilio account than the one this call came from: refused"
+)
+
+
 NOT_APPROVED = (
     "{number} was hooked by the org and waits for the box's operator to approve it: no call to it "
     "opens until then"
@@ -164,12 +170,8 @@ async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) 
     context = body.context
     keys.check_agent(key.bearer, body.agent)
     scope = _call_corner(key, context)
-    # The carrier, the fence and the world rule worked, whatever is refused below. A number the
-    # org hooked rings nobody until the operator approves it is the org's.
     if context.direction == "inbound" and context.route.number is not None:
-        await routes.called(gateway.connections.pool, scope.org, context.route.number)
-        if await routes.is_waiting(gateway.connections.pool, scope.org, context.route.number):
-            raise NotAllowed(NOT_APPROVED.format(number=context.route.number))
+        await _arrived(gateway, scope, context.route.number, body.carrier_account)
     await _unclaimed_or_in(gateway, context.call, scope)
     await _spent(gateway, context, scope, body.agent)
     ceiling = await _deps.admit_call(gateway, scope, body.agent)
@@ -526,6 +528,21 @@ def _yours(key: Acting, scope: Scope, opened_by: Opener | None, call: str) -> No
 
 def _opener_of(key: Acting) -> Opener:
     return "fleet" if THE_FLEET in key.bearer.key.scopes else "app"
+
+
+# The carrier, the fence and the world rule worked, whatever is refused here. A number the org
+# hooked rings nobody until the operator approves it is the org's; a call Twilio sent from an
+# account the number does not live in is somebody else's Twilio pointed at it.
+async def _arrived(gateway: Gateway, scope: Scope, number: str, came_from: str | None) -> None:
+    pool = gateway.connections.pool
+    await routes.called(pool, scope.org, number)
+    if await routes.is_waiting(pool, scope.org, number):
+        raise NotAllowed(NOT_APPROVED.format(number=number))
+    if came_from is None:
+        return
+    expected = await carrier.twilio_account_of(gateway.connections, scope.org, number)
+    if expected is not None and expected != came_from:
+        raise NotAllowed(NOT_ITS_ACCOUNT.format(number=number))
 
 
 # A call a dial placed already has its head: the worker opens it in the scope the head keeps, or

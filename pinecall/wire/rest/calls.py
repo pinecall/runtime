@@ -157,6 +157,9 @@ class OpenCallRequest(WireModel):
     context: CallContext
     # The app socket that must serve it (a spoken golden run); else the one the call reaches.
     app: str | None = None
+    # The Twilio account an inbound leg says it came from (X-Twilio-AccountSid); None from any
+    # other carrier, or from a worker of an older release.
+    carrier_account: str | None = None
 
 
 class OpenCallResponse(WireModel):

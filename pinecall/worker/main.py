@@ -182,7 +182,9 @@ async def overflow_job(ctx: JobContext) -> None:
     scope = Scope(route.org, route.env, dispatch.holder or "")
     stages = _STAGES.validate_python(await gateway.stages(route.agent, scope))
     context = context_of(ctx, dispatch, arrival, route, settings)
-    await gateway.open(OpenCallRequest(agent=route.agent, context=context))
+    await gateway.open(
+        OpenCallRequest(agent=route.agent, context=context, carrier_account=arrival.carrier_account)
+    )
     writing = writer_of(gateway, context.call)
     try:
         await _said_once(ctx, writing, stages, settings.overflow_says)
