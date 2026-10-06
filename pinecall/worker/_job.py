@@ -176,7 +176,10 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
         call,
         ctx.room,
         ctx.api,
-        trunks=partial(_trunk_for, gateway, context),
+        legs=room.Legs(
+            trunk=partial(_trunk_for, gateway, context),
+            sent_on=partial(_sent_on, gateway, context),
+        ),
         claim=partial(_claimed, gateway, context.call),
     )
     hold = await _hold_music(gateway, route.agent, scope, played.played, played.sha256)
@@ -487,6 +490,12 @@ async def _trunk_for(gateway: GatewayClient, context: CallContext, to: str) -> r
     scope = Scope(route.org, route.env, context.holder or "")
     leg = await gateway.leg(route.agent, scope, to=to, call=context.call, shown=route.number)
     return room.Trunk(config=sip_config(leg), shown=leg.shown)
+
+
+async def _sent_on(gateway: GatewayClient, context: CallContext, to: str) -> None:
+    route = context.route
+    scope = Scope(route.org, route.env, context.holder or "")
+    await gateway.sent_on(route.agent, scope, to=to, call=context.call)
 
 
 # Waiting until answered is what tells busy and no answer apart; the media plane holds the

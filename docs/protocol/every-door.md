@@ -16,6 +16,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/metrics` | loopback | What the gateway counted and holds, as Prometheus text; refused to anything that came through Caddy. |
 | `GET` | `/v1/agents` | calls | The org's held agents in the world: one row per slug, one per scope for a team reader. |
 | `GET` | `/v1/agents/{slug}/calls` | calls | An agent's own log: its registrations, its declarations, its errors. It never ends. |
+| `POST` | `/v1/agents/{slug}/cold-transfer` | app · fleet | A cold transfer's leg, past the shape and the pace, its ledger row written; no trunk, since a REFER dials nothing of the box's. |
 | `GET` | `/v1/agents/{slug}/config` | app · calls · fleet | The agent as the scope runs it, for the call named: its declaration under the settings. |
 | `POST` | `/v1/agents/{slug}/dev/chat/{verb}` | talk | A chat verb, answered by the app holding the agent. |
 | `POST` | `/v1/agents/{slug}/dev/evals/{verb}` | evals | An evals verb, answered by the app holding the agent. |

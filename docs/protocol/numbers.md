@@ -180,7 +180,10 @@ else, `dial_failed`.
 
 A leg dialled into a live call (a warm transfer, `room.invite`) asks
 `GET /v1/agents/{slug}/outbound-trunk?to=&call=&from=`, the worker's: the shape and the pace, not
-the stranger fence, and the trunk inline in the answer.
+the stranger fence, and the trunk inline in the answer. A cold transfer asks
+`POST /v1/agents/{slug}/cold-transfer?to=&call=` before it sends the caller on: the same guards and
+the same ledger row, and no trunk, since the carrier dials a REFER on the org's own bill; a
+refusal leaves the caller where they are, `call.transferred` with `ok: false`.
 
 ## The firewall
 

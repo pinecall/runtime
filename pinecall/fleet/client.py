@@ -166,6 +166,12 @@ class GatewayClient:
         text = await self._read("GET", f"/v1/agents/{slug}/outbound-trunk", params=params)
         return LegTrunkResponse.model_validate(text).trunk
 
+    # A cold transfer dials nothing of ours, so no trunk: the gateway judges the leg alone.
+    async def sent_on(self, slug: str, scope: Scope, *, to: str, call: str) -> None:
+        """Have the gateway judge a cold transfer's leg; its refusal is its sentence."""
+        params = _scope_headers(scope) | {"to": to, "call": call}
+        await self._read("POST", f"/v1/agents/{slug}/cold-transfer", params=params)
+
     # ── a call ──
 
     # Asked again while the gateway is away: an open is the same call by its id (one claim, one

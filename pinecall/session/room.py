@@ -147,6 +147,15 @@ TRACK_SOURCES: dict[int, TrackSource] = {
 
 
 # The SFU keeps no outbound trunk: each leg carries its own, so a restarted SFU dials on.
+# Asked each time a verb dials: the gateway checks the org's dial guards and its limits first,
+# so a refusal (NotAllowed) carries their reason into the log. Never cached.
+type Trunks = Callable[[str], Awaitable[Trunk]]
+
+
+# Asked before a cold transfer: the same guards, and no trunk, since a REFER dials nothing of ours.
+type SentOn = Callable[[str], Awaitable[None]]
+
+
 @dataclass(frozen=True)
 class Trunk:
     """How a number is dialled: the trunk inline, and the org's number shown."""
@@ -155,9 +164,12 @@ class Trunk:
     shown: str | None = None
 
 
-# Asked each time a verb dials: the gateway checks the org's dial guards and its limits first,
-# so a refusal (NotAllowed) carries their reason into the log. Never cached.
-type Trunks = Callable[[str], Awaitable[Trunk]]
+@dataclass(frozen=True)
+class Legs:
+    """How a second leg of the call is judged: the guards and the trunk, or the guards alone."""
+
+    trunk: Trunks
+    sent_on: SentOn
 
 
 class CallRoom:
@@ -169,14 +181,14 @@ class CallRoom:
         room: rtc.Room,
         server: api.LiveKitAPI,
         *,
-        trunks: Trunks,
+        legs: Legs,
         claim: ClaimCode,
     ) -> None:
         """The room of a call not yet opened."""
         self.call = call
         self.room = room
         self.server = server
-        self.trunks = trunks
+        self.legs = legs
         self.claim = claim
         self.speaking: set[str] = set()
         self.tones: deque[tuple[str, float]] = deque(maxlen=CODE_LENGTH)
@@ -228,10 +240,19 @@ class CallRoom:
         """Call `hang_up` once the caller left, whatever the reason, and did not come back."""
         self.caller_gone = hang_up
 
+    # The caller is sent on only past the org's guards for a second leg (shape, pace, the
+    # ledger's row), as a warm transfer is: the REFER is a leg the carrier dials on the org's bill.
     async def _sent_on(self, wanted: CallTransfer) -> wire.CallTransferred:
         leg = await self.leg()
         if leg is None:
             return _stayed(wanted, "cold", NO_LEG.format(verb="call.transfer"))
+        try:
+            await self.legs.sent_on(wanted.to)
+        except Exception as refused:
+            logger.warning("call.transfer: the guards refused the leg", exc_info=True)
+            return _stayed(
+                wanted, "cold", str(refused) or NO_TRUNK.format(verb="call.transfer", to=wanted.to)
+            )
         request = TransferSIPParticipantRequest(
             participant_identity=leg.identity,
             room_name=self.room.name,
@@ -360,7 +381,7 @@ class CallRoom:
 
     async def _leg_to(self, to: str, *, verb: str) -> CreateSIPParticipantRequest | str:
         try:
-            trunk = await self.trunks(to)
+            trunk = await self.legs.trunk(to)
         except Exception as refused:
             logger.warning("%s: no trunk to dial through", verb, exc_info=True)
             return str(refused) or NO_TRUNK.format(verb=verb, to=to)

@@ -48,7 +48,7 @@ from pinecall.session._hearing import keyterms
 from pinecall.session._prompt import A_RELEASE
 from pinecall.session.call import Call, Platform, ToolUse
 from pinecall.session.hold import HoldMusic
-from pinecall.session.room import CALLER_NUMBER, CallRoom, Trunk
+from pinecall.session.room import CALLER_NUMBER, CallRoom, Legs, Trunk
 from pinecall.session.session import SAY_GOODBYE_FIRST, Session
 from pinecall.session.voice import voice_session
 from pinecall.wire.commands import (
@@ -1300,4 +1300,8 @@ def _a_room(box: Box, call: Call, server: Server) -> CallRoom:
     async def claim(_code: str) -> None:
         return
 
-    return CallRoom(call, AnOfflineRoom(box.log.call, caller), server, trunks=trunks, claim=claim)
+    async def sent_on(_to: str) -> None:
+        return
+
+    legs = Legs(trunk=trunks, sent_on=sent_on)
+    return CallRoom(call, AnOfflineRoom(box.log.call, caller), server, legs=legs, claim=claim)

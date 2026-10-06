@@ -350,3 +350,23 @@ async def test_a_list_is_imported_whole_and_a_line_that_is_no_number_is_said(
         listed = await http.get("/v1/org/dnc")
     assert imported.json() == {"added": 2, "refused": ["call me"]}
     assert len(listed.json()["numbers"]) == 2
+
+
+# A cold transfer dials nothing of the box's: the door judges the leg alone, an org with no
+# outbound account included, and refuses a shape no carrier dials.
+@postgres
+async def test_a_cold_transfers_leg_is_judged_with_no_trunk_and_a_bad_shape_refused(
+    knocking: Knocking,
+) -> None:
+    scopes: frozenset[KeyScope] = frozenset({THE_FLEET})
+    fleet = await issued(knocking.gateway.connections.pool, "default", "sandbox", scopes)
+    opened = Claim(Scope(knocking.org.id, "sandbox"))
+    await knocking.gateway.logs.store.claim("call_1", AGENT, knocking.org.id, opened)
+    params = {"to": "+34910000000", "call": "call_1", "org": knocking.org.id, "env": "sandbox"}
+    async with knocking.http(fleet) as worker:
+        judged = await worker.post(f"/v1/agents/{AGENT}/cold-transfer", params=params)
+        bad = await worker.post(
+            f"/v1/agents/{AGENT}/cold-transfer", params={**params, "to": "sip:x@10.0.0.1"}
+        )
+    assert judged.status_code == 204
+    assert bad.status_code == 400

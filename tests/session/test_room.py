@@ -26,7 +26,7 @@ from pinecall.session import hold as hold_module
 from pinecall.session import room as room_module
 from pinecall.session.call import Call
 from pinecall.session.hold import HoldMusic
-from pinecall.session.room import CALLER_NUMBER, CallRoom, Trunk, caller_leg
+from pinecall.session.room import CALLER_NUMBER, CallRoom, Legs, Trunk, caller_leg
 from pinecall.wire.commands import (
     CallDtmf,
     CallTransfer,
@@ -66,6 +66,11 @@ class RoomAnswers:
             raise NotAllowed(f"{to} is outside this org's dial guards")
         return self.trunk
 
+    async def sent_on(self, to: str) -> None:
+        """The guards' word on a cold transfer: refused where there is no trunk to admit one."""
+        if self.trunk is None:
+            raise NotAllowed(f"{to} is outside this org's dial guards")
+
     async def claim(self, code: str) -> None:
         """Keep the code; 0000 is no code at all."""
         self.claimed.append(code)
@@ -84,7 +89,8 @@ def _room(
     call = Call(context_of(box.log.call, channel), AGENT, box.platform())
     call.writing.open()
     offline, answering = AnOfflineRoom(box.log.call, *seats), params or RoomAnswers()
-    where = CallRoom(call, offline, server, trunks=answering.trunks, claim=answering.claim)
+    legs = Legs(trunk=answering.trunks, sent_on=answering.sent_on)
+    where = CallRoom(call, offline, server, legs=legs, claim=answering.claim)
     return where, offline, answering
 
 
@@ -631,4 +637,18 @@ async def test_participant_mute_mutes_their_microphone_and_writes_track_unpublis
     await where.call.writing.flushed(5)
     (unpublished,) = [entry.data for entry in seen if entry.type == "track.unpublished"]
     assert unpublished == {"identity": "ana", "kind": "audio", "source": "microphone"}
+    await where.call.writing.close(1.0)
+
+
+# A cold transfer is a leg the carrier dials on the org's bill: the org's guards judge it first,
+# and a refusal leaves the caller where they are, with no REFER sent.
+@postgres
+async def test_a_cold_transfer_the_orgs_guards_refused_sends_nobody_on(
+    box: Box, server: Server
+) -> None:
+    where, _, _ = _room(box, server, _caller_seat(), params=RoomAnswers(trunk=None))
+    done = await where.transfer(CallTransfer(to="+34600000000", mode="cold"), AgentSession())
+    assert (done.ok, done.mode) == (False, "cold")
+    assert done.error == "+34600000000 is outside this org's dial guards"
+    assert server.dialled.requests == []
     await where.call.writing.close(1.0)

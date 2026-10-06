@@ -30,7 +30,7 @@ from pinecall.tenancy import carrier_networks, carriers, consents, keys, tokens
 from pinecall.tenancy.carrier_networks import NetworkAsk
 from pinecall.tenancy.carriers import Carrier
 from pinecall.tenancy.consents import Given
-from pinecall.tenancy.dial_policy import Dial
+from pinecall.tenancy.dial_policy import Dial, guard_second_leg
 from pinecall.wire.rest.numbers import (
     AvailableNumbers,
     BuyNumberRequest,
@@ -79,6 +79,13 @@ AccountAsked = Annotated[str | None, Query()]
 
 
 DryRun = Annotated[bool, Query()]
+
+
+class ColdTransferQuery(BaseModel):
+    """A worker asking whether the caller may be sent on: to whom, from which call."""
+
+    to: str
+    call: str
 
 
 class LegTrunkQuery(BaseModel):
@@ -369,6 +376,21 @@ async def get_leg_trunk(
     """The leg's trunk inline, after the shape and the pace; a dial's own first leg passes."""
     dial = Dial(where, slug, query.to, query.shown, asked_by(key), query.call, datetime.now(UTC))
     return LegTrunkResponse(trunk=await dialing.leg_trunk(gateway.connections, dial))
+
+
+# The worker's, before it sends the caller on: a REFER dials nothing of the box's, but the carrier
+# dials it on the org's bill, so it passes the same guards as a warm transfer's leg.
+@router.post("/v1/agents/{slug}/cold-transfer", status_code=204)
+async def judge_cold_transfer(
+    slug: str,
+    key: WorkerKey,
+    where: ScopeDep,
+    gateway: GatewayDep,
+    query: Annotated[ColdTransferQuery, Query()],
+) -> None:
+    """A cold transfer's leg, past the shape and the pace, its ledger row written."""
+    dial = Dial(where, slug, query.to, None, asked_by(key), query.call, datetime.now(UTC))
+    await guard_second_leg(gateway.connections.pool, dial)
 
 
 # ── consent and the do-not-call list ──
