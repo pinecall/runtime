@@ -18,7 +18,7 @@ from pinecall.gateway._sockets import Registration, Sockets
 from pinecall.gateway._text_calls import open_text, resume_text, tokens_of
 from pinecall.gateway.calls.owners import THREAD_CHANNEL
 from pinecall.log import inbox
-from pinecall.postgres.pool import Pool
+from pinecall.postgres.pool import Pool, box_task
 from pinecall.session import text
 from pinecall.session.session import Session
 from pinecall.tenancy import admission
@@ -119,7 +119,7 @@ class Threads:
 
     async def start(self) -> None:
         """Take the messages other gateways hand on for the threads held here."""
-        self.handed = asyncio.create_task(self._handed_here())
+        self.handed = box_task(self._handed_here())
 
     # Meta delivers a message again when it thinks it unanswered. The row is claimed before the
     # message is read, so of two deliveries at once only one reads it; it is marked read once the

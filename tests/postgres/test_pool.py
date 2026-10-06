@@ -1,6 +1,7 @@
 """Tests for the pool, its timeouts, the schema names and what a DSN is called in a message."""
 
 import asyncio
+import contextvars
 
 import pytest
 from psycopg import errors
@@ -13,10 +14,13 @@ from pinecall.postgres.pool import (
     TIMEOUTS,
     Pool,
     Timeouts,
+    box_task,
+    box_wide,
     check_schema_name,
     database_named,
     open_pool,
     schemas_of,
+    scope_to,
     unbounded,
 )
 from tests.conftest import DSN, HELD_PAST_THE_TIMEOUT_S, postgres
@@ -142,3 +146,50 @@ async def test_a_request_that_finds_the_pool_full_is_refused_after_the_wait() ->
                     pass
     finally:
         await pool.close()
+
+
+# Migration 0096 and the pool together: a connection taken for an org sees and writes its rows
+# alone, a query that forgot its WHERE included; one taken box-wide sees every org's; a task of the
+# box started inside a request acts for no org.
+@postgres
+async def test_a_connection_taken_for_an_org_sees_and_writes_its_rows_alone(pool: Pool) -> None:
+    async with pool.connection() as connection:
+        await connection.execute("insert into orgs (id, slug, name) values ('org_a', 'a', 'A')")
+        await connection.execute("insert into orgs (id, slug, name) values ('org_b', 'b', 'B')")
+
+    async def slugs() -> list[str]:
+        async with pool.connection() as connection:
+            rows = await (
+                await connection.execute("select slug from orgs order by slug")
+            ).fetchall()
+        return [str(row["slug"]) for row in rows]
+
+    everyone = await slugs()
+    context = contextvars.copy_context()
+    context.run(scope_to, "org_a")
+    scoped = await asyncio.create_task(slugs(), context=context)
+
+    async def writes_elsewhere() -> None:
+        async with pool.connection() as connection:
+            await connection.execute("update orgs set name = 'taken' where id = 'org_b'")
+            await connection.execute("insert into orgs (id, slug, name) values ('org_c', 'c', 'C')")
+
+    with pytest.raises(errors.InsufficientPrivilege):
+        await asyncio.create_task(writes_elsewhere(), context=context.copy())
+
+    async def wide_inside() -> tuple[list[str], list[str]]:
+        with box_wide():
+            wide = await slugs()
+        started = await box_task(slugs())
+        return wide, started
+
+    wide, started = await asyncio.create_task(wide_inside(), context=context.copy())
+    assert everyone == ["a", "b", "default"]
+    assert scoped == ["a"]
+    assert wide == started == ["a", "b", "default"]
+    async with pool.connection() as connection:
+        row = await (
+            await connection.execute("select name from orgs where id = 'org_b'")
+        ).fetchone()
+    assert row is not None
+    assert row["name"] == "B", "the scoped update touched nothing"

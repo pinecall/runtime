@@ -78,7 +78,7 @@ from pinecall.gateway.dispatching.sweep import sweep_forever
 from pinecall.gateway.ending.reaper import reap_forever
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store
-from pinecall.postgres.pool import TIMEOUTS
+from pinecall.postgres.pool import TIMEOUTS, box_task
 from pinecall.process.connections import Connections, opened
 from pinecall.process.settings import Settings, load
 from pinecall.providers import catalog
@@ -324,12 +324,12 @@ async def lifespan(fastapi_app: FastAPI) -> AsyncGenerator[None]:
     async with AsyncExitStack() as stack:
         gateway = await wire(settings, stack)
         fastapi_app.state.gateway = gateway
-        reaper = asyncio.create_task(reap_forever(gateway.serving, gateway.connections.servers))
+        reaper = box_task(reap_forever(gateway.serving, gateway.connections.servers))
         stack.push_async_callback(_cancelled, reaper)
-        sweep = asyncio.create_task(sweep_forever(gateway.offering))
+        sweep = box_task(sweep_forever(gateway.offering))
         stack.push_async_callback(_cancelled, sweep)
         # After the start, so a slow SFU never keeps the gateway from answering; again until whole.
-        rebuilt = asyncio.create_task(rebuilt_until_whole(gateway.connections))
+        rebuilt = box_task(rebuilt_until_whole(gateway.connections))
         stack.push_async_callback(_cancelled, rebuilt)
         yield
 

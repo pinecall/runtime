@@ -15,7 +15,7 @@ from pinecall.domain.names import Env, JsonObject, parse_env
 from pinecall.domain.scope import Scope
 from pinecall.log._writer import FED_TYPES, Append, Batch, Unnumbered, Writer
 from pinecall.log.reduce import Metered
-from pinecall.postgres.pool import Pool
+from pinecall.postgres.pool import Pool, box_wide
 from pinecall.wire.frames import Entry
 
 logger = logging.getLogger(__name__)
@@ -281,18 +281,22 @@ class Store:
                 },
             )
 
+    # Whose a log is decides who may read it: asked box-wide, so another org's log reads as that
+    # org's (a 404 to the asker) and never as nobody's (postgres/pool.py, migration 0096).
     async def owner(self, agent: str) -> str | None:
         """Return the org the agent's own log belongs to, or None while nobody claimed it."""
-        async with self.pool.connection() as connection:
-            row = await (await connection.execute(OWNER, {"log": log_name(None, agent)})).fetchone()
+        with box_wide():
+            async with self.pool.connection() as connection:
+                found = await connection.execute(OWNER, {"log": log_name(None, agent)})
+                row = await found.fetchone()
         return None if row is None or row["org"] is None else str(row["org"])
 
     async def claimant(self, call: str | None, agent: str) -> Claimant | None:
         """Return whose the log is and in which world, or None while nobody claimed it."""
-        async with self.pool.connection() as connection:
-            row = await (
-                await connection.execute(CLAIMANT, {"log": log_name(call, agent)})
-            ).fetchone()
+        with box_wide():
+            async with self.pool.connection() as connection:
+                found = await connection.execute(CLAIMANT, {"log": log_name(call, agent)})
+                row = await found.fetchone()
         if row is None or row["org"] is None:
             return None
         env = None if row["env"] is None else parse_env(str(row["env"]))

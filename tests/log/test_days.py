@@ -56,19 +56,19 @@ async def test_an_entry_lands_in_the_day_of_its_time_and_past_the_days_in_the_de
 
 
 async def test_a_night_makes_the_days_ahead_refuses_one_the_default_holds_and_drops_the_empty(
-    pool: Pool, call: str
+    owners_pool: Pool, call: str
 ) -> None:
-    bound = await bound_of(pool)
+    bound = await bound_of(owners_pool)
     later = bound + 10 * 86400
-    store = Store(pool, clock=lambda: later + 60)
+    store = Store(owners_pool, clock=lambda: later + 60)
     await store.append(call, AGENT, "turn.user", {}, ephemeral=False)
     await store.writer.drained()
-    kept = await days.kept(pool, later)
+    kept = await days.kept(owners_pool, later)
     assert kept.refused == [day_named(later)]
     assert kept.made == [day_named(later + n * 86400) for n in range(1, days.AHEAD)]
     assert day_named(bound) in kept.dropped
     assert days.BEFORE in kept.dropped, "the table before the days was empty and past"
-    async with pool.connection() as connection:
+    async with owners_pool.connection() as connection:
         query = sql.SQL("select count(*) as n from {}").format(sql.Identifier(days.DEFAULT))
         row = await (await connection.execute(query)).fetchone()
     assert row is not None

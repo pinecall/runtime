@@ -22,7 +22,7 @@ from pinecall.domain.errors import (
     QuotaExhausted,
 )
 from pinecall.domain.person import Member, MemberStatus, Role
-from pinecall.postgres.pool import Connection, Pool
+from pinecall.postgres.pool import Connection, Pool, box_wide
 
 MEMBER_PREFIX = "m_"
 
@@ -291,6 +291,10 @@ async def invite(
 ) -> Invited:
     """Invite a person, or give a link again to one still invited; within the org's seats."""
     email = _folded(invitee.email)
+    # Proven in any org is proven: read across orgs, before the org's own transaction.
+    with box_wide():
+        async with pool.connection() as connection:
+            proven = await _verified_anywhere(connection, email)
     async with pool.connection() as connection, connection.transaction():
         await connection.execute(HELD, {"org": org})
         kept = await _fetch_member(connection, BY_EMAIL, {"org": org, "email": email})
@@ -314,7 +318,7 @@ async def invite(
             agents=invitee.agents,
             status="invited",
             production=invitee.production,
-            verified=await _verified_anywhere(connection, email),
+            verified=proven,
         )
         await connection.execute(INSERT, _written(member, None))
         return await _link(connection, member, vouched=vouched)
@@ -428,17 +432,22 @@ async def by_email(pool: Pool, org: str, email: str) -> Member | None:
         return await _fetch_member(connection, BY_EMAIL, {"org": org, "email": _folded(email)})
 
 
+# A person is one across orgs: their rows and their one password are read box-wide, whatever org
+# the request acts for (postgres/pool.py).
 async def orgs_of(pool: Pool, email: str) -> list[Member]:
     """Every membership of the address, oldest first."""
-    async with pool.connection() as connection:
-        rows = await (await connection.execute(ORGS_OF, {"email": _folded(email)})).fetchall()
+    with box_wide():
+        async with pool.connection() as connection:
+            found = await connection.execute(ORGS_OF, {"email": _folded(email)})
+            rows = await found.fetchall()
     return [member_of(row) for row in rows]
 
 
 async def password_of(pool: Pool, email: str) -> str | None:
     """The person's one password hash, or None when they have not set one."""
-    async with pool.connection() as connection:
-        return await _password_of(connection, _folded(email))
+    with box_wide():
+        async with pool.connection() as connection:
+            return await _password_of(connection, _folded(email))
 
 
 async def join(pool: Pool, org: str, member: str, password_hash: str) -> Member | None:

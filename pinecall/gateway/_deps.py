@@ -28,6 +28,7 @@ from pinecall.domain.scope import Scope
 from pinecall.gateway._call_setup import exhausted
 from pinecall.gateway._gateway import Gateway
 from pinecall.log import queries
+from pinecall.postgres.pool import scope_to
 from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy import admission, keys, people, reads, throttle, tokens
 from pinecall.tenancy.keys import Bearer
@@ -354,6 +355,7 @@ def opening(*scopes: KeyScope) -> Callable[[HTTPConnection, Acting, Gateway], Aw
         _check_agent_named(connection, key.bearer)
         if THE_FLEET not in scopes:
             await _paced(gateway, key, family)
+        _scoped_to_its_org(key)
         return key
 
     SCOPES_OF[opened] = frozenset(scopes)
@@ -463,6 +465,7 @@ def reading(*opens: KeyScope) -> Callable[..., Awaitable[Reader]]:
         await _paced(gateway, key, "calls")
         if THE_FLEET in verified.key.scopes:
             return Reader(acting=key)
+        _scoped_to_its_org(key)
         return Reader(acting=key, scope=await scope(connection, key, gateway, named))
 
     SCOPES_OF[read] = frozenset(opens)
@@ -543,3 +546,10 @@ async def _paced(gateway: Gateway, key: Acting, family: str) -> None:
         PACED.format(family=family, limit=throttle.REQUESTS_A_MINUTE, env=key.env, seconds=seconds),
         retry_after_s=seconds,
     )
+
+
+# A tenant's key acts in its org alone, and from here on so does every connection of the request
+# (postgres/pool.py, migration 0096). The fleet's and the runner's serve every org of a world.
+def _scoped_to_its_org(key: Acting) -> None:
+    if not key.bearer.key.scopes & {THE_FLEET, THE_RUNNER}:
+        scope_to(key.org)

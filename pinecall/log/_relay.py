@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict
 
 from pinecall.domain.errors import NotAvailable
 from pinecall.log.store import Store, log_name
+from pinecall.postgres.pool import box_task
 from pinecall.process.signal import Listening, Signal
 from pinecall.wire.frames import Entry
 
@@ -101,7 +102,7 @@ class Relay:
         following = self._following.get(name)
         if following is None:
             following = self._following[name] = Following(name, ordered=ordered)
-            following.task = asyncio.create_task(self._run(following))
+            following.task = box_task(self._run(following))
         else:
             following.readers += 1
         await following.ready.wait()
@@ -198,7 +199,7 @@ class Relay:
             return
         following.held[entry.seq] = entry
         if following.filling is None:
-            following.filling = asyncio.create_task(self._filled(following))
+            following.filling = box_task(self._filled(following))
 
     # What is missing before the held ones is read from the store: by the head's lock every
     # durable entry below a seq given out is committed, so a seq not found is an ephemeral, lost.
@@ -220,7 +221,7 @@ class Relay:
         finally:
             following.filling = None
             if following.held and not following.closed:
-                following.filling = asyncio.create_task(self._filled(following))
+                following.filling = box_task(self._filled(following))
 
     # The channel was lost: this following is over, so a reader that comes back follows a new one
     # (subscribed again) rather than this one, which nobody listens on; its readers are dropped.

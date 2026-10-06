@@ -17,6 +17,7 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import RedisError
 
 from pinecall.domain.errors import NotAvailable, SettingsRefused
+from pinecall.postgres.pool import box_task
 from pinecall.process.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -196,7 +197,7 @@ class RedisSignal:
 
     def start(self) -> None:
         """Start sending and listening; a Redis that is away is waited for, never a failure."""
-        self._tasks = [asyncio.create_task(self._sending()), asyncio.create_task(self._listened())]
+        self._tasks = [box_task(self._sending()), box_task(self._listened())]
 
     # The one publish that waits: a command must know whether anybody runs its call.
     async def published(self, channel: str, data: bytes) -> int:

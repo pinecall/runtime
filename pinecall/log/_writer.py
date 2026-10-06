@@ -15,7 +15,7 @@ from pinecall.domain.errors import Conflict
 from pinecall.domain.names import JsonObject
 from pinecall.log.facts import record
 from pinecall.log.reduce import METERED_TYPES
-from pinecall.postgres.pool import Connection, Pool
+from pinecall.postgres.pool import Connection, Pool, box_task
 from pinecall.wire.frames import Entry
 
 logger = logging.getLogger(__name__)
@@ -199,7 +199,7 @@ class Writer:
             task = self._tasks.get(lane)
             idle = task is None or task.done()
             if idle and any(queued.lane == lane for queued in self._queue):
-                self._tasks[lane] = asyncio.create_task(self._lane(lane))
+                self._tasks[lane] = box_task(self._lane(lane))
 
     # No timer: what arrives while a transaction is out is the next group. A lane ends when it has
     # nothing it may write; the other lane starts it again when it lets a log go.

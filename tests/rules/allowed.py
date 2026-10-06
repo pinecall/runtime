@@ -114,6 +114,11 @@ NOT_YET_REACHED: tuple[Allowed, ...] = ()
 # Rule 14: the files that create a task, and who cancels or awaits it.
 TASK_OWNERS: tuple[Allowed, ...] = (
     Allowed(
+        "pinecall/postgres/pool.py",
+        "create_task",
+        "box_task hands its task back: the caller keeps, cancels and awaits it as it did its own",
+    ),
+    Allowed(
         "pinecall/session/_recording.py",
         "create_task",
         "tasks holds one listener a voice; close() cancels and awaits them before the file closes",

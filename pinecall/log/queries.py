@@ -10,7 +10,7 @@ from pinecall.domain.names import Env, parse_env
 from pinecall.domain.scope import Scope
 from pinecall.log.facts import CallFacts, facts_of
 from pinecall.log.store import entry_of
-from pinecall.postgres.pool import Pool
+from pinecall.postgres.pool import Pool, box_wide
 from pinecall.wire.frames import Entry
 from pinecall.wire.parts import ToolResult
 
@@ -136,8 +136,12 @@ async def sealed_among(pool: Pool, calls: list[str]) -> set[str]:
 
 async def scope_of_call(pool: Pool, call: str) -> CallScope | None:
     """Return where the call was opened, or None for a call nobody wrote to or claimed."""
-    async with pool.connection() as connection:
-        row = await (await connection.execute(CORNER_OF_CALL, {"call": call})).fetchone()
+    # Whose a call is decides who may act on it: asked box-wide, so another org's call is that
+    # org's (a 404 to the asker), never a call nobody opened that the asker could claim.
+    with box_wide():
+        async with pool.connection() as connection:
+            found = await connection.execute(CORNER_OF_CALL, {"call": call})
+            row = await found.fetchone()
     if row is None:
         return None
     env: Env = "sandbox" if row["env"] == "sandbox" else "production"

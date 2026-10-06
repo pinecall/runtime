@@ -552,3 +552,30 @@ async def test_the_app_role_reads_and_writes_rows_and_changes_no_table(
             )
             await owner.execute(sql.SQL("drop owned by {}").format(sql.Identifier(role)))
             await owner.execute(sql.SQL("drop role {}").format(sql.Identifier(role)))
+
+
+# Every table that keeps an org's rows holds a connection to its org (migration 0096): a table a
+# later migration makes with an `org` column and no policy is refused here, by name.
+@postgres
+async def test_every_table_with_an_org_has_row_level_security_and_its_policy(schema: str) -> None:
+    await apply_migrations(DSN, schema=schema)
+    async with await connect(DSN) as connection:
+        found = await connection.execute(
+            """
+            SELECT class.relname AS name, class.relrowsecurity AS secured,
+                   EXISTS (SELECT 1 FROM pg_policy AS policy
+                           WHERE policy.polrelid = class.oid
+                             AND policy.polname = 'org_scoped') AS scoped
+            FROM pg_class AS class JOIN pg_namespace AS space ON space.oid = class.relnamespace
+            WHERE space.nspname = %s AND class.relkind IN ('r', 'p') AND NOT class.relispartition
+              AND (class.relname = 'orgs' OR EXISTS (
+                  SELECT 1 FROM pg_attribute AS attr
+                  WHERE attr.attrelid = class.oid AND attr.attname = 'org'
+                    AND NOT attr.attisdropped))
+            """,
+            (schema,),
+        )
+        rows = await found.fetchall()
+    unheld = sorted(str(row["name"]) for row in rows if not (row["secured"] and row["scoped"]))
+    assert len(rows) > 40, "every table of an org's is listed"
+    assert unheld == []

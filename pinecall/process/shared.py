@@ -10,6 +10,7 @@ from uuid import uuid4
 from pydantic import BaseModel, TypeAdapter
 
 from pinecall.domain.errors import NotAvailable
+from pinecall.postgres.pool import box_task
 from pinecall.process.signal import Signal
 
 # Each process says its whole share this often, and forgets another's share once it has been
@@ -85,7 +86,7 @@ class Shared[T]:
 
     async def start(self) -> None:
         """Listen to the others and say this share every beat."""
-        self._tasks = [asyncio.create_task(self._listened()), asyncio.create_task(self._beating())]
+        self._tasks = [box_task(self._listened()), box_task(self._beating())]
 
     async def close(self) -> None:
         """Stop listening and saying."""

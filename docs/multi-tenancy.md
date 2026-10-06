@@ -54,6 +54,27 @@ What a request sees is a **corner**: the org, the world, and in the sandbox the 
 An agent's tuning and lexicon, and knowledge, are kept per corner; a person's sandbox corner falls back,
 knob by knob, to the org's own. An admin may open a colleague's sandbox corner to look at it.
 
+## The database holds the org too
+
+Every query of a tenant's door names its org, and a test walks every door to prove it. Postgres
+holds the same line underneath (migration 0096, row-level security): for the whole of a request
+made with a tenant's key (`postgres/pool.py`, `scope_to`), each connection the gateway takes says
+that org, and every table with an `org` column (and `orgs` itself) shows and takes that org's
+rows alone, a query that forgot its `WHERE` included. A row of another org is not there; a write
+of one is refused.
+
+What reads across orgs on purpose says so in the code, `box_wide()`: a person's memberships and
+their one password, whether another org holds a number, a number's route, an SSO domain's
+orgs, and whose a call or a log is (the answer to "another org's" is a 404, so the question must
+see it). The fleet's and the runner's keys serve every org of a world and are not scoped, nor
+are the operator's doors, the gateway's loops (the reaper, the sweeps, the log's writer and
+relay, started as the box's: `box_task`) or the nightly jobs. The migrations and the retention
+run as the database's owner, which row-level security does not hold.
+
+Not held by it: the log's entries (`call_log` keys them by log, not org; a door reads them after
+it checked whose the log is) and a log's head before its call names an org. The tests' gateway
+connects as a role that owns nothing, as production's does, so the whole suite runs under it.
+
 ## Keeping test calls off production
 
 Both worlds share the gateway and the database, never the workers. Each world has its own

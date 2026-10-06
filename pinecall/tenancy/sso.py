@@ -21,7 +21,7 @@ from pinecall.domain.errors import (
 from pinecall.domain.names import PRODUCTION
 from pinecall.domain.org import Org
 from pinecall.domain.person import ROLES, Member, Role
-from pinecall.postgres.pool import Pool
+from pinecall.postgres.pool import Pool, box_wide
 from pinecall.process import resolver
 from pinecall.tenancy.admission import admit_seat, quotas_of
 from pinecall.tenancy.people import (
@@ -175,8 +175,10 @@ async def sso_of(pool: Pool, vault: MultiFernet, org: str) -> OrgSso | None:
 # The one read across orgs: the caller shows org names only.
 async def sso_with_domain(pool: Pool, vault: MultiFernet, domain: str) -> list[OrgSso]:
     """Every org that signs in the domain's addresses with its own provider, oldest first."""
-    async with pool.connection() as connection:
-        rows = await (await connection.execute(SSO_WITH_DOMAIN, {"domain": domain})).fetchall()
+    with box_wide():
+        async with pool.connection() as connection:
+            found = await connection.execute(SSO_WITH_DOMAIN, {"domain": domain})
+            rows = await found.fetchall()
     return [found for row in rows if (found := _sso(vault, row)) is not None]
 
 

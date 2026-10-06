@@ -6,7 +6,7 @@ from psycopg.rows import DictRow
 
 from pinecall.domain.call import Route
 from pinecall.domain.names import Channel, Env, RouteOrigin
-from pinecall.postgres.pool import Pool
+from pinecall.postgres.pool import Pool, box_wide
 
 OF_ORG = """
 SELECT org, number, agent, channel, env, managed FROM routes
@@ -131,8 +131,9 @@ async def of_org(pool: Pool, org: str, env: Env) -> list[Route]:
 async def at(pool: Pool, channel: Channel, number: str) -> Route | None:
     """The route a call dialled to this number takes, whatever org holds it."""
     params = {"channel": channel, "number": number}
-    async with pool.connection() as connection:
-        row = await (await connection.execute(AT, params)).fetchone()
+    with box_wide():
+        async with pool.connection() as connection:
+            row = await (await connection.execute(AT, params)).fetchone()
     return None if row is None else _route(row)
 
 
@@ -213,9 +214,10 @@ async def is_waiting(pool: Pool, org: str, number: str) -> bool:
 
 async def held_elsewhere(pool: Pool, org: str, number: str) -> bool:
     """Whether another org holds the number on this box."""
-    async with pool.connection() as connection:
-        found = await connection.execute(ELSEWHERE, {"org": org, "number": number})
-        return await found.fetchone() is not None
+    with box_wide():
+        async with pool.connection() as connection:
+            found = await connection.execute(ELSEWHERE, {"org": org, "number": number})
+            return await found.fetchone() is not None
 
 
 async def remove(pool: Pool, org: str, number: str) -> bool:

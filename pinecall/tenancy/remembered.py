@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from pydantic import BaseModel
 
 from pinecall.domain.errors import NotAvailable
-from pinecall.postgres.pool import Pool
+from pinecall.postgres.pool import Pool, box_task
 from pinecall.process.signal import Signal
 from pinecall.tenancy import keys
 from pinecall.tenancy.keys import Bearer
@@ -73,7 +73,7 @@ class RememberedKeys:
     async def start(self) -> None:
         """Listen for revocations said by any gateway."""
         if self.listening is None:
-            self.listening = asyncio.create_task(self._listened())
+            self.listening = box_task(self._listened())
 
     async def close(self) -> None:
         """Stop listening and forget everything."""

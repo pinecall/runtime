@@ -20,6 +20,7 @@ from cryptography.fernet import Fernet, MultiFernet
 from fastapi import FastAPI
 from livekit import api
 from psycopg import sql
+from psycopg.conninfo import make_conninfo
 from websockets.asyncio.client import ClientConnection
 from websockets.asyncio.client import connect as opened_socket
 
@@ -38,7 +39,7 @@ from pinecall.gateway.app import app, served_app
 from pinecall.gateway.calls.threads import Threads
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store
-from pinecall.postgres.migrate import apply_migrations
+from pinecall.postgres.migrate import apply_migrations, granted
 from pinecall.postgres.pool import Pool, Timeouts, connect, open_pool
 from pinecall.process import resolver
 from pinecall.process.connections import Connections, closed, vault_of
@@ -79,11 +80,25 @@ FIRST_TICK = 1.0
 A_TICK_S = 0.5
 
 
+# The tests' gateway acts as a role that owns nothing, as production's does (pinecall_app): the
+# row-level security of migration 0096 holds it, where the owner and a superuser it never holds.
+AS_THE_APP = "pinecall_app_test"
+
+
+MADE_ONCE = """
+DO $$ BEGIN CREATE ROLE pinecall_app_test NOLOGIN;
+EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL; END $$
+"""
+
+
 @pytest.fixture
 async def schema() -> AsyncIterator[str]:
     """A schema of this test alone, with the whole schema applied, dropped at the end."""
     name = f"pinecall_test_{uuid4().hex[:12]}"
     await apply_migrations(DSN, schema=name)
+    async with await connect(DSN) as connection:
+        await connection.execute(MADE_ONCE)
+    await granted(DSN, AS_THE_APP, schema=name)
     yield name
     async with await connect(DSN) as connection:
         await connection.execute(
@@ -93,8 +108,18 @@ async def schema() -> AsyncIterator[str]:
 
 @pytest.fixture
 async def pool(schema: str) -> AsyncIterator[Pool]:
-    """A pool on the test's schema."""
-    opened = await open_pool(DSN, schema=schema, max_size=4)
+    """A pool on the test's schema, as the gateway's role."""
+    opened = await open_pool(as_the_app(DSN), schema=schema, max_size=4)
+    yield opened
+    await opened.close()
+
+
+# The nightly retention and the migrations run as the database's owner, which makes the log's
+# days; the gateway's role (the `pool` above) makes none.
+@pytest.fixture
+async def owners_pool(schema: str) -> AsyncIterator[Pool]:
+    """A pool on the test's schema, as its owner."""
+    opened = await open_pool(DSN, schema=schema, max_size=2)
     yield opened
     await opened.close()
 
@@ -114,6 +139,11 @@ async def impatient_pool(schema: str) -> AsyncIterator[Pool]:
     opened = await open_pool(DSN, schema=schema, max_size=2, timeouts=short)
     yield opened
     await opened.close()
+
+
+def as_the_app(dsn: str) -> str:
+    """The DSN, its connections acting as the gateway's role."""
+    return make_conninfo(dsn, options=f"-c role={AS_THE_APP}")
 
 
 async def outlasting_a_lock[T](schema: str, table: str, work: Callable[[], Awaitable[T]]) -> T:
