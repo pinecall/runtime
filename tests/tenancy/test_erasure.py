@@ -335,3 +335,24 @@ async def test_the_drift_and_the_canary_of_an_org_go_with_it(
     )
     await erasure.org(pool, Disk(tmp_path), org.id, by="operator")
     assert await orgs_rows(pool, org.id) == 0
+
+
+A_RUN_OF = """
+INSERT INTO eval_runs (id, org, agent, started_at, status, document)
+VALUES (%s, %s, %s, 1, 'done', '{}')
+"""
+
+
+# An org's runs go with it by the org they carry: another org's run of the same slug stays.
+async def test_an_org_erased_takes_its_own_runs_and_no_other_orgs(
+    pool: Pool, store: Store, tmp_path: Path
+) -> None:
+    org = await an_org(pool)
+    await store.claim(None, AGENT, org.id)
+    async with pool.connection() as connection:
+        await connection.execute(A_RUN_OF, ("run_ours", org.id, AGENT))
+        await connection.execute(A_RUN_OF, ("run_theirs", "org_elsewhere", AGENT))
+    await erasure.org(pool, Disk(tmp_path), org.id, by="operator")
+    async with pool.connection() as connection:
+        rows = await (await connection.execute("SELECT id FROM eval_runs")).fetchall()
+    assert [row["id"] for row in rows] == ["run_theirs"]

@@ -9,9 +9,10 @@ from pinecall.process.sealed_audio import new_key
 from pinecall.tenancy.vault import opened, sealed
 
 # The insert is the mint: of two asks at once, or a retry, the first key stands and is the answer.
+# Asked again, the same key; asked for another org's call, nothing (the update's WHERE fails).
 MINT = """
 INSERT INTO recording_keys (call, org, sealed) VALUES (%(call)s, %(org)s, %(sealed)s)
-ON CONFLICT (call) DO UPDATE SET call = excluded.call
+ON CONFLICT (call) DO UPDATE SET call = excluded.call WHERE recording_keys.org = excluded.org
 RETURNING sealed
 """
 
@@ -19,7 +20,7 @@ KEY = "SELECT sealed FROM recording_keys WHERE call = %(call)s"
 
 
 async def key_for(pool: Pool, vault: MultiFernet, org: str, call: str) -> bytes | None:
-    """The key the call's recording is sealed under, made now or before; None if none opens."""
+    """The call's recording key, made now or before; None for another org's, or one unopened."""
     fresh = sealed(vault, base64.urlsafe_b64encode(new_key()).decode())
     async with pool.connection() as connection:
         row = await (

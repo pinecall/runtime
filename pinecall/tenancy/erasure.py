@@ -73,11 +73,15 @@ WITH kept AS (
 SELECT count(*) AS memories FROM kept
 """
 
-# What has no foreign key to the org: its agents' eval runs and hold melodies, what each reader
-# read of a thread, and its keys, revoked ones included. Then the org, and the quotas, carriers,
-# settings and memories cascade.
+# What has no foreign key to the org: its eval runs (by the org they carry, or by its agents for a
+# run written before runs carried one) and hold melodies, what each reader read of a thread, and
+# its keys, revoked ones included. Then the org, and the quotas, carriers, settings and memories
+# cascade.
 ERASE_ORG = """
-WITH runs AS (DELETE FROM eval_runs WHERE agent = ANY(%(agents)s)),
+WITH runs AS (
+    DELETE FROM eval_runs
+    WHERE org = %(org)s OR (org IS NULL AND agent = ANY(%(agents)s))
+),
      melodies AS (DELETE FROM hold_audio WHERE org = %(org)s),
      reads AS (DELETE FROM thread_reads WHERE org = %(org)s),
      keys AS (DELETE FROM api_keys WHERE org = %(org)s)

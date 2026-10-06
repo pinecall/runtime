@@ -30,3 +30,11 @@ async def test_a_call_with_no_key_or_one_the_vault_no_longer_opens_reads_as_none
     elsewhere = vault_of(Fernet.generate_key().decode())
     assert await key_of(pool, elsewhere, "CA_1") is None
     assert await key_for(pool, elsewhere, "org_1", "CA_1") is None
+
+
+async def test_another_orgs_call_is_handed_no_key(pool: Pool) -> None:
+    vault = vault_of(KEY)
+    theirs = await key_for(pool, vault, "org_1", "CA_1")
+    assert theirs is not None
+    assert await key_for(pool, vault, "org_2", "CA_1") is None
+    assert await key_of(pool, vault, "CA_1") == theirs
