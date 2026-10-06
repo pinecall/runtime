@@ -99,10 +99,11 @@ lives ten minutes; one collected, dead or invented is the same `404`, and a seco
 ## A forgotten password — `POST /v1/login/reset {email}`
 
 No key. Always `202 {}`, for an address known or not. Where the person is active in an org that
-signs in with passwords and can post a letter, one letter goes, through the org's mailbox or the
-box's, with a one-use link to `/invitations/<token>`; a member still invited gets none, since
-their invitation is the link. The link is minted only where it can be mailed, so a link an admin
-handed over is never spent by a letter that cannot go.
+signs in with passwords, one letter goes, through the box's own mailbox and never an org's, with
+a one-use link to `/invitations/<token>`; the link proves the address, so the password it sets is
+the person's one, in every org. A member still invited gets none, since their invitation is the
+link. A box with no mailbox mints nothing, so a link an admin handed over is never spent by a
+letter that cannot go.
 
 ## An invitation — `POST /v1/invitations/{token} {password, device}`
 

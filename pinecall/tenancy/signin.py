@@ -517,24 +517,25 @@ async def key_in(pool: Pool, member: Member, org: str, *, label: str | None = No
 
 
 # Answers the same for an address known or not, and mails in the background, so neither the
-# answer nor its time says who is a member.
+# answer nor its time says who is a member. The box's own mailbox carries it, never an org's: the
+# link proves the address (vouched), so the password it sets is the person's one, in every org.
 async def forgotten(pool: Pool, outbox: Outbox, email: str, base: str) -> None:
-    """Mail a one-use link that sets the password, through the first org that can send it."""
+    """Mail a one-use link that sets the person's password, through the box's own mailbox."""
+    # Asked before minting: a reset spends the older links, so an unmailable one would kill a link
+    # an admin handed over.
+    if await outbox.mailbox_for(None) is None:
+        return
     for row in await orgs_of(pool, email):
         if row.status != "active" or await _sso_only(pool, row.org):
             continue
-        # Asked before minting: a reset spends the older links, so an unmailable one would kill
-        # a link an admin handed over.
-        if await outbox.mailbox_for(row.org) is None:
-            continue
-        link = await reset(pool, row.org, row.id)
+        link = await reset(pool, row.org, row.id, vouched=True)
         if link is None:
             continue
         org = await find(pool, row.org)
         data = Link(
             org=org.name if org else row.org, link=card_link(base, link.token), dies=link.expires_at
         )
-        await outbox.post(row.org, forgotten_password_letter(row.email, data, await brand_of(pool)))
+        await outbox.post(None, forgotten_password_letter(row.email, data, await brand_of(pool)))
         return
 
 

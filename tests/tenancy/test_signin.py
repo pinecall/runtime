@@ -1,5 +1,6 @@
 """Sign-in: a password, a code, a paired terminal, a sign-up that founds an org, a provider."""
 
+import re
 import secrets
 import time
 from collections.abc import Callable
@@ -21,7 +22,7 @@ from pinecall.postgres.pool import Pool
 from pinecall.process.connections import Connections, vault_of
 from pinecall.tenancy.admission import Admission, quotas_of, set_admission
 from pinecall.tenancy.keys import Issued, fingerprint, issue, person_key, revoke, verify
-from pinecall.tenancy.mail import Mailbox, Outbox
+from pinecall.tenancy.mail import Mailbox, Outbox, put_mail
 from pinecall.tenancy.orgs import create
 from pinecall.tenancy.people import (
     Change,
@@ -484,3 +485,36 @@ async def test_revoking_a_key_revokes_every_copy_a_code_made_of_it(pool: Pool) -
     )
     for each in (secret, copy.secret, deeper.secret):
         assert await verify(pool, each) is None
+
+
+# The link is mailed to the address by the box's own mailbox, never an org's, so it proves the
+# address: the password it sets is the person's one, in every org, and the next sign-in opens with
+# it. A box that cannot mail sends nothing, and the link an admin handed out stays alive.
+@postgres
+async def test_a_forgotten_password_goes_by_the_boxs_mailbox_and_opens_every_org(
+    pool: Pool, monkeypatch: pytest.MonkeyPatch, connections: Connections
+) -> None:
+    postbox = Postbox()
+    monkeypatch.setattr(MailServer, "postbox", postbox)
+    monkeypatch.setattr("smtplib.SMTP", MailServer)
+    first = await org_of(pool)
+    second = await org_of(pool, "tienda-sur")
+    await seated(pool, first)
+    await seated(pool, second)
+    theirs = Mailbox("smtp.clinica.test", 587, "starttls", "u", "p", "C <c@clinica.test>")
+    await put_mail(pool, VAULT, first.id, theirs)
+    nobody_mails = Outbox(replace(connections, vault=VAULT), None)
+    await forgotten(pool, nobody_mails, "ana@clinica.test", "https://box.test")
+    await nobody_mails.drained()
+    assert postbox.sent == []
+    box = Mailbox("smtp.box.test", 587, "starttls", "u", "p", "Box <no-reply@box.test>")
+    outbox = Outbox(replace(connections, vault=VAULT), box)
+    await forgotten(pool, outbox, "ana@clinica.test", "https://box.test")
+    await outbox.drained()
+    assert postbox.hosts == [("smtp.box.test", 587)]
+    (letter,) = postbox.sent
+    token = re.search(r"invitations/(inv_[A-Za-z0-9_-]+)", letter.as_string())
+    assert token is not None
+    await accept(pool, token.group(1), "a brand new password", 8)
+    signed = await sign_in_with_password(pool, Asking("ana@clinica.test", "a brand new password"))
+    assert signed.member is not None
