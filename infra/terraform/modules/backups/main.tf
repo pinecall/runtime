@@ -29,12 +29,18 @@ data "google_project" "this" {
   project_id = var.project
 }
 
+# The backups' identity holds objectAdmin, so it can delete what it wrote: a deleted object is kept
+# seven days (Cloud Storage's own default, said here so a plan shows it going), and the identity
+# cannot change the bucket to shorten that.
 resource "google_storage_bucket" "postgres" {
   name                        = "pinecall-${var.name}-postgres-${data.google_project.this.number}"
   location                    = var.region
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
   force_destroy               = false
+  soft_delete_policy {
+    retention_duration_seconds = 604800
+  }
 }
 
 resource "google_service_account" "postgres" {
