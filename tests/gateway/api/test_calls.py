@@ -87,6 +87,31 @@ async def test_a_phone_call_the_worker_opens_marks_its_number_as_reached_once_a_
     await app.close()
 
 
+# A number the org hooked itself proves nothing of whose it is: no call to it opens until the
+# operator approves it, and one does after.
+@postgres
+async def test_a_call_to_a_number_the_org_hooked_opens_only_once_the_operator_approved_it(
+    knocking: Knocking,
+) -> None:
+    app = await an_app(knocking)
+    context = a_call(knocking)
+    pool = knocking.gateway.connections.pool
+    await routes.put(pool, context.route, RouteWrite("hooked"))
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        refused = await worker.post(
+            "/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written()
+        )
+        await routes.approve(pool, knocking.org.id, A_NUMBER, "operator@box.test")
+        again = replace(context, call=new_call_id())
+        opened = await worker.post(
+            "/v1/calls", json=OpenCallRequest(agent=AGENT, context=again).written()
+        )
+    assert refused.status_code == 403
+    assert "waits for the box's operator" in refused.json()["detail"]
+    assert opened.status_code == 200
+    await app.close()
+
+
 @postgres
 async def test_an_outbound_call_opens_with_the_orgs_disclosure_and_its_notice_as_set(
     knocking: Knocking,

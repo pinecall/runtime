@@ -114,6 +114,12 @@ NOT_OPEN = "this gateway is not writing call {call!r}: open it with POST /v1/cal
 SEALED = "call {call!r} is over: nothing more can be written to it"
 
 
+NOT_APPROVED = (
+    "{number} was hooked by the org and waits for the box's operator to approve it: no call to it "
+    "opens until then"
+)
+
+
 SPENT = "token_spent"
 
 
@@ -158,9 +164,12 @@ async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) 
     context = body.context
     keys.check_agent(key.bearer, body.agent)
     scope = _call_corner(key, context)
-    # The carrier, the fence and the world rule worked, whatever is refused below.
+    # The carrier, the fence and the world rule worked, whatever is refused below. A number the
+    # org hooked rings nobody until the operator approves it is the org's.
     if context.direction == "inbound" and context.route.number is not None:
         await routes.called(gateway.connections.pool, scope.org, context.route.number)
+        if await routes.is_waiting(gateway.connections.pool, scope.org, context.route.number):
+            raise NotAllowed(NOT_APPROVED.format(number=context.route.number))
     await _unclaimed_or_in(gateway, context.call, scope)
     await _spent(gateway, context, scope, body.agent)
     ceiling = await _deps.admit_call(gateway, scope, body.agent)

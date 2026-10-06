@@ -205,6 +205,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `PUT` | `/v1/ops/mail` | operator | The box's mailbox, stored over the environment's; its letters go through it next. |
 | `POST` | `/v1/ops/mail/test` | operator | One test letter through the box's mailbox, waited for. |
 | `GET` | `/v1/ops/numbers` | operator | Every number of the box, every org and world: how it came, whether it is answered now. |
+| `POST` | `/v1/ops/numbers/{number}/approve` | operator | Approve that a number the org hooked is the org's. |
 | `GET` | `/v1/ops/orgs` | operator | Every org, oldest first, the default one first. |
 | `POST` | `/v1/ops/orgs` | operator | A new org, its id minted here, born with what admission gives one. |
 | `DELETE` | `/v1/ops/orgs/{named}` | operator | Erase the org whole, its calls and recordings too; refused while a live key or a route still names it. |

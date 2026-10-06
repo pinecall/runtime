@@ -135,12 +135,12 @@ def _fence_step(
 ) -> PathStep:
     if record.route.channel == "whatsapp":
         return PathStep("fence", "ok", "Signed by Meta, checked on every message")
-    if record.answering != record.route.org:
+    if not record.approved:
         return PathStep(
             "fence",
-            "broken",
-            "Another org's older row answers this number",
-            fix="Ask the box's operator to free it",
+            "waiting",
+            "You hooked it yourself: the box's operator approves that it is yours",
+            fix="The operator approves it once under Numbers",
         )
     number = str(record.route.number)
     declared = (record.networks or None) if carrier is None else declared_networks(carrier)

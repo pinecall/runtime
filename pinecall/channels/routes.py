@@ -1,6 +1,5 @@
 """Which agent answers a number or a channel, per org and world: the routes table."""
 
-import logging
 from dataclasses import dataclass
 
 from psycopg.rows import DictRow
@@ -9,33 +8,42 @@ from pinecall.domain.call import Route
 from pinecall.domain.names import Channel, Env, RouteOrigin
 from pinecall.postgres.pool import Pool
 
-logger = logging.getLogger(__name__)
-
 OF_ORG = """
 SELECT org, number, agent, channel, env, managed FROM routes
 WHERE org = %(org)s AND env = %(env)s
 ORDER BY added_at, number
 """
-# The schema lets two orgs type the same number: the oldest row answers, the others are named.
+# One org holds a number (routes_number_held_once), so a number reads one row at most.
 AT = """
 SELECT org, number, agent, channel, env, managed FROM routes
 WHERE channel = %(channel)s AND number = %(number)s
-ORDER BY added_at
 """
-TWO_ORGS = "%s answers in org %s: org %s typed the same number, and the older row answers"
 OF_NUMBER = """
 SELECT org, number, agent, channel, env, managed FROM routes
 WHERE org = %(org)s AND number = %(number)s
 """
-# A number added again moves: its agent, channel, world and how it came are the newest said.
+# A number added again moves: its agent, channel, world and how it came are the newest said. A
+# hooked number waits for the operator; one approved once stays approved however it comes again.
 PUT = """
-INSERT INTO routes (org, number, agent, channel, env, managed, account, networks, origin, via)
+INSERT INTO routes (org, number, agent, channel, env, managed, account, networks, origin, via,
+                    approved_at)
 VALUES (%(org)s, %(number)s, %(agent)s, %(channel)s, %(env)s, %(managed)s, %(account)s,
-        %(networks)s, %(origin)s, %(via)s)
+        %(networks)s, %(origin)s, %(via)s,
+        CASE WHEN %(origin)s = 'hooked' THEN NULL ELSE now() END)
 ON CONFLICT (org, number) DO UPDATE SET agent = excluded.agent, channel = excluded.channel,
     env = excluded.env, managed = excluded.managed, account = excluded.account,
-    networks = excluded.networks, origin = excluded.origin, via = excluded.via
+    networks = excluded.networks, origin = excluded.origin, via = excluded.via,
+    approved_at = COALESCE(routes.approved_at, excluded.approved_at)
 """
+APPROVE = """
+UPDATE routes SET approved_at = now(), approved_by = %(by)s
+WHERE org = %(org)s AND number = %(number)s AND approved_at IS NULL
+RETURNING number
+"""
+WAITING = """
+SELECT 1 FROM routes WHERE org = %(org)s AND number = %(number)s AND approved_at IS NULL
+"""
+ELSEWHERE = "SELECT 1 FROM routes WHERE number = %(number)s AND org <> %(org)s"
 REMOVE = "DELETE FROM routes WHERE org = %(org)s AND number = %(number)s RETURNING number"
 MOVE = "UPDATE routes SET env = %(env)s WHERE org = %(org)s AND number = %(number)s RETURNING env"
 MANAGED = "SELECT count(*) AS bought FROM routes WHERE org = %(org)s AND env = %(env)s AND managed"
@@ -55,14 +63,12 @@ WHERE org = %(org)s AND number = %(number)s
   AND (last_call_at IS NULL OR last_call_at < now() - interval '1 minute')
 """
 # A row with what the table keeps beside it: how it was written, the kind of the account its
-# number lives in, and the org whose row answers the number (the oldest, as AT reads it).
+# number lives in, and whether the operator approved it.
 RECORDS = """
 SELECT routes.org, routes.number, routes.agent, routes.channel, routes.env, routes.managed,
        routes.origin, routes.via, routes.last_call_at, routes.account, routes.networks,
-       carriers.kind AS carrier,
-       (SELECT first.org FROM routes AS first
-        WHERE first.channel = routes.channel AND first.number = routes.number
-        ORDER BY first.added_at LIMIT 1) AS answering
+       routes.approved_at IS NOT NULL AS approved,
+       carriers.kind AS carrier
 FROM routes LEFT JOIN carriers
     ON carriers.org = routes.org AND carriers.account = routes.account
 """
@@ -82,21 +88,21 @@ class RouteWrite:
 
 @dataclass(frozen=True)
 class RouteRecord:
-    """A route with how it was written, its account's kind, and the org that answers its number."""
+    """A route with how it was written, its account's kind, and whether it was approved."""
 
     route: Route
     origin: RouteOrigin
     # None for a number no account of the org holds: bought by the box, hooked, typed, or an
     # account since forgotten.
     carrier: str | None
-    # The org whose row answers the number: the route's own, or an older row of another org.
-    answering: str
     via: str | None = None
     # When a call to the number last reached the box; None when none ever did.
     last_call_at: float | None = None
     # The org's account the number lives in, and a hooked number's own networks.
     account: str | None = None
     networks: tuple[str, ...] = ()
+    # False for a number the org hooked that the operator has not approved: no call to it opens.
+    approved: bool = True
 
 
 ON_THE_BOX = RECORDS + "ORDER BY routes.number, routes.channel, routes.added_at"
@@ -120,16 +126,11 @@ async def of_org(pool: Pool, org: str, env: Env) -> list[Route]:
 
 
 async def at(pool: Pool, channel: Channel, number: str) -> Route | None:
-    """The route a call dialled to this number takes, whatever org typed it."""
+    """The route a call dialled to this number takes, whatever org holds it."""
     params = {"channel": channel, "number": number}
     async with pool.connection() as connection:
-        rows = await (await connection.execute(AT, params)).fetchall()
-    if not rows:
-        return None
-    answering = _route(rows[0])
-    for other in rows[1:]:
-        logger.warning(TWO_ORGS, number, answering.org, other["org"])
-    return answering
+        row = await (await connection.execute(AT, params)).fetchone()
+    return None if row is None else _route(row)
 
 
 async def on_the_box(pool: Pool) -> list[RouteRecord]:
@@ -192,6 +193,27 @@ async def called(pool: Pool, org: str, number: str) -> None:
         await connection.execute(CALLED, {"org": org, "number": number})
 
 
+async def approve(pool: Pool, org: str, number: str, by: str) -> bool:
+    """The operator's word that the org's hooked number is the org's; whether one waited."""
+    async with pool.connection() as connection:
+        done = await connection.execute(APPROVE, {"org": org, "number": number, "by": by})
+        return await done.fetchone() is not None
+
+
+async def is_waiting(pool: Pool, org: str, number: str) -> bool:
+    """Whether the org's number is one it hooked that the operator has not approved."""
+    async with pool.connection() as connection:
+        row = await (await connection.execute(WAITING, {"org": org, "number": number})).fetchone()
+    return row is not None
+
+
+async def held_elsewhere(pool: Pool, org: str, number: str) -> bool:
+    """Whether another org holds the number on this box."""
+    async with pool.connection() as connection:
+        found = await connection.execute(ELSEWHERE, {"org": org, "number": number})
+        return await found.fetchone() is not None
+
+
 async def remove(pool: Pool, org: str, number: str) -> bool:
     """Forget the org's route at the number; whether there was one."""
     async with pool.connection() as connection:
@@ -239,9 +261,9 @@ def _record(row: DictRow) -> RouteRecord:
         route=_route(row),
         origin=row["origin"],
         carrier=row["carrier"],
-        answering=row["answering"],
         via=row["via"],
         last_call_at=None if row["last_call_at"] is None else row["last_call_at"].timestamp(),
         account=row["account"],
         networks=tuple(str(network) for network in row["networks"] or ()),
+        approved=bool(row["approved"]),
     )

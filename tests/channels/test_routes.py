@@ -1,8 +1,6 @@
 """Tests for the routes table, the dispatch a job starts with, and the rooms an agent is in."""
 
-import logging
-from dataclasses import replace
-
+import psycopg
 import pytest
 
 from pinecall.channels import routes
@@ -36,29 +34,29 @@ async def test_an_orgs_routes_are_its_own_in_the_world_asked(pool: Pool) -> None
     ]
 
 
+# One org holds a number: the box refuses a second org's row for it.
 @postgres
-async def test_a_number_two_orgs_typed_answers_in_the_older_and_the_other_is_named(
-    pool: Pool, caplog: pytest.LogCaptureFixture
+async def test_a_number_one_org_holds_is_refused_to_another_and_read_as_held_elsewhere(
+    pool: Pool,
 ) -> None:
-    caplog.set_level(logging.WARNING, logger=routes.__name__)
     await typed(pool, "org_a")
-    await typed(pool, "org_b")
+    with pytest.raises(psycopg.errors.UniqueViolation):
+        await typed(pool, "org_b")
     found = await routes.at(pool, "phone", A_NUMBER)
     assert found is not None
     assert found.org == "org_a"
-    assert "org_b" in caplog.text
+    assert await routes.held_elsewhere(pool, "org_b", A_NUMBER)
+    assert not await routes.held_elsewhere(pool, "org_a", A_NUMBER)
 
 
 @postgres
-async def test_the_box_lists_every_route_by_number_and_the_older_row_answers(pool: Pool) -> None:
+async def test_the_box_lists_every_route_by_number(pool: Pool) -> None:
     await typed(pool, "org_a")
-    await typed(pool, "org_b")
     await typed(pool, "org_b", "sandbox", "+59829001100")
     found = await routes.on_the_box(pool)
-    assert [(row.route.org, row.route.number, row.answering) for row in found] == [
-        ("org_b", "+59829001100", "org_b"),
-        ("org_a", A_NUMBER, "org_a"),
-        ("org_b", A_NUMBER, "org_a"),
+    assert [(row.route.org, row.route.number) for row in found] == [
+        ("org_b", "+59829001100"),
+        ("org_a", A_NUMBER),
     ]
 
 
@@ -73,26 +71,29 @@ async def test_a_route_of_the_box_names_the_kind_of_account_its_number_lives_in(
             "values ('org_a', 'twilio', 'AC1', 'sealed')"
         )
     await routes.put(pool, a_route(), RouteWrite("imported", account="AC1"))
-    await routes.put(pool, a_route("org_b"), RouteWrite("typed"))
+    await routes.put(pool, a_route("org_b", number="+59829001100"), RouteWrite("typed"))
     found = await routes.on_the_box(pool)
-    assert [(row.route.org, row.carrier) for row in found] == [("org_a", "twilio"), ("org_b", None)]
+    assert [(row.route.org, row.carrier) for row in found] == [("org_b", None), ("org_a", "twilio")]
 
 
+# A number the org hooked itself waits for the operator; every other way is approved as written,
+# and one approved stays approved however it is written again.
 @postgres
-async def test_a_row_keeps_how_it_was_written_and_the_org_reads_who_answers_its_number(
+async def test_a_hooked_number_waits_for_the_operator_and_stays_approved_once_approved(
     pool: Pool,
 ) -> None:
-    await typed(pool, "org_a")
     await routes.put(pool, a_route("org_b"), RouteWrite("hooked"))
-    await routes.put(pool, replace(a_route("org_b"), number="+59829001100"), RouteWrite("bought"))
+    await routes.put(pool, a_route("org_b", number="+59829001100"), RouteWrite("bought"))
     found = await routes.records_of(pool, "org_b", "production")
-    assert [(row.route.number, row.origin, row.answering) for row in found] == [
-        (A_NUMBER, "hooked", "org_a"),
-        ("+59829001100", "bought", "org_b"),
+    assert [(row.route.number, row.origin, row.approved) for row in found] == [
+        (A_NUMBER, "hooked", False),
+        ("+59829001100", "bought", True),
     ]
-    kept = await routes.record_of(pool, "org_a", A_NUMBER)
-    assert kept is not None
-    assert (kept.origin, kept.answering) == ("typed", "org_a")
+    assert await routes.is_waiting(pool, "org_b", A_NUMBER)
+    assert await routes.approve(pool, "org_b", A_NUMBER, "operator@box.test")
+    assert not await routes.approve(pool, "org_b", A_NUMBER, "operator@box.test"), "once"
+    await routes.put(pool, a_route("org_b"), RouteWrite("hooked"))
+    assert not await routes.is_waiting(pool, "org_b", A_NUMBER)
 
 
 @postgres
@@ -100,11 +101,11 @@ async def test_a_number_nobody_typed_goes_nowhere(pool: Pool) -> None:
     assert await routes.at(pool, "phone", A_NUMBER) is None
 
 
-def a_route(org: str = "org_a", env: Env = "production", *, managed: bool = False) -> Route:
+def a_route(
+    org: str = "org_a", env: Env = "production", *, managed: bool = False, number: str = A_NUMBER
+) -> Route:
     """The org's agenda at the number."""
-    return Route(
-        org=org, agent="agenda", channel="phone", number=A_NUMBER, env=env, managed=managed
-    )
+    return Route(org=org, agent="agenda", channel="phone", number=number, env=env, managed=managed)
 
 
 @postgres

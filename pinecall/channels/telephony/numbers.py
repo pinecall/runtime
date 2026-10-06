@@ -61,9 +61,10 @@ ON_ANOTHER_TRUNK = (
 )
 
 
+# Whose it is stays theirs: the sentence names no org and no trunk.
 HELD_ELSEWHERE = (
-    "{number} is on another org's trunk on this box ({trunk}): livekit-sip refuses an INVITE two "
-    "trunks list, so nothing was written"
+    "{number} is held by another org on this box, so nothing was written: if it is yours, ask the "
+    "box's operator"
 )
 
 
@@ -296,6 +297,8 @@ async def _survey_import(connections: Connections, wanted: NumberImport) -> Surv
     org, env = wanted.scope.org, wanted.scope.env
     domain = domain_of(connections)
     route = Route(org=org, agent=wanted.agent, channel=wanted.channel, number=number, env=env)
+    if await routes.held_elsewhere(connections.pool, org, number):
+        raise Conflict(HELD_ELSEWHERE.format(number=number))
     fleets = await worlds.fleets(connections.pool)
     await _check_via(connections, wanted)
     carrier = (
@@ -409,7 +412,7 @@ async def _survey_sfu(connections: Connections, survey: Survey) -> Survey:
     listing = await sip.trunks_admitting(server, number)
     stranger = next((trunk for trunk in listing if not sip.belongs_to(trunk.name, route.org)), None)
     if stranger is not None:
-        raise Conflict(HELD_ELSEWHERE.format(number=number, trunk=stranger.name))
+        raise Conflict(HELD_ELSEWHERE.format(number=number))
     survey.leaving = [trunk for trunk in listing if fence is None or trunk.name != fence.trunk]
     if other is not None:
         survey.elsewhere = [

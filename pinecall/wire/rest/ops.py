@@ -197,10 +197,10 @@ class BoxNumber(WireModel):
     came_in: NumberCameIn
     # A process holds the agent in the org and world now: a call to the number is answered.
     running: bool
-    # The org whose older row answers the number instead of this one; null when this one does.
-    answered_by: str | None
     # The catalog carrier a number the org hooked comes through, when it named one.
     via: str | None = None
+    # False for a number the org hooked that waits for the operator: no call to it opens.
+    approved: bool = True
 
 
 class BoxCarrier(WireModel):

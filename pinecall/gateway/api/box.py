@@ -15,7 +15,7 @@ from pinecall.channels.telephony.carrier_catalog import KnownCarrier
 from pinecall.channels.telephony.numbers import NumberImport
 from pinecall.domain.call import Route
 from pinecall.domain.errors import Conflict, NotAvailable, NotFound
-from pinecall.domain.names import PRODUCTION, Env
+from pinecall.domain.names import PRODUCTION, Env, parse_e164
 from pinecall.domain.scope import Scope
 from pinecall.fleet import worlds
 from pinecall.fleet.roster import STALE_AFTER_S
@@ -98,6 +98,9 @@ NO_BOX_KEY = "this box holds no key for {vendor}"
 
 
 NO_SUCH_ROUTE = "no route for {number} in org {slug}"
+
+
+NOTHING_WAITS = "no number {number} of org {slug} waits for approval"
 
 
 NO_SUCH_WORKER = "no worker named {worker} has knocked at this gateway"
@@ -368,13 +371,24 @@ async def list_box_numbers(gateway: GatewayDep) -> list[BoxNumber]:
             agent=row.route.agent,
             came_in=_came_in(row),
             running=row.route.agent in running[(row.route.org, row.route.env)],
-            answered_by=None
-            if row.answering == row.route.org
-            else slugs.get(row.answering, row.answering),
             via=row.via,
+            approved=row.approved,
         )
         for row in found
     ]
+
+
+# A number an org hooked proves nothing of whose it is: the operator says it is the org's, and a
+# call to it opens from then on. Refused, it is let go of (DELETE /v1/ops/routes/{number}).
+@router.post("/v1/ops/numbers/{number}/approve", status_code=204)
+async def approve_box_number(
+    number: str, gateway: GatewayDep, operating: OperatorDep, org: Annotated[str, Query()]
+) -> None:
+    """Approve that a number the org hooked is the org's."""
+    found = await _org_id(gateway, org)
+    pool = gateway.connections.pool
+    if not await routes.approve(pool, found, parse_e164(number), operating):
+        raise NotFound(NOTHING_WAITS.format(number=number, slug=org))
 
 
 # ── the carriers ──

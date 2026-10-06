@@ -120,7 +120,7 @@ async def test_the_operator_types_lists_and_forgets_a_route(knocking: Knocking) 
 
 
 @postgres
-async def test_a_number_another_org_answers_is_refused_before_anything_is_written(
+async def test_a_number_another_org_holds_is_refused_before_anything_is_written(
     knocking: Knocking,
 ) -> None:
     with_an_ops_key(knocking)
@@ -132,12 +132,13 @@ async def test_a_number_another_org_answers_is_refused_before_anything_is_writte
         theirs = await operator.get("/v1/ops/routes", params={"org": knocking.org.id})
     assert first.status_code == 200
     assert second.status_code == 409
-    assert "another org's trunk" in second.text
+    assert "held by another org" in second.text
+    assert "otra" not in second.text
     assert theirs.json() == []
 
 
 @postgres
-async def test_the_box_lists_every_number_how_it_came_and_whether_it_is_answered(
+async def test_the_box_lists_every_number_how_it_came_and_the_operator_approves_a_hooked_one(
     knocking: Knocking,
 ) -> None:
     with_an_ops_key(knocking)
@@ -150,20 +151,28 @@ async def test_the_box_lists_every_number_how_it_came_and_whether_it_is_answered
     await routes.put(
         pool, replace(bought, agent="nobody", number="+59829001100"), RouteWrite("hooked")
     )
-    await routes.put(pool, replace(bought, org=other.id), RouteWrite("typed"))
+    await routes.put(
+        pool, replace(bought, org=other.id, number="+59829001101"), RouteWrite("typed")
+    )
     socket = await an_app(knocking)
+    hooked = "/v1/ops/numbers/+59829001100/approve"
     async with knocking.http(THE_OPS_KEY) as operator:
         listed = await operator.get("/v1/ops/numbers")
+        approving = await operator.post(hooked, params={"org": knocking.org.slug})
+        again = await operator.post(hooked, params={"org": knocking.org.slug})
+        after = await operator.get("/v1/ops/numbers")
     await socket.close()
     slug = knocking.org.slug
     assert [
-        (row["number"], row["org"], row["came_in"], row["running"], row["answered_by"])
+        (row["number"], row["org"], row["came_in"], row["running"], row["approved"])
         for row in listed.json()
     ] == [
-        ("+59829001100", slug, "hooked", False, None),
-        ("+59829001199", slug, "bought", True, None),
-        ("+59829001199", "otra", "typed", False, slug),
+        ("+59829001100", slug, "hooked", False, False),
+        ("+59829001101", "otra", "typed", False, True),
+        ("+59829001199", slug, "bought", True, True),
     ]
+    assert (approving.status_code, again.status_code) == (204, 404)
+    assert all(row["approved"] for row in after.json())
 
 
 @postgres

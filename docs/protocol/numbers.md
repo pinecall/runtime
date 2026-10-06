@@ -63,7 +63,12 @@ Two ways to hook a number, both through this door:
   admits the number from the networks of the carrier named in `via`, one of
   `GET /v1/carriers/catalog` (Twilio's when unsaid), or from `networks` of the org's own, which
   wait for the operator's approval like a peer's: until then the number is routed and on no
-  trunk, and the import's steps say so.
+  trunk, and the import's steps say so. A number hooked this way proves nothing of whose it is,
+  so the operator also approves the number itself (`GET /v1/ops/numbers`, operator-api.md): until
+  then a call to it is refused when it opens, and its path says `waiting` at the fence.
+
+One org holds a number: importing a number another org holds is `409`, and the sentence names
+neither the org nor its trunk.
 
 `GET /v1/carriers/catalog` is `{carriers: [{kind, name, how, networks}], sells}`: the carriers this
 box's operator admits, `automatic` for one the box drives through its API (Twilio), `guided` for one
@@ -123,7 +128,7 @@ lives in. `last_call_at` is when a
 call to the number last reached the box (kept at most once a minute), null when none ever did.
 
 `rings` is what a call to it does now: `ok`, `waiting` (on its first call, or on the operator's
-approval of a network) or `broken` (nobody runs its agent, another org's older row answers it),
+approval of a network or of a number the org hooked itself) or `broken` (nobody runs its agent),
 read off the tables without asking any carrier. `GET /v1/numbers/{number}/path` says why: four
 steps, each `{step, state, says, fix}` — the carrier (a Twilio number asks Twilio whether it is
 still attached to the trunk pointed here), the fence, the world's rule, the agent — with the worst

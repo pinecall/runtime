@@ -130,13 +130,15 @@ number an org brings itself is [numbers.md](numbers.md).
 
 `GET /v1/ops/numbers` is every route of the box at once, every org and both worlds, by number: what
 a call to each number would do now. A row is `{number, channel, org, env, agent, came_in, running,
-answered_by}`: `org` is the slug; `came_in` is `bought` (on the box's own account), `twilio`, `sip`
+approved, via}`: `org` is the slug; `came_in` is `bought` (on the box's own account), `twilio`, `sip`
 or `whatsapp` (imported from an account of the org of that kind), `imported` (from an account since
 forgotten), `hooked` (the org pointed the number at the box itself) or `typed` (a row an operator
 wrote here or with `routes add`/`routes seed`), read from the row's `origin`; `running` says a
-process holds the agent in that org and world now, so a call is picked up; `answered_by` names the
-org whose older row answers the number instead of this one (two orgs typed it), and is null when
-this one does. Changing a number is the org's own door, which writes the carrier, the SFU and the
+process holds the agent in that org and world now, so a call is picked up; `approved` is false for
+a number the org hooked itself that the operator has not approved, and no call to it opens until
+`POST /v1/ops/numbers/{number}/approve?org=<slug>` (`204`; `404` when no such number waits); one
+refused is let go of with `DELETE /v1/ops/routes/{number}?org=<slug>`. One org holds a number: an
+import of a number another org holds is `409`, naming no org. Changing a number is the org's own door, which writes the carrier, the SFU and the
 row together.
 
 ## Carriers and the fence

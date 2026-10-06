@@ -175,11 +175,29 @@ async def test_a_number_another_orgs_trunk_lists_is_refused_before_anything_is_w
             trunk=api.SIPInboundTrunkInfo(name="org_other", numbers=[A_NUMBER])
         )
     )
-    with pytest.raises(Conflict, match="another org's trunk"):
+    with pytest.raises(Conflict, match="held by another org") as refused:
         await numbers.import_number(
             line.connections, NumberImport(line.scope(), "recepcion", A_NUMBER)
         )
+    assert "org_other" not in str(refused.value), "names no trunk of theirs"
     assert line.twilio.written() == []
+
+
+# One org holds a number: another org's row for it refuses the import before the SFU is asked.
+@postgres
+async def test_a_number_another_org_holds_is_refused_naming_nobody(line: Line) -> None:
+    async with line.connections.pool.connection() as connection:
+        await connection.execute(
+            "insert into routes (org, number, agent, channel, env) "
+            "values ('org_other', %s, 'agenda', 'phone', 'production')",
+            (A_NUMBER,),
+        )
+    with pytest.raises(Conflict, match="held by another org") as refused:
+        await numbers.import_number(
+            line.connections, NumberImport(line.scope(), "recepcion", A_NUMBER, hooked=True)
+        )
+    assert "org_other" not in str(refused.value)
+    assert line.servers["production"].dialled.requests == [], "the SFU is never asked"
 
 
 @postgres
