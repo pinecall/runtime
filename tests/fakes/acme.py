@@ -90,6 +90,18 @@ class AcmeTTS(tts.TTS[Never]):
         # "status": the vendor answers 402; "connection": it never answers.
         self.refusal = refusal
 
+    @property
+    @override
+    def model(self) -> str:
+        """The model it was built with, as a real plugin names the one it speaks with."""
+        return str(self.given["model"])
+
+    @property
+    @override
+    def provider(self) -> str:
+        """The vendor, as a real plugin names itself."""
+        return ACME
+
     @override
     def synthesize(
         self, text: str, *, conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS

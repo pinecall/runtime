@@ -233,7 +233,11 @@ spoken call: the agent is dispatched into the room named `call` with the persona
 the dispatch, the caller joins and speaks in a voice the agent does not use (the persona's own,
 else one of the operator's voices for the language), and the room is deleted at the end whatever
 happened. A persona is the agent's: a name nobody wrote for that agent is `404`; one sent
-without a name is played as sent. A room nobody can hold is `503`.
+without a name is played as sent. A room nobody can hold is `503`. The answer is `{call, turns,
+line, caller_cost_usd, stopped_at_ceiling}`: what the caller's lines and voice cost by the box's
+rates, and whether it hung up because the call had spent the providers row's
+`caller.ceiling_usd` ([operator-api.md](operator-api.md)); the line that crosses it is the last
+one said. A model or a voice the rates do not price costs nothing here, as on a call.
 
 ## Personas — `GET /v1/agents/{slug}/personas`, `PUT` · `DELETE /v1/agents/{slug}/personas/{name}`, `GET /v1/agents/{slug}/personas/{name}/runs`
 

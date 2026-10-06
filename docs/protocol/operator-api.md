@@ -24,8 +24,9 @@ Four rows of `box_settings`, each read and written whole, the console's box scre
   offers per vendor and language where the vendor's plugin lists none (`listed`: `"cartesia/es":
   [{id, name, gender, country, accent, description}]`, [provider-keys.md](provider-keys.md#the-voices)), what each vendor is told
   (`tuning`), the language hints, the rates a call is priced at in dollars, the judge model and what
-  judging one call may spend on it (`judge.ceiling_usd`: a model judge past it is `skipped`), the
-  embedder. A vendor not installed, or not doing the stage it is named for, is `400` where it is
+  judging one call may spend on it (`judge.ceiling_usd`: a model judge past it is `skipped`), what
+  one simulated call's caller may spend on its lines and its voice (`caller.ceiling_usd`: past it
+  the caller hangs up; absent, it spends what its turns ask), the embedder. A vendor not installed, or not doing the stage it is named for, is `400` where it is
   written. No vendor is listed in code: every livekit plugin installed is one.
   How a spoken turn ends is the ears' `tuning` too, `"stt/<vendor>": {ends_the_turn, turn_model}`:
   ears with `ends_the_turn` close the turn themselves; the others get a local model that reads it

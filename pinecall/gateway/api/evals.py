@@ -10,7 +10,7 @@ from typing import Annotated, Never
 
 from fastapi import APIRouter, Path, Query
 from livekit import rtc
-from livekit.agents import llm
+from livekit.agents import llm, tts
 from pydantic import BaseModel, Field
 
 from pinecall.channels import rooms
@@ -27,7 +27,7 @@ from pinecall.domain.errors import (
 from pinecall.domain.names import PRODUCTION, THE_WIDGET
 from pinecall.domain.scope import Scope
 from pinecall.evals import checks, dataset, goldens, runs, spoken
-from pinecall.evals.callers import heard_in, improvise_line
+from pinecall.evals.callers import Spending, heard_in, improvise_line
 from pinecall.evals.case import case_of
 from pinecall.fleet import worlds
 from pinecall.gateway import _deps
@@ -280,7 +280,7 @@ async def next_line(
 ) -> NextLineResponse:
     """The persona's next line on the call so far, improvised by its model."""
     async with _caller_model(gateway, scope, body.persona) as model:
-        return await improvise_line(model, body)
+        return (await improvise_line(model, body)).answer
 
 
 # A persona is the agent's: a name nobody wrote for this agent is refused; one sent without a
@@ -306,22 +306,39 @@ async def place_voice_call(
         accepts_when=persona.accepts_when or None,
         declines_when=persona.declines_when or None,
     )
+    spending = Spending(await catalog.providers(pool))
+    stopped = False
     async with _caller_model(gateway, scope, persona) as model:
+        speech = tts_of(await _caller_voice(gateway, scope, body.agent, persona))
 
+        # Asked before each line: the line that crosses the ceiling is the last one said.
         async def improvised(turns_left: int) -> tuple[str, bool]:
+            nonlocal stopped
             entries = await gateway.logs.store.whole(body.call)
             if spoken.is_call_over(entries):
+                return "", True
+            if spending.is_over:
+                stopped = True
                 return "", True
             request = NextLineRequest(
                 persona=persona, heard=heard_in(entries), turns_left=turns_left
             )
-            answer = await improvise_line(model, request)
-            return answer.say, answer.hangup
+            next_one = await improvise_line(model, request)
+            spending.count(next_one, speech)
+            return next_one.answer.say, next_one.answer.hangup
 
-        voice = await _caller_voice(gateway, scope, body.agent, persona)
         placed = spoken.SpokenLine("", "", body.call, body.turns, line)
-        turns = await _on_the_line(gateway, dispatch, voice, placed, improvised)
-    return PlaceVoiceCallResponse(call=body.call, turns=turns, line=spoken.described(line))
+        try:
+            turns = await _on_the_line(gateway, dispatch, speech, placed, improvised)
+        finally:
+            await speech.aclose()
+    return PlaceVoiceCallResponse(
+        call=body.call,
+        turns=turns,
+        line=spoken.described(line),
+        caller_cost_usd=spending.usd,
+        stopped_at_ceiling=stopped,
+    )
 
 
 # ── a suite ──
@@ -461,10 +478,13 @@ async def _said_out_loud(
     async def scripted(turns_left: int) -> tuple[str, bool]:
         return (lines[len(lines) - turns_left], False) if turns_left <= len(lines) else ("", False)
 
-    voice = await _caller_voice(gateway, scope, registration.slug, None)
+    speech = tts_of(await _caller_voice(gateway, scope, registration.slug, None))
     line = spoken.Line(interferer_db=body.interferer_db, packet_loss=body.packet_loss)
     placed = spoken.SpokenLine("", "", opened.call, len(lines), line)
-    await _on_the_line(gateway, dispatch, voice, placed, scripted)
+    try:
+        await _on_the_line(gateway, dispatch, speech, placed, scripted)
+    finally:
+        await speech.aclose()
     await _until_sealed(gateway, opened.call)
     return goldens.Played(held=True, requests=())
 
@@ -517,7 +537,7 @@ async def _caller_voice(
 async def _on_the_line(
     gateway: Gateway,
     dispatch: rooms.Dispatch,
-    voice: Running,
+    speech: tts.TTS[Never],
     line: spoken.SpokenLine,
     next_line: spoken.NextLine,
 ) -> int:
@@ -529,7 +549,6 @@ async def _on_the_line(
     )
     token = tokens.room_token(gateway.signer, line.call, "talk", visitor)
     joined = dataclasses.replace(line, url=connections.settings.livekit_url_of(world), token=token)
-    speech = tts_of(voice)
     try:
         await gateway.offering.offer(line.call, fleet, dispatch)
         return await spoken.run_spoken(joined, speech, gateway.logs, next_line)
@@ -537,7 +556,6 @@ async def _on_the_line(
         raise NotAvailable(NO_LINE.format(broke=broke)) from broke
     finally:
         await rooms.room_closed(connections.servers[world], line.call)
-        await speech.aclose()
 
 
 async def _until_sealed(gateway: Gateway, call: str) -> None:

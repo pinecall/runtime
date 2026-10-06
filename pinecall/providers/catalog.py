@@ -103,6 +103,14 @@ class Judge(BaseModel):
     ceiling_usd: float
 
 
+class Caller(BaseModel):
+    """What one simulated call's caller may spend, its lines and its voice, before it hangs up."""
+
+    model_config = ConfigDict(frozen=True)
+
+    ceiling_usd: float = Field(gt=0)
+
+
 class Embedding(BaseModel):
     """The one embedder this box runs, on its own key; every base and fact is in its space."""
 
@@ -139,6 +147,8 @@ class Providers(BaseModel):
     # A model's price, by the longest prefix of its id: dated snapshots price by family.
     rates: dict[str, Rate] = Field(default_factory=dict[str, Rate])
     judge: Judge | None = None
+    # Absent: a simulated caller spends what its turns ask, as before the row named one.
+    caller: Caller | None = None
     # `es`: the line a voice reads in the picker.
     lines: dict[str, str] = Field(default_factory=dict[str, str])
     embedding: Embedding | None = None

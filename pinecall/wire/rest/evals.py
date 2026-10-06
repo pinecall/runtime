@@ -312,6 +312,10 @@ class PlaceVoiceCallResponse(WireModel):
     call: str
     turns: int
     line: str
+    # What the caller's lines and voice cost, in US dollars, by the box's rates.
+    caller_cost_usd: float = 0.0
+    # The caller hung up because its call had spent the providers row's `caller.ceiling_usd`.
+    stopped_at_ceiling: bool = False
 
 
 # ── an agent's personas ──
