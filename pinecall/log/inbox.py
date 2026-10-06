@@ -4,14 +4,61 @@ from dataclasses import asdict, dataclass
 
 from pinecall.domain.names import Env
 from pinecall.domain.scope import Scope
-from pinecall.log.facts import (
-    CALLS_WITH,
-    EVER_REACHED,
-    THREADS,
-    CallFacts,
-    facts_of,
-)
+from pinecall.log.facts import CallFacts, facts_of
 from pinecall.postgres.pool import Pool
+
+# Unread for the reader: one per spoken call started since they read, one per line the contact
+# wrote since then in a written call.
+THREADS = """
+with mine as (
+    select f.*, head.agent, coalesce(head.started_at, -1) as at,
+           coalesce(f.last_at, head.started_at, -1) as moved_at
+    from call_log_head head join call_facts f on f.call = head.log
+    where head.org = %(org)s and head.env = %(env)s and head.holder = %(holder)s
+      and head.agent = %(agent)s and head.call is not null and f.contact is not null
+), newest as (
+    select distinct on (contact) *
+    from mine order by contact, moved_at desc, call desc
+), counted as (
+    select mine.contact, count(*) as calls, max(mine.name) as any_name,
+           sum(case when mine.spoken then (mine.at > coalesce(seen.read_at, 0))::int
+                    else (select count(*) from unnest(mine.heard_at) as heard
+                          where heard > coalesce(seen.read_at, 0))::int end) as unread
+    from mine
+    left join thread_reads seen
+      on seen.org = %(org)s and seen.env = %(env)s and seen.holder = %(holder)s
+     and seen.agent = %(agent)s and seen.reader = %(reader)s and seen.contact = mine.contact
+    group by mine.contact
+)
+select newest.*, counted.calls, counted.unread, coalesce(newest.name, counted.any_name) as known_as
+from newest join counted on counted.contact = newest.contact
+where %(moved_at)s::double precision is null
+   or (newest.moved_at, newest.contact) < (%(moved_at)s, %(contact)s::text)
+order by newest.moved_at desc, newest.contact desc
+limit %(limit)s
+"""
+
+
+CALLS_WITH = """
+select head.log as call
+from call_log_head head join call_facts f on f.call = head.log
+where head.org = %(org)s and head.env = %(env)s and head.holder = %(holder)s
+  and head.agent = %(agent)s and head.call is not null and f.contact = %(contact)s
+order by coalesce(head.started_at, -1) desc, head.log desc
+limit %(limit)s
+"""
+
+
+# Any agent of the org, on purpose: a past contact allows a call back. In one world: a test call
+# from a phone in the sandbox never makes it dialable from production. Matched as stored.
+EVER_REACHED = """
+select exists (
+    select 1 from call_log_head head join call_facts f on f.call = head.log
+    where head.org = %(org)s and head.env = %(env)s and head.call is not null
+      and f.contact = %(contact)s
+) as reached
+"""
+
 
 # A read cursor never moves back.
 READ = """

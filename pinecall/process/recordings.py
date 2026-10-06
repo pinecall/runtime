@@ -10,7 +10,7 @@ from pathlib import Path, PurePath
 
 import httpx
 
-from pinecall.domain.errors import UpstreamFailed
+from pinecall.domain.errors import DeclarationRefused, UpstreamFailed
 from pinecall.process._objects import ObjectStore, object_store_of
 from pinecall.process.sealed_audio import (
     BROKEN,
@@ -51,6 +51,9 @@ DELETED_AT_ONCE = 16
 REFUSED = "the recordings bucket {bucket} answered {status} to {what} {name}: {text}"
 
 UNREACHABLE = "the recordings bucket {bucket} did not answer {what} {name}: {why}"
+
+
+NOT_UNDER_THE_ROOT = "call {call!r} names no directory under the recordings root"
 
 
 @dataclass(frozen=True)
@@ -239,6 +242,16 @@ def call_directory(root: Path, call: str) -> Path | None:
     return directory
 
 
+# Where the worker's session writes the call's audio: the one place a call's file is named.
+def recording_path(root: Path, call: str) -> Path:
+    """The call's audio file, in a directory of its own under the root; refused outside it."""
+    directory = call_directory(root, call)
+    if directory is None:
+        raise DeclarationRefused(NOT_UNDER_THE_ROOT.format(call=call))
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory / AUDIO_FILE
+
+
 def kept_on_disk(root: Path, call: str, pointer: str) -> Path | None:
     """The call's recording under the root, by the name its summary gave; None for any other."""
     name = PurePath(pointer).name
@@ -298,7 +311,7 @@ async def _streamed(answer: httpx.Response) -> AsyncIterator[bytes]:
         await answer.aclose()
 
 
-# A recording is a directory named for its call (worker/_recorder.py recording_path): one under
+# A recording is a directory named for its call (recording_path): one under
 # the root, whatever the id says, or nothing is removed.
 def _removed(root: Path, calls: list[str]) -> set[str]:
     removed: set[str] = set()

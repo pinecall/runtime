@@ -8,19 +8,69 @@ from pinecall.domain.agent import Versions
 from pinecall.domain.call import Opener
 from pinecall.domain.names import Env, parse_env
 from pinecall.domain.scope import Scope
-from pinecall.log.facts import (
-    CORNER_OF_CALL,
-    FACTS_OF,
-    UNSEALED_SPOKEN,
-    UNSEALED_WRITTEN,
-    CallFacts,
-    CallScope,
-    facts_of,
-)
+from pinecall.log.facts import CallFacts, facts_of
 from pinecall.log.store import entry_of
 from pinecall.postgres.pool import Pool
 from pinecall.wire.frames import Entry
 from pinecall.wire.parts import ToolResult
+
+# Head rows older than the env and holder columns read as production, the org's own.
+CORNER_OF_CALL = """
+select org, coalesce(env, 'production') as env, coalesce(holder, '') as holder, agent,
+       config_version, lexicon_version, sealed, started_at, written, opened_by
+from call_log_head where log = %(call)s and call is not null
+"""
+
+
+FACTS_OF = """
+select f.*, head.agent
+from call_facts f join call_log_head head on head.log = f.call
+where f.call = any(%(calls)s)
+"""
+
+
+# call_log is joined on log, its primary key's first column, never on call, which scans it.
+# A call that never reached call.started may have no facts row, hence the left join.
+# A head claimed at the open, whose first entry waits on the writer, moved last when it opened; a
+# head with no entry, no start and no opening (a seal's lease) is never quiet. Under load this is
+# the whole window: at 300 calls held the reaper sealed calls 36 ms after they opened (2026-10-01).
+UNSEALED_SPOKEN = """
+select head.log as call, head.agent,
+       coalesce(head.started_at, 0) as started_at,
+       coalesce(max(entry.ts), head.started_at, extract(epoch from opening.opened_at)) as last_at,
+       null as channel, head.env
+from call_log_head head
+left join call_facts f on f.call = head.log
+left join call_openings opening on opening.call = head.log
+left join call_log entry on entry.log = head.log
+where head.call is not null and not head.sealed
+  and (coalesce(f.spoken, false)
+       or not exists (select 1 from call_log began
+                       where began.log = head.log and began.type = 'call.started'))
+group by head.log, head.agent, head.started_at, head.env, opening.opened_at
+having coalesce(max(entry.ts), head.started_at, extract(epoch from opening.opened_at))
+       < %(quiet_since)s
+order by last_at
+limit %(limit)s
+"""
+
+
+UNSEALED_WRITTEN = """
+select head.log as call, head.agent,
+       coalesce(head.started_at, 0) as started_at,
+       coalesce(max(entry.ts), head.started_at, 0) as last_at, f.channel, head.env
+from call_log_head head
+join call_facts f on f.call = head.log
+left join call_log entry on entry.log = head.log
+where head.call is not null and not head.sealed and not coalesce(f.spoken, false)
+  and exists (select 1 from call_log began
+               where began.log = head.log and began.type = 'call.started')
+group by head.log, head.agent, head.started_at, head.env, f.channel
+having coalesce(max(entry.ts), head.started_at, 0) < %(quiet_since)s
+order by last_at
+limit %(limit)s
+"""
+
 
 TOOL_ANSWERED = """
 select data from call_log
@@ -45,6 +95,21 @@ OPENERS: dict[str, Opener] = {"fleet": "fleet", "app": "app", "gateway": "gatewa
 SEALED_AMONG = """
 select log from call_log_head where log = any(%(calls)s) and sealed
 """
+
+
+@dataclass(frozen=True, slots=True)
+class CallScope:
+    """Where a call was opened: its scope, its agent, and what its head row says."""
+
+    scope: Scope | None
+    agent: str
+    versions: Versions
+    sealed: bool
+    started_at: float | None
+    # The entries its worker's writer sent: where a writer that takes the call over follows on.
+    written: int
+    # Who opened it; None for a call opened before the head said.
+    opened_by: Opener | None = None
 
 
 @dataclass(frozen=True, slots=True)

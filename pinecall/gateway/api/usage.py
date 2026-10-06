@@ -13,10 +13,9 @@ from pinecall.domain.org import Quotas
 from pinecall.gateway._deps import ActingDep, CallsKey, GatewayDep, ScopeDep, UsageKey
 from pinecall.log import drift
 from pinecall.log.drift import Side, Tally
-from pinecall.log.facts import A_DAY_S
 from pinecall.log.reduce import Usage, UsageRow, totals_by_org
 from pinecall.log.store import DEFAULT_LIMIT
-from pinecall.log.usage import AgentWindow, WindowDay, counted_window, metered_page
+from pinecall.log.usage import A_DAY_S, AgentWindow, WindowDay, counted_window, metered_page
 from pinecall.tenancy import admission, people, scopes, usage
 from pinecall.tenancy.keys import check_agent
 from pinecall.wire.rest.usage import (

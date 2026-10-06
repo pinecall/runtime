@@ -7,7 +7,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from pinecall.domain.errors import UpstreamFailed
+from pinecall.domain.errors import DeclarationRefused, UpstreamFailed
 from pinecall.process.recordings import (
     AUDIO_FILE,
     SEALED_FILE,
@@ -15,6 +15,7 @@ from pinecall.process.recordings import (
     Disk,
     call_directory,
     kept_on_disk,
+    recording_path,
     recordings_of,
     served_sealed,
 )
@@ -188,3 +189,11 @@ def test_a_call_id_that_leaves_the_root_names_no_directory(tmp_path: Path) -> No
     assert (tmp_path / "elsewhere").is_dir()
     assert tmp_path.is_dir()
     assert not (root / "call_1").exists()
+
+
+def test_a_call_gets_a_directory_of_its_own_under_the_root(tmp_path: Path) -> None:
+    audio = recording_path(tmp_path, "call_1")
+    assert audio == tmp_path / "call_1" / "audio.ogg"
+    assert audio.parent.is_dir()
+    with pytest.raises(DeclarationRefused, match="no directory under the recordings root"):
+        recording_path(tmp_path, "..")

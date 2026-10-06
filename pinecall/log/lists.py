@@ -2,16 +2,46 @@
 
 from dataclasses import asdict, dataclass, field
 
+from psycopg import sql
+
 from pinecall.domain.scope import Scope
-from pinecall.log.facts import (
-    FOUND_COUNT,
-    FOUND_PAGE,
-    PERSONA_RUNS_COUNT,
-    PERSONA_RUNS_PAGE,
-    CallFacts,
-    facts_of,
-)
+from pinecall.log.facts import CallFacts, facts_of
 from pinecall.postgres.pool import Pool
+
+# words is an escaped LIKE pattern and digits its digits; a call with no facts row still matches
+# a filter on the agent alone.
+_MATCHING = sql.SQL("""
+from call_log_head head left join call_facts f on f.call = head.log
+where head.org = %(org)s and head.call is not null
+  and head.env = %(env)s and head.holder = %(holder)s
+  and (%(agent)s::text is null or head.agent = %(agent)s)
+  and (%(channel)s::text is null or f.channel = %(channel)s)
+  and (%(words)s::text is null
+       or lower(head.log) like lower(%(words)s) || '%%'
+       or (%(digits)s::text <> '' and (regexp_replace(coalesce(f.from_number, ''), '\\D', '', 'g')
+                                   like '%%' || %(digits)s || '%%'
+                              or regexp_replace(coalesce(f.to_number, ''), '\\D', '', 'g')
+                                   like '%%' || %(digits)s || '%%'))
+       or f.name ilike '%%' || %(words)s || '%%'
+       or f.outcome ilike '%%' || %(words)s || '%%')
+""")
+
+
+# The page before this one is the cursor: a call id, whose start time and id bound the page.
+_A_PAGE_BEFORE = sql.SQL("""
+  and (%(before)s::text is null or (coalesce(head.started_at, -1), head.log) < (
+        select coalesce(before.started_at, -1), before.log
+        from call_log_head before where before.log = %(before)s))
+order by coalesce(head.started_at, -1) desc, head.log desc
+limit %(limit)s
+""")
+
+
+_THE_PERSONAS_RUNS = sql.SQL("""
+from call_log_head head join call_facts f on f.call = head.log
+where head.org = %(org)s and head.env = %(env)s and head.holder = %(holder)s
+  and head.agent = %(agent)s and head.call is not null and f.persona = %(persona)s
+""")
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +93,22 @@ class PersonaRuns:
     runs: list[PersonaRun]
     total: int
     next: str | None
+
+
+FOUND_COUNT = sql.SQL("select count(*) as total ") + _MATCHING
+
+
+FOUND_PAGE = sql.SQL("select head.log as call ") + _MATCHING + _A_PAGE_BEFORE
+
+
+PERSONA_RUNS_COUNT = sql.SQL("select count(*) as total ") + _THE_PERSONAS_RUNS
+
+
+PERSONA_RUNS_PAGE = (
+    sql.SQL("select f.*, head.agent, coalesce(head.started_at, -1) as started_at ")
+    + _THE_PERSONAS_RUNS
+    + _A_PAGE_BEFORE
+)
 
 
 async def found(pool: Pool, scope: Scope, wanted: ListFilters, *, limit: int) -> Found:

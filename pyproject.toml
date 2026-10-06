@@ -265,3 +265,8 @@ why = "a door's body is the wire's (pinned by the goldens, read by the CLI and t
 path = "pinecall/session/call.py"
 checks = ["shotgun"]
 why = "the worker's job builds the Call a session runs on: what a voice call is given at its start (its recording, its writer) lands in both; two of the five are a feature and its revert"
+
+[[tool.vibesmell.skip]]
+path = "pinecall/worker/_recorder.py"
+checks = ["shotgun"]
+why = "the seam is cut: where a call's file lives is process/recordings.py alone (recording_path, call_directory), and the recorder only seals and stores it; the five co-commits are history, a feature and its revert among them"

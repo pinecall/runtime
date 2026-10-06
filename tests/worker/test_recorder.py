@@ -9,20 +9,15 @@ import httpx
 import pytest
 
 from pinecall.fleet.client import GatewayClient
+from pinecall.process.recordings import recording_path
 from pinecall.process.sealed_audio import Span, new_key, on_disk, opened, recorded_size
 from pinecall.process.settings import Settings
-from pinecall.worker._recorder import recording_path, stored, written
+from pinecall.worker._recorder import stored, written
 from tests.fakes.bucket import STORE_SETTINGS, Bucket
 
 AUDIO = b"OggS a call"
 
 KEY = new_key()
-
-
-def test_a_call_gets_a_directory_of_its_own(tmp_path: Path) -> None:
-    audio = recording_path(tmp_path, "call_1")
-    assert audio == tmp_path / "call_1" / "audio.ogg"
-    assert audio.parent.is_dir()
 
 
 def test_a_call_that_ended_before_its_session_recorded_has_no_file(tmp_path: Path) -> None:

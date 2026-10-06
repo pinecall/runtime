@@ -13,9 +13,9 @@ from pinecall.domain.scope import Scope
 from pinecall.gateway._served import Served, Serving
 from pinecall.gateway._sockets import Registration, SocketId, Sockets, orgs_own
 from pinecall.log import queries
-from pinecall.log.facts import CallScope
 from pinecall.log.logs import Log, arrival_entry
 from pinecall.log.private import Privacy
+from pinecall.log.queries import CallScope
 from pinecall.retrieval import lookups
 from pinecall.retrieval.lookups import OnTheCall
 from pinecall.session.tools import ToolCalls

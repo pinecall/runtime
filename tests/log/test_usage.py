@@ -3,9 +3,8 @@
 import pytest
 
 from pinecall.domain.scope import Scope
-from pinecall.log.facts import A_DAY_S
 from pinecall.log.store import Store
-from pinecall.log.usage import counted_window
+from pinecall.log.usage import A_DAY_S, counted_window
 from tests.conftest import postgres
 from tests.log.conftest import AGENT, THE_DAY, ACall, judgment, logged_call
 

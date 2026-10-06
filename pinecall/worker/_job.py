@@ -35,6 +35,7 @@ from pinecall.domain.scope import SCOPE_ATTRIBUTE, Scope
 from pinecall.fleet.client import GatewayClient, again
 from pinecall.fleet.heartbeat import worker_name_of
 from pinecall.fleet.measures import measures_path, reported
+from pinecall.process.recordings import recording_path
 from pinecall.process.settings import Settings
 from pinecall.providers.credentials import Pipeline
 from pinecall.session import clock, room
@@ -58,7 +59,7 @@ from pinecall.wire.rest.calls import (
 )
 from pinecall.wire.rest.numbers import LegTrunk
 from pinecall.wire.state import State
-from pinecall.worker._recorder import recording_path, stored, written
+from pinecall.worker._recorder import stored, written
 
 logger = logging.getLogger(__name__)
 
