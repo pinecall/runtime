@@ -7,6 +7,7 @@ from psycopg import sql
 from psycopg.rows import DictRow
 
 from pinecall.domain.agent import Versions
+from pinecall.domain.call import Opener
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.scope import Scope
 from pinecall.postgres.pool import Connection, Pool
@@ -120,7 +121,7 @@ ON CONFLICT (call) DO UPDATE SET lent = excluded.lent
 # Head rows older than the env and holder columns read as production, the org's own.
 CORNER_OF_CALL = """
 select org, coalesce(env, 'production') as env, coalesce(holder, '') as holder, agent,
-       config_version, lexicon_version, sealed, started_at, written
+       config_version, lexicon_version, sealed, started_at, written, opened_by
 from call_log_head where log = %(call)s and call is not null
 """
 
@@ -346,6 +347,8 @@ class CallScope:
     started_at: float | None
     # The entries its worker's writer sent: where a writer that takes the call over follows on.
     written: int
+    # Who opened it; None for a call opened before the head said.
+    opened_by: Opener | None = None
 
 
 # The types fold() reads; every other entry leaves a call's facts as they are, so a group of only

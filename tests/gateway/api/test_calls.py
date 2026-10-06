@@ -456,20 +456,6 @@ async def test_a_log_token_reads_its_own_call_and_no_other(knocking: Knocking) -
 
 
 @postgres
-async def test_the_org_lists_its_calls_newest_first(knocking: Knocking) -> None:
-    calls = [a_call(knocking), a_call(knocking)]
-    async with knocking.http(knocking.fleet["sandbox"]) as worker:
-        for context in calls:
-            await worker.post(
-                "/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written()
-            )
-    async with knocking.http(knocking.app["sandbox"]) as tenant:
-        listed = (await tenant.get("/v1/sessions")).json()
-    assert [line["call"] for line in listed["calls"]] == [call.call for call in reversed(calls)]
-    assert all(line["live"] for line in listed["calls"])
-
-
-@postgres
 async def test_a_gateway_that_forgot_a_call_serves_it_again_from_the_workers_word(
     knocking: Knocking,
 ) -> None:
@@ -930,3 +916,51 @@ async def test_a_vendor_that_failed_a_call_is_counted_once_for_it_at_the_append_
     failures = knocking.gateway.counters.failures
     assert [call for _, call in failures["deepgram"]] == [context.call, context.call]
     assert [call for _, call in failures["cartesia"]] == [context.call]
+
+
+ENDED = {"reason": "caller_hung_up", "ended_by": "caller", "ended_at": 10.0, "duration_s": 42.0}
+
+
+# The summary and the score are the gateway's own words: nobody sends them, the fleet included.
+@postgres
+async def test_what_the_gateway_writes_itself_is_refused_at_every_append_door(
+    knocking: Knocking,
+) -> None:
+    context = await a_logged_call(knocking)
+    summary: JsonObject = {"type": "call.summary", "data": {"reason": "caller_hung_up"}}
+    timed: JsonObject = {**summary, "ts": 1.0}
+    for key in (knocking.fleet["sandbox"], knocking.app["sandbox"]):
+        async with knocking.http(key) as other:
+            single = await other.post(f"/v1/calls/{context.call}/events", json=summary)
+            batch = await other.post(
+                f"/v1/calls/{context.call}/entries", json={"after": 0, "entries": [timed]}
+            )
+        assert single.status_code == 403, single.text
+        assert "written by the gateway itself" in single.json()["detail"]
+        assert batch.status_code == 403
+    kinds = [entry.type for entry in await knocking.gateway.logs.store.whole(context.call)]
+    assert "call.summary" not in kinds
+
+
+# A call the fleet opened is the fleet's to write and to seal: the org's own key reads it, and
+# knocks at none of the worker's doors.
+@postgres
+async def test_a_fleet_opened_call_takes_no_worker_knock_from_the_orgs_own_key(
+    knocking: Knocking,
+) -> None:
+    context = await a_logged_call(knocking, "one")
+    entry: JsonObject = {"type": "custom", "data": {"name": "n", "data": {}}}
+    async with knocking.http(knocking.app["sandbox"]) as own:
+        appended = await own.post(f"/v1/calls/{context.call}/events", json=entry)
+        sealed = await own.post(
+            f"/v1/calls/{context.call}/sealed",
+            json=SealCallRequest(usage=[], outcome="booked").written(),
+        )
+        read = await own.get(f"/v1/calls/{context.call}/events")
+    assert (appended.status_code, sealed.status_code, read.status_code) == (404, 404, 200)
+    assert not await knocking.gateway.logs.store.sealed(context.call)
+    # Forgotten by this gateway and read back off the head, the answer is the same.
+    knocking.gateway.live.close(context.call)
+    async with knocking.http(knocking.app["sandbox"]) as own:
+        again = await own.post(f"/v1/calls/{context.call}/events", json=entry)
+    assert again.status_code == 404

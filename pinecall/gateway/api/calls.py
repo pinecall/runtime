@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from pinecall.channels import offers, routes
 from pinecall.domain.agent import AgentConfig, Versions
-from pinecall.domain.call import CallContext
+from pinecall.domain.call import CallContext, Opener
 from pinecall.domain.errors import (
     Conflict,
     DeclarationRefused,
@@ -50,7 +50,7 @@ from pinecall.gateway.calls.serving import (
     serving_agent,
 )
 from pinecall.gateway.ending.seal import remembered, sealed
-from pinecall.log import lists, openings, queries
+from pinecall.log import openings, queries
 from pinecall.log.readers import Filter, parse_filter, project_entry, project_state
 from pinecall.log.store import DEFAULT_LIMIT, Claim
 from pinecall.process.recordings import (
@@ -73,6 +73,7 @@ from pinecall.tenancy.scopes import Picked
 from pinecall.wire.commands import CallClaim
 from pinecall.wire.events import (
     EVENTS,
+    GATEWAY_WRITES,
     TERMINAL_EVENT,
     ErrorEvent,
     ToolCall,
@@ -84,8 +85,6 @@ from pinecall.wire.rest.calls import (
     AppendEntriesRequest,
     AppendEntriesResponse,
     AppendEntryRequest,
-    CallList,
-    CallRow,
     Erasure,
     LogPage,
     LookupRequest,
@@ -95,7 +94,6 @@ from pinecall.wire.rest.calls import (
     RecordingKeyResponse,
     RememberResponse,
     SealCallRequest,
-    SessionScore,
 )
 
 router = APIRouter()
@@ -104,10 +102,10 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-A_SCREENFUL = 20
-
-
 UNKNOWN_EVENT = "no event is called {kind!r}: the log takes the protocol's own words"
+
+
+THE_GATEWAYS = "{kind!r} is written by the gateway itself, never sent to it"
 
 
 NOT_OPEN = "this gateway is not writing call {call!r}: open it with POST /v1/calls first"
@@ -137,21 +135,6 @@ UNOPENED_KEY = "the key of call {call}'s recording is sealed under a key the vau
 STILL_LIVE = "call {call} is still running: it can be erased once it has ended"
 
 
-LINE_FROM_STATE = (
-    "status",
-    "channel",
-    "direction",
-    "to",
-    "caller",
-    "started_at",
-    "ended_at",
-    "end_reason",
-    "outcome",
-    "cost",
-    "attention",
-)
-
-
 class LogQuery(BaseModel):
     """What a log's reader asks for: the cursor, the types, only what is kept, a page's size."""
 
@@ -166,16 +149,6 @@ class StreamOptions(BaseModel):
 
     accept: str | None = None
     last_event_id: str | None = None
-
-
-class ListQuery(BaseModel):
-    """What a list of calls asks for: an agent, words, a channel, a page below a call."""
-
-    limit: int = Field(A_SCREENFUL, ge=1, le=_deps.LONGEST_LIST)
-    q: str | None = Field(None, max_length=200)
-    agent: str | None = None
-    channel: str | None = None
-    before: str | None = None
 
 
 # The log opens before the media, so a console sees the call ring; call.started is the worker's.
@@ -196,13 +169,16 @@ async def open_call(body: OpenCallRequest, key: WorkerKey, gateway: GatewayDep) 
     config, versions = await _tuned(gateway, scope, body.agent, found, context.call)
     # Asked again by a worker whose gateway died with the answer: the same call, one ringing.
     again = await openings.opening_of(gateway.connections.pool, context.call) is not None
-    await gateway.logs.store.claim(context.call, body.agent, scope.org, Claim(scope, versions))
+    opener = _opener_of(key)
+    claim = Claim(scope, versions, opened_by=opener)
+    await gateway.logs.store.claim(context.call, body.agent, scope.org, claim)
     # A worker opened the room's call: nothing is left to offer it to another.
     await offers.forgotten(gateway.connections.pool, context.call)
     await openings.kept(gateway.connections.pool, scope.org, context, config)
     await gateway.prompts.keep(gateway.connections.pool, scope.org, config.knowledge or "")
     owner = None if found is None else found.owner
     served = served_call(gateway.serving, owner, context, config, scope)
+    gateway.live.opened_by(context.call, opener)
     await gateway.live.commands_heard(context.call)
     if not again:
         await opened(served.log, context, body.agent)
@@ -238,6 +214,7 @@ async def reopen_call(
     config, _ = await _tuned(gateway, scope, body.agent, registration, call)
     await openings.kept(gateway.connections.pool, scope.org, body.context, config)
     served_call(gateway.serving, None, body.context, config, scope)
+    gateway.live.opened_by(call, kept.opened_by)
     if registration is not None:
         await attach(gateway.live, call, registration.owner)
 
@@ -248,8 +225,7 @@ async def append_entry(
     call: str, body: AppendEntryRequest, key: WorkerKey, gateway: GatewayDep
 ) -> Entry:
     """Write one entry of a call this gateway serves."""
-    if body.type not in EVENTS:
-        raise DeclarationRefused(UNKNOWN_EVENT.format(kind=body.type))
+    check_kind(body.type)
     served = await known(gateway, key, call)
     began = time.perf_counter()
     entry = await served.log.append(body.type, body.data, ephemeral=body.ephemeral)
@@ -264,8 +240,7 @@ async def append_entries(
 ) -> AppendEntriesResponse:
     """Write a worker's batch of a call this gateway serves, once and in order."""
     for item in body.entries:
-        if item.type not in EVENTS:
-            raise DeclarationRefused(UNKNOWN_EVENT.format(kind=item.type))
+        check_kind(item.type)
     served = await known(gateway, key, call)
     began = time.perf_counter()
     entries = await served.log.append_many(body.entries, after=body.after)
@@ -450,28 +425,6 @@ async def erase_call(call: str, key: TeamKey, where: ScopeDep, gateway: GatewayD
     return erased.trail
 
 
-@router.get("/v1/agents/{slug}/sessions")
-async def list_agent_calls(
-    slug: str, reading: ReaderDep, gateway: GatewayDep, query: Annotated[ListQuery, Query()]
-) -> CallList:
-    """The agent's newest calls, one row each."""
-    wanted = lists.ListFilters(
-        agent=slug, q=query.q or None, channel=query.channel, before=query.before
-    )
-    return await _sessions(gateway, reading, wanted, query.limit)
-
-
-@router.get("/v1/sessions")
-async def list_calls(
-    reading: ReaderDep, gateway: GatewayDep, query: Annotated[ListQuery, Query()]
-) -> CallList:
-    """The org's newest calls across its agents, one row each."""
-    wanted = lists.ListFilters(
-        agent=query.agent or None, q=query.q or None, channel=query.channel, before=query.before
-    )
-    return await _sessions(gateway, reading, wanted, query.limit)
-
-
 # Live only, no cursor: every entry of the feed is also in a log, which is where to resume.
 @router.get("/v1/events", response_model=None)
 async def stream_org_events(reading: ReaderDep, gateway: GatewayDep) -> StreamingResponse:
@@ -493,20 +446,28 @@ async def known(gateway: Gateway, key: Acting, call: str) -> Served:
     now = time.monotonic()
     served = gateway.live.calls.get(call)
     if served is not None:
-        _yours(key, served.scope, call)
+        _yours(key, served.scope, served.opened_by, call)
         gateway.live.in_use(call, now)
         return served
     pool = gateway.connections.pool
     kept = await queries.scope_of_call(pool, call)
     if kept is None or kept.scope is None:
         raise NotFound(NOT_OPEN.format(call=call))
-    _yours(key, kept.scope, call)
+    _yours(key, kept.scope, kept.opened_by, call)
     if kept.sealed:
         raise Conflict(SEALED.format(call=call))
     opening = await openings.opening_of(pool, call)
     if opening is None:
         raise NotFound(NOT_OPEN.format(call=call))
-    return first_seen(gateway.serving, opening.context, opening.config, kept.scope, now)
+    return first_seen(gateway.serving, opening.context, opening.config, kept, now)
+
+
+def check_kind(kind: str) -> None:
+    """Refuse a type the protocol lacks, or one the gateway alone writes on a log."""
+    if kind not in EVENTS:
+        raise DeclarationRefused(UNKNOWN_EVENT.format(kind=kind))
+    if kind in GATEWAY_WRITES:
+        raise NotAllowed(THE_GATEWAYS.format(kind=kind))
 
 
 # What /metrics reads: the append's time at the door, and each vendor's failures as they come in.
@@ -543,10 +504,19 @@ def _call_corner(key: Acting, context: CallContext) -> Scope:
     return keys.scope_of(key.bearer, key.env, dispatched=named)
 
 
-def _yours(key: Acting, scope: Scope, call: str) -> None:
+# A call the fleet opened is the fleet's to write; a written call runs here and no worker door
+# serves it; one an org's own worker opened is that org's. One opened before the head said who is
+# served as before.
+def _yours(key: Acting, scope: Scope, opened_by: Opener | None, call: str) -> None:
     fleet = THE_FLEET in key.bearer.key.scopes
     if scope.env != key.env or (not fleet and scope.org != key.org):
         raise NotFound(NOT_OPEN.format(call=call))
+    if opened_by == "gateway" or (opened_by == "fleet" and not fleet):
+        raise NotFound(NOT_OPEN.format(call=call))
+
+
+def _opener_of(key: Acting) -> Opener:
+    return "fleet" if THE_FLEET in key.bearer.key.scopes else "app"
 
 
 # A call a dial placed already has its head: the worker opens it in the scope the head keeps, or
@@ -644,42 +614,6 @@ async def _commanded(waiting: asyncio.Queue[Command | None]) -> AsyncIterator[st
 
     async for command in paced(taken()):
         yield _streams.PING if command is None else frame(command.type, command.written())
-
-
-async def _sessions(
-    gateway: Gateway, reading: Reader, wanted: lists.ListFilters, limit: int
-) -> CallList:
-    if reading.acting is None or reading.scope is None:
-        raise NotAllowed("a list of calls is read with a key, not a call's token")
-    found = await lists.found(gateway.connections.pool, reading.scope, wanted, limit=limit)
-    facts = await queries.facts_of_calls(gateway.connections.pool, found.calls)
-    lines: list[CallRow] = []
-    for call in found.calls:
-        state = await gateway.logs.reading(call).snapshot()
-        if state.seq == 0:
-            continue
-        text = project_state(state, "tenant", gateway.sockets.declared(state.agent or ""))
-        fact = facts.get(call)
-        score = None
-        if fact is not None and fact.judged is not None and fact.passed is not None:
-            score = SessionScore(
-                held=fact.held or 0, judged=fact.judged, passed=fact.passed, reason=fact.reason
-            )
-        lines.append(
-            CallRow.model_validate(
-                {
-                    **{name: text.get(name) for name in LINE_FROM_STATE},
-                    "from": text.get("from"),
-                    "call": call,
-                    "agent": state.agent or "",
-                    "last_seq": state.seq,
-                    "live": not await gateway.logs.store.sealed(call),
-                    "score": None if score is None else score.written(),
-                    "flags": [] if fact is None else fact.flags,
-                }
-            )
-        )
-    return CallList(calls=lines, total=found.total, next=found.next)
 
 
 def _seq_of(header: str | None) -> int:

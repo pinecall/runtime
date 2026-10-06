@@ -9,6 +9,7 @@ from uuid import uuid4
 from psycopg.rows import DictRow
 
 from pinecall.domain.agent import Versions
+from pinecall.domain.call import Opener
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import Env, JsonObject, parse_env
 from pinecall.domain.scope import Scope
@@ -70,14 +71,16 @@ where log = %(call)s and not sealed and sealing_by = %(by)s
 # The first claim wins, and it may come before the first entry.
 CLAIM = """
 insert into call_log_head as head
-    (log, agent, call, org, env, holder, config_version, lexicon_version)
-values (%(log)s, %(agent)s, %(call)s, %(org)s, %(env)s, %(holder)s, %(config)s, %(lexicon)s)
+    (log, agent, call, org, env, holder, config_version, lexicon_version, opened_by)
+values (%(log)s, %(agent)s, %(call)s, %(org)s, %(env)s, %(holder)s, %(config)s, %(lexicon)s,
+        %(opened_by)s)
 on conflict (log) do update
     set org             = coalesce(head.org, excluded.org),
         env             = coalesce(head.env, excluded.env),
         holder          = coalesce(head.holder, excluded.holder),
         config_version  = coalesce(head.config_version, excluded.config_version),
-        lexicon_version = coalesce(head.lexicon_version, excluded.lexicon_version)
+        lexicon_version = coalesce(head.lexicon_version, excluded.lexicon_version),
+        opened_by       = coalesce(head.opened_by, excluded.opened_by)
 """
 
 OWNER = "select org from call_log_head where log = %(log)s"
@@ -127,10 +130,12 @@ class Claimant:
 
 @dataclass(frozen=True, slots=True)
 class Claim:
-    """What a call log is claimed with: its scope and the versions it was built on."""
+    """What a call log is claimed with: its scope, the versions it was built on, who opened it."""
 
     scope: Scope
     versions: Versions = field(default_factory=Versions)
+    # None for a dial placed before its worker opens it: the open says who.
+    opened_by: Opener | None = None
 
 
 class Store:
@@ -272,6 +277,7 @@ class Store:
                     "holder": None if scope is None else scope.holder,
                     "config": versions.config,
                     "lexicon": versions.lexicon,
+                    "opened_by": None if call is None or claim is None else claim.opened_by,
                 },
             )
 

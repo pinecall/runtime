@@ -13,6 +13,7 @@ from pinecall.domain.scope import Scope
 from pinecall.gateway._served import Served, Serving
 from pinecall.gateway._sockets import Registration, SocketId, Sockets, orgs_own
 from pinecall.log import queries
+from pinecall.log.facts import CallScope
 from pinecall.log.logs import Log, arrival_entry
 from pinecall.log.private import Privacy
 from pinecall.retrieval import lookups
@@ -65,12 +66,14 @@ def served_call(
 
 # Parked and not counted: the socket holding its agent and the quota are its opener's.
 def first_seen(
-    serving: Serving, context: CallContext, config: AgentConfig, scope: Scope, now: float
+    serving: Serving, context: CallContext, config: AgentConfig, kept: CallScope, now: float
 ) -> Served:
     """Serve a call another gateway opened, from what was kept when it opened."""
     serving.live.idle(now)
-    served = served_call(serving, None, context, config, scope)
-    served = replace(served, opened_here=False)
+    served = served_call(
+        serving, None, context, config, kept.scope or Scope(context.route.org, context.env)
+    )
+    served = replace(served, opened_here=False, opened_by=kept.opened_by)
     serving.live.calls[served.call] = served
     serving.live.seen[served.call] = now
     return served

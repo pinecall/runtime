@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import LiteralString
 
 from pinecall.domain.agent import Versions
+from pinecall.domain.call import Opener
 from pinecall.domain.names import Env, parse_env
 from pinecall.domain.scope import Scope
 from pinecall.log.facts import (
@@ -35,6 +36,10 @@ where log = %(log)s and type = 'tool.call' and data->>'call_id' = %(call_id)s
 order by seq
 limit 1
 """
+
+# The head's word on who opened a call, read back as the type; anything else is nobody's.
+OPENERS: dict[str, Opener] = {"fleet": "fleet", "app": "app", "gateway": "gateway"}
+
 
 # Which of the calls a gateway serves another gateway sealed: one read of their heads.
 SEALED_AMONG = """
@@ -78,6 +83,7 @@ async def scope_of_call(pool: Pool, call: str) -> CallScope | None:
         sealed=row["sealed"],
         started_at=row["started_at"],
         written=row["written"],
+        opened_by=_opener(row["opened_by"]),
     )
 
 
@@ -116,6 +122,10 @@ async def unsealed_spoken(pool: Pool, quiet_since: float, *, limit: int) -> list
 async def unsealed_written(pool: Pool, quiet_since: float, *, limit: int) -> list[Unsealed]:
     """Return the written calls still open and quiet since then, with their channel."""
     return await _unsealed(pool, UNSEALED_WRITTEN, quiet_since, limit)
+
+
+def _opener(named: object) -> Opener | None:
+    return OPENERS.get(named) if isinstance(named, str) else None
 
 
 async def _unsealed(

@@ -121,6 +121,14 @@ When every worker is full the token door answers `503` and a page offers a call 
 `POST /v1/callbacks {agent, number, channel?, via?, call?}` writes `callback.requested` on the
 agent's log; `GET /v1/callbacks?agent=&after=` lists them for your app to dial.
 
+The worker's doors (`POST /v1/calls`, `/events`, `/entries`, `/sealed`, `/tools`, `/lookup`,
+`/remember`, `/recording/key`, `/commands`) belong to whoever opened the call: the fleet's key
+for a call the fleet's worker opened, an org's `app` key for one its own worker opened, nobody
+for a written call, which the gateway runs itself. Another key is answered `404`. What the
+gateway writes on a log itself — `call.ringing`, `call.dialing`, `call.attached`,
+`call.claimed`, `call.summary`, `call.score`, `memory.ops`, `docs.sources` — is refused `403` at
+every append door, the fleet's included: the summary and the score are the gateway's own words.
+
 ## 3. Reading a log
 
 `GET /v1/calls/{call}/events` answers a page of JSON, `{entries, live, next}`, or with

@@ -8,7 +8,7 @@ from dataclasses import dataclass, field, replace
 from pydantic import TypeAdapter
 
 from pinecall.domain.agent import AgentConfig
-from pinecall.domain.call import CallContext
+from pinecall.domain.call import CallContext, Opener
 from pinecall.domain.errors import NotAvailable
 from pinecall.domain.names import Env
 from pinecall.domain.scope import Scope
@@ -78,6 +78,9 @@ class Served:
     # False for a call another gateway opened, served here from what was kept when it opened:
     # it counts on its opener's gateway, and no socket here takes it as parked.
     opened_here: bool = True
+    # Who opened it: the worker doors of the fleet's call take the fleet's key alone, a written
+    # call's take nobody's. None for a call opened before the head said.
+    opened_by: Opener | None = None
 
     @property
     def call(self) -> str:
@@ -238,6 +241,12 @@ class ServedCalls:
             return
         self._stopped(call)
         self.pumps[call] = asyncio.ensure_future(pumped(served.log, after, send, then))
+
+    def opened_by(self, call: str, opener: Opener | None) -> None:
+        """Say who opened the call, once it is served here."""
+        served = self.calls.get(call)
+        if served is not None:
+            self.calls[call] = replace(served, opened_by=opener)
 
     def bound_to(self, app: SocketId) -> list[str]:
         """The calls this socket serves."""

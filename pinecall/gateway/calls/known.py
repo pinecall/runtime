@@ -20,4 +20,4 @@ async def known_here(serving: Serving, call: str) -> Served | None:
     opening = await openings.opening_of(pool, call)
     if opening is None:
         return None
-    return first_seen(serving, opening.context, opening.config, kept.scope, time.monotonic())
+    return first_seen(serving, opening.context, opening.config, kept, time.monotonic())

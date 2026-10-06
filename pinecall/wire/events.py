@@ -71,6 +71,25 @@ EPHEMERAL_EVENTS: frozenset[str] = frozenset(
 TERMINAL_EVENT = "call.score"
 
 
+# What the gateway writes on a call's log itself, and no worker ever does: the arrival, a code
+# claimed, a socket attached, the summary and the score, memory and sources, and the markers a
+# reader is sent and no store keeps. The append doors refuse these from anybody.
+GATEWAY_WRITES: frozenset[str] = frozenset(
+    {
+        "call.ringing",
+        "call.dialing",
+        "call.attached",
+        "call.claimed",
+        "call.summary",
+        "call.score",
+        "memory.ops",
+        "docs.sources",
+        "log.gap",
+        "log.caught_up",
+    }
+)
+
+
 class EventReceived(WireModel):
     """A fact arrived from outside the conversation, from the app or a participant's browser."""
 

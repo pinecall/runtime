@@ -23,29 +23,13 @@ from pinecall.domain.names import SANDBOX
 from pinecall.fleet.client import SEALED_WITHIN_S, TIMEOUT_S, GatewayClient
 from pinecall.process.settings import Settings
 from pinecall.session.call import Writing
-from pinecall.wire.events import CallEnded, event_of
+from pinecall.wire.events import GATEWAY_WRITES, CallEnded, event_of
 from pinecall.wire.frames import Entry, WireModel
 from pinecall.wire.rest.calls import BatchedEntry, OpenCallRequest, SealCallRequest
 
-# What the gateway writes on a call's log itself, never a worker: the arrival, call.attached and
-# call.claimed, the summary and the score, memory and sources, a tool's round trip, and the
-# markers a reader is sent and no store keeps.
-GATEWAY_KINDS = frozenset(
-    {
-        "call.ringing",
-        "call.dialing",
-        "call.attached",
-        "call.claimed",
-        "call.summary",
-        "call.score",
-        "memory.ops",
-        "docs.sources",
-        "tool.call",
-        "tool.result",
-        "log.gap",
-        "log.caught_up",
-    }
-)
+# What the replayer never sends: the gateway's own kinds, and a tool's round trip, which the
+# gateway writes too (the one the worker writes itself, end_call's, is skipped with them).
+GATEWAY_KINDS = GATEWAY_WRITES | {"tool.call", "tool.result"}
 
 ENDED = "call.ended"
 

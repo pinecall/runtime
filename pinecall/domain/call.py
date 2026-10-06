@@ -3,6 +3,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
+from typing import Literal
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -19,6 +20,10 @@ from pinecall.domain.names import (
 
 # Prefix of call ids minted here (`call_` + 32 hex); phone calls are named by the media plane.
 A_CALL = "call_"
+
+# Who opened a call's log: the fleet's worker, an org's own worker (an app key), or the gateway
+# for a written call. The worker doors of a fleet's call take the fleet's key alone.
+type Opener = Literal["fleet", "app", "gateway"]
 
 
 @dataclass(frozen=True)

@@ -5,14 +5,13 @@ import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from pinecall.domain.errors import DeclarationRefused, NotSignedIn, PinecallError
+from pinecall.domain.errors import NotSignedIn, PinecallError
 from pinecall.gateway import _deps
 from pinecall.gateway._deps import Acting
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import Served
-from pinecall.gateway.api.calls import UNKNOWN_EVENT, counted, known
+from pinecall.gateway.api.calls import check_kind, counted, known
 from pinecall.tenancy import keys
-from pinecall.wire.events import EVENTS
 from pinecall.wire.rest.calls import (
     AppendEntriesRefused,
     AppendEntriesRequest,
@@ -62,8 +61,7 @@ async def _answered(
     try:
         body = AppendEntriesRequest.read_json(raw, "entries")
         for item in body.entries:
-            if item.type not in EVENTS:
-                raise DeclarationRefused(UNKNOWN_EVENT.format(kind=item.type))
+            check_kind(item.type)
         gateway.live.in_use(call, time.monotonic())
         began = time.perf_counter()
         entries = await served.log.append_many(body.entries, after=body.after)

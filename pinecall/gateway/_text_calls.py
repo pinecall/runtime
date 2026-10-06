@@ -77,12 +77,16 @@ async def open_text_as(
         at=serving.logs.store.clock(),
     )
     await serving.logs.store.claim(
-        context.call, registration.slug, scope.org, Claim(scope, setup.versions)
+        context.call,
+        registration.slug,
+        scope.org,
+        Claim(scope, setup.versions, opened_by="gateway"),
     )
     # Kept as a phone call's is: the gateway holding the app's socket serves it from this.
     await openings.kept(pool, scope.org, context, setup.config)
     await serving.prompts.keep(pool, scope.org, setup.config.knowledge or "")
     served = served_call(serving, registration.owner, context, setup.config, scope)
+    serving.live.opened_by(context.call, "gateway")
     await serving.live.commands_heard(context.call)
     return _session(serving, served, setup.model, setup.recalled)
 
@@ -114,6 +118,7 @@ async def resume_text(
     )
     context = _as_it_opened(call, registration, kept.scope, entries, today_in(zone))
     served = served_call(serving, None, context, config, kept.scope)
+    serving.live.opened_by(call, kept.opened_by)
     await serving.live.commands_heard(call)
     session = _session(serving, served, model, None)
     # The session's batches go on from what the log already took from it, never from zero.
