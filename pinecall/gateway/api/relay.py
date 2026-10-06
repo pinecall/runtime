@@ -37,7 +37,7 @@ APP_LEFT = "the app holding agent {slug} disconnected before it answered {verb}"
 ANSWERED_WITHIN_S = 120.0
 
 
-FAMILIES: dict[str, frozenset[str]] = {
+NAMED_FAMILIES: dict[str, frozenset[str]] = {
     "chat": frozenset({"chat.roster", "chat.start", "chat.say", "chat.end"}),
     "knowledge": frozenset({"knowledge.roster", "knowledge.push", "knowledge.eval"}),
     "memory": frozenset({"memory.roster", "memory.eval", "memory.extraction"}),
@@ -66,7 +66,11 @@ class Relay:
     verb: str
 
 
-FAMILIES["evals"] = EVERY_VERB - frozenset().union(*FAMILIES.values())
+# Every verb no other family names is an eval's.
+FAMILIES: dict[str, frozenset[str]] = {
+    **NAMED_FAMILIES,
+    "evals": EVERY_VERB - frozenset().union(*NAMED_FAMILIES.values()),
+}
 
 
 AskDep = Annotated[Ask, Depends(Ask)]

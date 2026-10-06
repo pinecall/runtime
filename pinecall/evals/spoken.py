@@ -1,14 +1,13 @@
 """A persona on a real line: the caller's leg in the room, its lines spoken, the noise on it."""
 
 import asyncio
-import math
 import random as randomness
 import time
-from array import array
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Never
 
+import numpy as np
 from livekit import rtc
 from livekit.agents import tts
 from livekit.agents.utils import http_context
@@ -153,11 +152,10 @@ def frames_of(pcm: bytes, rate: int) -> list[bytes]:
 
 def rms_of(pcm: bytes) -> float:
     """The level of 16-bit audio."""
-    samples = array("h")
-    samples.frombytes(pcm)
-    if not samples:
+    samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float64)
+    if not samples.size:
         return 0.0
-    return math.sqrt(sum(float(sample) * sample for sample in samples) / len(samples))
+    return float(np.sqrt(np.mean(samples * samples)))
 
 
 # The interferer loops, so a short one covers a long line.
@@ -169,14 +167,10 @@ def mix_interferer(
         return caller
     loudness = rms_of(interferer)
     gain = 0.0 if loudness == 0 else rms_of(caller) / loudness * 10 ** (-db_under / 20)
-    voice = array("h")
-    voice.frombytes(caller)
-    noise = array("h")
-    noise.frombytes(interferer)
-    for index in range(len(voice)):
-        mixed = voice[index] + int(noise[index % len(noise)] * gain)
-        voice[index] = max(QUIETEST, min(LOUDEST, mixed))
-    return voice.tobytes()
+    voice = np.frombuffer(caller, dtype=np.int16).astype(np.int64)
+    noise = np.resize(np.frombuffer(interferer, dtype=np.int16), voice.size)
+    mixed = voice + (noise * gain).astype(np.int64)
+    return np.clip(mixed, QUIETEST, LOUDEST).astype(np.int16).tobytes()
 
 
 def drop_packets(frames: Sequence[bytes], line: Line) -> list[bytes]:

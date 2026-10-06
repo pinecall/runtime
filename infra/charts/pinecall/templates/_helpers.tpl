@@ -1,6 +1,6 @@
 {{/* The runtime's image, pinned to the commit it was built from. */}}
 {{- define "pinecall.image" -}}
-{{ .Values.image.repository }}:{{ required "image.tag: the commit the runtime image was built from" .Values.image.tag }}
+{{ required "image.repository" .Values.image.repository }}:{{ required "image.tag: the commit the runtime image was built from" .Values.image.tag }}
 {{- end -}}
 
 {{/* What every runtime process reads, as v1's box.env and its sealed credentials gave it. */}}

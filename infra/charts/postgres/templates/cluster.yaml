@@ -9,7 +9,7 @@ metadata:
   name: pinecall-postgres
 spec:
   instances: {{ .Values.postgres.instances }}
-  imageName: {{ .Values.postgres.image }}
+  imageName: {{ required "postgres.image" .Values.postgres.image }}
   # The superuser makes the two extensions at initdb; the application connects as its owner.
   enableSuperuserAccess: true
   # One instance: a stop waits 15 s for the gateways' pooled sessions, not the default 180, during

@@ -1,7 +1,7 @@
 # The runtime's image: the runner is `pinecall-runtime runner start`. The tag is the commit,
 # given by `make hosting`.
 image:
-  repository: us-central1-docker.pkg.dev/example-project/pinecall/runtime
+  repository: ""
   tag: ""
 # The box the runners serve, by its public name: the hosting cluster is not the box's.
 gatewayUrl: https://cloud.pinecall.io

@@ -16,7 +16,7 @@ T        ?= tests
 # (infra/values/<ENV>.yaml) and its kubectl context. Google's credentials are the gcloud login's,
 # handed over as a short-lived token in the environment, never printed.
 ENV      ?= staging
-PROJECT  ?= example-project
+PROJECT  ?= $(shell awk '/^  project:/{print $$2; exit}' infra/values/$(ENV).yaml)
 ZONE     ?= us-central1-c
 CONTEXT  ?= gke_$(PROJECT)_$(ZONE)_pinecall-$(ENV)
 TF        = terraform -chdir=infra/terraform/environments/$(ENV)

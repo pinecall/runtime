@@ -150,6 +150,14 @@ def test_how_long_a_barge_in_must_last_is_zero_or_more_milliseconds() -> None:
         Turn(min_interruption_ms=-1)
 
 
+def test_no_count_of_the_turn_is_below_zero() -> None:
+    assert Turn(endpointing_ms=0, min_interruption_words=0).endpointing_ms == 0
+    with pytest.raises(DeclarationRefused, match="endpointing_ms is a count"):
+        Turn(endpointing_ms=-5)
+    with pytest.raises(DeclarationRefused, match="min_interruption_words is a count"):
+        Turn(min_interruption_words=-1)
+
+
 def test_the_eager_bar_may_sit_on_the_other_one() -> None:
     assert Turn(eot_threshold=0.85, eager_eot_threshold=0.85).eager_eot_threshold == 0.85
     assert Turn(eager_eot_threshold=0.4).eot_threshold is None

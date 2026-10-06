@@ -1,7 +1,8 @@
 # One release per world-pair: production and sandbox share a cluster, one gateway and one database.
 
+# The registry's runtime image (infra/values/<env>.yaml); the tag is the commit `make deploy` gives.
 image:
-  repository: us-central1-docker.pkg.dev/example-project/pinecall/runtime
+  repository: ""
   tag: ""
 
 # The one name both worlds are served at (PINECALL_DOMAIN): the world of a request is its key's

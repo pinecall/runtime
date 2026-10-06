@@ -42,7 +42,6 @@ AUTOMATED = (
     "artificial intelligence",
     "an ai",
     "a bot",
-    "asistente automático",
     "asistente automatico",
     "asistente virtual",
     "inteligencia artificial",

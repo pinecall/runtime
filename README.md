@@ -63,11 +63,11 @@ Nothing here is imported by an agent.
   <img alt="How it runs: cloud.pinecall.io, one name for every world, through Google's HTTPS load balancer into the shared core pool (gateway ×2, Postgres, Redis, notify and billing); below it a production pool and a sandbox pool, each with its own LiveKit, livekit-sip, two workers and SIP address, reached by /rtc and /sandbox/rtc; under each, its own workers pool from 0, sized by KEDA with its own ceiling" src="docs/images/one-name-two-pools-light.webp">
 </picture>
 
-- **The cluster** is GKE, made by `infra/terraform`: a zonal cluster with a core pool and a workers
-  pool that starts at zero; the registry and the build identity; the secrets in Secret Manager,
+- **The cluster** is GKE, made by `infra/terraform`: a zonal cluster with a core pool both worlds share and,
+  for each world, a media node and a workers pool that starts at zero; the registry and the build identity; the secrets in Secret Manager,
   read into the pods by External Secrets; the operators (CloudNativePG with its Barman Cloud
   plugin, cert-manager, KEDA); the global address and the names' certificate, proved by DNS before
-  a name points at it; the core node's static address and the SIP names; the firewall, media open
+  a name points at it; each world's media address and its SIP name; the firewall, media open
   and 5060 to the carriers alone; the alerts in Cloud Monitoring.
 - **The runtime** is three Helm charts: `charts/edge`, the front door, released first and apart;
   `charts/postgres`, Postgres under CloudNativePG, its WAL to a bucket as it is written and a base

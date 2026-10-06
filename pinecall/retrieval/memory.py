@@ -117,8 +117,10 @@ WHERE org = %(org)s AND env = %(env)s AND invalidated_at IS NULL
 """
 
 
+# A batch at a time: each one written leaves the model's, so the next read starts past it.
 STALE = """
 SELECT id, text FROM contact_memories WHERE model <> %(model)s ORDER BY created_at, id
+LIMIT %(batch)s
 """
 
 
@@ -444,10 +446,13 @@ async def invalidated(pool: Pool, scope: Scope, fact_id: str, *, at: datetime) -
 async def reembed(pool: Pool, embedder: Embedder, *, batch: int = 64) -> int:
     """Re-embed every fact another model wrote, in every org and world; how many there were."""
     model = embedder.embedding.model
-    async with pool.connection() as connection:
-        stale = await (await connection.execute(STALE, {"model": model})).fetchall()
-    for start in range(0, len(stale), batch):
-        rows = stale[start : start + batch]
+    done = 0
+    while True:
+        async with pool.connection() as connection:
+            params = {"model": model, "batch": batch}
+            rows = await (await connection.execute(STALE, params)).fetchall()
+        if not rows:
+            return done
         vectors = await embedder.embed([str(row["text"]) for row in rows])
         written = [
             {"id": row["id"], "embedding": halfvec(vector), "model": model}
@@ -459,7 +464,7 @@ async def reembed(pool: Pool, embedder: Embedder, *, batch: int = 64) -> int:
             connection.cursor() as cursor,
         ):
             await cursor.executemany(REEMBEDDED, written)
-    return len(stale)
+        done += len(rows)
 
 
 async def ask_golden(

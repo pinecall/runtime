@@ -18,8 +18,17 @@ RUN WHEEL="$(ls /tmp/pinecall-*.whl)" \
  && rm -f /tmp/pinecall-*.whl
 # Smart Turn v3, the second end-of-turn model, is fetched from Hugging Face on first use; here it
 # is fetched once, at build, and the pod runs offline. livekit's own (v1-mini) is in its library.
+# Pinned to the repository's commit and checked by its hash: two builds of one commit carry the
+# same weights, and SMART_TURN_MODEL makes the library read that file and no other.
 ENV HF_HOME=/opt/models
-RUN python -c "from smart_turn_livekit.models import resolve_model; print(resolve_model('smart-turn-v3'))"
+ARG SMART_TURN_REVISION=f766f81d3cfdf7737ac64aad813d91bbfd56bf93
+ARG SMART_TURN_SHA256=2bb026316b14a660486a75b1733cd3fbab8c2fd0314dc9af7be49f8cca967e4f
+RUN python -c "import hashlib, sys, huggingface_hub as hub; \
+path = hub.hf_hub_download('pipecat-ai/smart-turn-v3', 'smart-turn-v3.2-cpu.onnx', revision=sys.argv[1]); \
+digest = hashlib.sha256(open(path, 'rb').read()).hexdigest(); \
+sys.exit(f'{path}: sha256 {digest}, not {sys.argv[2]}') if digest != sys.argv[2] else print(path)" \
+  "${SMART_TURN_REVISION}" "${SMART_TURN_SHA256}"
+ENV SMART_TURN_MODEL=/opt/models/hub/models--pipecat-ai--smart-turn-v3/snapshots/${SMART_TURN_REVISION}/smart-turn-v3.2-cpu.onnx
 ENV HF_HUB_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin pinecall
 USER 10001

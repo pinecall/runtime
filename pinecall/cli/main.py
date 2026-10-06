@@ -320,7 +320,7 @@ def verbs() -> argparse.ArgumentParser:
 def _listening(settings: Settings) -> tuple[str, int]:
     if settings.gateway_listen is not None:
         host, _, port = settings.gateway_listen.rpartition(":")
-        return host, int(port)
+        return host.strip("[]"), int(port)
     bound = urlparse(settings.gateway_url)
     host, port = bound.hostname or "127.0.0.1", bound.port or 8080
     if host not in LOOPBACK:

@@ -58,7 +58,7 @@ spec:
       securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: runner
-          image: "{{ $.Values.image.repository }}:{{ required "image.tag" $.Values.image.tag }}"
+          image: "{{ required "image.repository" $.Values.image.repository }}:{{ required "image.tag" $.Values.image.tag }}"
           command: ["sh", "-c", 'PINECALL_RUNNER_KEY="$(cat /run/secrets/runner/key)" exec pinecall-runtime runner start']
           env:
             - { name: PINECALL_GATEWAY_URL, value: {{ $.Values.gatewayUrl | quote }} }

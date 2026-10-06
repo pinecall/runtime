@@ -99,6 +99,21 @@ def test_a_pods_gateway_binds_what_it_is_told_and_believes_its_load_balancer(
     )
 
 
+def test_an_ipv6_listen_address_binds_its_host_without_the_brackets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    served: list[uvicorn.Config] = []
+
+    def kept(server: Stopping, *_given: object) -> None:
+        served.append(server.config)
+
+    monkeypatch.setattr(Stopping, "run", kept)
+    pod = {"PINECALL_GATEWAY_LISTEN": "[::]:8080"}
+    assert gateway(Settings.model_validate(pod), argparse.Namespace()) == 0
+    (config,) = served
+    assert (config.host, config.port) == ("::", 8080)
+
+
 # An idle connection is the load balancer's to close (600 s), never the gateway's first.
 def test_the_gateway_keeps_an_idle_connection_past_the_load_balancers_600_s(
     monkeypatch: pytest.MonkeyPatch,

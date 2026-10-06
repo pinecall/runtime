@@ -109,26 +109,7 @@ IMPORTS_BY_NAME: tuple[Allowed, ...] = (
 )
 
 # Rule 17: public modules no package reaches yet, each waiting for the door that will.
-NOT_YET_REACHED: tuple[Allowed, ...] = (
-    Allowed(
-        "pinecall/providers/voices.py",
-        "voices",
-        "GET /v1/voices and the voice sample: doors of the last step",
-    ),
-    Allowed(
-        "pinecall/retrieval/embed.py",
-        "embed",
-        "the knowledge and memory doors are on their own branches",
-    ),
-    Allowed(
-        "pinecall/retrieval/search.py",
-        "search",
-        "the knowledge and memory doors are on their own branches",
-    ),
-    Allowed(
-        "pinecall/wire/rest/retrieval.py", "rest.retrieval", "the bodies of those doors, the same"
-    ),
-)
+NOT_YET_REACHED: tuple[Allowed, ...] = ()
 
 # Rule 14: the files that create a task, and who cancels or awaits it.
 TASK_OWNERS: tuple[Allowed, ...] = (

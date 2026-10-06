@@ -104,8 +104,14 @@ class Turn:
 
     # Deepgram rejects the connection when eager > eot, leaving the call without STT.
     def __post_init__(self) -> None:
-        if self.min_interruption_ms is not None and self.min_interruption_ms < 0:
-            raise DeclarationRefused("min_interruption_ms is a number of milliseconds, 0 or more")
+        counts = {
+            "min_interruption_ms": self.min_interruption_ms,
+            "endpointing_ms": self.endpointing_ms,
+            "min_interruption_words": self.min_interruption_words,
+        }
+        for name, value in counts.items():
+            if value is not None and value < 0:
+                raise DeclarationRefused(f"{name} is a count, 0 or more")
         if self.eager_eot_threshold is None or self.eot_threshold is None:
             return
         if self.eager_eot_threshold > self.eot_threshold:

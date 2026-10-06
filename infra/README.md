@@ -10,13 +10,16 @@ made by hand and nothing is built on a laptop.
 | `terraform/bootstrap` | the bucket every other root module keeps its state in, made once with local state |
 | `terraform/project` | what every cluster of the project shares: the images' registry and the identity Cloud Build builds them as |
 | `terraform/environments/<world-pair>` | one cluster each: `production` (cloud.pinecall.io, both worlds), Pinecall's own since the cutover of 2026-10-04, and `staging`, made for a proof with calls and destroyed after it |
-| `terraform/modules/gke` | a cluster: zonal, two node pools (core; workers, sized by the cluster autoscaler alone), Workload Identity |
+| `terraform/modules/gke` | a cluster: zonal, Workload Identity; a core pool both worlds share, and for each world a media node and a workers pool from 0 that the cluster autoscaler sizes alone ("A pool a world" below) |
 | `terraform/modules/registry` · `build` | where images live, and the identity Cloud Build builds them as (`terraform/project`) |
 | `terraform/modules/secrets` | the runtime's secrets, drawn once into Secret Manager, and the identity External Secrets reads them as |
 | `terraform/modules/addons` | CloudNativePG with its Barman Cloud plugin and cert-manager, External Secrets and KEDA, each its pinned chart |
 | `terraform/modules/backups` | the bucket Postgres's WAL and base backups go to, and the identity that writes them, which touches it alone |
 | `terraform/modules/edge` | the global address and a certificate for each name, proved by DNS before it points here, and a certificate of its own for Pinecall's services at the same door (`services`: notify, billing); each world's media address and its SIP name; the firewall (media open, 5060 to the carriers alone); the names in Route 53 |
 | `terraform/modules/notify` | the Google identity notify signs Android's pushes as (Firebase Cloud Messaging alone), bound to its chart's service account |
+| `terraform/modules/kubeip` | the identity kubeip acts as: it gives each world's media node the static address `modules/edge` reserves, and can do nothing else |
+| `terraform/modules/hosting` | the hosting cluster, optional (`hosting = true`): GKE Autopilot in a VPC of its own, where the orgs' hosted apps run, one gVisor pod each |
+| `terraform/modules/lab` | the voice lab's generator, beside a cluster made for a proof and destroyed after it (`lab = false`) |
 | `terraform/modules/alerts` | the alerts on the gateways' measures, in Cloud Monitoring, and the addresses they are mailed to |
 | `images/pinecall/` | the runtime's image: one for every process, each a `pinecall-runtime` verb (`make image`) |
 | `images/postgres/` | the cluster's Postgres: CloudNativePG's operand image with pg_textsearch on it |
@@ -25,6 +28,7 @@ made by hand and nothing is built on a laptop.
 | `charts/postgres/` | the cluster's Postgres under CloudNativePG: its WAL to a bucket as it is written and a base backup each night (the Barman Cloud plugin), 35 days kept |
 | `manifests/suite.yaml` | the suites' Job, with a Redis made for the run |
 | `charts/pinecall/` | the runtime: two gateways and Redis on the shared core pool; each world's LiveKit, SIP and a few workers on its media node, and its scaled workers on its own pool (KEDA, on the gateway's own number); the overflow, the migrations, the fleets' keys, the nightly retention |
+| `charts/hosting/` | the hosting cluster's workloads: a runner per world and the namespace their apps run in, fenced (`make hosting`) |
 | `charts/edge/` | the front door, released apart and first: the Gateway (Google's HTTPS load balancer, the Gateway API) with Certificate Manager's certificate, its routes, the HTTP redirect and the backends' policies; its load balancer takes minutes to make, so a reinstall of the runtime never makes it again |
 | `values/<world-pair>.yaml` | a release's names, its secrets' project and prefix, its address |
 | `lab/` | calls with real audio and the vendors faked, against staging, measured (`terraform/modules/lab` is its generator) |
@@ -37,7 +41,8 @@ made by hand and nothing is built on a laptop.
 Nothing in the modules or the roots names Pinecall's: each environment's `terraform.tfvars` holds
 its operator's values (the DNS zone, the worlds' names, the SIP names, services of their own, who
 alerts mail, the project), and `infra/values/<env>.yaml` the chart's (the same names, the secrets'
-prefix, the addresses Terraform made). Pinecall's own are committed as an example of each. The one
+project and prefix, the addresses Terraform made, the registry's images); the Makefile reads its
+project from there too. Pinecall's own are committed as an example of each. The one
 thing a variable cannot name is the state bucket in each root's `backend "gcs"`: change it there,
 or give it at `terraform init -backend-config="bucket=<yours>"`.
 
