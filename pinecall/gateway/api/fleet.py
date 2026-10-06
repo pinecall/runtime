@@ -11,7 +11,7 @@ from pinecall.domain.errors import NotAllowed
 from pinecall.domain.names import PRODUCTION, Env
 from pinecall.fleet import worlds
 from pinecall.fleet.demand import Line, wanted_scaled
-from pinecall.gateway._deps import FleetKey, GatewayDep
+from pinecall.gateway._deps import FleetKey, GatewayDep, webhook_body
 from pinecall.gateway.dispatching.arrivals import arrived, settled
 from pinecall.gateway.ending.stranded import stranded
 from pinecall.wire.rest.fleet import HeartbeatRequest, HeartbeatResponse
@@ -63,7 +63,7 @@ async def receive_livekit_event(
     if not token:
         raise NotAllowed(UNSIGNED)
     settings = gateway.connections.settings
-    body = (await request.body()).decode()
+    body = (await webhook_body(request)).decode()
     event = rooms.livekit_event(
         body, token, settings.livekit_api_key or "", settings.livekit_api_secret or ""
     )

@@ -52,6 +52,12 @@ class QuotaExhausted(PinecallError):
         self.limit = limit
 
 
+class TooLarge(PinecallError):
+    """A body over what the door takes."""
+
+    status = 413
+
+
 class TooManyRequests(PinecallError):
     """The same name knocked too often in the last minute: a password, a code, a sign-up."""
 

@@ -13,7 +13,7 @@ from psycopg.errors import QueryCanceled
 from psycopg_pool import PoolTimeout
 from starlette.datastructures import Headers
 from starlette.middleware.cors import CORSMiddleware
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from pinecall.channels.telephony.sip import rebuilt_until_whole
 from pinecall.domain.errors import (
@@ -133,6 +133,15 @@ ALLOWED_HEADERS = ("authorization", "content-type", _deps.WORLD, _deps.LOOKING_A
 
 
 PREFLIGHT_KEPT_S = 600
+
+
+# The most any request carries, above every door's own cap (a hold melody 20 MiB, a hosted app's
+# source 10 MiB): a body past it is refused as it streams in, never held whole in memory, and the
+# webhooks that read a body to check its signature read at most this much of an unsigned one.
+LARGEST_BODY = 32 * 1024 * 1024
+
+
+TOO_LARGE = "the body is over {most} MiB, more than any door takes"
 
 
 # A token of one call reads its own doors from any page: GET only, no credentials.
@@ -264,6 +273,47 @@ class AppOrigins:
             )
             self.cors = (allowed, cors)
         return self.cors[1]
+
+
+# Said by Content-Length, refused at once; said by nothing (chunked), counted as it comes and
+# answered 413 the chunk it passes the most. The door is then told the client left, so it stops
+# reading, and whatever it answers after is dropped: the 413 is the one answer.
+class BodyCeiling:
+    """No request's body is over LARGEST_BODY."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        """The app it stands in front of."""
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Pass the request on, its body counted."""
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        too_large = JSONResponse(
+            {"detail": TOO_LARGE.format(most=LARGEST_BODY // (1024 * 1024))}, status_code=413
+        )
+        declared = Headers(scope=scope).get("content-length")
+        if declared is not None and declared.isdigit() and int(declared) > LARGEST_BODY:
+            await too_large(scope, receive, send)
+            return
+        counted = 0
+        answered = False
+
+        async def counting() -> Message:
+            nonlocal counted, answered
+            message = await receive()
+            counted += len(message.get("body", b""))
+            if counted > LARGEST_BODY and not answered:
+                answered = True
+                await too_large(scope, receive, send)
+            return {"type": "http.disconnect"} if answered else message
+
+        async def unless_answered(message: Message) -> None:
+            if not answered:
+                await send(message)
+
+        await self.app(scope, counting, unless_answered)
 
 
 # Everything opened goes on the stack: a failed start closes what opened, a stop closes it all.
@@ -406,6 +456,7 @@ def served_app() -> FastAPI:
         title="Pinecall gateway", lifespan=lifespan, docs_url="/v1/docs", redoc_url="/v1/redoc"
     )
     served.add_middleware(AppOrigins)
+    served.add_middleware(BodyCeiling)
     for doors in ROUTERS:
         served.include_router(doors.router)
     served.add_exception_handler(PinecallError, refused)

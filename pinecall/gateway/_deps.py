@@ -19,6 +19,7 @@ from pinecall.domain.errors import (
     NotSignedIn,
     QuotaExhausted,
     Throttled,
+    TooLarge,
     TooManyRequests,
 )
 from pinecall.domain.names import Env, parse_env
@@ -98,6 +99,14 @@ PACED = (
     "this org sent its {family} doors {limit} requests this minute, in {env}: "
     "try again in {seconds} s"
 )
+
+
+# A webhook carries no key, so its body is read before anything says who sent it: no more than
+# this, above Meta's own ceiling (3 MB a delivery), far above a LiveKit event's few kilobytes.
+LARGEST_WEBHOOK = 4 * 1024 * 1024
+
+
+WEBHOOK_TOO_LARGE = "a webhook's body is over 4 MiB, more than any sender of one writes"
 
 
 NOBODY_ISSUED = (
@@ -185,6 +194,14 @@ async def check_knock(gateway: Gateway, name: str, refusal: str) -> None:
 def public_url(request: Request, gateway: Gateway) -> str:
     """The box's address, else the one the request came in by, without a trailing slash."""
     return gateway.connections.settings.address or str(request.base_url).rstrip("/")
+
+
+async def webhook_body(request: Request) -> bytes:
+    """The unsigned body of a webhook, refused past LARGEST_WEBHOOK before it is read further."""
+    body = await capped_body(request, LARGEST_WEBHOOK)
+    if len(body) > LARGEST_WEBHOOK:
+        raise TooLarge(WEBHOOK_TOO_LARGE)
+    return body
 
 
 # Read a chunk at a time and stopped just past the most: an upload over its size is refused

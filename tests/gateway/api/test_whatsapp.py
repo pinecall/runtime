@@ -7,6 +7,7 @@ import json
 import httpx
 
 from pinecall.domain.names import JsonObject
+from pinecall.gateway._deps import LARGEST_WEBHOOK
 from pinecall.tenancy import vault
 from tests.conftest import Knocking, postgres
 
@@ -63,6 +64,19 @@ async def test_an_unsigned_body_and_one_signed_by_another_are_403_and_open_nothi
         )
     assert (unsigned.status_code, stranger.status_code) == (403, 403)
     assert knocking.gateway.threads.open == {}
+
+
+# No key and no signature checked yet: an unsigned body past what Meta ever sends is not read on.
+@postgres
+async def test_a_webhook_body_over_four_mib_is_413_before_its_signature_is_read(
+    knocking: Knocking,
+) -> None:
+    await box_meta_app(knocking)
+    body = b"x" * (LARGEST_WEBHOOK + 1)
+    async with httpx.AsyncClient(base_url=knocking.url) as meta:
+        refused = await meta.post("/v1/whatsapp/webhook", content=body)
+    assert refused.status_code == 413
+    assert "4 MiB" in refused.json()["detail"]
 
 
 @postgres

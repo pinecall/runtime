@@ -1,6 +1,6 @@
 """Tests for the gateway process: its doors, the one answer to a refusal, CORS, the pages."""
 
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 
 import httpx
@@ -124,6 +124,26 @@ async def test_a_door_without_a_key_asks_for_a_bearer(knocking: Knocking) -> Non
     assert refused_now.status_code == 401
     assert refused_now.headers["www-authenticate"] == "Bearer"
     assert NotSignedIn.status == 401
+
+
+# Over the most by Content-Length, refused before a byte is read; said by nothing, refused the
+# chunk it passes; within it, the door answers as it would.
+@postgres
+async def test_a_body_over_the_most_is_413_declared_or_streamed(knocking: Knocking) -> None:
+    most = gateway_app.LARGEST_BODY
+
+    async def chunks() -> AsyncIterator[bytes]:
+        for _ in range(most // (1024 * 1024) + 1):
+            yield b"x" * (1024 * 1024)
+
+    async with knocking.http(knocking.app["sandbox"]) as client:
+        declared = await client.put("/v1/knowledge/base", content=b"x" * (most + 1))
+        streamed = await client.put("/v1/knowledge/base", content=chunks())
+        within = await client.put("/v1/knowledge/base", json={"files": []})
+    assert (declared.status_code, streamed.status_code) == (413, 413), streamed.text
+    assert "32 MiB" in declared.json()["detail"]
+    assert "32 MiB" in streamed.json()["detail"]
+    assert within.status_code != 413
 
 
 @postgres
