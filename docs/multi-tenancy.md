@@ -71,11 +71,15 @@ whatever orgs they belong to. The last active admin of an org cannot be removed.
 
 A role is a preset of scopes (`qa`, `supervisor`, `manager`, `admin`, `developer`), given to the
 keys minted for the person. A key grants only a role whose scopes it holds itself, and production
-access only when it has it. An invitation's link sets the person's one password, so it is handed
-to the admin only for somebody in no other org; anybody else gets it by mail alone. Nobody is
-seated by being named: a person who proved their address in another org sees the invitation among
-their orgs, still `invited`, and takes the seat by opening that org; until then the org holds a
-row in their name and nothing of either org crosses to the other.
+access only when it has it. An invitation's link seats the person: their first password is set
+by it, and a password they already have is typed again and never changed by it. The link is
+handed to the admin only for somebody in no other org; anybody else gets it by mail alone, sent
+by the box's own mailbox and never an org's, so no org's server sees a link that proves an
+address. Only a reset link sets a password again: everywhere the person is when it was mailed
+to them, on its org's row alone when an admin was handed it. Nobody is seated by being named: a
+person who proved their address in another org sees the invitation among their orgs, still
+`invited`, and takes the seat by opening that org; until then the org holds a row in their name
+and nothing of either org crosses to the other.
 
 ## Signing in
 

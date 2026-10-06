@@ -25,7 +25,7 @@ async def a_person(
     pool = knocking.gateway.connections.pool
     invitee = people.Invitee(email=email, name=email.split("@", maxsplit=1)[0], role=role)
     invited = await people.invite(pool, org or knocking.org.id, invitee, seats=None, vouched=True)
-    member = await people.accept(pool, invited.token, await people.hash_password(WHAT_THEY_TYPE, 8))
+    member = await people.accept(pool, invited.token, WHAT_THEY_TYPE, 8)
     assert member is not None
     return member
 

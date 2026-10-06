@@ -1,6 +1,7 @@
 """The org's people: listed, invited, changed, reset, removed."""
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import APIRouter, Path, Request
@@ -65,6 +66,17 @@ A_MEMBER = "/v1/members/{id}"
 A_MEMBERS_RESET = "/v1/members/{id}/reset"
 
 
+@dataclass(frozen=True)
+class Posting:
+    """A link's letter: whom it goes to, how it is worded, and whose mailbox carries it."""
+
+    invited: people.Invited
+    worded: Worded
+    # The org, when the admin holds the token anyway; None (the box's mailbox) when the letter
+    # alone proves the address, so no org's server ever sees that link.
+    through: str | None
+
+
 @router.get("/v1/members")
 async def list_members(key: TeamKey, gateway: GatewayDep) -> MemberList:
     """Every member of the org, oldest first, the disabled ones too."""
@@ -73,8 +85,8 @@ async def list_members(key: TeamKey, gateway: GatewayDep) -> MemberList:
 
 
 # The token is answered this once and kept as a hash. It is handed to the admin only when the
-# address is in no other org: the link sets the person's one password, so it is otherwise mailed
-# only, and then it proves the address.
+# address is in no other org; otherwise it is mailed only, by the box's own mailbox, and the link
+# seats the person with the password they already have.
 @router.post("/v1/members", status_code=201)
 async def invite_member(
     body: InviteMemberRequest, key: TeamKey, request: Request, gateway: GatewayDep
@@ -89,9 +101,8 @@ async def invite_member(
     seats = (await admission.quotas_of(pool, key.org, PRODUCTION)).seats
     invitee = people.Invitee(body.email, body.name, role, frozenset(body.agents), body.production)
     invited = await people.invite(pool, key.org, invitee, seats=seats, vouched=elsewhere)
-    mailed = await _mailed(
-        request, gateway, key=key, invited=invited, worded=letters.invitation_letter
-    )
+    posting = Posting(invited, letters.invitation_letter, None if elsewhere else key.org)
+    mailed = await _mailed(request, gateway, key, posting)
     return InvitationResponse(
         member=MemberRow.of(invited.member),
         token=None if elsewhere else invited.token,
@@ -152,7 +163,8 @@ async def reset_password(
     issued = await people.reset(pool, key.org, member, vouched=elsewhere)
     if issued is None:
         raise Conflict(NOT_ACTIVE.format(email=found.email, status=found.status))
-    mailed = await _mailed(request, gateway, key=key, invited=issued, worded=letters.reset_letter)
+    posting = Posting(issued, letters.reset_letter, None if elsewhere else key.org)
+    mailed = await _mailed(request, gateway, key, posting)
     return InvitationResponse(
         member=MemberRow.of(issued.member),
         token=None if elsewhere else issued.token,
@@ -171,16 +183,15 @@ async def _member_elsewhere(gateway: Gateway, org: str, email: str) -> bool:
     return any(row.org != org for row in rows)
 
 
-async def _mailed(
-    request: Request, gateway: Gateway, *, key: Acting, invited: people.Invited, worded: Worded
-) -> bool:
+async def _mailed(request: Request, gateway: Gateway, key: Acting, posting: Posting) -> bool:
     pool = gateway.connections.pool
     org = await orgs.find(pool, key.org)
+    invited = posting.invited
     link = Link(
         org=key.org if org is None else org.name,
         link=letters.card_link(public_url(request, gateway), invited.token),
         by=key.bearer.key.name or AN_ADMIN,
         dies=invited.expires_at,
     )
-    letter = worded(invited.member.email, link, await letters.brand_of(pool))
-    return await gateway.outbox.post(key.org, letter)
+    letter = posting.worded(invited.member.email, link, await letters.brand_of(pool))
+    return await gateway.outbox.post(posting.through, letter)

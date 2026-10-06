@@ -52,7 +52,7 @@ core under `_` names.
 | `domain/` | 8 | 1197 | — |
 | `evals/` | 11 | 2965 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
 | `fleet/` | 6 | 1241 | `domain`, `postgres`, `process`, `wire` |
-| `gateway/` | 59 | 12251 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `gateway/` | 59 | 12264 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
 | `log/` | 17 | 4871 | `domain`, `postgres`, `process`, `wire` |
 | `postgres/` | 2 | 283 | `domain` |
 | `process/` | 9 | 1909 | `domain`, `postgres` |
@@ -60,7 +60,7 @@ core under `_` names.
 | `retrieval/` | 7 | 2444 | `domain`, `log`, `postgres`, `providers`, `wire` |
 | `runner/` | 3 | 866 | `domain`, `process`, `wire` |
 | `session/` | 14 | 3672 | `domain`, `log`, `providers`, `wire` |
-| `tenancy/` | 38 | 7839 | `domain`, `log`, `postgres`, `process`, `wire` |
+| `tenancy/` | 38 | 7990 | `domain`, `log`, `postgres`, `process`, `wire` |
 | `wire/` | 20 | 5152 | `domain` |
 | `worker/` | 4 | 1053 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
 

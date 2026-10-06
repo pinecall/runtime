@@ -6,7 +6,7 @@ import httpx
 
 from pinecall.domain.org import Quotas
 from pinecall.domain.person import ROLE_SCOPES, Member, Role
-from pinecall.tenancy import admission, keys, orgs, people
+from pinecall.tenancy import admission, keys, mail, orgs, people
 from pinecall.tenancy.keys import NOT_YOURS_TO_GRANT
 from tests.conftest import BOX_DOMAIN, Knocking, postgres
 from tests.fakes.mail import Postbox
@@ -26,7 +26,7 @@ async def seated(
     pool = knocking.gateway.connections.pool
     invitee = people.Invitee(email, email.split("@", maxsplit=1)[0].title(), role)
     invited = await people.invite(pool, knocking.org.id, invitee, seats=None)
-    member = await people.accept(pool, invited.token, await people.hash_password(WHAT_THEY_TYPE, 8))
+    member = await people.accept(pool, invited.token, WHAT_THEY_TYPE, 8)
     assert member is not None
     if production:
         member = await people.update(
@@ -105,7 +105,7 @@ async def test_a_person_proven_elsewhere_is_invited_by_mail_and_never_seated_una
     elsewhere = await people.invite(
         pool, other.id, people.Invitee(BERNAS, "Berna", "qa"), seats=None, vouched=True
     )
-    await people.accept(pool, elsewhere.token, await people.hash_password(WHAT_THEY_TYPE, 8))
+    await people.accept(pool, elsewhere.token, WHAT_THEY_TYPE, 8)
     async with knocking.http(knocking.app["production"]) as console:
         answer = await invited(console)
     # The link is the person's alone: mailed, never handed to an admin of another org.
@@ -363,3 +363,26 @@ async def test_a_member_disabled_at_the_door_is_refused_on_the_next_request_not_
         after = await bo_console.get("/v1/members")
     assert (before.status_code, changed.status_code) == (200, 200)
     assert after.status_code == 401, "the key the gateway remembered is forgotten at once"
+
+
+# The org's own server never sees a link that proves an address: that letter is the box's to send.
+@postgres
+async def test_a_link_for_somebody_known_elsewhere_goes_by_the_boxs_mailbox_never_the_orgs(
+    knocking: Knocking, postbox: Postbox
+) -> None:
+    await box_can_mail(knocking)
+    connections = knocking.gateway.connections
+    theirs = mail.Mailbox(
+        "smtp.clinica.test", 587, "starttls", "clinica", "pass", "Clínica <c@c.test>"
+    )
+    await mail.put_mail(connections.pool, connections.vault, knocking.org.id, theirs)
+    other = await orgs.create(connections.pool, "tienda-sur", "Tienda Sur")
+    await people.invite(
+        connections.pool, other.id, people.Invitee(BERNAS, "Berna", "qa"), seats=None
+    )
+    async with knocking.http(knocking.app["production"]) as console:
+        answer = await invited(console)
+        stranger = await invited(console, email="new@clinica.test")
+    assert (answer["token"], stranger["token"] is not None) == (None, True)
+    assert await delivered(knocking, postbox) == [BERNAS, "new@clinica.test"]
+    assert postbox.hosts == [("smtp.box.test", 587), ("smtp.clinica.test", 587)]

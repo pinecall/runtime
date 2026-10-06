@@ -71,7 +71,7 @@ async def org_of(pool: Pool, slug: str = "clinica-norte") -> Org:
 
 async def seated(pool: Pool, org: Org, who: Invitee = ANA, *, vouched: bool = True) -> Member:
     invited = await invite(pool, org.id, who, seats=None, vouched=vouched)
-    member = await accept(pool, invited.token, await hash_password(WHAT_ANA_TYPES, 8))
+    member = await accept(pool, invited.token, WHAT_ANA_TYPES, 8)
     assert member is not None
     return member
 

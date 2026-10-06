@@ -247,7 +247,7 @@ async def invite_member(
     card = letters.card_link(public_url(request, gateway), invited.token)
     link = Link(org=org.name, link=card, by=THE_OPERATOR, dies=invited.expires_at)
     letter = letters.invitation_letter(invited.member.email, link, await letters.brand_of(pool))
-    mailed = await gateway.outbox.post(org.id, letter)
+    mailed = await gateway.outbox.post(None, letter)
     return InvitationResponse(
         member=MemberRow.of(invited.member),
         token=invited.token,

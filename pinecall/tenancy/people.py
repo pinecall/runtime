@@ -7,13 +7,20 @@ import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Literal
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 from psycopg import sql
 from psycopg.rows import DictRow
 
-from pinecall.domain.errors import Conflict, DeclarationRefused, NotFound, QuotaExhausted
+from pinecall.domain.errors import (
+    Conflict,
+    DeclarationRefused,
+    NotFound,
+    NotSignedIn,
+    QuotaExhausted,
+)
 from pinecall.domain.person import Member, MemberStatus, Role
 from pinecall.postgres.pool import Connection, Pool
 
@@ -48,6 +55,17 @@ LAST_ADMIN = "the org keeps one active admin: make another one admin first"
 NOBODY_BY_THAT_ID = "nobody by that id in this org"
 
 
+# An invitation seats a person; the password they have is theirs to keep and to type.
+TYPE_THE_ONE_KEPT = (
+    "this address has a password already, and that is not it: accept with the password you have, "
+    "or reset it from the sign-in page first"
+)
+
+
+# What a link is for: `invite` seats a member, `reset` sets their password again.
+type Purpose = Literal["invite", "reset"]
+
+
 # Its own statement, so the insert after it sees what a concurrent invite wrote; inside one
 # statement the seat count raced.
 ROW = sql.SQL("id, org, email, name, role, agents, status, operator, production, verified_at")
@@ -69,7 +87,8 @@ RETURNING id
 """
 
 
-# One password per person: the newest row that has one speaks for every row of the address.
+# One password per person: the newest row that has one speaks for every row of the address. It
+# is set where the person has none, and set again only by a reset link mailed to the address.
 HASH_OF = """
 SELECT password_hash FROM members WHERE email = %(email)s AND password_hash IS NOT NULL
 ORDER BY created_at DESC LIMIT 1
@@ -79,7 +98,7 @@ ORDER BY created_at DESC LIMIT 1
 VERIFIED = "SELECT 1 FROM members WHERE email = %(email)s AND verified_at IS NOT NULL LIMIT 1"
 
 
-HASH_EVERYWHERE = """
+RESET_EVERYWHERE = """
 UPDATE members SET password_hash = %(password)s
 WHERE email = %(email)s AND password_hash IS NOT NULL
 """
@@ -102,8 +121,8 @@ REMOVE = "DELETE FROM members WHERE org = %(org)s AND id = %(id)s RETURNING id"
 
 
 INVITE = """
-INSERT INTO invitations (token_hash, member, expires_at, vouched)
-VALUES (%(hash)s, %(member)s, %(expires_at)s, %(vouched)s)
+INSERT INTO invitations (token_hash, member, expires_at, vouched, purpose)
+VALUES (%(hash)s, %(member)s, %(expires_at)s, %(vouched)s, %(purpose)s)
 """
 
 
@@ -116,7 +135,7 @@ SPEND_OPEN = (
 SPEND = """
 UPDATE invitations SET spent_at = now()
 WHERE token_hash = %(hash)s AND spent_at IS NULL AND expires_at > now()
-RETURNING member, vouched
+RETURNING member, vouched, purpose
 """
 
 
@@ -155,6 +174,15 @@ class Invited:
     expires_at: datetime
 
 
+@dataclass(frozen=True)
+class Spent:
+    """A link spent: whose it was, whether it proves the address, and what it is for."""
+
+    member: Member
+    vouched: bool
+    purpose: Purpose
+
+
 LISTED = sql.SQL("SELECT {row} FROM members WHERE org = %(org)s ORDER BY created_at, id").format(
     row=ROW
 )
@@ -183,13 +211,17 @@ RETURNING {row}
 """).format(row=ROW)
 
 
-# Never wakes a disabled member; a vouched link also proves the address.
+# Never wakes a disabled member; a vouched link also proves the address; a NULL password keeps
+# the one the row holds.
 ACTIVATE = sql.SQL("""
-UPDATE members SET status = 'active', password_hash = %(password)s,
+UPDATE members SET status = 'active', password_hash = COALESCE(%(password)s, password_hash),
        verified_at = CASE WHEN %(vouched)s THEN COALESCE(verified_at, now()) ELSE verified_at END
 WHERE id = %(id)s AND status <> 'disabled'
 RETURNING {row}
 """).format(row=ROW)
+
+
+BY_ID = sql.SQL("SELECT {row} FROM members WHERE id = %(id)s").format(row=ROW)
 
 
 JOIN = sql.SQL("""
@@ -237,10 +269,15 @@ def member_of(row: DictRow) -> Member:
 
 
 # argon2id costs tens of milliseconds and 64 MiB, so it runs off the event loop.
-async def hash_password(password: str, shortest: int) -> str:
-    """The password hashed; refused before hashing when it is under the box's floor."""
+def check_password(password: str, shortest: int) -> None:
+    """Refuse a password under the box's floor, before anything is hashed or spent on it."""
     if len(password) < shortest:
         raise DeclarationRefused(TOO_SHORT.format(shortest=shortest))
+
+
+async def hash_password(password: str, shortest: int) -> str:
+    """The password hashed; refused before hashing when it is under the box's floor."""
+    check_password(password, shortest)
     return await asyncio.to_thread(_HASHER.hash, password)
 
 
@@ -283,18 +320,40 @@ async def invite(
         return await _link(connection, member, vouched=vouched)
 
 
-async def accept(pool: Pool, token: str, hashed: str) -> Member | None:
-    """Spend the link and set the password everywhere the person is; None for a dead link."""
+# A reset mailed to the address (vouched) sets the person's one password everywhere; a reset handed
+# to an admin sets this row's alone. An invitation never sets a password the person has: they type
+# it, and the link seats them. A refusal rolls the spend back, so the link stands.
+async def accept(pool: Pool, token: str, password: str, shortest: int) -> Member | None:
+    """Spend the link and seat or reset the member as its purpose says; None for a dead link."""
     async with pool.connection() as connection, connection.transaction():
-        spent = await (await connection.execute(SPEND, {"hash": fingerprint(token)})).fetchone()
+        spent = await _spent(connection, token)
         if spent is None:
             return None
-        values = {"id": spent["member"], "password": hashed, "vouched": spent["vouched"]}
-        member = await _fetch_member(connection, ACTIVATE, values)
-        if member is not None:
-            everywhere = {"email": member.email, "password": hashed}
-            await connection.execute(HASH_EVERYWHERE, everywhere)
-    return member
+        kept = await _password_of(connection, spent.member.email)
+        if spent.purpose == "reset":
+            hashed = await hash_password(password, shortest)
+            member = await _activated(connection, spent, hashed)
+            if spent.vouched:
+                await connection.execute(
+                    RESET_EVERYWHERE, {"email": spent.member.email, "password": hashed}
+                )
+            return member
+        if kept is None:
+            return await _activated(connection, spent, await hash_password(password, shortest))
+        if not await matches(password, kept):
+            raise NotSignedIn(TYPE_THE_ONE_KEPT)
+        return await _activated(connection, spent, None)
+
+
+# The sign-up proved the password already (signin.py): the hash is set where the person has none.
+async def seat_founder(pool: Pool, token: str, hashed: str) -> Member | None:
+    """Spend a sign-up's link and seat the org's first admin; None for a dead link."""
+    async with pool.connection() as connection, connection.transaction():
+        spent = await _spent(connection, token)
+        if spent is None:
+            return None
+        kept = await _password_of(connection, spent.member.email)
+        return await _activated(connection, spent, None if kept is not None else hashed)
 
 
 async def reset(pool: Pool, org: str, member: str, *, vouched: bool = False) -> Invited | None:
@@ -304,7 +363,7 @@ async def reset(pool: Pool, org: str, member: str, *, vouched: bool = False) -> 
         if found is None or found.status != "active":
             return None
         await connection.execute(SPEND_OPEN, {"member": member})
-        return await _link(connection, found, vouched=vouched)
+        return await _link(connection, found, vouched=vouched, purpose="reset")
 
 
 async def update(pool: Pool, org: str, member: str, change: Change) -> Member:
@@ -408,7 +467,9 @@ def _verified(password: str, kept: str | None) -> bool:
         return False
 
 
-async def _link(connection: Connection, member: Member, *, vouched: bool) -> Invited:
+async def _link(
+    connection: Connection, member: Member, *, vouched: bool, purpose: Purpose = "invite"
+) -> Invited:
     token = f"{INVITATION_PREFIX}{secrets.token_urlsafe(INVITATION_BYTES)}"
     expires_at = datetime.fromtimestamp(time.time() + INVITATION_TTL_S, UTC)
     values = {
@@ -416,6 +477,7 @@ async def _link(connection: Connection, member: Member, *, vouched: bool) -> Inv
         "member": member.id,
         "expires_at": expires_at,
         "vouched": vouched,
+        "purpose": purpose,
     }
     await connection.execute(INVITE, values)
     return Invited(member=member, token=token, expires_at=expires_at)
@@ -426,6 +488,22 @@ async def _fetch_member(
 ) -> Member | None:
     row = await (await connection.execute(query, values)).fetchone()
     return None if row is None else member_of(row)
+
+
+async def _spent(connection: Connection, token: str) -> Spent | None:
+    row = await (await connection.execute(SPEND, {"hash": fingerprint(token)})).fetchone()
+    if row is None:
+        return None
+    member = await _fetch_member(connection, BY_ID, {"id": row["member"]})
+    if member is None:
+        return None
+    purpose: Purpose = "reset" if row["purpose"] == "reset" else "invite"
+    return Spent(member=member, vouched=bool(row["vouched"]), purpose=purpose)
+
+
+async def _activated(connection: Connection, spent: Spent, hashed: str | None) -> Member | None:
+    values = {"id": spent.member.id, "password": hashed, "vouched": spent.vouched}
+    return await _fetch_member(connection, ACTIVATE, values)
 
 
 async def _password_of(connection: Connection, email: str) -> str | None:

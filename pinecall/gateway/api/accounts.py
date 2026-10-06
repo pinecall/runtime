@@ -295,15 +295,17 @@ async def collect_key(
     return EmptyResponse()
 
 
-# No key: the week-long, one-use token is the credential.
+# No key: the week-long, one-use token is the credential. An invitation seats the person with the
+# password they have, or their first one; a reset link sets it again.
 @router.post("/v1/invitations/{token}")
 async def accept_invitation(
     token: str, body: AcceptInvitationRequest, gateway: GatewayDep
 ) -> FirstKeyResponse:
-    """Choose a password: the member is active, and here is their first key."""
+    """Type the password: the member is active, and here is their first key."""
     pool = gateway.connections.pool
-    hashed = await people.hash_password(body.password, gateway.connections.settings.min_password)
-    member = await people.accept(pool, token, hashed)
+    shortest = gateway.connections.settings.min_password
+    people.check_password(body.password, shortest)
+    member = await people.accept(pool, token, body.password, shortest)
     if member is None:
         raise NotFound(NO_INVITATION)
     minted, secret = await keys.person_key(pool, member, label=body.device or FIRST_KEY)

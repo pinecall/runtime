@@ -26,7 +26,6 @@ from pinecall.tenancy.mail import Outbox
 from pinecall.tenancy.orgs import create, find
 from pinecall.tenancy.people import (
     Invitee,
-    accept,
     by_email,
     invite,
     join,
@@ -34,6 +33,7 @@ from pinecall.tenancy.people import (
     orgs_of,
     password_of,
     reset,
+    seat_founder,
 )
 from pinecall.tenancy.words import OneUse, Words
 
@@ -544,7 +544,7 @@ async def found(pool: Pool, signup: Signup, codes: OneUse[Holder]) -> Founded:
     org = await create(pool, signup.slug, signup.name or signup.slug, already=already)
     invited = await invite(pool, org.id, Invitee(signup.email, signup.person, "admin"), seats=None)
     # The founder takes the seat at once, with the password the sign-up proved: one per person.
-    admin = await accept(pool, invited.token, signup.hashed) or invited.member
+    admin = await seat_founder(pool, invited.token, signup.hashed) or invited.member
     key, secret = await person_key(pool, admin, label=signup.device or SIGNED_UP)
     code, code_expires_at = await codes.mint(admin)
     return Founded(

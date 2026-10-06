@@ -5,7 +5,13 @@ import hashlib
 
 import pytest
 
-from pinecall.domain.errors import Conflict, DeclarationRefused, NotFound, QuotaExhausted
+from pinecall.domain.errors import (
+    Conflict,
+    DeclarationRefused,
+    NotFound,
+    NotSignedIn,
+    QuotaExhausted,
+)
 from pinecall.domain.org import Org
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy.orgs import create
@@ -60,19 +66,16 @@ async def test_accepting_spends_the_token_sets_the_password_and_makes_the_member
 ) -> None:
     org = await _an_org(pool)
     invited = await invite(pool, org.id, ANA, seats=None)
-    member = await accept(pool, invited.token, await hash_password(WHAT_ANA_TYPES, FLOOR))
+    member = await accept(pool, invited.token, WHAT_ANA_TYPES, FLOOR)
     assert member is not None
     assert member.status == "active"
     assert await matches(WHAT_ANA_TYPES, await password_of(pool, "ana@clinica.test"))
-    assert await accept(pool, invited.token, await hash_password(WHAT_ANA_TYPES, FLOOR)) is None
+    assert await accept(pool, invited.token, WHAT_ANA_TYPES, FLOOR) is None
 
 
 @postgres
 async def test_an_unknown_token_accepts_nobody(pool: Pool) -> None:
-    assert (
-        await accept(pool, "inv_nobody-made-this", await hash_password(WHAT_ANA_TYPES, FLOOR))
-        is None
-    )
+    assert await accept(pool, "inv_nobody-made-this", WHAT_ANA_TYPES, FLOOR) is None
 
 
 @postgres
@@ -81,8 +84,8 @@ async def test_re_inviting_someone_still_invited_replaces_the_token(pool: Pool) 
     first = await invite(pool, org.id, ANA, seats=None)
     second = await invite(pool, org.id, ANA, seats=None)
     assert second.member.id == first.member.id
-    assert await accept(pool, first.token, await hash_password(WHAT_ANA_TYPES, FLOOR)) is None
-    assert await accept(pool, second.token, await hash_password(WHAT_ANA_TYPES, FLOOR)) is not None
+    assert await accept(pool, first.token, WHAT_ANA_TYPES, FLOOR) is None
+    assert await accept(pool, second.token, WHAT_ANA_TYPES, FLOOR) is not None
 
 
 @postgres
@@ -91,7 +94,7 @@ async def test_an_address_that_accepted_here_is_refused_in_the_sentence_that_nam
 ) -> None:
     org = await _an_org(pool)
     invited = await invite(pool, org.id, ANA, seats=None)
-    await accept(pool, invited.token, await hash_password(WHAT_ANA_TYPES, FLOOR))
+    await accept(pool, invited.token, WHAT_ANA_TYPES, FLOOR)
     with pytest.raises(Conflict, match=r"ana@clinica\.test is a member of this org already"):
         await invite(pool, org.id, ANA, seats=None)
 
@@ -102,7 +105,7 @@ async def test_a_person_proven_elsewhere_is_invited_like_anyone_and_seated_by_no
 ) -> None:
     home = await _an_org(pool)
     invited = await invite(pool, home.id, ANA, seats=None, vouched=True)
-    await accept(pool, invited.token, await hash_password(WHAT_ANA_TYPES, FLOOR))
+    await accept(pool, invited.token, WHAT_ANA_TYPES, FLOOR)
     other = await _an_org(pool, "northwind")
     elsewhere = await invite(pool, other.id, ANA, seats=None)
     assert elsewhere.token.startswith("inv_")
@@ -114,7 +117,7 @@ async def test_a_person_proven_elsewhere_is_invited_like_anyone_and_seated_by_no
 async def test_only_a_vouched_link_proves_the_address(pool: Pool) -> None:
     home = await _an_org(pool)
     invited = await invite(pool, home.id, ANA, seats=None)
-    member = await accept(pool, invited.token, await hash_password(WHAT_ANA_TYPES, FLOOR))
+    member = await accept(pool, invited.token, WHAT_ANA_TYPES, FLOOR)
     assert member is not None
     assert not member.verified
     other = await _an_org(pool, "northwind")
@@ -182,11 +185,11 @@ async def test_a_reset_link_sets_an_active_members_password_and_never_revives_a_
 ) -> None:
     org = await _an_org(pool)
     invited = await invite(pool, org.id, ANA, seats=None)
-    member = await accept(pool, invited.token, await hash_password(WHAT_ANA_TYPES, FLOOR))
+    member = await accept(pool, invited.token, WHAT_ANA_TYPES, FLOOR)
     assert member is not None
     link = await reset(pool, org.id, member.id)
     assert link is not None
-    await accept(pool, link.token, await hash_password("a brand new password", FLOOR))
+    await accept(pool, link.token, "a brand new password", FLOOR)
     assert await matches("a brand new password", await password_of(pool, member.email))
     await update(pool, org.id, member.id, Change(status="disabled"))
     assert await reset(pool, org.id, member.id) is None
@@ -210,12 +213,12 @@ async def test_removing_takes_the_row_and_its_links_and_stays_within_the_org(poo
 async def test_the_last_active_admin_stays_and_a_second_one_lets_the_first_go(pool: Pool) -> None:
     org = await _an_org(pool)
     first = await invite(pool, org.id, BRUNO, seats=None)
-    admin = await accept(pool, first.token, await hash_password(WHAT_ANA_TYPES, FLOOR))
+    admin = await accept(pool, first.token, WHAT_ANA_TYPES, FLOOR)
     assert admin is not None
     with pytest.raises(Conflict, match="one active admin"):
         await remove(pool, org.id, admin.id)
     second = await invite(pool, org.id, Invitee("carla@clinica.test", "Carla", "admin"), seats=None)
-    await accept(pool, second.token, await hash_password(WHAT_ANA_TYPES, FLOOR))
+    await accept(pool, second.token, WHAT_ANA_TYPES, FLOOR)
     await remove(pool, org.id, admin.id)
     assert [listed_one.name for listed_one in await listed(pool, org.id)] == ["Carla"]
 
@@ -298,3 +301,46 @@ def test_the_fingerprint_is_the_secrets_sha256_and_nothing_of_the_secret_survive
 
 def test_two_secrets_that_differ_by_one_character_hash_apart() -> None:
     assert fingerprint("pc_live_abc") != fingerprint("pc_live_abd")
+
+
+ANOTHER = "another password entirely"
+
+
+# The link seats; the password is the person's to keep. A wrong one spends nothing.
+@postgres
+async def test_an_invitation_never_sets_the_password_a_person_has_and_the_right_one_seats_them(
+    pool: Pool,
+) -> None:
+    home = await _an_org(pool, "tienda-sur")
+    there = await invite(pool, home.id, ANA, seats=None)
+    await accept(pool, there.token, WHAT_ANA_TYPES, FLOOR)
+    other = await _an_org(pool)
+    here = await invite(pool, other.id, ANA, seats=None, vouched=True)
+    with pytest.raises(NotSignedIn):
+        await accept(pool, here.token, ANOTHER, FLOOR)
+    assert await matches(WHAT_ANA_TYPES, await password_of(pool, "ana@clinica.test"))
+    member = await accept(pool, here.token, WHAT_ANA_TYPES, FLOOR)
+    assert member is not None
+    assert (member.status, member.org) == ("active", other.id)
+    assert not await matches(ANOTHER, await password_of(pool, "ana@clinica.test"))
+
+
+# A reset link is what sets a password again: everywhere when it was mailed to the address
+# (vouched), on its own org's row alone when it was handed to an admin.
+@postgres
+async def test_a_reset_sets_the_password_again_everywhere_only_when_it_proved_the_address(
+    pool: Pool,
+) -> None:
+    home = await _an_org(pool, "tienda-sur")
+    there = await invite(pool, home.id, ANA, seats=None)
+    ana = await accept(pool, there.token, WHAT_ANA_TYPES, FLOOR)
+    assert ana is not None
+    handed = await reset(pool, home.id, ana.id)
+    assert handed is not None
+    await accept(pool, handed.token, ANOTHER, FLOOR)
+    assert await matches(ANOTHER, await password_of(pool, "ana@clinica.test"))
+    mailed = await reset(pool, home.id, ana.id, vouched=True)
+    assert mailed is not None
+    await accept(pool, mailed.token, WHAT_ANA_TYPES, FLOOR)
+    assert await matches(WHAT_ANA_TYPES, await password_of(pool, "ana@clinica.test"))
+    assert not await matches(ANOTHER, await password_of(pool, "ana@clinica.test"))
