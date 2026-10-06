@@ -120,3 +120,17 @@ async def test_a_key_past_its_samples_for_the_minute_waits(knocking: Knocking) -
             for _ in range(3)
         ]
     assert answers == [200, 200, 429]
+
+
+# The object an org brings names secrets, never where the box sends them.
+@postgres
+async def test_an_orgs_credentials_object_may_name_no_address(knocking: Knocking) -> None:
+    pointed = {"credentials": {"api_key": "k", "base_url": "http://pinecall-gateway:8080/"}}
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        refused = await org.put(f"{KEYS}/{ACME}", json=pointed)
+        kept = await org.put(f"{KEYS}/{ACME}", json={"credentials": {"api_key": "k"}})
+        listed = await org.get(KEYS)
+    assert refused.status_code == 400
+    assert "operator's to set" in refused.json()["detail"]
+    assert kept.status_code == 204
+    assert listed.json()["vendors"] == [ACME]

@@ -78,6 +78,40 @@ _THE_HINTS = ("language_hint", "language_hints")
 _NO_SUCH_CLASS = "{vendor} exports no {stage} named {name!r}"
 
 
+# What an org's credentials object may carry: the fields the vendor's constructors take, none of
+# them an address, a file or a session. Where a vendor is reached is the operator's, in the
+# providers row's tuning; a tenant's object that named one would aim the box's requests anywhere.
+NOT_A_CREDENTIAL = (
+    "{vendor} credentials carry {field!r}: an address, a file or a session is the operator's to "
+    "set in the providers row, not a credential"
+)
+
+
+NOT_TAKEN = "{vendor} takes no credential named {field!r}; its plugin takes {fields}"
+
+
+NOT_A_VALUE = (
+    "{vendor} credentials: {field!r} is a string, a number or a boolean of at most 1024 characters"
+)
+
+
+TOO_MANY_FIELDS = "{vendor} credentials carry {count} fields: eight at most"
+
+
+_NOT_A_CREDENTIAL = frozenset(
+    {"url", "host", "endpoint", "session", "client", "transport", "connection", "model"}
+)
+
+
+_NOT_A_CREDENTIAL_ENDS = ("_url", "_base", "_endpoint", "_host", "_file", "_path", "_session")
+
+
+_MOST_FIELDS = 8
+
+
+_LONGEST_VALUE = 1024
+
+
 _UNTAKEN = (
     "{vendor}'s {stage} takes no {knobs}, so a call would run without it: leave it out, or pick a "
     "vendor that takes it"
@@ -296,6 +330,28 @@ def refuse_untaken(ears: Running, voice: Running, tuning: Tuning) -> None:
     _refuse_untaken("tts", voice, ["voice"] if tuning.voice is not None else [])
 
 
+# Every field is one a constructor of the vendor takes, named for a secret and not for where it
+# is sent, and a short scalar: nothing a plugin would open, dial or read a file by.
+def check_credentials(vendor: str, credentials: Credentials) -> None:
+    """Refuse a credentials object that names an address, a file, a session or a field untaken."""
+    if not isinstance(credentials, dict):
+        return
+    if len(credentials) > _MOST_FIELDS:
+        raise DeclarationRefused(TOO_MANY_FIELDS.format(vendor=vendor, count=len(credentials)))
+    taken = _every_parameter(vendor)
+    for name, value in credentials.items():
+        lowered = name.lower()
+        if lowered in _NOT_A_CREDENTIAL or lowered.endswith(_NOT_A_CREDENTIAL_ENDS):
+            raise DeclarationRefused(NOT_A_CREDENTIAL.format(vendor=vendor, field=name))
+        if name not in taken:
+            fields = ", ".join(sorted(taken)) or "nothing by name"
+            raise DeclarationRefused(NOT_TAKEN.format(vendor=vendor, field=name, fields=fields))
+        if not isinstance(value, str | int | float | bool) or (
+            isinstance(value, str) and (len(value) > _LONGEST_VALUE or "://" in value)
+        ):
+            raise DeclarationRefused(NOT_A_VALUE.format(vendor=vendor, field=name))
+
+
 def vendor_named_in(text: str) -> str:
     """The vendor whose plugin a component's error names, "" when it names none."""
     found = _LABELLED.search(text)
@@ -370,6 +426,16 @@ def _built[T](
         return constructor(**_shaped(made, given))
     except Exception as refused:
         raise DeclarationRefused(f"{running.vendor} refused its {named}: {refused}") from refused
+
+
+def _every_parameter(vendor: str) -> frozenset[str]:
+    module = plugin(vendor)
+    classes = (getattr(module, name, None) for name in CLASS_OF.values())
+    taken = frozenset[str]()
+    for made in classes:
+        if isinstance(made, type):
+            taken |= _parameters(made)
+    return taken - {"self", "kwargs", "args"}
 
 
 def _parameters(made: type) -> frozenset[str]:

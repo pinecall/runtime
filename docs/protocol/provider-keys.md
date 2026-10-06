@@ -44,7 +44,7 @@ means. Those are measured per vendor and per day (`GET /v1/insights`, `stages`),
 
 | | |
 |---|---|
-| `PUT /v1/provider-keys/{vendor}` | `{"key": "…"}`, or `{"credentials": {…}}` with the object the vendor's plugin takes (`speech_key` and `speech_region`); every call of the org runs on it from the next one |
+| `PUT /v1/provider-keys/{vendor}` | `{"key": "…"}`, or `{"credentials": {…}}` with the object the vendor's plugin takes (`speech_key` and `speech_region`): secrets alone, eight short scalars at most, each a field a constructor of the vendor takes, none an address, a file or a session (`base_url`, `endpoint`, `*_file`, `http_session`… are the operator's, in the providers row's tuning), `400` otherwise; every call of the org runs on it from the next one |
 | `DELETE /v1/provider-keys/{vendor}` | that vendor back on the box's key; `404` when the org brought none |
 | `GET /v1/provider-keys` | `{"vendors": ["elevenlabs"]}`, names only |
 

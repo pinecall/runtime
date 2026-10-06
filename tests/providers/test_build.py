@@ -17,6 +17,7 @@ from pinecall.providers.build import (
     Modality,
     Running,
     Vendor,
+    check_credentials,
     completion_usage,
     ears_of,
     installed,
@@ -407,3 +408,28 @@ def test_a_fallback_the_adapter_cannot_take_is_left_out_and_the_default_runs_alo
     else:
         stereo = Running(acme, "k2", options={"channels": 2})
         assert isinstance(speaking_of(Running(acme, "k1", fallbacks=(stereo,))), AcmeTTS)
+
+
+# An org's credentials object names secrets, never where they are sent: an address, a file or a
+# session is the operator's to set in the providers row.
+def test_an_orgs_credentials_carry_no_address_file_session_or_field_the_plugin_lacks(
+    acme: str,
+) -> None:
+    check_credentials(acme, "sk-a-plain-key")
+    check_credentials(acme, {"api_key": "k", "speech_key": "s"})
+    pointed: list[JsonObject] = [
+        {"api_key": "k", "base_url": "http://10.0.0.1/"},
+        {"api_key": "k", "endpoint": "x"},
+        {"api_key": "k", "credentials_file": "/etc/passwd"},
+        {"api_key": "k", "http_session": "x"},
+    ]
+    for refused in pointed:
+        with pytest.raises(DeclarationRefused, match="operator's to set"):
+            check_credentials(acme, refused)
+    with pytest.raises(DeclarationRefused, match="takes no credential named 'colour'"):
+        check_credentials(acme, {"colour": "red"})
+    with pytest.raises(DeclarationRefused, match="is a string, a number or a boolean"):
+        check_credentials(acme, {"api_key": "https://evil.test/"})
+    many: JsonObject = {f"k{n}": "v" for n in range(9)}
+    with pytest.raises(DeclarationRefused, match="eight at most"):
+        check_credentials(acme, many)

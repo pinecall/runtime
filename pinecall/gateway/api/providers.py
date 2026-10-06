@@ -93,10 +93,10 @@ async def bring_key(
 ) -> None:
     """Keep the org's own credentials for a vendor; its calls run on them from the next one."""
     named = installed_vendor(vendor)
+    credentials = credentials_of(body)
+    build.check_credentials(named, credentials)
     connections = gateway.connections
-    await vault.put_credentials(
-        connections.pool, connections.vault, key.org, named, credentials_of(body)
-    )
+    await vault.put_credentials(connections.pool, connections.vault, key.org, named, credentials)
 
 
 @router.delete("/v1/provider-keys/{vendor}", status_code=204)

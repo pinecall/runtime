@@ -17,6 +17,7 @@ from pinecall.gateway.api.keys import key_row
 from pinecall.gateway.api.org import sso_row
 from pinecall.gateway.api.providers import credentials_of, installed_vendor
 from pinecall.process.recordings import recordings_of
+from pinecall.providers import build
 from pinecall.providers.credentials import parse_lending
 from pinecall.retrieval import knowledge, memory
 from pinecall.tenancy import (
@@ -363,8 +364,10 @@ async def put_org_vendor_key(
     """The org's own credentials for a vendor, set for it; its calls run on them next."""
     connections = gateway.connections
     org = await _org(gateway, named)
+    named_vendor, credentials = installed_vendor(vendor), credentials_of(body)
+    build.check_credentials(named_vendor, credentials)
     await vault.put_credentials(
-        connections.pool, connections.vault, org.id, installed_vendor(vendor), credentials_of(body)
+        connections.pool, connections.vault, org.id, named_vendor, credentials
     )
 
 
