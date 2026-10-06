@@ -72,8 +72,18 @@ verb reads: the gateway the database, the signal, the vault key, the operator's 
 LiveKit pair; a worker and the overflow the LiveKit pair, their fleet key and the recordings
 store, never the database, the vault or the operator's key (rule 24 holds the templates to it);
 the retention the database, the vault and the store; the migrations the database. The values
-file holds no
-secret.
+file holds no secret.
+
+Every pod of the runtime's image runs as its user (10001), with no capability, no privilege to
+gain, the runtime's syscall filter and a root filesystem it cannot write: what it writes goes to
+`/tmp` and its home, each an emptyDir, and to the recordings' (`pinecall.podSecurity`,
+`pinecall.containerSecurity`). LiveKit, SIP and Redis are their own images, left as they are.
+Two NetworkPolicies (`templates/policies.yaml`) name who reaches each store: the gateways' Redis
+the gateways alone; Postgres the gateways, the pods labelled `pinecall.io/reaches-postgres` (the
+migrations, the fleets' keys, the retention, a suite's Job), its own instances and CloudNativePG's
+namespace. They are enforced only once the cluster's dataplane enforces policies (Dataplane V2,
+`modules/gke`), which this cluster's does not yet: that change makes the cluster again, and is
+planned on its own.
 
 ## A pool a world
 

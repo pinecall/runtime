@@ -19,11 +19,13 @@ spec:
     metadata: { labels: { app: worker, world: {{ $world }}, pool: core } }
     spec:
       {{- include "pinecall.onMedia" $world | nindent 6 }}
+      {{- include "pinecall.podSecurity" $ | nindent 6 }}
       terminationGracePeriodSeconds: 900
       containers:
         - name: worker
           image: {{ include "pinecall.image" $ }}
           args: ["worker", "start"]
+          {{- include "pinecall.containerSecurity" $ | nindent 10 }}
           env:
             {{- include "pinecall.workerEnv" (dict "root" $ "world" $world "seats" $core.seats) | nindent 12 }}
             # Small workers beside the box's services: one warm process each, not one per CPU.
@@ -37,10 +39,12 @@ spec:
             httpGet: { path: /, port: 8082 }
           volumeMounts:
             - { name: recordings, mountPath: /var/lib/pinecall/recordings }
+            {{- include "pinecall.scratchMounts" $ | nindent 12 }}
           resources:
             requests: { cpu: 150m, memory: 768Mi }
       volumes:
         - { name: recordings, emptyDir: {} }
+        {{- include "pinecall.scratchVolumes" $ | nindent 8 }}
 {{- end }}
 {{- range $world, $scaled := .Values.workers.scaled }}
 ---
@@ -57,11 +61,13 @@ spec:
       nodeSelector: { pinecall.io/pool: workers-{{ $world }} }
       tolerations:
         - { key: pinecall.io/pool, operator: Equal, value: workers-{{ $world }}, effect: NoSchedule }
+      {{- include "pinecall.podSecurity" $ | nindent 6 }}
       terminationGracePeriodSeconds: 900
       containers:
         - name: worker
           image: {{ include "pinecall.image" $ }}
           args: ["worker", "start"]
+          {{- include "pinecall.containerSecurity" $ | nindent 10 }}
           env:
             {{- include "pinecall.workerEnv" (dict "root" $ "world" $world "seats" $scaled.seats) | nindent 12 }}
           startupProbe:
@@ -72,11 +78,13 @@ spec:
             httpGet: { path: /, port: 8082 }
           volumeMounts:
             - { name: recordings, mountPath: /var/lib/pinecall/recordings }
+            {{- include "pinecall.scratchMounts" $ | nindent 12 }}
           # One per node of the pool: an e2-standard-8 holds 32 calls at ~60 % (docs/scaling.md).
           resources:
             requests: { cpu: "6", memory: 12Gi }
       volumes:
         - { name: recordings, emptyDir: {} }
+        {{- include "pinecall.scratchVolumes" $ | nindent 8 }}
 ---
 apiVersion: keda.sh/v1alpha1
 kind: TriggerAuthentication

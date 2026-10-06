@@ -32,6 +32,9 @@ spec:
   backoffLimit: 0
   ttlSecondsAfterFinished: 3600
   template:
+    metadata:
+      labels:
+        pinecall.io/reaches-postgres: "true"
     spec:
       restartPolicy: Never
       containers:

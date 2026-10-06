@@ -1,0 +1,36 @@
+# Who reaches the two stores. Enforced only on a cluster whose dataplane enforces NetworkPolicy
+# (GKE's Dataplane V2, terraform/modules/gke `datapath_provider`); on one that does not, they are
+# written and wait. Each names every client its store has, and no default deny is set elsewhere:
+# a policy that forgot a client would cut it the day enforcement comes on.
+#
+# The gateways' Redis: the gateways alone (a worker holds no PINECALL_REDIS_URL, rule 24). The
+# worlds' own Redis are LiveKit's and SIP's, on the node's network, and are left as they are.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: the-gateways-redis-is-the-gateways
+spec:
+  podSelector: { matchLabels: { app: pinecall-redis } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: pinecall-gateway } }
+      ports: [{ port: 6379, protocol: TCP }]
+---
+# Postgres: the gateways, the pods labelled as reaching it (the migrations, the fleets' keys, the
+# retention, a suite's Job), its own instances, and CloudNativePG's operator and backup plugin.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-is-reached-by-its-clients-alone
+spec:
+  podSelector: { matchLabels: { cnpg.io/cluster: pinecall-postgres } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: pinecall-gateway } }
+        - podSelector: { matchLabels: { pinecall.io/reaches-postgres: "true" } }
+      ports: [{ port: 5432, protocol: TCP }]
+    - from:
+        - podSelector: { matchLabels: { cnpg.io/cluster: pinecall-postgres } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: cnpg-system } }

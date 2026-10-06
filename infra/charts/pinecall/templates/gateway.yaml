@@ -13,6 +13,7 @@ spec:
     metadata: { labels: { app: pinecall-gateway } }
     spec:
       nodeSelector: { pinecall.io/pool: core }
+      {{- include "pinecall.podSecurity" . | nindent 6 }}
       # A stopping gateway first serves on for 30 s, while the load balancer lets go of it (its
       # network endpoint leaves the group in seconds, not at once: told nothing, it answers 503 to
       # whoever it still sends there); then it tells its open streams and lets them go, in 60 s.
@@ -21,6 +22,7 @@ spec:
         - name: gateway
           image: {{ include "pinecall.image" . }}
           args: ["gateway"]
+          {{- include "pinecall.containerSecurity" . | nindent 10 }}
           env:
             {{- include "pinecall.env" . | nindent 12 }}
             {{- include "pinecall.livekits" . | nindent 12 }}
@@ -45,10 +47,12 @@ spec:
             initialDelaySeconds: 30
           volumeMounts:
             - { name: recordings, mountPath: /var/lib/pinecall/recordings }
+            {{- include "pinecall.scratchMounts" . | nindent 12 }}
           resources:
             requests: { cpu: 150m, memory: 384Mi }
       volumes:
         - { name: recordings, emptyDir: {} }
+        {{- include "pinecall.scratchVolumes" . | nindent 8 }}
 ---
 apiVersion: v1
 kind: Service

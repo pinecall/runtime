@@ -11,16 +11,22 @@ spec:
     metadata: { labels: { app: overflow } }
     spec:
       {{- include "pinecall.onMedia" "production" | nindent 6 }}
+      {{- include "pinecall.podSecurity" . | nindent 6 }}
       terminationGracePeriodSeconds: 120
       containers:
         - name: overflow
           image: {{ include "pinecall.image" . }}
           args: ["worker", "overflow"]
+          {{- include "pinecall.containerSecurity" . | nindent 10 }}
           env:
             {{- include "pinecall.workerEnv" (dict "root" . "world" "production" "seats" 1) | nindent 12 }}
             {{- with .Values.overflow.says }}
             - name: PINECALL_OVERFLOW_SAYS
               value: {{ . | quote }}
             {{- end }}
+          volumeMounts:
+            {{- include "pinecall.scratchMounts" . | nindent 12 }}
           resources:
             requests: { cpu: 50m, memory: 384Mi }
+      volumes:
+        {{- include "pinecall.scratchVolumes" . | nindent 8 }}

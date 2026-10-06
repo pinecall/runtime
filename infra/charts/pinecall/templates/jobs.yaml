@@ -12,15 +12,22 @@ metadata:
 spec:
   backoffLimit: 2
   template:
+    metadata: { labels: { pinecall.io/reaches-postgres: "true" } }
     spec:
       restartPolicy: Never
+      {{- include "pinecall.podSecurity" . | nindent 6 }}
       containers:
         - name: migrate
           image: {{ include "pinecall.image" . }}
           args: ["migrate", "up"]
+          {{- include "pinecall.containerSecurity" . | nindent 10 }}
           env:
             - name: DATABASE_URL
               valueFrom: { secretKeyRef: { name: {{ .Values.postgres.secret }}, key: uri } }
+          volumeMounts:
+            {{- include "pinecall.scratchMounts" . | nindent 12 }}
+      volumes:
+        {{- include "pinecall.scratchVolumes" . | nindent 8 }}
 ---
 # A worker knocks on the gateway with its world's fleet key, minted in the database by the runtime
 # itself; the Job writes them into a Secret once, at install, before any worker starts, and it
@@ -74,6 +81,7 @@ metadata:
 spec:
   backoffLimit: 0
   template:
+    metadata: { labels: { pinecall.io/reaches-postgres: "true" } }
     spec:
       restartPolicy: Never
       serviceAccountName: pinecall-fleet-keys
@@ -84,6 +92,12 @@ spec:
         - name: mint
           image: {{ include "pinecall.image" . }}
           command: ["sh", "-c", "umask 077 && pinecall-runtime keys fleet production > /keys/production && pinecall-runtime keys fleet sandbox > /keys/sandbox"]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
           env:
             - name: DATABASE_URL
               valueFrom: { secretKeyRef: { name: {{ .Values.postgres.secret }}, key: uri } }
@@ -106,12 +120,19 @@ spec:
   jobTemplate:
     spec:
       template:
+        metadata: { labels: { pinecall.io/reaches-postgres: "true" } }
         spec:
           restartPolicy: Never
           nodeSelector: { pinecall.io/pool: core }
+          {{- include "pinecall.podSecurity" . | nindent 10 }}
           containers:
             - name: retention
               image: {{ include "pinecall.image" . }}
               args: ["retention", "run"]
+              {{- include "pinecall.containerSecurity" . | nindent 14 }}
               env:
                 {{- include "pinecall.retentionEnv" . | nindent 16 }}
+              volumeMounts:
+                {{- include "pinecall.scratchMounts" . | nindent 16 }}
+          volumes:
+            {{- include "pinecall.scratchVolumes" . | nindent 12 }}

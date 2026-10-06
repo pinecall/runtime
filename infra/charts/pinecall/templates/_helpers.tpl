@@ -100,3 +100,32 @@ tolerations:
   value: "8082"
 {{ include "pinecall.recordingsEnv" .root }}
 {{- end -}}
+
+{{/* A pod of the runtime's image: its own user (10001, the image's), no privilege to gain, the
+     container runtime's syscall filter. */}}
+{{- define "pinecall.podSecurity" -}}
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  seccompProfile: { type: RuntimeDefault }
+{{- end -}}
+
+{{/* A container of the runtime's image: no capability, no escalation, a root filesystem it cannot
+     write; what it writes goes to /tmp and its home, each an emptyDir (pinecall.scratch). */}}
+{{- define "pinecall.containerSecurity" -}}
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: { drop: [ALL] }
+{{- end -}}
+
+{{- define "pinecall.scratchMounts" -}}
+- { name: tmp, mountPath: /tmp }
+- { name: home, mountPath: /home/pinecall }
+{{- end -}}
+
+{{- define "pinecall.scratchVolumes" -}}
+- { name: tmp, emptyDir: { sizeLimit: 1Gi } }
+- { name: home, emptyDir: { sizeLimit: 256Mi } }
+{{- end -}}
