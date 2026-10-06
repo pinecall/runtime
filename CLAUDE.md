@@ -14,6 +14,15 @@ production's cluster since 2026-10-04. The full history of decisions is in
   security, what a tenant sees): ask in one line, with the options and a recommendation.
 - A question explains what is behind it and, when a tenant is involved, shows what they type or see.
 
+## The rule above every other: we are new, and we publish when it is ready
+
+Pinecall has few tenants and is not announced yet. Nothing is owed to an installed base, so every
+decision is taken for what is best for the system and for the tenant, never for what is quickest
+to ship or cheapest to change later: the safe default, the strict check, the schema that is right.
+On a security or hygiene pass, Bernardo has delegated the calls (2026-10-06): decide by this rule,
+say in the reply what was decided and why, and leave for him only what spends money, recreates
+infrastructure, or could lock him out. "Publish when it is ready" is the schedule.
+
 ## Commands
 
 ```
