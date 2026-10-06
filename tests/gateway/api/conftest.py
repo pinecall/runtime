@@ -12,7 +12,7 @@ from pinecall.domain.call import CallContext, Route, new_call_id
 from pinecall.domain.names import Env
 from pinecall.tenancy import mail, people
 from tests.conftest import AGENT, Knocking, a_developer, received_until, sent
-from tests.fakes.mail import MailServer, Postbox, resolving_to
+from tests.fakes.mail import MailServer, Postbox
 
 A_NUMBER = "+59829001199"
 THE_CALLER = "+59899123456"
@@ -72,8 +72,6 @@ def postbox(monkeypatch: pytest.MonkeyPatch) -> Postbox:
     monkeypatch.setattr(MailServer, "postbox", kept)
     monkeypatch.setattr(smtplib, "SMTP", MailServer)
     monkeypatch.setattr(smtplib, "SMTP_SSL", MailServer)
-    # Every mail server's name resolves to a public address, as a real org's does.
-    monkeypatch.setattr(mail, "addresses_of", resolving_to("93.184.215.14"))
     return kept
 
 

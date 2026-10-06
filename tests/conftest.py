@@ -1,6 +1,7 @@
 """What the suites share: a schema and a signal per test, a pool, a store, a vendor nobody ships."""
 
 import asyncio
+import ipaddress
 import json
 import logging
 import os
@@ -39,6 +40,7 @@ from pinecall.log.logs import Logs
 from pinecall.log.store import Store
 from pinecall.postgres.migrate import apply_migrations
 from pinecall.postgres.pool import Pool, Timeouts, connect, open_pool
+from pinecall.process import resolver
 from pinecall.process.connections import Connections, closed, vault_of
 from pinecall.process.settings import Settings
 from pinecall.process.signal import LocalSignal, RedisSignal
@@ -188,6 +190,22 @@ def acme(monkeypatch: pytest.MonkeyPatch) -> str:
     return ACME
 
 
+# A name a test made up (`smtp.clinica.test`, `idp.test`) resolves to a public address, as a real
+# server's does; what really resolves (an address, localhost) answers as it is.
+@pytest.fixture(autouse=True)
+def made_up_names_resolve(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Answer a made-up name with a public address, and every other name as the system does."""
+    real = resolver.addresses_of
+
+    def resolved(host: str) -> list[resolver.Address]:
+        try:
+            return real(host)
+        except OSError:
+            return [ipaddress.ip_address(A_PUBLIC_ADDRESS)]
+
+    monkeypatch.setattr(resolver, "addresses_of", resolved)
+
+
 # livekit's emitter logs a listener's exception and goes on, and asyncio does the same for a
 # callback: a listener of ours that breaks would pass every test while the call loses its entries.
 @pytest.fixture(autouse=True)
@@ -207,6 +225,9 @@ def no_listener_fails_in_silence(caplog: pytest.LogCaptureFixture) -> Iterator[N
 # ── a gateway on the test's schema ──
 
 AGENT = "clinica-norte"
+
+# What a made-up name resolves to: an address on the public internet (example.com's).
+A_PUBLIC_ADDRESS = "93.184.215.14"
 LIVEKIT_KEY = "APIgateway"
 FLEETS = {"production": "pinecall", "sandbox": "pinecall-sandbox"}
 # The name a carrier sends the box's calls to.

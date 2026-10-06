@@ -1,11 +1,9 @@
 """Mail: the mailboxes a letter goes out through, the box's brand, and SMTP."""
 
 import asyncio
-import ipaddress
 import logging
 import re
 import smtplib
-import socket
 import ssl
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -21,6 +19,7 @@ from psycopg.types.json import Jsonb
 from pinecall.domain.errors import DeclarationRefused, UpstreamFailed
 from pinecall.domain.names import AN_ADDRESS, Json
 from pinecall.postgres.pool import Pool
+from pinecall.process import resolver
 from pinecall.process.connections import Connections
 from pinecall.tenancy.letters import Letter
 from pinecall.tenancy.vault import opened, sealed
@@ -351,17 +350,11 @@ def check_public(mailbox: Mailbox) -> None:
     if mailbox.security == "none":
         raise UpstreamFailed(NOT_PLAIN)
     try:
-        addresses = addresses_of(mailbox.host)
+        addresses = resolver.addresses_of(mailbox.host)
     except OSError:
         raise UpstreamFailed(NOT_PUBLIC.format(host=mailbox.host)) from None
-    if not addresses or not all(address.is_global for address in addresses):
+    if not resolver.all_public(addresses):
         raise UpstreamFailed(NOT_PUBLIC.format(host=mailbox.host))
-
-
-def addresses_of(host: str) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]:
-    """Every address the name resolves to."""
-    found = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
-    return [ipaddress.ip_address(str(item[4][0]).partition("%")[0]) for item in found]
 
 
 def parse_security(word: str) -> Security:
@@ -448,8 +441,7 @@ def _connected(mailbox: Mailbox, timeout: float) -> smtplib.SMTP:
 
 # Resolved once and connected to by the address checked: a name cannot point elsewhere between.
 def _private_address(host: str) -> str:
-    found = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
-    addresses = [ipaddress.ip_address(str(item[4][0]).partition("%")[0]) for item in found]
+    addresses = resolver.addresses_of(host)
     if not addresses or not all(item.is_private or item.is_loopback for item in addresses):
         raise UpstreamFailed(NOT_PRIVATE.format(host=host))
     return str(addresses[0])

@@ -3,9 +3,7 @@
 import asyncio
 import base64
 import hashlib
-import ipaddress
 import secrets
-import socket
 from dataclasses import dataclass
 
 import httpx
@@ -24,6 +22,7 @@ from pinecall.domain.names import PRODUCTION
 from pinecall.domain.org import Org
 from pinecall.domain.person import ROLES, Member, Role
 from pinecall.postgres.pool import Pool
+from pinecall.process import resolver
 from pinecall.tenancy.admission import admit_seat, quotas_of
 from pinecall.tenancy.people import (
     Invitee,
@@ -312,16 +311,16 @@ async def seat_vouched(pool: Pool, org: Org, sso: OrgSso, claims: Claims) -> Mem
 
 
 # Asked before each request: a public name that resolves inside (10.x, a cluster's service) is
-# refused like the address itself. A name that does not resolve is the request's to fail.
+# refused like the address itself, and so is a name that resolves to nothing, which a hostile
+# resolver could answer otherwise a moment later.
 async def _resolves_public(url: str, *, issuer: str, field: str) -> str:
     """The URL, when every address its name resolves to is a public one; refused otherwise."""
     host = httpx.URL(reachable(url, issuer=issuer, field=field)).host
     try:
-        found = await asyncio.to_thread(socket.getaddrinfo, host, None, type=socket.SOCK_STREAM)
+        addresses = await asyncio.to_thread(resolver.addresses_of, host)
     except OSError:
-        return url
-    addresses = [ipaddress.ip_address(str(item[4][0]).partition("%")[0]) for item in found]
-    if not all(address.is_global for address in addresses):
+        addresses = []
+    if not resolver.all_public(addresses):
         raise NotAllowed(NOT_REACHED.format(issuer=issuer, field=field, url=url))
     return url
 

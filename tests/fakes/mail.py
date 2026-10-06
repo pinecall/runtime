@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from email.message import Message
 from typing import ClassVar, Self, override
 
+from pinecall.process.resolver import Address
+
 
 @dataclass
 class Postbox:
@@ -61,9 +63,6 @@ class MailServer(smtplib.SMTP):
             raise smtplib.SMTPDataError(code, data.encode())
         self.postbox.sent.append(msg)
         return {}
-
-
-type Address = ipaddress.IPv4Address | ipaddress.IPv6Address
 
 
 def resolving_to(address: str) -> Callable[[str], list[Address]]:

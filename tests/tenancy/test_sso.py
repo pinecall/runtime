@@ -1,6 +1,5 @@
 """Tests for sign-in with the org's identity provider."""
 
-import socket
 import time
 
 import httpx
@@ -15,6 +14,7 @@ from pinecall.domain.errors import (
 )
 from pinecall.domain.org import Quotas
 from pinecall.postgres.pool import Pool
+from pinecall.process import resolver
 from pinecall.tenancy.admission import set_quotas
 from pinecall.tenancy.people import (
     Change,
@@ -38,6 +38,7 @@ from pinecall.tenancy.sso import (
 )
 from tests.conftest import postgres
 from tests.fakes.idp import IdentityProvider
+from tests.fakes.mail import resolving_to
 from tests.tenancy.test_signin import (
     ANA,
     CLIENT,
@@ -101,10 +102,7 @@ async def test_a_configuration_naming_another_issuer_or_no_endpoint_is_refused()
 async def test_a_public_name_that_resolves_inside_is_refused_like_an_address(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def inside(*_asked: object, **_kwargs: object) -> list[tuple[object, ...]]:
-        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.5", 0))]
-
-    monkeypatch.setattr(socket, "getaddrinfo", inside)
+    monkeypatch.setattr(resolver, "addresses_of", resolving_to("10.0.0.5"))
     silent = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(404)))
     with pytest.raises(NotAllowed, match="never an address"):
         await discovered(silent, "https://sso.clinica.test")
@@ -204,3 +202,15 @@ async def test_a_person_the_provider_seats_unasked_takes_a_seat_like_an_invited_
     options = OrgSso(org.id, CLIENT, ("clinica.test",), role="qa")
     with pytest.raises(QuotaExhausted, match="seats"):
         await seat_vouched(pool, org, options, await claims_of(idp, "bo@clinica.test"))
+
+
+# A name that resolves to nothing is refused like one inside: a hostile resolver could answer
+# otherwise a moment later, when the request is made.
+async def test_a_name_that_resolves_to_nothing_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    def unresolved(_host: str) -> list[resolver.Address]:
+        raise OSError
+
+    monkeypatch.setattr(resolver, "addresses_of", unresolved)
+    silent = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(404)))
+    with pytest.raises(NotAllowed, match="never an address"):
+        await discovered(silent, "https://sso.clinica.test")

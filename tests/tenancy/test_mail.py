@@ -1,6 +1,5 @@
 """Mail: which mailbox a letter goes through, what the five letters say, and what SMTP answers."""
 
-import ipaddress
 from datetime import UTC, datetime
 
 import pytest
@@ -8,8 +7,8 @@ from cryptography.fernet import Fernet
 
 from pinecall.domain.errors import DeclarationRefused, UpstreamFailed
 from pinecall.postgres.pool import Pool
+from pinecall.process import resolver
 from pinecall.process.connections import vault_of
-from pinecall.tenancy import mail
 from pinecall.tenancy.letters import (
     Brand,
     Letter,
@@ -186,15 +185,15 @@ async def test_an_orgs_mailbox_reaches_only_a_public_server_over_tls(
     org = await create(pool, "clinica-norte", "Clínica Norte")
     with pytest.raises(DeclarationRefused, match="reached over TLS"):
         await put_mail(pool, VAULT, org.id, Mailbox("10.0.0.7", 25, "none", "", "", SENDER))
-    monkeypatch.setattr(mail, "addresses_of", resolving_to("10.111.0.9"))
+    monkeypatch.setattr(resolver, "addresses_of", resolving_to("10.111.0.9"))
     with pytest.raises(UpstreamFailed, match="resolves to no public address"):
         check_public(THE_ORGS)
 
-    def unresolved(_host: str) -> list[ipaddress.IPv4Address]:
+    def unresolved(_host: str) -> list[resolver.Address]:
         raise OSError
 
-    monkeypatch.setattr(mail, "addresses_of", unresolved)
+    monkeypatch.setattr(resolver, "addresses_of", unresolved)
     with pytest.raises(UpstreamFailed, match="resolves to no public address"):
         check_public(THE_ORGS)
-    monkeypatch.setattr(mail, "addresses_of", resolving_to("93.184.215.14"))
+    monkeypatch.setattr(resolver, "addresses_of", resolving_to("93.184.215.14"))
     check_public(THE_ORGS)

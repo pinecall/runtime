@@ -190,7 +190,8 @@ and kills the first; `202 {}` whoever asks.
 
 `team`. `PUT /v1/org/sso {issuer, client_id, client_secret, domains, role?, required}` keeps the
 org's OpenID provider after its issuer answered its discovery (an issuer that is not https never
-reaches the network; one that does not answer is `400`, nothing kept). The secret goes in and
+reaches the network, nor one whose name resolves to nothing or to any address that is not
+public, before each request; one that does not answer is `400`, nothing kept). The secret goes in and
 never comes out; `role` seats an uninvited address of the domains with that role, and counts as
 granted by the key. `GET` answers `{configured, issuer, client_id, domains, role, required,
 redirect_uri}`, the URI to register at the provider. `DELETE` lets passwords in again.

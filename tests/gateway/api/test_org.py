@@ -9,6 +9,7 @@ import pytest
 
 from pinecall.domain.scope import Scope
 from pinecall.gateway.app import app
+from pinecall.process import resolver
 from pinecall.tenancy import mail, reads, sso
 from pinecall.tenancy.reads import Read
 from tests.conftest import Knocking, postgres
@@ -300,7 +301,7 @@ async def test_the_orgs_reads_are_listed_newest_first_and_of_one_call_when_named
 async def test_an_orgs_mailbox_inside_the_boxs_network_is_never_reached(
     knocking: Knocking, postbox: Postbox, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(mail, "addresses_of", resolving_to("10.111.0.9"))
+    monkeypatch.setattr(resolver, "addresses_of", resolving_to("10.111.0.9"))
     async with knocking.http(knocking.app["production"]) as console:
         await console.put(THE_MAIL, json=A_MAILBOX)
         tried = await console.post(f"{THE_MAIL}/test", json={"to": "ana@clinica.test"})
