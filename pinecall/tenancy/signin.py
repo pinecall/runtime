@@ -472,6 +472,7 @@ async def sign_in_with_code(
         name=holder.name,
         created_by=holder.subject,
         expires_at=holder.expires_at,
+        parent=holder.key_id,
     )
     key, secret = await issue(pool, copied)
     return SignedIn(key, secret)

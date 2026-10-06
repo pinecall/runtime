@@ -341,9 +341,11 @@ async def issue_key(named: str, body: IssueKeyRequest, gateway: GatewayDep) -> K
 @router.post("/v1/ops/keys/{fingerprint}/revoke")
 async def revoke_key(fingerprint: str, gateway: GatewayDep) -> RevokeKeyResponse:
     """One key stops opening anything from the next request on."""
-    if not await keys.revoke(gateway.connections.pool, fingerprint):
+    stopped = await keys.revoke(gateway.connections.pool, fingerprint)
+    if not stopped:
         raise NotFound(NO_SUCH_KEY.format(fingerprint=fingerprint))
-    gateway.keys.forget(fingerprint=fingerprint)
+    for each in stopped:
+        gateway.keys.forget(fingerprint=each)
     return RevokeKeyResponse(fingerprint=fingerprint, revoked=True)
 
 

@@ -143,8 +143,8 @@ async def test_a_key_no_row_answers_to_is_none_and_not_an_error(pool: Pool) -> N
 async def test_a_revoked_key_stops_verifying_and_its_row_stays_in_the_listing(pool: Pool) -> None:
     org = await org_with_keys(pool)
     _, secret = await issue(pool, Issued(org=org.id, env="production"))
-    assert await revoke(pool, fingerprint(secret))
-    assert not await revoke(pool, fingerprint(secret))
+    assert await revoke(pool, fingerprint(secret)) == [fingerprint(secret)]
+    assert await revoke(pool, fingerprint(secret)) == []
     assert await verify(pool, secret) is None
     (row,) = await listed(pool, org.id)
     assert row.revoked_at is not None
@@ -154,7 +154,7 @@ async def test_a_revoked_key_stops_verifying_and_its_row_stays_in_the_listing(po
 async def test_revoking_a_fingerprint_nobody_answers_to_is_false_and_not_an_error(
     pool: Pool,
 ) -> None:
-    assert not await revoke(pool, fingerprint("nobody"))
+    assert await revoke(pool, fingerprint("nobody")) == []
 
 
 @postgres

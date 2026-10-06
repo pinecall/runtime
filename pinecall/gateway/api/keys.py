@@ -78,9 +78,11 @@ async def revoke_key(fingerprint: str, key: BearerDep, gateway: GatewayDep) -> R
     row = next((row for row in listed if row.fingerprint == fingerprint), None)
     if row is None or row.revoked_at is not None or not _may_stop(key, row):
         raise NotFound(NO_SUCH_KEY.format(fingerprint=fingerprint))
-    if not await keys.revoke(pool, fingerprint):
+    stopped = await keys.revoke(pool, fingerprint)
+    if not stopped:
         raise NotFound(NO_SUCH_KEY.format(fingerprint=fingerprint))
-    gateway.keys.forget(fingerprint=fingerprint)
+    for each in stopped:
+        gateway.keys.forget(fingerprint=each)
     return RevokeKeyResponse(fingerprint=fingerprint, revoked=True)
 
 

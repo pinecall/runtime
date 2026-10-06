@@ -71,7 +71,8 @@ this once:
 A person's key starts `pc_live_` and opens both worlds.
 
 `POST /v1/login/codes`, with any key, mints `{code, expires_at}`: a browser signs in with it, so a
-key never rides a URL. `POST /v1/login/orgs {email, password}` lists the orgs a password opens,
+key never rides a URL. A server's key gives the browser a copy of itself, and revoking a key
+revokes every copy made of it, and every copy of those. `POST /v1/login/orgs {email, password}` lists the orgs a password opens,
 `{orgs: [{org, slug, name, role}]}`, minting nothing.
 
 ## Another org — `GET /v1/login/orgs`, `POST /v1/login/org {org}`

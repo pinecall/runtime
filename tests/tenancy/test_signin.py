@@ -20,7 +20,7 @@ from pinecall.domain.person import Key, Member
 from pinecall.postgres.pool import Pool
 from pinecall.process.connections import Connections, vault_of
 from pinecall.tenancy.admission import Admission, quotas_of, set_admission
-from pinecall.tenancy.keys import person_key, verify
+from pinecall.tenancy.keys import Issued, fingerprint, issue, person_key, revoke, verify
 from pinecall.tenancy.mail import Mailbox, Outbox
 from pinecall.tenancy.orgs import create
 from pinecall.tenancy.people import (
@@ -463,3 +463,24 @@ async def claims_of(idp: IdentityProvider, email: str) -> Claims:
     idp.id_token = idp.signed(nonce=begun.nonce, email=email, sub=f"sub-{email}", name=name)
     async with httpx.AsyncClient(transport=idp.transport()) as http:
         return await vouched_for(http, CLIENT, begun, "c")
+
+
+# A copy a code made is revoked with the key that minted the code, and a copy of that copy too:
+# a leaked key cannot outlive its revocation through a browser it signed in.
+@postgres
+async def test_revoking_a_key_revokes_every_copy_a_code_made_of_it(pool: Pool) -> None:
+    org = await org_of(pool)
+    codes = kept_on(pool).codes
+    server, secret = await issue(pool, Issued(org=org.id, env="sandbox"))
+    code, _ = await codes.mint(server)
+    copy = await sign_in_with_code(pool, codes, code)
+    assert copy is not None
+    again, _ = await codes.mint(copy.key)
+    deeper = await sign_in_with_code(pool, codes, again)
+    assert deeper is not None
+    stopped = await revoke(pool, fingerprint(secret))
+    assert sorted(stopped) == sorted(
+        fingerprint(each) for each in (secret, copy.secret, deeper.secret)
+    )
+    for each in (secret, copy.secret, deeper.secret):
+        assert await verify(pool, each) is None

@@ -137,9 +137,10 @@ WHERE found.subject IS NULL
 
 
 ISSUE = """
-INSERT INTO api_keys (id, hash, org, label, env, scopes, subject, name, created_by, expires_at)
+INSERT INTO api_keys (id, hash, org, label, env, scopes, subject, name, created_by, expires_at,
+                      parent)
 VALUES (%(id)s, %(hash)s, %(org)s, %(label)s, %(env)s, %(scopes)s, %(subject)s, %(name)s,
-        %(created_by)s, %(expires_at)s)
+        %(created_by)s, %(expires_at)s, %(parent)s)
 """
 
 
@@ -151,8 +152,16 @@ FROM api_keys WHERE org = %(org)s ORDER BY created_at, id
 
 
 # A second revoke changes nothing and says so.
+# The key and every copy made of it, however deep: each fingerprint stopped is answered, so every
+# gateway forgets each one it remembers.
 REVOKE = """
-UPDATE api_keys SET revoked_at = now() WHERE hash = %(hash)s AND revoked_at IS NULL RETURNING id
+WITH RECURSIVE stopped AS (
+    SELECT id FROM api_keys WHERE hash = %(hash)s AND revoked_at IS NULL
+    UNION
+    SELECT copy.id FROM api_keys copy JOIN stopped ON copy.parent = stopped.id
+    WHERE copy.revoked_at IS NULL
+)
+UPDATE api_keys SET revoked_at = now() WHERE id IN (SELECT id FROM stopped) RETURNING hash
 """
 
 
@@ -219,6 +228,8 @@ class Issued:
     name: str | None = None
     created_by: str | None = None
     expires_at: datetime | None = None
+    # The key this one copies: revoked with it.
+    parent: str | None = None
 
 
 @dataclass(frozen=True)
@@ -266,6 +277,7 @@ async def issue(pool: Pool, issued: Issued) -> tuple[Key, str]:
         "name": key.name,
         "created_by": issued.created_by,
         "expires_at": key.expires_at,
+        "parent": issued.parent,
     }
     async with pool.connection() as connection:
         await connection.execute(ISSUE, values)
@@ -318,11 +330,11 @@ async def listed(pool: Pool, org: str) -> list[ListedKey]:
     ]
 
 
-async def revoke(pool: Pool, key_fingerprint: str) -> bool:
-    """Stop a key from the next request on; whether a live one was stopped. Its row stays."""
+async def revoke(pool: Pool, key_fingerprint: str) -> list[str]:
+    """Stop a key and every copy of it from the next request on; the fingerprints stopped."""
     async with pool.connection() as connection:
         revoked = await connection.execute(REVOKE, {"hash": key_fingerprint})
-        return await revoked.fetchone() is not None
+        return [str(row["hash"]) for row in await revoked.fetchall()]
 
 
 def world_of(bearer: Bearer, params: str | None) -> Env:
