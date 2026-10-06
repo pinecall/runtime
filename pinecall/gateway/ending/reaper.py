@@ -5,6 +5,7 @@ import logging
 import time
 from collections.abc import Mapping
 
+import psycopg
 from livekit import api
 
 from pinecall.channels.rooms import room_closed, rooms_with_an_agent
@@ -87,7 +88,7 @@ async def reap_forever(serving: Serving, servers: Mapping[Env, api.LiveKitAPI]) 
         try:
             await reaped(serving, servers, time.time())
             await let_go(serving)
-        except (Conflict, NotAvailable, api.TwirpError, OSError):
+        except (Conflict, NotAvailable, api.TwirpError, OSError, psycopg.Error):
             logger.warning(
                 "the reaper's pass failed; the next is in %.0f s", REAPED_EVERY_S, exc_info=True
             )

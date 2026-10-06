@@ -152,6 +152,9 @@ BOX      ?= example-box
 PG        = kubectl --context $(CONTEXT) exec -i pinecall-postgres-1 -c postgres --
 DUMP      = /var/lib/postgresql/data/box.dump
 restore-from-box: ## ENV=…: the box's database restored into the cluster's Postgres (BOX=<ssh alias>)
+ifeq ($(ENV),production)
+	$(error make restore-from-box empties the cluster's schema first: production lives there since 2026-10-04)
+endif
 	$(PG) psql -v ON_ERROR_STOP=1 -d pinecall -c 'DROP SCHEMA public CASCADE' \
 	  -c 'CREATE SCHEMA public AUTHORIZATION pinecall' \
 	  -c 'CREATE EXTENSION vector' -c 'CREATE EXTENSION pg_textsearch'

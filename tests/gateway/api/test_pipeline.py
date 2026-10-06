@@ -5,7 +5,9 @@ import math
 import struct
 import wave
 
-from pinecall.tenancy import vault
+from pinecall.domain.scope import Scope
+from pinecall.log.store import Claim
+from pinecall.tenancy import orgs, vault
 from tests.conftest import AGENT, Knocking, postgres
 from tests.gateway.api.conftest import an_app
 
@@ -93,3 +95,18 @@ async def test_a_file_that_is_no_melody_and_one_too_short_are_refused_in_words(
     assert "no audio this box can read" in noise.json()["detail"]
     assert short.status_code == 400
     assert "stutter" in short.json()["detail"]
+
+
+# A slug is one org's: another org asking for its pipeline is told of no call and no latency.
+@postgres
+async def test_another_orgs_agent_has_no_calls_in_this_orgs_report(knocking: Knocking) -> None:
+    pool = knocking.gateway.connections.pool
+    store = knocking.gateway.logs.store
+    other = await orgs.create(pool, "otra", "Otra")
+    await store.claim(None, "sales", other.id)
+    await store.claim("call_theirs", "sales", other.id, Claim(Scope(other.id, "sandbox")))
+    await store.append("call_theirs", "sales", "custom", {"name": "n", "data": {}}, ephemeral=False)
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        report = await org.get("/v1/agents/sales/pipeline")
+    assert report.status_code == 200
+    assert (report.json()["calls"], report.json()["medians"]) == (0, [])

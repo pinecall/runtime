@@ -69,7 +69,7 @@ async def pipeline_report(
         "speaks": _stage("tts", config, configured, language=language),
     }
     listed = catalogue_of(configured, keyring)
-    turns = await _recent_turns(gateway, slug)
+    turns = await _recent_turns(gateway, scope.org, slug)
     return PipelineReport(
         agent=slug,
         hears=stages["hears"],
@@ -179,8 +179,12 @@ def _greeting(greeting: Greeting | None) -> GreetingConfig | None:
     )
 
 
-async def _recent_turns(gateway: Gateway, slug: str) -> tuple[int, list[list[Turn]]]:
+# A slug is one org's: another org's agent has no calls here, and says nothing of its latencies.
+async def _recent_turns(gateway: Gateway, org: str, slug: str) -> tuple[int, list[list[Turn]]]:
     store = gateway.logs.store
+    owner = await store.owner(slug)
+    if owner is not None and owner != org:
+        return 0, []
     calls = await store.newest_calls(LAST_CALLS, agent=slug)
     turns = [reduce(await store.whole(call)).turns for call in calls]
     return len(calls), turns
