@@ -19,7 +19,18 @@ from pinecall.gateway._deps import (
 )
 from pinecall.providers import catalog
 from pinecall.providers.catalog import judge_ceiling
-from pinecall.tenancy import erasure, export, keys, letters, mail, orgs, policy, reads, sso
+from pinecall.tenancy import (
+    erasure,
+    export,
+    keys,
+    letters,
+    mail,
+    orgs,
+    policy,
+    reads,
+    sso,
+    sso_domains,
+)
 from pinecall.tenancy.mail import Mailbox, MailboxStatus
 from pinecall.tenancy.sso import Client, OrgSso
 from pinecall.wire.rest.accounts import (
@@ -31,6 +42,7 @@ from pinecall.wire.rest.accounts import (
     OrgSsoResponse,
     SendTestLetterRequest,
     SendTestLetterResponse,
+    SsoDomainProof,
 )
 from pinecall.wire.rest.agents import (
     JudgingRequest,
@@ -43,6 +55,13 @@ router = APIRouter()
 
 # A 404, not a 204: taking away what is not there must not look like it worked.
 NO_SSO = "this org signs in with no identity provider"
+
+
+# Required with no domain proven would lock everybody out: the provider is offered for none.
+NOT_PROVEN_YET = (
+    "no domain of this SSO is verified yet: publish each domain's TXT record and ask "
+    "POST /v1/org/sso/domains/{domain}/verify, then require it"
+)
 
 
 NO_MAIL = "this org sends its letters through the box's own mail"
@@ -82,7 +101,8 @@ async def get_sso(key: TeamKey, request: Request, gateway: GatewayDep) -> OrgSso
     """The org's provider, never its secret, and the redirect URI to register there."""
     connections = gateway.connections
     wired = await sso.sso_of(connections.pool, connections.vault, key.org)
-    return sso_row(wired, f"{public_url(request, gateway)}{sso.CALLBACK}")
+    proofs = await sso_domains.of_org(connections.pool, key.org)
+    return sso_row(wired, f"{public_url(request, gateway)}{sso.CALLBACK}", proofs)
 
 
 # The role the provider seats people with counts as granted by this key: a manager makes no admin.
@@ -105,8 +125,22 @@ async def put_sso(
         await sso.discovered(connections.http, wanted.client.issuer)
     except UpstreamFailed as unanswered:
         raise DeclarationRefused(NOT_KEPT.format(said=unanswered)) from unanswered
+    if wanted.required:
+        proven = await sso_domains.verified_domains(connections.pool, key.org)
+        if not proven & frozenset(wanted.domains):
+            raise Conflict(NOT_PROVEN_YET)
     await sso.put_sso(connections.pool, connections.vault, wanted)
-    return sso_row(wanted, f"{public_url(request, gateway)}{sso.CALLBACK}")
+    proofs = await sso_domains.proofs_for(connections.pool, key.org, wanted.domains)
+    return sso_row(wanted, f"{public_url(request, gateway)}{sso.CALLBACK}", proofs)
+
+
+# The org published the record; the box reads it now, once. A record seen stands.
+@router.post("/v1/org/sso/domains/{domain}/verify")
+async def verify_sso_domain(domain: str, key: TeamKey, gateway: GatewayDep) -> SsoDomainProof:
+    """Look for the domain's TXT record and, found, offer the provider for the domain."""
+    folded = domain.strip().lower().removeprefix("@")
+    proof = await sso_domains.verify(gateway.connections.pool, key.org, folded)
+    return SsoDomainProof(domain=proof.domain, txt=proof.txt, verified=proof.verified)
 
 
 @router.delete("/v1/org/sso", status_code=204)
@@ -166,7 +200,9 @@ def mailbox_of(body: OrgMailRequest) -> Mailbox:
     )
 
 
-def sso_row(wired: OrgSso | None, redirect_uri: str) -> OrgSsoResponse:
+def sso_row(
+    wired: OrgSso | None, redirect_uri: str, proofs: list[sso_domains.Proof]
+) -> OrgSsoResponse:
     """An org's provider as the doors send it: wired or not, never the secret."""
     return OrgSsoResponse(
         configured=wired is not None,
@@ -176,6 +212,10 @@ def sso_row(wired: OrgSso | None, redirect_uri: str) -> OrgSsoResponse:
         role=None if wired is None else wired.role,
         required=wired is not None and wired.required,
         redirect_uri=redirect_uri,
+        proofs=[
+            SsoDomainProof(domain=proof.domain, txt=proof.txt, verified=proof.verified)
+            for proof in proofs
+        ],
     )
 
 

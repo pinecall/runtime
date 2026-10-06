@@ -396,6 +396,14 @@ class OrgSsoRequest(WireModel):
     required: bool = False
 
 
+class SsoDomainProof(WireModel):
+    """One domain of the org's SSO: the TXT record that proves it the org's, and whether seen."""
+
+    domain: str
+    txt: str
+    verified: bool
+
+
 class OrgSsoResponse(WireModel):
     """GET /v1/org/sso: the org's provider, never its secret, and the URI to register there."""
 
@@ -406,6 +414,8 @@ class OrgSsoResponse(WireModel):
     role: Role | None
     required: bool
     redirect_uri: str
+    # Each domain's proof: discovery offers the provider for a verified domain alone.
+    proofs: list[SsoDomainProof] = Field(default_factory=list[SsoDomainProof])
 
 
 class DiscoverSsoRequest(WireModel):

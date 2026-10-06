@@ -16,7 +16,7 @@ from pinecall.domain.errors import (
 from pinecall.domain.person import Member
 from pinecall.gateway._deps import GatewayDep, check_knock, client_of, public_url
 from pinecall.gateway._gateway import Gateway
-from pinecall.tenancy import orgs, signin, sso
+from pinecall.tenancy import orgs, signin, sso, sso_domains
 from pinecall.tenancy.signin import A_DOMAIN, Handshake
 from pinecall.wire.rest.accounts import DiscoverSsoRequest, DiscoverSsoResponse, SsoOrgRow
 
@@ -152,7 +152,8 @@ async def _seated(gateway: Gateway, begun: Handshake, code: str) -> Member:
     if wired is None or org is None:
         raise NotFound(NO_SSO_HERE.format(org=named))
     claims = await sso.vouched_for(connections.http, wired.client, begun, code)
-    if not wired.admits(claims.email):
+    proven = await sso_domains.verified_domains(connections.pool, org.id)
+    if not wired.admits(claims.email) or claims.email.rpartition("@")[2].lower() not in proven:
         raise NotAllowed(ANOTHER_DOMAIN.format(email=claims.email, org=org.slug))
     return await sso.seat_vouched(connections.pool, org, wired, claims)
 

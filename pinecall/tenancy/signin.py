@@ -177,9 +177,12 @@ SELECT org, issuer, client_id, ciphertext, domains, role, required FROM org_sso 
 """
 
 
+# A domain offered is one the org proved its own (sso_domain_proofs, tenancy/sso_domains.py).
 SSO_WITH_DOMAIN = """
-SELECT org, issuer, client_id, ciphertext, domains, role, required FROM org_sso
-WHERE %(domain)s = ANY (domains) ORDER BY set_at, org
+SELECT org_sso.org, issuer, client_id, ciphertext, domains, role, required FROM org_sso
+JOIN sso_domain_proofs AS proof
+  ON proof.org = org_sso.org AND proof.domain = %(domain)s AND proof.verified_at IS NOT NULL
+WHERE %(domain)s = ANY (domains) ORDER BY set_at, org_sso.org
 """
 
 

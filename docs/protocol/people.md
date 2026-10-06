@@ -198,7 +198,16 @@ reaches the network, nor one whose name resolves to nothing or to any address th
 public, before each request; one that does not answer is `400`, nothing kept). The secret goes in and
 never comes out; `role` seats an uninvited address of the domains with that role, and counts as
 granted by the key. `GET` answers `{configured, issuer, client_id, domains, role, required,
-redirect_uri}`, the URI to register at the provider. `DELETE` lets passwords in again.
+redirect_uri, proofs}`, the URI to register at the provider. `DELETE` lets passwords in again.
+
+A domain is the org's word until it proves it: each one in `proofs` is `{domain, txt, verified}`,
+and the org publishes `txt` (`pinecall-verify=<token>`) as a TXT record at the domain, then asks
+`POST /v1/org/sso/domains/{domain}/verify`, which reads the record now and answers the proof
+verified (`400` saying what is at the domain instead, `404` for a domain the SSO does not name).
+Until a domain is verified, discovery offers the provider to nobody of it and the callback seats
+nobody of it: an org naming a domain that is not its own sends none of that domain's people to
+its provider. A record once seen stands. `required: true` is `409` until one domain is verified,
+or nobody could sign in. The domains declared before this proof existed read verified.
 
 `GET /v1/login/sso?org=&pairing=` is `302` to the provider with a state, a nonce and a PKCE
 challenge; an org unknown or without a provider is the same `404`. The callback exchanges the
@@ -206,7 +215,8 @@ code, checks the id_token (the issuer, the audience, the nonce, a verified addre
 domains), seats the person and is `302` to `/?login=<code>`, or `/cli?c=<word>&login=<code>` when
 a terminal waits; any refusal there is `302` to `/?refused=<why>`, and only a state nobody began
 is `400`. No key is ever in a URL. `POST /v1/login/sso/discover {email}` names the orgs whose
-provider signs in that address's domain, and nothing about who exists.
+provider signs in that address's domain, among the domains they proved, and nothing about who
+exists.
 
 ## The org's mailbox — `/v1/org/mail`
 

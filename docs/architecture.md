@@ -52,16 +52,16 @@ core under `_` names.
 | `domain/` | 8 | 1223 | — |
 | `evals/` | 11 | 3000 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
 | `fleet/` | 6 | 1247 | `domain`, `postgres`, `process`, `wire` |
-| `gateway/` | 60 | 12537 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `gateway/` | 60 | 12581 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
 | `log/` | 17 | 4859 | `domain`, `postgres`, `process`, `wire` |
 | `postgres/` | 2 | 283 | `domain` |
-| `process/` | 10 | 1983 | `domain`, `postgres` |
+| `process/` | 10 | 2007 | `domain`, `postgres` |
 | `providers/` | 7 | 1540 | `domain`, `postgres`, `process`, `wire` |
 | `retrieval/` | 7 | 2453 | `domain`, `log`, `postgres`, `providers`, `wire` |
 | `runner/` | 3 | 913 | `domain`, `process`, `wire` |
 | `session/` | 14 | 3727 | `domain`, `log`, `providers`, `wire` |
-| `tenancy/` | 38 | 8111 | `domain`, `log`, `postgres`, `process`, `wire` |
-| `wire/` | 20 | 5188 | `domain` |
+| `tenancy/` | 39 | 8246 | `domain`, `log`, `postgres`, `process`, `wire` |
+| `wire/` | 20 | 5198 | `domain` |
 | `worker/` | 4 | 1066 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
 
 ## The path of a call

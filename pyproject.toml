@@ -56,6 +56,7 @@ dependencies = [
   "phonenumbers>=9,<10",
   # The live signal between gateways, when PINECALL_REDIS_URL names one: its asyncio client.
   "redis>=8.1,<9",
+  "dnspython>=2.7,<3",
 ]
 
 # Every livekit plugin that exports an STT, a TTS or an LLM is a vendor once installed; the box

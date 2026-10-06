@@ -15,6 +15,7 @@ from pinecall.domain.errors import (
 from pinecall.domain.org import Quotas
 from pinecall.postgres.pool import Pool
 from pinecall.process import resolver
+from pinecall.tenancy import sso_domains
 from pinecall.tenancy.admission import set_quotas
 from pinecall.tenancy.people import (
     Change,
@@ -36,7 +37,7 @@ from pinecall.tenancy.sso import (
     sso_with_domain,
     vouched_for,
 )
-from tests.conftest import postgres
+from tests.conftest import TXT_RECORDS, postgres
 from tests.fakes.idp import IdentityProvider
 from tests.fakes.mail import resolving_to
 from tests.tenancy.test_signin import (
@@ -69,7 +70,13 @@ async def test_an_orgs_provider_round_trips_sealed_and_is_found_by_domain(pool: 
     sso = OrgSso(org.id, CLIENT, ("clinica.test", "clinica.uy"), role="qa")
     await put_sso(pool, VAULT, sso)
     assert await sso_of(pool, VAULT, org.id) == sso
+    # Found by a domain once it is proven the org's (tenancy/sso_domains.py), never before.
+    assert await sso_with_domain(pool, VAULT, "clinica.uy") == []
+    await sso_domains.proofs_for(pool, org.id, sso.domains)
+    TXT_RECORDS["clinica.uy"] = [(await sso_domains.of_org(pool, org.id))[1].txt]
+    await sso_domains.verify(pool, org.id, "clinica.uy")
     assert [item.org for item in await sso_with_domain(pool, VAULT, "clinica.uy")] == [org.id]
+    assert await sso_with_domain(pool, VAULT, "clinica.test") == []
     async with pool.connection() as connection:
         row = await (await connection.execute("SELECT * FROM org_sso")).fetchone()
     assert row is not None

@@ -204,6 +204,24 @@ def made_up_names_resolve(monkeypatch: pytest.MonkeyPatch) -> None:
             return [ipaddress.ip_address(A_PUBLIC_ADDRESS)]
 
     monkeypatch.setattr(resolver, "addresses_of", resolved)
+    # No test publishes a record on the internet: a TXT lookup answers what `txt_records` holds.
+
+    def published(name: str) -> list[str]:
+        return list(TXT_RECORDS.get(name, ()))
+
+    monkeypatch.setattr(resolver, "txt_of", published)
+
+
+# The TXT records a test "publishes", by name; emptied for each test.
+TXT_RECORDS: dict[str, list[str]] = {}
+
+
+@pytest.fixture(autouse=True)
+def txt_records() -> Iterator[dict[str, list[str]]]:
+    """The DNS TXT records of this test, none to start with; set a name's to publish them."""
+    TXT_RECORDS.clear()
+    yield TXT_RECORDS
+    TXT_RECORDS.clear()
 
 
 # livekit's emitter logs a listener's exception and goes on, and asyncio does the same for a

@@ -8,10 +8,10 @@ import pytest
 
 from pinecall.domain.person import Role
 from pinecall.gateway.app import app
-from pinecall.tenancy import orgs, people, sso
+from pinecall.tenancy import orgs, people, sso, sso_domains
 from pinecall.tenancy.signin import TRIES
 from pinecall.tenancy.sso import Client, OrgSso
-from tests.conftest import Knocking, postgres
+from tests.conftest import TXT_RECORDS, Knocking, postgres
 from tests.fakes.idp import IdentityProvider
 
 START = "/v1/login/sso"
@@ -35,6 +35,10 @@ async def wired(knocking: Knocking, role: Role | None = None) -> None:
     client = Client("https://idp.test", "the-client", "shh-made-up")
     wanted = OrgSso(knocking.org.id, client, ("clinica.test",), role=role)
     await sso.put_sso(connections.pool, connections.vault, wanted)
+    # The domain proven the org's, as every org does once (tenancy/sso_domains.py).
+    (proof,) = await sso_domains.proofs_for(connections.pool, knocking.org.id, wanted.domains)
+    TXT_RECORDS["clinica.test"] = [proof.txt]
+    await sso_domains.verify(connections.pool, knocking.org.id, "clinica.test")
 
 
 def browser(knocking: Knocking) -> httpx.AsyncClient:
@@ -177,6 +181,27 @@ async def test_discovery_names_the_orgs_of_a_domain_and_nothing_about_who_exists
     }
     assert elsewhere.json() == {"orgs": []}
     assert (probe.status_code, probe.json()) == (200, {"orgs": []})
+
+
+# A domain an org only declared is offered to nobody: org A naming victim.test sends none of
+# victim.test's people to A's provider, and A's provider seats none of them either.
+@postgres
+async def test_a_domain_declared_but_not_proven_is_offered_to_nobody_and_seats_nobody(
+    knocking: Knocking, idp: IdentityProvider
+) -> None:
+    await wired(knocking, role="supervisor")
+    connections = knocking.gateway.connections
+    client = Client("https://idp.test", "the-client", "shh-made-up")
+    wider = OrgSso(knocking.org.id, client, ("clinica.test", "victim.test"), role="supervisor")
+    await sso.put_sso(connections.pool, connections.vault, wider)
+    await sso_domains.proofs_for(connections.pool, knocking.org.id, wider.domains)
+    async with browser(knocking) as page:
+        found = await page.post("/v1/login/sso/discover", json={"email": "a@victim.test"})
+        back = await came_back(page, idp, await went_out(page), email="someone@victim.test")
+    assert found.json() == {"orgs": []}
+    assert "is not in a domain clinica-norte signs in with" in back.params["refused"]
+    listed = await people.listed(connections.pool, knocking.org.id)
+    assert "someone@victim.test" not in [member.email for member in listed]
 
 
 @postgres

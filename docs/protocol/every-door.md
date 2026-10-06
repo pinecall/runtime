@@ -257,6 +257,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `DELETE` | `/v1/org/sso` | team | Forget the org's provider: passwords open it again from the next attempt. |
 | `GET` | `/v1/org/sso` | team | The org's provider, never its secret, and the redirect URI to register there. |
 | `PUT` | `/v1/org/sso` | team | Replace the org's provider whole, once its issuer answered as one. |
+| `POST` | `/v1/org/sso/domains/{domain}/verify` | team | Look for the domain's TXT record and, found, offer the provider for the domain. |
 | `GET` | `/v1/provider-keys` | providers | The vendors the org brought its own credentials for. |
 | `DELETE` | `/v1/provider-keys/{vendor}` | providers | Forget the org's credentials for a vendor; its calls run on the box's from the next one. |
 | `PUT` | `/v1/provider-keys/{vendor}` | providers | Keep the org's own credentials for a vendor; its calls run on them from the next one. |

@@ -74,6 +74,7 @@ async def test_an_org_with_no_provider_says_so_and_names_the_uri_to_register(
         "role": None,
         "required": False,
         "redirect_uri": "https://box.test/v1/login/sso/callback",
+        "proofs": [],
     }
 
 
@@ -94,6 +95,40 @@ async def test_a_provider_is_kept_with_its_domains_folded_and_its_secret_never_a
     kept = await sso.sso_of(connections.pool, connections.vault, knocking.org.id)
     assert kept is not None
     assert kept.client.client_secret == THE_CLIENTS_SHH
+
+
+# Each domain comes back with the TXT record that proves it; the org publishes it and asks once.
+# Requiring the provider before any domain is proven would lock everybody out, so it is refused.
+@postgres
+@pytest.mark.usefixtures("idp")
+async def test_a_domain_is_proven_by_its_txt_record_and_required_waits_for_one_proven(
+    knocking: Knocking, txt_records: dict[str, list[str]]
+) -> None:
+    verify = "/v1/org/sso/domains/{domain}/verify"
+    async with knocking.http(knocking.app["production"]) as console:
+        kept = await console.put(THE_SSO, json=WIRED)
+        locked = await console.put(THE_SSO, json={**WIRED, "required": True})
+        missing = await console.post(verify.format(domain="clinica.test"))
+        nobodys = await console.post(verify.format(domain="other.test"))
+        proofs = {proof["domain"]: proof for proof in kept.json()["proofs"]}
+        txt_records["clinica.test"] = [proofs["clinica.test"]["txt"]]
+        seen = await console.post(verify.format(domain="Clinica.test"))
+        required = await console.put(THE_SSO, json={**WIRED, "required": True})
+        read = await console.get(THE_SSO)
+    assert [(proof["domain"], proof["verified"]) for proof in kept.json()["proofs"]] == [
+        ("clinica.test", False),
+        ("tienda.test", False),
+    ]
+    assert proofs["clinica.test"]["txt"].startswith("pinecall-verify=")
+    assert (locked.status_code, "no domain of this SSO is verified" in locked.text) == (409, True)
+    assert (missing.status_code, "no TXT record" in missing.text) == (400, True)
+    assert nobodys.status_code == 404
+    assert seen.json() == {**proofs["clinica.test"], "verified": True}
+    assert required.status_code == 200
+    assert [(proof["domain"], proof["verified"]) for proof in read.json()["proofs"]] == [
+        ("clinica.test", True),
+        ("tienda.test", False),
+    ]
 
 
 @postgres

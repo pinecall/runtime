@@ -30,6 +30,7 @@ from pinecall.tenancy import (
     people,
     reads,
     sso,
+    sso_domains,
     traceback,
     vault,
 )
@@ -287,7 +288,8 @@ async def org_sso(named: str, request: Request, gateway: GatewayDep) -> OrgSsoRe
     connections = gateway.connections
     org = await _org(gateway, named)
     wired = await sso.sso_of(connections.pool, connections.vault, org.id)
-    return sso_row(wired, f"{public_url(request, gateway)}{sso.CALLBACK}")
+    proofs = await sso_domains.of_org(connections.pool, org.id)
+    return sso_row(wired, f"{public_url(request, gateway)}{sso.CALLBACK}", proofs)
 
 
 # The break-glass: a password opens the org again while its provider is down. Never the other
@@ -304,7 +306,8 @@ async def sso_required(
         raise NotFound(NO_SSO.format(slug=org.slug))
     changed = replace(wired, required=body.required)
     await sso.put_sso(connections.pool, connections.vault, changed)
-    return sso_row(changed, f"{public_url(request, gateway)}{sso.CALLBACK}")
+    proofs = await sso_domains.of_org(connections.pool, org.id)
+    return sso_row(changed, f"{public_url(request, gateway)}{sso.CALLBACK}", proofs)
 
 
 # ── its keys ──
