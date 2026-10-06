@@ -50,10 +50,12 @@ world, whoever holds it.
 arrived under, its length, and the sha256 of the **converted** bytes, which is what a worker
 recognises a clip it already fetched by.
 
-`PUT …/hold-audio?name=` uploads one, and **the body is the file**: a wav, an mp3, an ogg, an m4a,
-whatever this box decodes; no multipart. It is converted here, once, to Ogg Opus 48 kHz mono, so no
-worker decodes a stranger's upload mid-call; `400` in a sentence for a file that is no audio, one
-longer than five minutes or shorter than a second, `400` over 20 MB.
+`PUT …/hold-audio?name=` uploads one, and **the body is the file**: a wav, an mp3, an ogg, a flac
+or an m4a, told apart by its first bytes and nothing else (FFmpeg is named the container and probes
+nothing, so a playlist or a script it would otherwise follow is no audio here); no multipart. It
+is converted here, once, to Ogg Opus 48 kHz mono, so no worker decodes a stranger's upload
+mid-call; `400` in a sentence for a file that is no audio, one longer than five minutes or shorter
+than a second, `400` over 20 MB.
 `GET …/hold-audio/audio` is the org's own clip, `audio/ogg`, to hear before a caller does; `404`
 while the agent plays no clip of its own. `PUT …/hold-audio/played {played: "default" | "off"}`
 needs no file; an uploaded clip is forgotten either way.

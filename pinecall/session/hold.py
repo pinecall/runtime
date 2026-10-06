@@ -50,6 +50,21 @@ SHORTEST_S = 1
 NOT_AUDIO = "that file is no audio this box can read: send a wav, an mp3, an ogg or an m4a"
 
 
+# The containers a melody comes in, each by the bytes it starts with: FFmpeg is told which and
+# probes nothing, so no playlist, script or path a file could carry is followed (an `m3u8` fetches
+# URLs, an `ffconcat` opens files). The pair is (offset, magic) → the demuxer's name.
+CONTAINERS: tuple[tuple[int, bytes, str], ...] = (
+    (0, b"RIFF", "wav"),
+    (0, b"OggS", "ogg"),
+    (0, b"fLaC", "flac"),
+    (4, b"ftyp", "mov,mp4,m4a,3gp,3g2,mj2"),
+    (0, b"ID3", "mp3"),
+    (0, b"\xff\xfb", "mp3"),
+    (0, b"\xff\xf3", "mp3"),
+    (0, b"\xff\xf2", "mp3"),
+)
+
+
 @dataclass(frozen=True)
 class Converted:
     """An upload as the worker plays it: Ogg Opus, 48 kHz mono, and how long it lasts."""
@@ -153,9 +168,12 @@ TOO_SHORT = f"a hold melody of less than {SHORTEST_S} second would stutter as it
 
 # Converted once, here, so no worker decodes a tenant's upload in the middle of a call.
 def converted(data: bytes) -> Converted:
-    """Any audio PyAV decodes, as the melody the worker plays; refused in the person's words."""
+    """Audio in a container this box names, as the melody the worker plays; refused in words."""
+    container = container_of(data)
+    if container is None:
+        raise DeclarationRefused(NOT_AUDIO)
     try:
-        source = av.open(io.BytesIO(data), mode="r")
+        source = av.open(io.BytesIO(data), mode="r", format=container)
     except (FFmpegError, OSError, ValueError) as unreadable:
         raise DeclarationRefused(NOT_AUDIO) from unreadable
     with source:
@@ -169,6 +187,14 @@ def converted(data: bytes) -> Converted:
     if seconds < SHORTEST_S:
         raise DeclarationRefused(TOO_SHORT)
     return Converted(audio=audio, seconds=round(seconds, 2))
+
+
+def container_of(data: bytes) -> str | None:
+    """The demuxer the file's first bytes name; None for a container this box does not read."""
+    for offset, magic, named in CONTAINERS:
+        if data[offset : offset + len(magic)] == magic:
+            return named
+    return None
 
 
 # Opus takes whole frames only: a tail shorter than one is dropped.
