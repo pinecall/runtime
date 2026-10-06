@@ -226,7 +226,9 @@ has a ceiling: a suite runs 200 goldens at most, a call 40 caller turns at most 
 `POST /v1/evals/caller` `{persona, heard, turns_left}` answers `{say, hangup}`: the persona's next
 line on the call so far, on the persona's `llm` or the box's default, on the org's own key or the
 one the box lends it. The caller never sees its own rule. A vendor this box lacks is `400`, one
-nobody keyed `503`, a model that answered no line `502`.
+nobody keyed `503`, a model that answered no line `502`. Each line is a model call, so an org says
+120 a minute at most (`429` past them), `heard` holds 80 turns, and a turn, the `goal` and the
+`style` 4000 characters each (`422` past them).
 
 `POST /v1/evals/voice` `{call, agent, persona, turns, interferer_db?, packet_loss?}` places a
 spoken call: the agent is dispatched into the room named `call` with the persona and its rule on

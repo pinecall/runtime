@@ -32,7 +32,7 @@ from pinecall.evals.case import case_of
 from pinecall.fleet import worlds
 from pinecall.gateway import _deps
 from pinecall.gateway._call_setup import exhausted, keys_of, tuned
-from pinecall.gateway._deps import EvalsKey, GatewayDep, ScopeDep
+from pinecall.gateway._deps import EvalsKey, GatewayDep, ScopeDep, check_paced
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._sockets import NO_AGENT, Registration
 from pinecall.gateway._text_calls import TextSetup, open_text_as
@@ -122,6 +122,13 @@ CASES_WRITTEN = "cases are played as written calls: drop --voice, or play only g
 
 
 NO_SUCH_VERSION = "no version {version} of {slug} in the scope of the app that holds it"
+
+
+# A caller's line is a model call: a call of forty turns says forty, and several run side by side.
+LINES_A_MINUTE = 120
+
+
+TOO_MANY_LINES = "more than 120 caller lines this minute from this org: try again in a minute"
 
 
 # The worker writes call.summary and call.score after the caller leaves.
@@ -287,6 +294,7 @@ async def next_line(
     body: NextLineRequest, _key: EvalsKey, scope: ScopeDep, gateway: GatewayDep
 ) -> NextLineResponse:
     """The persona's next line on the call so far, improvised by its model."""
+    await check_paced(gateway, f"{scope.org} evals/caller", LINES_A_MINUTE, TOO_MANY_LINES)
     async with _caller_model(gateway, scope, body.persona) as model:
         return (await improvise_line(model, body)).answer
 

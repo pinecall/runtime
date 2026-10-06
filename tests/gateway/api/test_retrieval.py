@@ -16,6 +16,7 @@ from pinecall.domain.org import Quotas
 from pinecall.domain.scope import Scope
 from pinecall.gateway._deps import NO_EMBEDDER
 from pinecall.gateway._gateway import Gateway
+from pinecall.gateway.api import retrieval as retrieval_doors
 from pinecall.gateway.app import app
 from pinecall.postgres.pool import Pool
 from pinecall.providers.catalog import Embedding
@@ -791,3 +792,19 @@ async def test_a_contacts_erasure_takes_their_calls_and_every_fact_kept_of_them(
     )
     assert facts.json() == {"facts": []}
     assert await knocking.gateway.logs.store.whole(call) == []
+
+
+# Each run is up to fifty model calls on keys the box may lend: fifty-one cases are refused by
+# shape, and an org's runs past the minute's pace are 429.
+@postgres
+async def test_extraction_takes_fifty_cases_at_most_and_an_orgs_runs_are_paced(
+    knocking: Knocking, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(retrieval_doors, "RUNS_A_MINUTE", 1)
+    case = {"name": "n", "said": [["caller", "hola"]]}
+    async with knocking.http(knocking.app[PRODUCTION]) as http:
+        too_many = await http.post(EXTRACTION, json={"cases": [case] * 51})
+        first = await http.post(EXTRACTION, json={"cases": []})
+        paced = await http.post(EXTRACTION, json={"cases": []})
+    assert (too_many.status_code, first.status_code, paced.status_code) == (422, 404, 429)
+    assert "extraction runs this minute" in paced.json()["detail"]

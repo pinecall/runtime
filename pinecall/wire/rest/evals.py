@@ -259,8 +259,9 @@ class CallerPersona(WireModel):
     """A persona as the caller doors take it: who to play, and on what."""
 
     name: str = ""
-    goal: str
-    style: str
+    # Bounded: each is a model's prompt, on keys the box may lend.
+    goal: str = Field(max_length=4000)
+    style: str = Field(max_length=4000)
     facts: JsonObject = Field(default_factory=dict[str, Json])
     llm: str | None = None
     tts: str | None = None
@@ -274,14 +275,15 @@ class Spoken(WireModel):
     """One turn of the call as the caller heard it."""
 
     who: Literal["agent", "caller"]
-    said: str
+    said: str = Field(max_length=4000)
 
 
 class NextLineRequest(WireModel):
     """POST /v1/evals/caller, the body: the persona, the call so far, the turns left."""
 
     persona: CallerPersona
-    heard: list[Spoken] = Field(default_factory=list[Spoken])
+    # Two turns for each of the forty a call may take, and no more.
+    heard: list[Spoken] = Field(default_factory=list[Spoken], max_length=80)
     turns_left: int = Field(default=1, ge=0, le=40)
 
 

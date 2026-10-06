@@ -12,6 +12,7 @@ from pinecall.domain.names import Json, JsonObject
 from pinecall.domain.org import Quotas
 from pinecall.domain.scope import Scope
 from pinecall.evals import runs
+from pinecall.gateway.api import evals as evals_doors
 from pinecall.log import queries
 from pinecall.log.store import Claim, log_name
 from pinecall.providers import catalog
@@ -553,6 +554,23 @@ async def test_a_vendor_nobody_keyed_is_the_box_not_being_able_to_play_the_calle
     )
     refused = await next_line(knocking, APURADO)
     assert refused.status_code == 503
+
+
+# Each line is a model call on keys the box may lend: so many a minute per org, and a call's
+# turns heard no longer than a call takes.
+@postgres
+async def test_an_orgs_caller_lines_are_paced_and_a_call_heard_is_bounded(
+    knocking: Knocking, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(evals_doors, "LINES_A_MINUTE", 1)
+    await scripted(knocking, said_next("hola") + said_next("chau"))
+    first = await next_line(knocking, APURADO)
+    paced = await next_line(knocking, APURADO)
+    heard = [{"who": "agent", "said": "hola"}] * 81
+    async with knocking.http(knocking.app["sandbox"]) as http:
+        too_long = await http.post("/v1/evals/caller", json={"persona": APURADO, "heard": heard})
+    assert (first.status_code, paced.status_code, too_long.status_code) == (200, 429, 422)
+    assert "caller lines this minute" in paced.json()["detail"]
 
 
 # ── a spoken call ──

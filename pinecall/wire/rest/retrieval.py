@@ -255,7 +255,8 @@ class ExtractionGolden(WireModel):
 class ExtractionCases(WireModel):
     """POST /v1/agents/{slug}/memory/extraction, the body: one model call per case."""
 
-    cases: list[ExtractionGolden]
+    # Fifty model calls in one request at most, on keys the box may lend.
+    cases: list[ExtractionGolden] = Field(max_length=50)
 
 
 class ExtractionBroke(WireModel):

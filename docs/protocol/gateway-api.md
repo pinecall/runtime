@@ -54,7 +54,8 @@ log.
 another org's call, whose existence is nobody else's business; `409` a request that disagrees with
 what is stored; `400` or `422` a body that is not the shape; `413` a body over 32 MiB, more than
 any door takes, refused as it streams in (a webhook, which carries no key, over 4 MiB, before its
-signature is read); `429` a quota, or a minute's requests
+signature is read); `429` a quota, a door that runs a model past its minute's pace (120 caller lines, 6 memory
+extraction runs of 50 cases at most, per org), or a minute's requests
 spent (below); `502` a vendor or a
 carrier that did not answer, in its own words; `503` the request was right and this box cannot
 honour it, or not now: a database too busy to answer within its timeouts is a `503` to retry. A

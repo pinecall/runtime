@@ -31,6 +31,7 @@ from pinecall.log import queries
 from pinecall.retrieval.embed import Embedder
 from pinecall.tenancy import admission, keys, people, reads, throttle, tokens
 from pinecall.tenancy.keys import Bearer
+from pinecall.tenancy.knocks import Throttle
 from pinecall.tenancy.reads import Read
 from pinecall.tenancy.tokens import PROJECTION_OF, Visit
 from pinecall.wire.frames import Entry, WireModel
@@ -186,6 +187,15 @@ def client_of(request: Request) -> str:
 async def check_knock(gateway: Gateway, name: str, refusal: str) -> None:
     """Count a knock of the name; TooManyRequests with the refusal past five in a minute."""
     if not await gateway.signins.throttle.allowed(name):
+        raise TooManyRequests(refusal)
+
+
+# A door that runs a model per request, on keys the box may lend: so many a minute per org, on
+# every gateway, whatever its family's wall allows.
+async def check_paced(gateway: Gateway, name: str, tries: int, refusal: str) -> None:
+    """Count one of the name's model runs; TooManyRequests past `tries` in a minute."""
+    pace = Throttle(gateway.connections.pool, tries, gateway.signins.throttle.clock)
+    if not await pace.allowed(name):
         raise TooManyRequests(refusal)
 
 

@@ -18,6 +18,7 @@ from pinecall.gateway._deps import (
     ScopeDep,
     TeamKey,
     asked_by,
+    check_paced,
     embedder_of,
 )
 from pinecall.gateway._gateway import Gateway
@@ -74,6 +75,13 @@ NO_SUCH_FACT = "no current fact {id} in this key's org and world"
 
 # A 400, not an empty pass: a green run for a feature the agent lacks would mislead.
 KEEPS_NOTHING = "agent {slug} declares no extraction.remember: there is nothing to extract"
+
+
+# Each run is up to fifty model calls: a suite runs once, a loop is stopped.
+RUNS_A_MINUTE = 6
+
+
+TOO_MANY_RUNS = "more than six extraction runs this minute from this org: try again in a minute"
 
 
 # The whole history, superseded facts included; a call reads the current ones through `recall`.
@@ -198,6 +206,7 @@ async def memory_extraction(
     slug: str, body: ExtractionCases, _key: MemoryKey, where: ScopeDep, box: GatewayDep
 ) -> ExtractionRun:
     """One hang-up per case on the agent's own model and keys, each answer judged by code."""
+    await check_paced(box, f"{where.org} memory/extraction", RUNS_A_MINUTE, TOO_MANY_RUNS)
     registration = box.sockets.of(where, slug)
     if registration is None or registration.scope.org != where.org:
         raise NotFound(NO_AGENT.format(slug=slug))
