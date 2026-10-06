@@ -123,7 +123,7 @@ async def _recording(settings: Settings, call: str) -> int:
     summary = next((entry for entry in reversed(entries) if entry.type == "call.summary"), None)
     path = None if summary is None else CallSummary.model_validate(summary.data).recording
     if path is None:
-        sys.stderr.write(f"{NOT_RECORDED.format(call=call)}\\n")
+        sys.stderr.write(f"{NOT_RECORDED.format(call=call)}\n")
         return 1
     _line_out(path)
     return 0

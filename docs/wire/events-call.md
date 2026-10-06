@@ -136,7 +136,7 @@ What the call was about, how it went, what it consumed and what that cost. Writt
 | `turns` | `integer` | yes | How many turns, both sides together. |
 | `usage` | `ModelUsage[]` | yes | One row per model used, as the session summed them. |
 | `cost` | `Cost` | yes | What the call cost in provider fees and, when the box priced its own compute (`pinecall-compute`), the platform's, in US dollars; informational. |
-| `recording` | `string` | no | Where the recorder wrote the recording, when one was made; `GET /v1/calls/{call}/recording` serves it from wherever it is kept. |
+| `recording` | `string` | no | Where the recorder wrote the recording, when one was made; `GET /v1/calls/{call}/recording` serves it from wherever it is kept, reading only the file's name from this path: on the disk it is always `<PINECALL_RECORDINGS>/<call>/audio.ogg` or `audio.sealed`, never another file. |
 
 ### `call.transferred`
 

@@ -1,5 +1,7 @@
 """Tests for sign-in with the org's identity provider."""
 
+import time
+
 import httpx
 import pytest
 
@@ -112,6 +114,17 @@ async def test_an_id_token_for_another_sign_in_or_an_unverified_address_is_refus
     begun = begun_signin()
     idp.id_token = idp.signed(nonce=begun.nonce, email_verified=False)
     with pytest.raises(NotSignedIn, match="has not verified"):
+        await vouched_for(http, CLIENT, begun, "c")
+
+
+async def test_an_id_token_that_does_not_verify_is_refused_as_a_sign_in_not_a_failure() -> None:
+    idp, http = idp_of()
+    begun = begun_signin()
+    idp.id_token = idp.signed(nonce=begun.nonce, exp=int(time.time()) - 60)
+    with pytest.raises(NotSignedIn, match="did not check out: Signature has expired"):
+        await vouched_for(http, CLIENT, begun, "c")
+    idp.id_token = idp.signed(nonce=begun.nonce, aud="another-client")
+    with pytest.raises(NotSignedIn, match="did not check out"):
         await vouched_for(http, CLIENT, begun, "c")
 
 

@@ -260,7 +260,9 @@ def init(client: httpx.Client, args: argparse.Namespace) -> int:
     body = {"email": args.email, "name": args.person, "role": args.role}
     invited = _object(_answered(client.post(f"{ORGS}/{named}/members", json=body)))
     member = _object(invited["member"])
-    client.put(f"{ORGS}/{named}/members/{member['id']}/operator", json={"operator": True})
+    _answered(
+        client.put(f"{ORGS}/{named}/members/{member['id']}/operator", json={"operator": True})
+    )
     _line_out(f"{member['id']}  {member['email']}  {member['role']}  runs this box")
     card = str(invited.get("link") or "")
     if card:

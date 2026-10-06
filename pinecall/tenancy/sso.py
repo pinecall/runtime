@@ -377,7 +377,7 @@ async def _claims(
         )
         data = _IdToken.model_validate(decoded)
     except (jwt.InvalidTokenError, ValidationError) as refused:
-        raise NotSignedIn(REFUSED.format(data=refused)) from None
+        raise NotSignedIn(REFUSED.format(said=refused)) from None
     # The nonce binds the token to this sign-in; without it, a token replayed would pass.
     if not secrets.compare_digest(data.nonce, nonce):
         raise NotSignedIn(ANOTHER_SIGN_IN)

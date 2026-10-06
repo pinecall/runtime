@@ -12,7 +12,13 @@ from pinecall.gateway import _deps
 from pinecall.gateway._deps import CallReaderDep, GatewayDep
 from pinecall.gateway._gateway import Gateway
 from pinecall.log import queries
-from pinecall.process.recordings import SEALED_FILE, Fetched, recordings_of, served_sealed
+from pinecall.process.recordings import (
+    SEALED_FILE,
+    Fetched,
+    kept_on_disk,
+    recordings_of,
+    served_sealed,
+)
 from pinecall.process.sealed_audio import on_disk
 from pinecall.tenancy import recording_keys
 
@@ -49,8 +55,11 @@ async def recording(
     pointer = None if summary is None else summary.data.get("recording")
     if state.seq == 0 or not isinstance(pointer, str) or not pointer:
         raise NotFound(NOT_RECORDED.format(call=call))
+    root = Path(gateway.connections.settings.recordings_root)
+    path = await asyncio.to_thread(kept_on_disk, root, call, pointer)
+    if path is None:
+        raise NotFound(NOT_RECORDED.format(call=call))
     kept = await queries.scope_of_call(gateway.connections.pool, call)
-    path = Path(pointer)
     if kept is not None and kept.scope is not None:
         fetched = await _fetched(gateway, kept.scope.org, call, path, byte_range)
         if fetched is not None:

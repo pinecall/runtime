@@ -190,6 +190,18 @@ def public_url(request: Request, gateway: Gateway) -> str:
     return gateway.connections.settings.address or str(request.base_url).rstrip("/")
 
 
+# Read a chunk at a time and stopped just past the most: an upload over its size is refused
+# without having landed whole in memory first.
+async def capped_body(request: Request, most: int) -> bytes:
+    """The request's body, or its first `most` bytes and a chunk more when it is longer."""
+    read = bytearray()
+    async for chunk in request.stream():
+        read += chunk
+        if len(read) > most:
+            break
+    return bytes(read)
+
+
 async def admit_call(gateway: Gateway, scope: Scope, agent: str) -> admission.Ceiling | None:
     """Admit one more call of the org in its world, or write the refusal to the agent's log."""
     try:

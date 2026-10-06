@@ -6,7 +6,7 @@ import shutil
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from http import HTTPStatus
-from pathlib import Path
+from pathlib import Path, PurePath
 
 import httpx
 
@@ -227,6 +227,17 @@ def recordings_of(settings: Settings, http: httpx.AsyncClient) -> Recordings:
     if settings.recordings_bucket is None or objects is None:
         return Disk(root)
     return Bucket(root, settings.recordings_bucket, objects)
+
+
+# The worker's pointer says which file it kept, never where: a summary that named any path would
+# have the gateway serve any file its own disk holds.
+def kept_on_disk(root: Path, call: str, pointer: str) -> Path | None:
+    """The call's recording under the root, by the name its summary gave; None for any other."""
+    name = PurePath(pointer).name
+    path = (root / call / name).resolve()
+    if name not in NAMES or not path.is_relative_to(root.resolve()):
+        return None
+    return path
 
 
 def served_sealed(sealed: Sealed, key: bytes, byte_range: str | None) -> Fetched:

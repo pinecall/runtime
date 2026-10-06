@@ -61,7 +61,7 @@ async def test_a_call_is_listed_shown_whole_and_folded(
     assert '"outcome": "greeted"' in capsys.readouterr().out
     recorded = argparse.Namespace(call=call)
     assert await asyncio.to_thread(sessions_recording, settings, recorded) == 1
-    assert "was not recorded" in capsys.readouterr().err
+    assert capsys.readouterr().err.endswith("carries no path\n")
     nobody = argparse.Namespace(call="CA_nobody", as_json=False)
     with pytest.raises(NotFound, match="no call"):
         await asyncio.to_thread(sessions_show, settings, nobody)

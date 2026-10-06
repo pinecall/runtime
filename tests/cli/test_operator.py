@@ -10,6 +10,7 @@ from pinecall.channels.telephony.carrier import TWILIO_SIGNALLING
 from pinecall.cli.main import main, verbs
 from pinecall.domain.errors import GatewayRefused, PinecallError
 from pinecall.process.settings import Settings
+from pinecall.tenancy import people
 from tests.conftest import AGENT, BOX_DOMAIN, FLEETS, Knocking, postgres
 from tests.gateway.api.test_ops import THE_OPS_KEY, with_an_ops_key
 
@@ -49,6 +50,27 @@ async def test_init_makes_the_org_seats_the_first_admin_and_hands_them_the_box(
         == 0
     )
     assert "already there" in capsys.readouterr().out
+
+
+@postgres
+async def test_init_fails_when_the_gateway_does_not_hand_the_box_over(
+    knocking: Knocking, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def nobody(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(people, "make_operator", nobody)
+    with pytest.raises(GatewayRefused, match="404"):
+        await ran(
+            settings_of(knocking),
+            "init",
+            "--org",
+            "tienda",
+            "--email",
+            "you@t.test",
+            "--person",
+            "You",
+        )
 
 
 @postgres

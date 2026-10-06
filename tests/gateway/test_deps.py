@@ -12,6 +12,7 @@ from pinecall.gateway._deps import (
     SCOPES_OF,
     Reader,
     bearer_of,
+    capped_body,
     check_knock,
     client_of,
     dispatched,
@@ -73,6 +74,22 @@ def test_a_key_reads_the_tenants_and_a_token_its_grants() -> None:
 def test_the_client_is_the_address_uvicorn_read_and_unknown_without_one() -> None:
     assert client_of(a_request()) == "203.0.113.7"
     assert client_of(a_request(None)) == "unknown"
+
+
+async def test_a_body_is_read_until_it_passes_its_most_and_no_further() -> None:
+    sent = [b"a" * 4, b"b" * 4, b"c" * 4, b"d" * 4]
+    received: list[bytes] = []
+
+    async def receive() -> dict[str, object]:
+        chunk = sent[len(received)]
+        received.append(chunk)
+        return {"type": "http.request", "body": chunk, "more_body": len(received) < len(sent)}
+
+    scope: dict[str, object] = {"type": "http", "method": "PUT", "path": "/", "headers": []}
+    assert await capped_body(Request(scope, receive), 6) == b"aaaabbbb"
+    assert len(received) == 2
+    received.clear()
+    assert await capped_body(Request(scope, receive), 16) == b"aaaabbbbccccdddd"
 
 
 @postgres

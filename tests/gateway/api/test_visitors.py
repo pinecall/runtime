@@ -1,6 +1,5 @@
 """Tests for a visitor's doors: room tokens and the codes a caller keys."""
 
-import asyncio
 import json
 import time
 from dataclasses import replace
@@ -179,16 +178,27 @@ async def test_a_chat_token_has_no_microphone_and_the_browser_is_told_the_public
 async def test_an_expired_code_says_so_and_a_code_token_reads_nothing_but_its_code(
     knocking: Knocking,
 ) -> None:
-    await a_route(knocking)
-    async with knocking.http(knocking.app["sandbox"]) as tenant:
-        issued_now = (await tenant.post("/v1/codes", json={"agent": AGENT, "ttl_s": 1})).json()
-    await asyncio.sleep(1.1)
-    async with knocking.http(issued_now["code_token"]) as page:
-        found = await page.get(f"/v1/codes/{issued_now['code']}")
+    gateway = knocking.gateway
+    lapsed = await gateway.codes.issue("sandbox", AGENT, 0, "public")
+    token = tokens.code_token(gateway.signer, lapsed.code, AGENT, "sandbox", time.time() + 60)
+    async with knocking.http(token) as page:
+        found = await page.get(f"/v1/codes/{lapsed.code}")
         another = await page.get("/v1/codes/0000")
     assert found.status_code == 200, found.text
     assert found.json()["status"] == "expired"
     assert another.status_code == 403
+
+
+@postgres
+async def test_a_code_lives_a_minute_at_least_and_half_an_hour_at_most(knocking: Knocking) -> None:
+    await a_route(knocking)
+    async with knocking.http(knocking.app["sandbox"]) as tenant:
+        brief = await tenant.post("/v1/codes", json={"agent": AGENT, "ttl_s": 59})
+        a_year = await tenant.post("/v1/codes", json={"agent": AGENT, "ttl_s": 31_536_000})
+        longest = await tenant.post("/v1/codes", json={"agent": AGENT, "ttl_s": 1800})
+    assert (brief.status_code, a_year.status_code) == (422, 422)
+    assert longest.status_code == 201, longest.text
+    assert longest.json()["expires_at"] - time.time() < 1801
 
 
 def test_a_room_token_reads_as_its_call() -> None:

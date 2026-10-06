@@ -75,6 +75,10 @@ A worker whose gateway gives no key (a gateway of before, or one away) keeps the
 was written and says so in its journal; the name says which a stored recording is, and a plain
 one, like every recording made before, is served as it always was.
 
+The call's summary names the file the worker kept, and the gateway reads only its name: what it
+serves from its own disk is `<PINECALL_RECORDINGS>/<call>/audio.ogg` or `audio.sealed` and nothing
+else, so a worker's key that sealed a call with any other path gets no file of the gateway's back.
+
 ## Logs written before the mask
 
 Entries written before this was built keep their values in the log as they were written: the log

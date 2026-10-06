@@ -8,7 +8,7 @@ from fastapi import APIRouter, Query, Request, Response
 
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import parse_env
-from pinecall.gateway._deps import Acting, AppKey, GatewayDep, asked_by
+from pinecall.gateway._deps import Acting, AppKey, GatewayDep, asked_by, capped_body
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy import admission, hosted_running, hosting, org_secrets
 from pinecall.tenancy.hosted_running import Served
@@ -73,7 +73,9 @@ async def upload_release(
     """The project's sources as the app's next release."""
     pool = gateway.connections.pool
     app = HostedApp(org=key.org, env=key.env, name=hosting.checked_name(name))
-    source = await asyncio.to_thread(hosting.checked_source, await _body(request))
+    source = await asyncio.to_thread(
+        hosting.checked_source, await capped_body(request, hosting.LARGEST_SOURCE)
+    )
     author = asked_by(key)
     if not await hosting.is_hosted(pool, app):
         hosted = len(await hosting.apps_of(pool, key.org, key.env))
@@ -215,17 +217,6 @@ def served_page(since: date, until: date, rows: list[Served]) -> ServedPage:
             for row in rows
         ],
     )
-
-
-# Read a chunk at a time and no further than one byte past the ceiling: an upload of any size
-# costs the gateway the ceiling's memory, and `checked_source` refuses what passed it.
-async def _body(request: Request) -> bytes:
-    read = bytearray()
-    async for chunk in request.stream():
-        read += chunk
-        if len(read) > hosting.LARGEST_SOURCE:
-            break
-    return bytes(read)
 
 
 async def _secrets(pool: Pool, key: Acting) -> SecretList:

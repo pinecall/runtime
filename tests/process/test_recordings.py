@@ -12,6 +12,7 @@ from pinecall.process.recordings import (
     SEALED_FILE,
     Bucket,
     Disk,
+    kept_on_disk,
     recordings_of,
     served_sealed,
 )
@@ -159,3 +160,14 @@ async def test_erasing_counts_a_call_kept_only_sealed(
     kept = Bucket(tmp_path, remote.name, remote.store_on(http))
     assert await kept.erase("org_1", ["CA_1", "CA_2", "CA_3"]) == 2
     assert remote.objects == {}
+
+
+def test_a_pointer_is_read_for_its_name_only_and_kept_under_the_root(tmp_path: Path) -> None:
+    root = tmp_path / "recordings"
+    assert (
+        kept_on_disk(root, "c1", "/elsewhere/c9/audio.ogg") == (root / "c1" / AUDIO_FILE).resolve()
+    )
+    assert kept_on_disk(root, "c1", "audio.sealed") == (root / "c1" / SEALED_FILE).resolve()
+    assert kept_on_disk(root, "c1", "/proc/self/environ") is None
+    assert kept_on_disk(root, "c1", "/var/run/secrets/token") is None
+    assert kept_on_disk(root, "..", "audio.ogg") is None

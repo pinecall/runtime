@@ -9,7 +9,7 @@ from pinecall.domain.agent import AgentConfig, Greeting
 from pinecall.domain.errors import DeclarationRefused, NotFound, PinecallError
 from pinecall.domain.scope import Scope
 from pinecall.gateway._call_setup import keys_of, tuned
-from pinecall.gateway._deps import GatewayDep, PipelineKey, ScopeDep
+from pinecall.gateway._deps import GatewayDep, PipelineKey, ScopeDep, capped_body
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway.api.providers import catalogue_of
 from pinecall.log.reduce import medians, reduce
@@ -109,7 +109,7 @@ async def upload_hold_audio(
     name: Annotated[str | None, Query(max_length=200)] = None,
 ) -> HoldAudio:
     """A file of the org's as the agent's melody, from the next call on."""
-    data = await request.body()
+    data = await capped_body(request, LONGEST_UPLOAD)
     if len(data) > LONGEST_UPLOAD:
         raise DeclarationRefused(TOO_BIG)
     melody = await asyncio.to_thread(hold.converted, data)

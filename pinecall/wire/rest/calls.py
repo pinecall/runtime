@@ -107,7 +107,7 @@ class IssueCodeRequest(WireModel):
     """Four digits a caller keys to tie their call to a page."""
 
     agent: str
-    ttl_s: int = 600
+    ttl_s: int = Field(default=600, ge=60, le=1800)
     log: Projection = "public"
 
 
