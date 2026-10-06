@@ -96,6 +96,13 @@ class Settings(BaseModel):
         repr=False,
         description="Postgres 17 with pgvector and pg_textsearch: the one stateful service.",
     )
+    # Where the gateway connects as a role that reads and writes rows and changes no table: the
+    # migrations, run as the owner, grant it that and no more each time they run.
+    db_app_role: str | None = Field(
+        None,
+        alias="PINECALL_DB_APP_ROLE",
+        description="The role `migrate up` grants rows to; unset, the owner is the app's role too.",
+    )
     db_pool: int = Field(
         POOL_SIZE,
         alias="PINECALL_DB_POOL",

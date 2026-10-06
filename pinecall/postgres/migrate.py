@@ -50,6 +50,33 @@ EDITED = (
     "An applied migration is never edited: every database that ran it has the OLD one. Put the "
     "change in a new migration, or restore the file."
 )
+# The rows of every table and the sequences behind them, now and for every table the owner makes
+# later (a day of call_log among them); never a table's shape, never TRUNCATE.
+GRANTS = (
+    "grant usage on schema {schema} to {role}",
+    "grant select, insert, update, delete on all tables in schema {schema} to {role}",
+    "grant usage, select, update on all sequences in schema {schema} to {role}",
+    (
+        "alter default privileges in schema {schema} "
+        "grant select, insert, update, delete on tables to {role}"
+    ),
+    (
+        "alter default privileges in schema {schema} "
+        "grant usage, select, update on sequences to {role}"
+    ),
+)
+
+ROLE_EXISTS = "select 1 from pg_roles where rolname = %s"
+
+# CloudNativePG makes the role from its secret a few seconds after the chart says so: waited for.
+ROLE_WAITED_S = 120.0
+ROLE_ASKED_EVERY_S = 2.0
+
+NO_ROLE = (
+    "role {role} does not exist after {waited:g} s: its secret (charts/postgres, the managed role) "
+    "is not synced yet, or the role is named wrong; nothing was granted"
+)
+
 MISSING = (
     "migration {name} is recorded as applied and is not in this distribution: "
     "this checkout is older than the database it is pointed at"
@@ -92,6 +119,24 @@ async def apply_migrations(dsn: str, *, schema: str = DEFAULT_SCHEMA) -> Applied
             if path.name not in done
         ]
     return Applied(database=database_named(dsn), schema=schema, applied=tuple(ran))
+
+
+# Granted again every run: a table a migration made is granted the moment it exists, and a grant
+# taken away by hand comes back. Refused, not skipped, when the role never came: a gateway that
+# connects as it would find nothing it may read.
+async def granted(dsn: str, role: str, *, schema: str = DEFAULT_SCHEMA) -> None:
+    """Grant the role every table's rows and nothing else, once it exists."""
+    async with await connect(dsn) as connection:
+        waited = 0.0
+        while await (await connection.execute(ROLE_EXISTS, (role,))).fetchone() is None:
+            if waited >= ROLE_WAITED_S:
+                raise MigrationsRefused(NO_ROLE.format(role=role, waited=ROLE_WAITED_S))
+            await asyncio.sleep(ROLE_ASKED_EVERY_S)
+            waited += ROLE_ASKED_EVERY_S
+        names = {"schema": sql.Identifier(schema), "role": sql.Identifier(role)}
+        async with connection.transaction():
+            for grant in GRANTS:
+                await connection.execute(sql.SQL(grant).format(**names))
 
 
 async def migrations_behind(pool: Pool) -> tuple[str, ...]:

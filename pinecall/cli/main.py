@@ -31,7 +31,12 @@ from pinecall.cli import (
 from pinecall.domain.errors import NotAvailable, PinecallError
 from pinecall.gateway.app import announce_closing, app, embedder_of
 from pinecall.log import days
-from pinecall.postgres.migrate import apply_migrations, migration_files, migrations_behind
+from pinecall.postgres.migrate import (
+    apply_migrations,
+    granted,
+    migration_files,
+    migrations_behind,
+)
 from pinecall.postgres.pool import open_pool
 from pinecall.process.connections import closed, keyring_of, opened, servers_of, vault_of
 from pinecall.process.recordings import recordings_of
@@ -127,6 +132,9 @@ def migrate_up(settings: Settings, _args: argparse.Namespace) -> int:
     applied = asyncio.run(apply_migrations(settings.database_url))
     names = ", ".join(applied.applied) or "nothing: it was up to date"
     sys.stdout.write(f"{applied.database}/{applied.schema}: {names}\n")
+    if settings.db_app_role:
+        asyncio.run(granted(settings.database_url, settings.db_app_role))
+        sys.stdout.write(f"{settings.db_app_role}: every table's rows, no table's shape\n")
     return 0
 
 

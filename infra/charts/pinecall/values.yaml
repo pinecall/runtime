@@ -22,6 +22,10 @@ secrets:
 # CloudNativePG's application secret of the cluster's Postgres (charts/postgres).
 postgres:
   secret: pinecall-postgres-app
+  # charts/postgres's role for the gateway: rows, never a table's shape. The migrations grant it
+  # and run as the owner above, with the nightly retention and the fleets' keys at install.
+  appRole: pinecall_app
+  appSecret: pinecall-postgres-runtime
 
 media:
   livekit: docker.io/livekit/livekit-server:v1.13.7@sha256:6fd3b7088874c4d119160dd688798dfec852bc014786d392caad15f6f63912a3

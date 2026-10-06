@@ -34,14 +34,22 @@ resource "random_id" "redis" {
   byte_length = 24
 }
 
+# The password of the gateway's database role (charts/postgres's managed role pinecall_app): it
+# reads and writes rows and changes no table. Letters and digits alone: it rides a URI.
+resource "random_password" "postgres_app" {
+  length  = 40
+  special = false
+}
+
 locals {
   drawn = {
-    "vault-key"          = "${random_id.vault.b64_url}="
-    "ops-key"            = "pc_ops_${random_id.ops.hex}"
-    "token-key"          = random_password.token.result
-    "livekit-api-key"    = "API${random_id.livekit_key.hex}"
-    "livekit-api-secret" = random_password.livekit_secret.result
-    "redis-password"     = random_id.redis.hex
+    "vault-key"             = "${random_id.vault.b64_url}="
+    "ops-key"               = "pc_ops_${random_id.ops.hex}"
+    "token-key"             = random_password.token.result
+    "livekit-api-key"       = "API${random_id.livekit_key.hex}"
+    "livekit-api-secret"    = random_password.livekit_secret.result
+    "redis-password"        = random_id.redis.hex
+    "postgres-app-password" = random_password.postgres_app.result
   }
   values = { for name, value in local.drawn : name => value if !contains(var.given, name) }
   names  = toset(concat(keys(local.values), var.given))

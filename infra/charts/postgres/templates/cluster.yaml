@@ -27,6 +27,15 @@ spec:
       postInitTemplateSQL:
         - CREATE EXTENSION IF NOT EXISTS vector
         - CREATE EXTENSION IF NOT EXISTS pg_textsearch
+  # The gateway's role, made and kept by the operator from its secret below; what it may do is
+  # granted by the runtime's own `migrate up` (PINECALL_DB_APP_ROLE), each release.
+  managed:
+    roles:
+      - name: {{ .Values.postgres.appRole }}
+        ensure: present
+        login: true
+        passwordSecret:
+          name: {{ .Values.postgres.appSecret }}
   storage:
     size: {{ .Values.postgres.size }}
     storageClass: standard-rwo
@@ -67,3 +76,24 @@ spec:
     name: barman-cloud.cloudnative-pg.io
     parameters:
       barmanObjectName: pinecall-postgres
+---
+# The gateway's role's password, from Secret Manager, as CloudNativePG reads a managed role's
+# (basic-auth: username, password) and with the URI the gateway connects by beside it.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Values.postgres.appSecret }}
+spec:
+  refreshInterval: {{ .Values.secrets.refresh }}
+  secretStoreRef: { kind: ClusterSecretStore, name: pinecall }
+  target:
+    name: {{ .Values.postgres.appSecret }}
+    template:
+      type: kubernetes.io/basic-auth
+      data:
+        username: {{ .Values.postgres.appRole }}
+        password: "{{`{{ .password }}`}}"
+        uri: "postgresql://{{ .Values.postgres.appRole }}:{{`{{ .password }}`}}@pinecall-postgres-rw:5432/pinecall"
+  data:
+    - secretKey: password
+      remoteRef: { key: {{ printf "%spostgres-app-password" .Values.secrets.prefix | quote }} }

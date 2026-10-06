@@ -9,11 +9,13 @@ from uuid import uuid4
 import psycopg
 import pytest
 from psycopg import sql
+from psycopg.conninfo import make_conninfo
 
 from pinecall.domain.errors import MigrationsRefused
 from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.log.store import Claim, Store
+from pinecall.postgres import migrate
 from pinecall.postgres.migrate import (
     ADVISORY_LOCK,
     FIRST,
@@ -23,6 +25,7 @@ from pinecall.postgres.migrate import (
     RECORD,
     apply_migrations,
     file_hash,
+    granted,
     in_a_transaction,
     migration_files,
     migrations_behind,
@@ -505,3 +508,47 @@ async def test_the_totals_are_backfilled_from_every_summary_the_log_holds(schema
         ("org-a", 2, 3.0),
         ("org-b", 1, 3.0),
     ]
+
+
+# The gateway's role: every table's rows, the ones a migration makes later too, and no table's
+# shape. A role that never came is refused by name, not skipped.
+@postgres
+async def test_the_app_role_reads_and_writes_rows_and_changes_no_table(
+    schema: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    role = f"pinecall_app_{uuid4().hex[:8]}"
+    password = uuid4().hex
+    async with await connect(DSN) as owner:
+        await owner.execute(
+            sql.SQL("create role {} login password {}").format(
+                sql.Identifier(role), sql.Literal(password)
+            )
+        )
+    try:
+        await apply_migrations(DSN, schema=schema)
+        await granted(DSN, role, schema=schema)
+        async with await connect(DSN) as owner:
+            await owner.execute(sql.SQL("set search_path to {}").format(sql.Identifier(schema)))
+            await owner.execute("create table made_later (id int)")
+        app = make_conninfo(DSN, user=role, password=password)
+        async with await connect(app) as connection:
+            await connection.execute(
+                sql.SQL("set search_path to {}").format(sql.Identifier(schema))
+            )
+            await connection.execute("insert into made_later values (1)")
+            await connection.execute("update orgs set name = name where id = 'default'")
+            rows = await (await connection.execute("select id from made_later")).fetchall()
+            assert [row["id"] for row in rows] == [1]
+            for ddl in ("create table nope (id int)", "drop table orgs", "truncate made_later"):
+                with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                    await connection.execute(ddl)
+        monkeypatch.setattr(migrate, "ROLE_WAITED_S", 0.0)
+        with pytest.raises(MigrationsRefused, match="role nobody_by_that_name does not exist"):
+            await granted(DSN, "nobody_by_that_name", schema=schema)
+    finally:
+        async with await connect(DSN) as owner:
+            await owner.execute(
+                sql.SQL("drop schema if exists {} cascade").format(sql.Identifier(schema))
+            )
+            await owner.execute(sql.SQL("drop owned by {}").format(sql.Identifier(role)))
+            await owner.execute(sql.SQL("drop role {}").format(sql.Identifier(role)))

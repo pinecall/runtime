@@ -74,6 +74,14 @@ the recordings store, never the database, the vault, the operator's or the signi
 the retention the database, the vault and the store; the migrations the database. The values
 file holds no secret.
 
+The gateway connects to Postgres as `pinecall_app`, a role that reads and writes every table's rows
+and changes no table: CloudNativePG makes it from `pinecall-postgres-runtime` (charts/postgres, its
+password `postgres-app-password` in Secret Manager), and the migrations, which run as the
+database's owner, grant it each release (`PINECALL_DB_APP_ROLE`, waiting two minutes for the role
+the first time). The owner keeps the migrations, the nightly retention (it makes and drops the
+log's days) and the fleets' keys at install. A gateway that reaches the database cannot drop,
+alter or truncate a table. The first release with it needs `make tf-apply` before, for the secret.
+
 Every pod of the runtime's image runs as its user (10001), with no capability, no privilege to
 gain, the runtime's syscall filter and a root filesystem it cannot write: what it writes goes to
 `/tmp` and its home, each an emptyDir, and to the recordings' (`pinecall.podSecurity`,

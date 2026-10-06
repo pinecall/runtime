@@ -24,6 +24,9 @@ spec:
           env:
             - name: DATABASE_URL
               valueFrom: { secretKeyRef: { name: {{ .Values.postgres.secret }}, key: uri } }
+            # Granted every table's rows after the migrations, each release: the gateway's role.
+            - name: PINECALL_DB_APP_ROLE
+              value: {{ .Values.postgres.appRole | quote }}
           volumeMounts:
             {{- include "pinecall.scratchMounts" . | nindent 12 }}
       volumes:

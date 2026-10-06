@@ -1,6 +1,15 @@
 # A cluster's Postgres, released before charts/pinecall (`make deploy`): the runtime's migrations
 # need it up. The world-pair's own values (infra/values/<env>.yaml) name the bucket and identity.
+# Secret Manager, as charts/pinecall reads it (its ClusterSecretStore `pinecall`): the gateway's
+# role's password is drawn there (terraform/modules/secrets, postgres-app-password).
+secrets:
+  prefix: ""
+  refresh: 1h
 postgres:
+  # The role the gateway connects as: every table's rows, granted by `migrate up`, no table's shape.
+  # The owner (initdb's) keeps running the migrations and the nightly retention, which makes days.
+  appRole: pinecall_app
+  appSecret: pinecall-postgres-runtime
   # images/postgres, built by Cloud Build: CloudNativePG's operand with pg_textsearch on it, in the
   # project's registry (infra/values/<env>.yaml).
   image: ""

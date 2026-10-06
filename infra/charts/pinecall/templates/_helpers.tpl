@@ -26,7 +26,7 @@
      has no database, and a worker runs the vendors' plugins and decodes a caller's audio. */}}
 {{- define "pinecall.env" -}}
 - name: DATABASE_URL
-  valueFrom: { secretKeyRef: { name: {{ .Values.postgres.secret }}, key: uri } }
+  valueFrom: { secretKeyRef: { name: {{ .Values.postgres.appSecret }}, key: uri } }
 - name: PINECALL_REDIS_URL
   valueFrom: { secretKeyRef: { name: pinecall, key: PINECALL_REDIS_URL } }
 - name: PINECALL_VAULT_KEY
