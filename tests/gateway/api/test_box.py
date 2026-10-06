@@ -149,7 +149,9 @@ async def test_the_box_lists_every_number_how_it_came_and_the_operator_approves_
     )
     await routes.put(pool, replace(bought, managed=True), RouteWrite("bought"))
     await routes.put(
-        pool, replace(bought, agent="nobody", number="+59829001100"), RouteWrite("hooked")
+        pool,
+        replace(bought, agent="nobody", number="+59829001100"),
+        RouteWrite("hooked", waits=True),
     )
     await routes.put(
         pool, replace(bought, org=other.id, number="+59829001101"), RouteWrite("typed")

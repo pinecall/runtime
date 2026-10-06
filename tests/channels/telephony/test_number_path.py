@@ -1,5 +1,7 @@
 """Tests for what a call to a number goes through now: carrier, fence, world, agent."""
 
+from dataclasses import replace
+
 from pinecall.channels import routes
 from pinecall.channels.telephony import number_path, numbers
 from pinecall.channels.telephony.numbers import NumberImport
@@ -51,7 +53,6 @@ async def test_a_hooked_number_waits_for_its_first_call_and_a_call_settles_it(li
     await numbers.import_number(
         line.connections, NumberImport(line.scope(), "recepcion", A_NUMBER, hooked=True)
     )
-    await routes.approve(line.connections.pool, line.org, A_NUMBER, "operator@box.test")
     (before,) = await number_path.rings_of(
         line.connections, [await recorded(line)], lambda _record: True
     )
@@ -80,12 +81,15 @@ async def test_a_peers_number_waits_on_the_operator_until_its_network_is_approve
     )
 
 
+# Only where the box asks for approval (PINECALL_APPROVE_HOOKED); off, a hooked one rings at once.
 @postgres
 async def test_a_number_the_org_hooked_waits_at_the_fence_until_the_operator_approves_it(
     line: Line,
 ) -> None:
+    settings = line.connections.settings.model_copy(update={"approve_hooked": True})
+    asking = replace(line.connections, settings=settings)
     await numbers.import_number(
-        line.connections, NumberImport(line.scope(), "recepcion", A_NUMBER, hooked=True)
+        asking, NumberImport(line.scope(), "recepcion", A_NUMBER, hooked=True)
     )
     found = await number_path.path_of(line.connections, await recorded(line), running=True)
     assert (found.steps[1].state, found.rings) == ("waiting", "waiting")

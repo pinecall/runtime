@@ -127,7 +127,7 @@ async def test_a_call_to_a_number_the_org_hooked_opens_only_once_the_operator_ap
     app = await an_app(knocking)
     context = a_call(knocking)
     pool = knocking.gateway.connections.pool
-    await routes.put(pool, context.route, RouteWrite("hooked"))
+    await routes.put(pool, context.route, RouteWrite("hooked", waits=True))
     async with knocking.http(knocking.fleet["sandbox"]) as worker:
         refused = await worker.post(
             "/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written()

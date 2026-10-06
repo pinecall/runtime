@@ -135,7 +135,8 @@ or `whatsapp` (imported from an account of the org of that kind), `imported` (fr
 forgotten), `hooked` (the org pointed the number at the box itself) or `typed` (a row an operator
 wrote here or with `routes add`/`routes seed`), read from the row's `origin`; `running` says a
 process holds the agent in that org and world now, so a call is picked up; `approved` is false for
-a number the org hooked itself that the operator has not approved, and no call to it opens until
+a number the org hooked itself that the operator has not approved (only where the box sets
+`PINECALL_APPROVE_HOOKED`; unset, every number is written approved), and no call to it opens until
 `POST /v1/ops/numbers/{number}/approve?org=<slug>` (`204`; `404` when no such number waits); one
 refused is let go of with `DELETE /v1/ops/routes/{number}?org=<slug>`. One org holds a number: an
 import of a number another org holds is `409`, naming no org. Changing a number is the org's own door, which writes the carrier, the SFU and the

@@ -76,23 +76,23 @@ async def test_a_route_of_the_box_names_the_kind_of_account_its_number_lives_in(
     assert [(row.route.org, row.carrier) for row in found] == [("org_b", None), ("org_a", "twilio")]
 
 
-# A number the org hooked itself waits for the operator; every other way is approved as written,
-# and one approved stays approved however it is written again.
+# A row written to wait (a hooked number, where the box asks for approval) waits for the operator;
+# every other is approved as written, and one approved stays approved however it is written again.
 @postgres
 async def test_a_hooked_number_waits_for_the_operator_and_stays_approved_once_approved(
     pool: Pool,
 ) -> None:
-    await routes.put(pool, a_route("org_b"), RouteWrite("hooked"))
-    await routes.put(pool, a_route("org_b", number="+59829001100"), RouteWrite("bought"))
+    await routes.put(pool, a_route("org_b"), RouteWrite("hooked", waits=True))
+    await routes.put(pool, a_route("org_b", number="+59829001100"), RouteWrite("hooked"))
     found = await routes.records_of(pool, "org_b", "production")
     assert [(row.route.number, row.origin, row.approved) for row in found] == [
         (A_NUMBER, "hooked", False),
-        ("+59829001100", "bought", True),
+        ("+59829001100", "hooked", True),
     ]
     assert await routes.is_waiting(pool, "org_b", A_NUMBER)
     assert await routes.approve(pool, "org_b", A_NUMBER, "operator@box.test")
     assert not await routes.approve(pool, "org_b", A_NUMBER, "operator@box.test"), "once"
-    await routes.put(pool, a_route("org_b"), RouteWrite("hooked"))
+    await routes.put(pool, a_route("org_b"), RouteWrite("hooked", waits=True))
     assert not await routes.is_waiting(pool, "org_b", A_NUMBER)
 
 

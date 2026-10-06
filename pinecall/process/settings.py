@@ -265,6 +265,13 @@ class Settings(BaseModel):
         alias="PINECALL_SIGNUP",
         description="Whether a stranger may make an org at this gateway. Off unless you say.",
     )
+    # A number an org hooks itself proves nothing of whose it is; on, it rings nobody until the
+    # operator approves it (POST /v1/ops/numbers/{number}/approve). Off, it rings at once.
+    approve_hooked: bool = Field(
+        default=False,
+        alias="PINECALL_APPROVE_HOOKED",
+        description="Whether a number an org hooks itself waits for the operator. Off by default.",
+    )
     billing_url: str | None = Field(
         None,
         alias="PINECALL_BILLING_URL",

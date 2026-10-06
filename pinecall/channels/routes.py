@@ -22,14 +22,15 @@ OF_NUMBER = """
 SELECT org, number, agent, channel, env, managed FROM routes
 WHERE org = %(org)s AND number = %(number)s
 """
-# A number added again moves: its agent, channel, world and how it came are the newest said. A
-# hooked number waits for the operator; one approved once stays approved however it comes again.
+# A number added again moves: its agent, channel, world and how it came are the newest said. One
+# written to wait (a hooked number, where the box asks for approval) is unapproved until the
+# operator approves it; one approved once stays approved however it comes again.
 PUT = """
 INSERT INTO routes (org, number, agent, channel, env, managed, account, networks, origin, via,
                     approved_at)
 VALUES (%(org)s, %(number)s, %(agent)s, %(channel)s, %(env)s, %(managed)s, %(account)s,
         %(networks)s, %(origin)s, %(via)s,
-        CASE WHEN %(origin)s = 'hooked' THEN NULL ELSE now() END)
+        CASE WHEN %(waits)s THEN NULL ELSE now() END)
 ON CONFLICT (org, number) DO UPDATE SET agent = excluded.agent, channel = excluded.channel,
     env = excluded.env, managed = excluded.managed, account = excluded.account,
     networks = excluded.networks, origin = excluded.origin, via = excluded.via,
@@ -84,6 +85,8 @@ class RouteWrite:
     networks: tuple[str, ...] = ()
     # The catalog carrier a number with no account comes through.
     via: str | None = None
+    # Written unapproved: no call to it opens until the operator approves it.
+    waits: bool = False
 
 
 @dataclass(frozen=True)
@@ -182,6 +185,7 @@ async def put(pool: Pool, route: Route, written: RouteWrite) -> None:
         "networks": list(written.networks),
         "origin": written.origin,
         "via": written.via,
+        "waits": written.waits,
     }
     async with pool.connection() as connection:
         await connection.execute(PUT, row)

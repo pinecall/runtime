@@ -454,8 +454,14 @@ async def _write_hook(connections: Connections, survey: Survey) -> None:
         trunk_id = await sip.admit(server, survey.fence, survey.trunk, number)
         world = WorldRule(route.org, route.env, survey.fleet)
         await sip.rule_in(server, world, [trunk_id], number)
+    # A hooked number waits for the operator only where the box asks (PINECALL_APPROVE_HOOKED).
+    waits = survey.origin == "hooked" and connections.settings.approve_hooked
     written = RouteWrite(
-        origin=survey.origin, account=survey.account, networks=survey.networks, via=survey.via
+        origin=survey.origin,
+        account=survey.account,
+        networks=survey.networks,
+        via=survey.via,
+        waits=waits,
     )
     await routes.put(connections.pool, route, written)
 
