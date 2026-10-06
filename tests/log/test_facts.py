@@ -8,13 +8,8 @@ from pinecall.domain.errors import Conflict
 from pinecall.domain.names import Json, JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.log.facts import CallFacts, fold, lent
-from pinecall.log.queries import (
-    ever_reached,
-    facts_of_calls,
-    scope_of_call,
-    unsealed_spoken,
-    unsealed_written,
-)
+from pinecall.log.inbox import ever_reached
+from pinecall.log.queries import facts_of_calls, scope_of_call, unsealed_spoken, unsealed_written
 from pinecall.log.store import Claim, Store, Unnumbered
 from pinecall.postgres.pool import Pool
 from tests.conftest import postgres

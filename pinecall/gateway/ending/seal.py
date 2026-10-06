@@ -11,7 +11,8 @@ from pinecall.domain.errors import NotAvailable, PinecallError, QuotaExhausted
 from pinecall.evals import judges
 from pinecall.evals.compliance import Compliance, Panel
 from pinecall.gateway._call_setup import exhausted, keys_of
-from pinecall.gateway._served import Served, Serving, now_of
+from pinecall.gateway._served import Served, Serving
+from pinecall.gateway.calls.serving import now_of
 from pinecall.log import drift, facts
 from pinecall.log.logs import Log
 from pinecall.log.reduce import phone_legs, reduce

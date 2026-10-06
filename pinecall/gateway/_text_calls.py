@@ -11,9 +11,10 @@ from pinecall.domain.names import CHANNELS_WITH_A_NUMBER, JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.evals import goldens
 from pinecall.gateway._call_setup import keys_of, tuned
-from pinecall.gateway._served import Served, Serving, looked_up, served_call
+from pinecall.gateway._served import Served, Serving
 from pinecall.gateway._sockets import Registration
 from pinecall.gateway.calls.binding import attach
+from pinecall.gateway.calls.serving import looked_up, served_call
 from pinecall.gateway.ending.seal import sealed
 from pinecall.log import openings, private, queries
 from pinecall.log.store import Claim

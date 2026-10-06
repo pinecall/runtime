@@ -10,9 +10,9 @@ from pinecall.domain.agent import AgentConfig
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.scope import Scope
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import served_call
 from pinecall.gateway._sockets import HELD_CHANNEL, Sockets
 from pinecall.gateway.calls.binding import handed_on
+from pinecall.gateway.calls.serving import served_call
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store
 from pinecall.process import shared

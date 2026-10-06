@@ -240,3 +240,28 @@ why = "Gateway is the process's state: it holds each part, the WhatsApp threads 
 path = "pinecall/log/store.py"
 checks = ["unstable_dependency"]
 why = "the writer is the store's own write half (log/_writer.py), split out as the queue that outlives a request; nothing else reaches it"
+
+[[tool.vibesmell.skip]]
+path = "pinecall/gateway/_sockets.py"
+checks = ["forward"]
+why = "calls_from is a phone's verb (api/line.py calls it through gateway.sockets, which vibesmell does not follow); _assigned is the write lines and phones share, its table the registry's own"
+
+[[tool.vibesmell.skip]]
+path = "pinecall/session/session.py"
+checks = ["hub"]
+why = "the Session class and the sentences it says; every importer takes the class, and its sentences are not another module"
+
+[[tool.vibesmell.skip]]
+path = "pinecall/wire/events.py"
+checks = ["hub"]
+why = "the log's vocabulary: every event and the registry that reads them back, as docs/wire/events.md lists them; each writer takes the few it writes"
+
+[[tool.vibesmell.skip]]
+path = "pinecall/wire/rest/*.py"
+checks = ["shotgun"]
+why = "a door's body is the wire's (pinned by the goldens, read by the CLI and the SDKs) and its handler the gateway's: a door that changes changes both, on purpose"
+
+[[tool.vibesmell.skip]]
+path = "pinecall/session/call.py"
+checks = ["shotgun"]
+why = "the worker's job builds the Call a session runs on: what a voice call is given at its start (its recording, its writer) lands in both; two of the five are a feature and its revert"

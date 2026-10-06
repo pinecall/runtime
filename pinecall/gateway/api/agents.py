@@ -85,7 +85,7 @@ async def agent_credentials(
     if THE_FLEET not in key.bearer.key.scopes:
         keys = dataclasses.replace(keys, lends=frozenset())
     now = time.monotonic()
-    stages = pipeline(tuned_config, configured, keys, gateway.counters.failing(now))
+    stages = pipeline(tuned_config, configured, keys).demoting(gateway.counters.failing(now))
     gateway.counters.handed_out((stages.llm.vendor, stages.stt.vendor, stages.tts.vendor), now)
     return stages
 

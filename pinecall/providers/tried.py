@@ -2,9 +2,10 @@
 
 import asyncio
 import contextlib
+from typing import Never
 
 from livekit import rtc
-from livekit.agents import APIConnectionError, APIConnectOptions, APIError, APITimeoutError
+from livekit.agents import APIConnectionError, APIConnectOptions, APIError, APITimeoutError, stt
 from livekit.agents.llm import ChatContext
 from livekit.agents.utils import http_context
 
@@ -47,11 +48,22 @@ async def tried(stage: Modality, running: Running, turn: Turn | None = None) -> 
     try:
         # Outside a call there is no job to lend the plugins its HTTP session: it is opened here.
         async with asyncio.timeout(TRY_S), http_context.open():
-            await _ask(stage, running, turn)
+            if stage == "tts":
+                await voices.sample(running, LINE)
+            elif stage == "llm":
+                await _answered(running)
+            else:
+                await _heard(stt_of(running, turn))
     except TimeoutError as slow:
         why = f"no answer in {TRY_S:.0f} s"
         unanswered = UNANSWERED.format(vendor=running.vendor, stage=named, why=why)
         raise UpstreamFailed(unanswered) from slow
+    except (APIConnectionError, APITimeoutError) as silent:
+        unanswered = UNANSWERED.format(vendor=running.vendor, stage=named, why=silent.message)
+        raise UpstreamFailed(unanswered) from silent
+    except APIError as refused:
+        refusal = REFUSED.format(vendor=running.vendor, stage=named, why=refused.message)
+        raise DeclarationRefused(refusal) from refused
     except UpstreamFailed as failed:
         cause = failed.__cause__
         if isinstance(cause, APIConnectionError | APITimeoutError):
@@ -61,18 +73,6 @@ async def tried(stage: Modality, running: Running, turn: Turn | None = None) -> 
         raise DeclarationRefused(
             REFUSED.format(vendor=running.vendor, stage=named, why=str(failed))
         ) from failed
-
-
-async def _ask(stage: Modality, running: Running, turn: Turn | None) -> None:
-    try:
-        if stage == "tts":
-            await voices.sample(running, LINE)
-        elif stage == "llm":
-            await _answered(running)
-        else:
-            await _heard(running, turn)
-    except APIError as refused:
-        raise UpstreamFailed(refused.message) from refused
 
 
 async def _answered(running: Running) -> None:
@@ -89,8 +89,7 @@ async def _answered(running: Running) -> None:
 
 # Ears that only take a whole utterance have nothing to open: they are tried by the first call.
 # The turn's knobs are the call's, so a silence or a bar the vendor does not take is its no here.
-async def _heard(running: Running, turn: Turn | None) -> None:
-    ears = stt_of(running, turn)
+async def _heard(ears: stt.STT[Never]) -> None:
     try:
         if not ears.capabilities.streaming:
             return

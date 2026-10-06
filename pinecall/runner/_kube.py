@@ -219,13 +219,13 @@ class Cluster:
             _Knock("create", "POST", self._at("pods"), body=pod(self.engine, launch))
         )
 
-    async def stop(self, name: str) -> None:
-        """SIGTERM, and the drain's time before the kill; its environment goes with it."""
-        await self._gone(name, DRAIN_S)
-
-    async def remove(self, name: str) -> None:
-        """The pod gone at once, and its environment."""
-        await self._gone(name, 0)
+    async def stop(self, name: str, grace_s: int = DRAIN_S) -> None:
+        """SIGTERM, then grace_s (the drain's, unless said) before the kill; its environment too."""
+        body: JsonObject = {"gracePeriodSeconds": grace_s}
+        for path in (f"pods/{name}", f"secrets/{_secret_of(name)}"):
+            answer = await self._request(_Knock("delete", "DELETE", self._at(path), body=body))
+            if not answer.is_success and answer.status_code != NOT_THERE:
+                raise UpstreamFailed(_refusal("delete", answer))
 
     async def logs(self, name: str, lines: int) -> str:
         """The last lines the host printed; its install's, when it never got to run."""
@@ -237,13 +237,6 @@ class Cluster:
             if answer.is_success and answer.text.strip():
                 return answer.text
         return ""
-
-    async def _gone(self, name: str, grace_s: int) -> None:
-        body: JsonObject = {"gracePeriodSeconds": grace_s}
-        for path in (f"pods/{name}", f"secrets/{_secret_of(name)}"):
-            answer = await self._request(_Knock("delete", "DELETE", self._at(path), body=body))
-            if not answer.is_success and answer.status_code != NOT_THERE:
-                raise UpstreamFailed(_refusal("delete", answer))
 
     async def _required(self, knock: _Knock) -> httpx.Response:
         answer = await self._request(knock)

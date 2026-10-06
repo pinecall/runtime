@@ -21,7 +21,7 @@ from pinecall.gateway import _deps
 from pinecall.gateway._call_setup import exhausted, tuned
 from pinecall.gateway._deps import Acting, AppKey, CallsKey, GatewayDep, ScopeDep
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import Served, claim_code, declared_for_the_call
+from pinecall.gateway._served import Served, declared_for_the_call
 from pinecall.gateway._sockets import (
     NOT_REGISTERED,
     Process,
@@ -33,6 +33,7 @@ from pinecall.gateway.calls.binding import handed_on, parked_calls_of
 from pinecall.gateway.calls.commands import commanded
 from pinecall.gateway.calls.inbox import APP_CHANNEL, Bound, ForApp
 from pinecall.gateway.calls.known import known_here
+from pinecall.gateway.calls.serving import claim_code
 from pinecall.providers import catalog
 from pinecall.session.call import changed_by, with_app_fields
 from pinecall.session.tools import unanswered

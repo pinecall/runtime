@@ -11,12 +11,12 @@ from pinecall.channels import routes
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.org import Quotas
 from pinecall.gateway._deps import ActingDep, CallsKey, GatewayDep, ScopeDep, UsageKey
-from pinecall.log import drift, queries
+from pinecall.log import drift
 from pinecall.log.drift import Side, Tally
 from pinecall.log.facts import A_DAY_S
-from pinecall.log.queries import AgentWindow, WindowDay
 from pinecall.log.reduce import Usage, UsageRow, totals_by_org
 from pinecall.log.store import DEFAULT_LIMIT
+from pinecall.log.usage import AgentWindow, WindowDay, counted_window, metered_page
 from pinecall.tenancy import admission, people, scopes, usage
 from pinecall.tenancy.keys import check_agent
 from pinecall.wire.rest.usage import (
@@ -87,7 +87,7 @@ async def usage_feed(
     limit: Annotated[int, Query(ge=1, le=DEFAULT_LIMIT)] = DEFAULT_LIMIT,
 ) -> UsagePage:
     """The org's metered rows after the cursor, their totals, and the next cursor."""
-    page = await queries.metered_page(gateway.logs.store, after=after, limit=limit, org=key.org)
+    page = await metered_page(gateway.logs.store, after=after, limit=limit, org=key.org)
     totals = totals_by_org(page.rows).get(key.org)
     return UsagePage(
         rows=[usage_row_response(row) for row in page.rows],
@@ -114,7 +114,7 @@ async def insights(
     last = query.day or datetime.now(UTC).date()
     first = last - timedelta(days=query.days - 1)
     start, end = _opening(first), _opening(last) + A_DAY_S
-    counted = await queries.counted_window(pool, scope, start, end, query.agent)
+    counted = await counted_window(pool, scope, start, end, query.agent)
     spent = await usage.spent_in(pool, key.org, last)
     quotas = await admission.quotas_of(pool, key.org, key.env)
     return Insights(

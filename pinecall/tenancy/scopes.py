@@ -205,13 +205,13 @@ async def lexicon_history(
 
 async def tuning_at(pool: Pool, scope: Scope, agent: str, version: int) -> Version[Tuning] | None:
     """One version of the agent's tuning, the scope's own or the org's it fell through to."""
-    row = await _at(pool, "agent_config", scope, agent, version)
+    row = await _at(pool, "agent_config", _where(scope, agent), version)
     return None if row is None else _tuning(row)
 
 
 async def lexicon_at(pool: Pool, scope: Scope, agent: str, version: int) -> Version[Lexicon] | None:
     """One version of the agent's lexicon, the scope's own or the org's it fell through to."""
-    row = await _at(pool, "lexicon", scope, agent, version)
+    row = await _at(pool, "lexicon", _where(scope, agent), version)
     return None if row is None else _lexicon(row)
 
 
@@ -341,11 +341,11 @@ async def _history(
 
 
 async def _at(
-    pool: Pool, table: VersionedTable, scope: Scope, agent: str, version: int
+    pool: Pool, table: VersionedTable, where: dict[str, object], version: int
 ) -> DictRow | None:
     query = AT.format(**_parts(table))
     async with pool.connection() as connection:
-        values = {**_where(scope, agent), "version": version}
+        values = {**where, "version": version}
         return await (await connection.execute(query, values)).fetchone()
 
 

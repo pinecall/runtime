@@ -17,7 +17,7 @@ from pinecall.gateway._served import Serving
 from pinecall.gateway._sockets import Registration, Sockets
 from pinecall.gateway._text_calls import open_text, resume_text, tokens_of
 from pinecall.gateway.calls.owners import THREAD_CHANNEL
-from pinecall.log import queries
+from pinecall.log import inbox
 from pinecall.postgres.pool import Pool
 from pinecall.session import text
 from pinecall.session.session import Session
@@ -281,7 +281,7 @@ class Threads:
 
     # A conversation this process never saw is taken up from its log while it has idle time left.
     async def _taken_up(self, registration: Registration, inbound: Inbound) -> Session | None:
-        newest = await queries.calls_with(
+        newest = await inbox.calls_with(
             self.serving.connections.pool,
             registration.scope,
             registration.slug,

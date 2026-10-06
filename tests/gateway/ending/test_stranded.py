@@ -13,7 +13,8 @@ from pinecall.domain.call import CallContext
 from pinecall.domain.names import Env, JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import Served, served_call
+from pinecall.gateway._served import Served
+from pinecall.gateway.calls.serving import served_call
 from pinecall.gateway.ending.reaper import reaped
 from pinecall.gateway.ending.seal import sealed
 from pinecall.gateway.ending.stranded import stranded

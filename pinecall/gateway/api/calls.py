@@ -37,8 +37,11 @@ from pinecall.gateway._deps import (
     asked_by,
 )
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import (
-    Served,
+from pinecall.gateway._served import Served
+from pinecall.gateway._sockets import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registration
+from pinecall.gateway._streams import frame, paced, streamed, wants_sse
+from pinecall.gateway.calls.binding import attach
+from pinecall.gateway.calls.serving import (
     claim_code,
     first_seen,
     looked_up,
@@ -46,11 +49,8 @@ from pinecall.gateway._served import (
     served_call,
     serving_agent,
 )
-from pinecall.gateway._sockets import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP, Registration
-from pinecall.gateway._streams import frame, paced, streamed, wants_sse
-from pinecall.gateway.calls.binding import attach
 from pinecall.gateway.ending.seal import remembered, sealed
-from pinecall.log import openings, queries
+from pinecall.log import lists, openings, queries
 from pinecall.log.readers import Filter, parse_filter, project_entry, project_state
 from pinecall.log.store import DEFAULT_LIMIT, Claim
 from pinecall.process.recordings import (
@@ -455,7 +455,7 @@ async def list_agent_calls(
     slug: str, reading: ReaderDep, gateway: GatewayDep, query: Annotated[ListQuery, Query()]
 ) -> CallList:
     """The agent's newest calls, one row each."""
-    wanted = queries.ListFilters(
+    wanted = lists.ListFilters(
         agent=slug, q=query.q or None, channel=query.channel, before=query.before
     )
     return await _sessions(gateway, reading, wanted, query.limit)
@@ -466,7 +466,7 @@ async def list_calls(
     reading: ReaderDep, gateway: GatewayDep, query: Annotated[ListQuery, Query()]
 ) -> CallList:
     """The org's newest calls across its agents, one row each."""
-    wanted = queries.ListFilters(
+    wanted = lists.ListFilters(
         agent=query.agent or None, q=query.q or None, channel=query.channel, before=query.before
     )
     return await _sessions(gateway, reading, wanted, query.limit)
@@ -647,11 +647,11 @@ async def _commanded(waiting: asyncio.Queue[Command | None]) -> AsyncIterator[st
 
 
 async def _sessions(
-    gateway: Gateway, reading: Reader, wanted: queries.ListFilters, limit: int
+    gateway: Gateway, reading: Reader, wanted: lists.ListFilters, limit: int
 ) -> CallList:
     if reading.acting is None or reading.scope is None:
         raise NotAllowed("a list of calls is read with a key, not a call's token")
-    found = await queries.found(gateway.connections.pool, reading.scope, wanted, limit=limit)
+    found = await lists.found(gateway.connections.pool, reading.scope, wanted, limit=limit)
     facts = await queries.facts_of_calls(gateway.connections.pool, found.calls)
     lines: list[CallRow] = []
     for call in found.calls:

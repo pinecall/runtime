@@ -336,7 +336,7 @@ def test_a_vendor_over_its_error_line_goes_behind_the_ones_that_are_not(
         tts=(Stage(vendor="elevenlabs"),),
     )
     keys = Keyring(box={**THE_BOX, "openai": "o", "groq": "g", "elevenlabs": "e"})
-    stages = pipeline(AGENT, row, keys, frozenset({"anthropic", "openai", "cartesia"}))
+    stages = pipeline(AGENT, row, keys).demoting(frozenset({"anthropic", "openai", "cartesia"}))
     assert [item.vendor for item in (stages.llm, *stages.llm.fallbacks)] == [
         "groq",
         "anthropic",
@@ -353,9 +353,11 @@ def test_with_nothing_failing_or_nothing_to_step_to_the_order_is_the_rows(
 ) -> None:
     row = with_fallbacks(configured, llm=(Stage(vendor="openai"),))
     keys = Keyring(box={**THE_BOX, "openai": "o"})
-    assert pipeline(AGENT, row, keys) == pipeline(AGENT, row, keys, frozenset())
-    alone = pipeline(AGENT, configured, Keyring(box=THE_BOX), frozenset({"deepgram"}))
+    assert pipeline(AGENT, row, keys) == pipeline(AGENT, row, keys).demoting(frozenset())
+    alone = pipeline(AGENT, configured, Keyring(box=THE_BOX)).demoting(frozenset({"deepgram"}))
     assert (alone.stt.vendor, alone.stt.fallbacks) == ("deepgram", ())
     agent = AgentConfig(slug="clinica-norte", llm=Model(provider="groq", model="llama-3.3-70b"))
-    named = pipeline(agent, row, Keyring(own={"groq": "g"}, box=THE_BOX), frozenset({"groq"}))
+    named = pipeline(agent, row, Keyring(own={"groq": "g"}, box=THE_BOX)).demoting(
+        frozenset({"groq"})
+    )
     assert (named.llm.vendor, named.llm.fallbacks) == ("groq", ())

@@ -10,8 +10,8 @@ from pinecall.domain.errors import DeclarationRefused, NotFound
 from pinecall.gateway import _deps
 from pinecall.gateway._deps import EvalsKey, GatewayDep, ScopeDep
 from pinecall.gateway._gateway import Gateway
-from pinecall.log import queries
-from pinecall.log.queries import PersonaRunFilters
+from pinecall.log import lists
+from pinecall.log.lists import PersonaRunFilters
 from pinecall.providers import catalog
 from pinecall.providers.declared import model_of
 from pinecall.tenancy import personas
@@ -108,7 +108,7 @@ async def list_persona_runs(
     pool = gateway.connections.pool
     if await personas.persona(pool, scope.org, slug, name) is None:
         raise NotFound(personas.NOBODY.format(name=name, agent=slug))
-    found = await queries.runs_of_persona(
+    found = await lists.runs_of_persona(
         pool,
         scope,
         PersonaRunFilters(agent=slug, persona=name, before=query.before),

@@ -16,7 +16,7 @@ from pinecall.domain.scope import Scope
 from pinecall.gateway import _deps
 from pinecall.gateway._deps import Acting, CallsKey, GatewayDep, ScopeDep, TalkKey
 from pinecall.gateway._gateway import Gateway
-from pinecall.log import facts, queries
+from pinecall.log import facts, inbox, queries
 from pinecall.tenancy import keys
 from pinecall.wire.commands import SayVerb, SupervisorVerb
 from pinecall.wire.frames import Entry
@@ -71,9 +71,9 @@ async def list_threads(
     page: Annotated[ThreadQuery, Query()],
 ) -> ThreadList:
     """The agent's contacts, the one that moved last first, with what this reader has not read."""
-    inbox = queries.Inbox(where, slug, _reader_of(key))
-    found = await queries.threads(
-        gateway.connections.pool, inbox, after=page.after, limit=page.limit
+    wanted = inbox.Inbox(where, slug, _reader_of(key))
+    found = await inbox.threads(
+        gateway.connections.pool, wanted, after=page.after, limit=page.limit
     )
     return ThreadList(threads=[_line_of(row) for row in found.rows], next=found.next)
 
@@ -100,8 +100,8 @@ async def mark_thread_read(
 ) -> None:
     """This reader has read the thread up to now."""
     await _thread_of(gateway, where, slug, contact)
-    await queries.read(
-        gateway.connections.pool, queries.Inbox(where, slug, _reader_of(key)), contact, time.time()
+    await inbox.read(
+        gateway.connections.pool, inbox.Inbox(where, slug, _reader_of(key)), contact, time.time()
     )
 
 
@@ -131,7 +131,7 @@ async def send_thread_message(
 
 
 async def _thread_of(gateway: Gateway, where: Scope, slug: str, contact: str) -> list[str]:
-    calls = await queries.calls_with(
+    calls = await inbox.calls_with(
         gateway.connections.pool, where, slug, contact, limit=CALLS_IN_A_THREAD
     )
     if not calls:
@@ -143,7 +143,7 @@ def _reader_of(key: Acting) -> str:
     return key.bearer.key.subject or key.bearer.key.key_id
 
 
-def _line_of(row: queries.InboxRow) -> ThreadRow:
+def _line_of(row: inbox.InboxRow) -> ThreadRow:
     newest = row.newest
     kind: ThreadKind = "call" if newest.spoken else ("in" if newest.last_in else "out")
     data = newest.outcome if newest.spoken else newest.last_text

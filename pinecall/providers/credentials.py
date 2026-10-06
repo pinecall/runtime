@@ -46,6 +46,16 @@ class Pipeline:
         each = (item for stage in stages for item in (stage, *stage.fallbacks))
         return list(dict.fromkeys(item.vendor for item in each if item.lent))
 
+    # The row's order stands but for the vendors `failing` names (over their error line now),
+    # which go last, among themselves in the row's order too.
+    def demoting(self, failing: frozenset[str]) -> "Pipeline":
+        """The same stages, each with the vendors failing now behind the ones that are not."""
+        return Pipeline(
+            llm=_behind(self.llm, failing),
+            stt=_behind(self.stt, failing),
+            tts=_behind(self.tts, failing),
+        )
+
 
 @dataclass(frozen=True)
 class Readiness:
@@ -70,14 +80,12 @@ def readiness(installed: Mapping[str, Vendor], keys: Keyring) -> list[Readiness]
     ]
 
 
-def pipeline(
-    config: AgentConfig, configured: Providers, keys: Keyring, failing: frozenset[str] = frozenset()
-) -> Pipeline:
+def pipeline(config: AgentConfig, configured: Providers, keys: Keyring) -> Pipeline:
     """The stages an agent runs: its vendors or the defaults, each with its key and options."""
     language = primary(config.language)
-    llm = thinking(config, configured, keys, failing)
-    stt = stage("stt", config.stt, configured, keys, failing)
-    tts = stage("tts", config.voice, configured, keys, failing)
+    llm = thinking(config, configured, keys)
+    stt = stage("stt", config.stt, configured, keys)
+    tts = stage("tts", config.voice, configured, keys)
     heard = dict.fromkeys(item for item in (language, *configured.hints) if item)
     voice = config.voice.voice_id if config.voice else None
     ears = (
@@ -98,11 +106,9 @@ def pipeline(
 
 
 # A written call runs this stage alone: a call with no voice is not refused for want of one.
-def thinking(
-    config: AgentConfig, configured: Providers, keys: Keyring, failing: frozenset[str] = frozenset()
-) -> Running:
+def thinking(config: AgentConfig, configured: Providers, keys: Keyring) -> Running:
     """The model an agent thinks with, on its key, at the temperature it declared."""
-    llm = stage("llm", config.llm, configured, keys, failing)
+    llm = stage("llm", config.llm, configured, keys)
     if config.llm is None or config.llm.temperature is None:
         return llm
     return dataclasses.replace(llm, options={**llm.options, "temperature": config.llm.temperature})
@@ -157,15 +163,10 @@ def parse_lending(entries: Iterable[str]) -> frozenset[str]:
 
 
 # An agent that names its vendor runs it alone; one on the row's default runs the default's
-# fallbacks behind it, each on its own key. A fallback this org cannot key is left out. The row's
-# order stands but for the vendors `failing` names (over their error line now), which go last,
-# among themselves in the row's order too.
+# fallbacks behind it, each on its own key, in the row's order. A fallback this org cannot key is
+# left out.
 def stage(
-    modality: Modality,
-    declared: Model | Voice | None,
-    configured: Providers,
-    keys: Keyring,
-    failing: frozenset[str] = frozenset(),
+    modality: Modality, declared: Model | Voice | None, configured: Providers, keys: Keyring
 ) -> Running:
     """One stage on its key: the vendor declared or the default, with the operator's options."""
     if declared is not None:
@@ -180,7 +181,7 @@ def stage(
             logger.info(
                 "%s fallback %s has no key this org may run it on", modality, fallback.vendor
             )
-    return _over(*sorted((chosen, *backups), key=lambda item: item.vendor in failing))
+    return _over(chosen, *backups)
 
 
 def _on_its_key(
@@ -202,6 +203,11 @@ def _on_its_key(
 
 def _over(primary: Running, *fallbacks: Running) -> Running:
     return dataclasses.replace(primary, fallbacks=fallbacks)
+
+
+def _behind(chosen: Running, failing: frozenset[str]) -> Running:
+    chain = (dataclasses.replace(chosen, fallbacks=()), *chosen.fallbacks)
+    return _over(*sorted(chain, key=lambda item: item.vendor in failing))
 
 
 def _availability_of(vendor: Vendor, keys: Keyring) -> Availability:

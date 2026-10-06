@@ -29,7 +29,7 @@ from pinecall.gateway.api.org import mailbox_of
 from pinecall.gateway.api.providers import credentials_of, installed_vendor
 from pinecall.gateway.api.sso_login import NO_BOX_WIDE
 from pinecall.gateway.api.usage import usage_row_response, usage_totals
-from pinecall.log import queries
+from pinecall.log import usage
 from pinecall.log.reduce import totals_by_org
 from pinecall.log.store import DEFAULT_LIMIT, Store
 from pinecall.providers import catalog
@@ -300,7 +300,7 @@ async def box_usage(
         only = org if found is None else found.id
     if wants_sse(accept):
         return streamed(_metered_stream(store, after, only), gateway.closing)
-    page = await queries.metered_page(store, after=after, limit=limit, org=only)
+    page = await usage.metered_page(store, after=after, limit=limit, org=only)
     return BoxUsagePage(
         rows=[usage_row_response(row) for row in page.rows],
         totals={org: usage_totals(used) for org, used in totals_by_org(page.rows).items()},
@@ -634,7 +634,7 @@ async def _metered_stream(store: Store, after: int, only: str | None) -> AsyncIt
     yield f"retry: {_streams.RETRY_MS}\n\n"
     cursor = after
     while True:
-        page = await queries.metered_page(store, after=cursor, limit=DEFAULT_LIMIT, org=only)
+        page = await usage.metered_page(store, after=cursor, limit=DEFAULT_LIMIT, org=only)
         for row in page.rows:
             yield frame("usage", usage_row_response(row).written(), seq=row.cursor)
         if page.next is not None:

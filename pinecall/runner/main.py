@@ -178,7 +178,7 @@ class Runner:
             *crashes_within(self.crashes.get(container.name, []), now),
             now,
         ]
-        await self.cluster.remove(container.name)
+        await self.cluster.stop(container.name, grace_s=0)
         await self._started(world, app, container.name, container.release)
 
     # The wanted release is checked against the digest the gateway kept when it was uploaded; an

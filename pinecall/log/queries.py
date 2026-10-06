@@ -1,41 +1,22 @@
-"""The lists over every call's facts: calls, unsealed ones, threads, an inbox, windows, runs."""
+"""One call's facts as a gateway asks them: where it opened, its tool calls, whether it sealed."""
 
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass, field
-from datetime import UTC, date, datetime
+from dataclasses import dataclass
 from typing import LiteralString
 
-from psycopg.rows import DictRow
-
 from pinecall.domain.agent import Versions
-from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.names import CHANNELS, Env, parse_env
+from pinecall.domain.names import Env, parse_env
 from pinecall.domain.scope import Scope
 from pinecall.log.facts import (
-    A_DAY_S,
-    CALLS_WITH,
     CORNER_OF_CALL,
-    EVER_REACHED,
     FACTS_OF,
-    FOUND_COUNT,
-    FOUND_PAGE,
-    PERSONA_RUNS_COUNT,
-    PERSONA_RUNS_PAGE,
-    STAGES,
-    THREADS,
     UNSEALED_SPOKEN,
     UNSEALED_WRITTEN,
-    WINDOW,
-    WINDOW_BY_AGENT,
-    WINDOW_BY_DAY,
-    WINDOW_ENDINGS,
-    WINDOW_MEDIAN_E2E,
     CallFacts,
     CallScope,
     facts_of,
 )
-from pinecall.log.reduce import METERED_TYPES, UsageRow, usage_row
-from pinecall.log.store import Store, entry_of
+from pinecall.log.store import entry_of
 from pinecall.postgres.pool import Pool
 from pinecall.wire.frames import Entry
 from pinecall.wire.parts import ToolResult
@@ -60,35 +41,6 @@ SEALED_AMONG = """
 select log from call_log_head where log = any(%(calls)s) and sealed
 """
 
-# A read cursor never moves back.
-READ = """
-insert into thread_reads as seen (org, env, holder, agent, reader, contact, read_at)
-values (%(org)s, %(env)s, %(holder)s, %(agent)s, %(reader)s, %(contact)s, %(at)s)
-on conflict (org, env, holder, agent, reader, contact)
-do update set read_at = greatest(seen.read_at, excluded.read_at)
-"""
-
-
-@dataclass(frozen=True, slots=True)
-class ListFilters:
-    """What a call list asks for: an agent, a channel, words, and the page before this one."""
-
-    agent: str | None = None
-    # Matched case-insensitively against the call id's start, either number's digits, the
-    # caller's name and the outcome.
-    q: str | None = None
-    channel: str | None = None
-    before: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class Found:
-    """One page of calls, newest first, the total and the cursor of the next page."""
-
-    calls: list[str]
-    total: int
-    next: str | None
-
 
 @dataclass(frozen=True, slots=True)
 class Unsealed:
@@ -101,126 +53,6 @@ class Unsealed:
     channel: str | None
     # None for a log no scope ever claimed.
     env: Env | None
-
-
-@dataclass(frozen=True, slots=True)
-class AgentWindow:
-    """One agent's window: its calls, the share of judgments it held, what it cost by stage."""
-
-    slug: str
-    calls: int
-    score: float | None
-    # Dollars by stage (llm, stt, tts, phone, platform), and the minutes of the calls that ended.
-    spend: dict[str, float]
-    minutes: float
-
-
-@dataclass(frozen=True, slots=True)
-class WindowDay:
-    """One UTC day of a window: its calls by door, what they cost, and how their judges answered."""
-
-    day: date
-    channels: dict[str, int]
-    spent: float
-    judged: int
-    passed: int
-
-
-@dataclass(frozen=True, slots=True)
-class Window:
-    """A scope's window of whole UTC days in numbers, and the window of the same length before."""
-
-    calls: int
-    before: int
-    finished: int
-    unescalated: int
-    judged: int
-    passed: int
-    escalated: int
-    mean_length: float | None
-    median_e2e: float | None
-    spent: float
-    channels: dict[str, int]
-    endings: list[tuple[str, int]]
-    days: list[WindowDay]
-    agents: list[AgentWindow]
-    total: int
-    live: int
-
-
-@dataclass(frozen=True, slots=True)
-class InboxRow:
-    """One contact in an inbox: its newest call, when it moved, what the reader has not read."""
-
-    contact: str
-    newest: CallFacts
-    moved_at: float
-    unread: int
-    calls: int
-    name: str | None
-
-
-@dataclass(frozen=True, slots=True)
-class InboxPage:
-    """One page of an inbox and the cursor of the next."""
-
-    rows: list[InboxRow]
-    next: str | None
-
-
-@dataclass(frozen=True, slots=True)
-class Inbox:
-    """Whose inbox: a scope, an agent and the person reading it."""
-
-    scope: Scope
-    agent: str
-    reader: str
-
-
-@dataclass(frozen=True, slots=True)
-class PersonaRunFilters:
-    """Whose runs a list asks for: the agent, the persona that called it, the page before this."""
-
-    agent: str
-    persona: str
-    before: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class PersonaRun:
-    """One simulated call by a persona: when it started, its facts, how many turns it took."""
-
-    started_at: float
-    facts: CallFacts
-    turns: int = field(init=False)
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "turns", len(self.facts.heard_at))
-
-
-@dataclass(frozen=True, slots=True)
-class PersonaRuns:
-    """One page of a persona's runs, newest first, the total and the cursor of the next page."""
-
-    runs: list[PersonaRun]
-    total: int
-    next: str | None
-
-
-@dataclass(frozen=True, slots=True)
-class MeteredPage:
-    """One page of the usage feed: the rows kept, and the cursor past everything read."""
-
-    rows: list[UsageRow]
-    next: int | None
-
-
-# The cursor moves past every row read, kept or not, so a page filtered to one org still moves.
-async def metered_page(store: Store, *, after: int, limit: int, org: str | None) -> MeteredPage:
-    """The metered rows after the cursor, of one org or of every org, folded."""
-    read = [usage_row(item) for item in await store.across(METERED_TYPES, after=after, limit=limit)]
-    kept = [row for row in read if org is None or row.org == org]
-    return MeteredPage(rows=kept, next=read[-1].cursor if read else None)
 
 
 async def sealed_among(pool: Pool, calls: list[str]) -> set[str]:
@@ -286,151 +118,6 @@ async def unsealed_written(pool: Pool, quiet_since: float, *, limit: int) -> lis
     return await _unsealed(pool, UNSEALED_WRITTEN, quiet_since, limit)
 
 
-async def found(pool: Pool, scope: Scope, wanted: ListFilters, *, limit: int) -> Found:
-    """Return one page of the scope's calls the filter matches, newest first, and their total."""
-    params = {
-        **asdict(scope),
-        "agent": wanted.agent,
-        "channel": wanted.channel,
-        "words": None if wanted.q is None else _like_escaped(wanted.q),
-        "digits": "".join(item for item in (wanted.q or "") if item.isdigit()),
-    }
-    # independent: the total and the page are read apart, as a list always was
-    async with pool.connection() as connection:
-        total = await (await connection.execute(FOUND_COUNT, params)).fetchone()
-        page = {**params, "before": wanted.before, "limit": limit + 1}
-        rows = await (await connection.execute(FOUND_PAGE, page)).fetchall()
-    calls = [str(row["call"]) for row in rows]
-    return Found(
-        calls=calls[:limit],
-        total=0 if total is None else int(total["total"]),
-        next=calls[limit - 1] if len(calls) > limit else None,
-    )
-
-
-async def runs_of_persona(
-    pool: Pool, scope: Scope, wanted: PersonaRunFilters, *, limit: int
-) -> PersonaRuns:
-    """Return a page of the persona's calls to the agent in the scope, newest first, and a total."""
-    params = {**asdict(scope), "agent": wanted.agent, "persona": wanted.persona}
-    # independent: the total and the page are read apart, as a list always was
-    async with pool.connection() as connection:
-        total = await (await connection.execute(PERSONA_RUNS_COUNT, params)).fetchone()
-        page = {**params, "before": wanted.before, "limit": limit + 1}
-        rows = await (await connection.execute(PERSONA_RUNS_PAGE, page)).fetchall()
-    runs = [PersonaRun(started_at=float(row["started_at"]), facts=facts_of(row)) for row in rows]
-    return PersonaRuns(
-        runs=runs[:limit],
-        total=0 if total is None else int(total["total"]),
-        next=runs[limit - 1].facts.call if len(runs) > limit else None,
-    )
-
-
-# One agent's window when it names one; the whole scope's when it is None.
-async def counted_window(
-    pool: Pool, scope: Scope, start: float, end: float, agent: str | None
-) -> Window:
-    """Return the scope's window from start to end, both on a UTC midnight, in numbers."""
-    params = {**asdict(scope), "start": start, "end": end, "agent": agent, "a_day": A_DAY_S}
-    # independent: five counts of one window, each its own snapshot
-    async with pool.connection() as connection:
-        counted = await (await connection.execute(WINDOW, params)).fetchone()
-        median = await (await connection.execute(WINDOW_MEDIAN_E2E, params)).fetchone()
-        agents = await (await connection.execute(WINDOW_BY_AGENT, params)).fetchall()
-        endings = await (await connection.execute(WINDOW_ENDINGS, params)).fetchall()
-        by_day = await (await connection.execute(WINDOW_BY_DAY, params)).fetchall()
-    if counted is None:
-        raise DeclarationRefused("a window counts, even an empty one")
-    return Window(
-        calls=int(counted["calls"]),
-        before=int(counted["before"]),
-        finished=int(counted["finished"]),
-        unescalated=int(counted["unescalated"]),
-        judged=int(counted["judged"]),
-        passed=int(counted["passed"]),
-        escalated=int(counted["escalated"]),
-        mean_length=None if counted["mean_length"] is None else float(counted["mean_length"]),
-        median_e2e=None if median is None else median["median"],
-        spent=float(counted["spent"]),
-        channels={door: int(counted[door]) for door in CHANNELS},
-        endings=[(row["reason"], int(row["count"])) for row in endings],
-        days=_every_day(start, end, {int(row["epoch_day"]): row for row in by_day}),
-        agents=[
-            AgentWindow(
-                slug=row["slug"],
-                calls=row["calls"],
-                score=row["score"],
-                spend={stage: float(row[stage]) for stage in STAGES},
-                minutes=float(row["minutes"]),
-            )
-            for row in agents
-        ],
-        total=int(counted["total"]),
-        live=int(counted["live"]),
-    )
-
-
-async def threads(pool: Pool, inbox: Inbox, *, after: str | None, limit: int) -> InboxPage:
-    """Return one page of the inbox, the contact that moved last first, with the unread counts."""
-    moved_at, contact = _after_the_cursor(after)
-    params = {
-        **asdict(inbox.scope),
-        "agent": inbox.agent,
-        "reader": inbox.reader,
-        "moved_at": moved_at,
-        "contact": contact,
-        "limit": limit + 1,
-    }
-    async with pool.connection() as connection:
-        rows = await (await connection.execute(THREADS, params)).fetchall()
-    found = [
-        InboxRow(
-            contact=str(row["contact"]),
-            newest=facts_of(row),
-            moved_at=float(row["moved_at"]),
-            unread=int(row["unread"] or 0),
-            calls=int(row["calls"]),
-            name=row["known_as"],
-        )
-        for row in rows
-    ]
-    last = found[limit - 1] if len(found) > limit else None
-    return InboxPage(
-        rows=found[:limit], next=None if last is None else f"{last.moved_at!r}:{last.contact}"
-    )
-
-
-async def calls_with(
-    pool: Pool, scope: Scope, agent: str, contact: str, *, limit: int
-) -> list[str]:
-    """Return the contact's newest calls with the agent in the scope."""
-    params = {**asdict(scope), "agent": agent, "contact": contact, "limit": limit}
-    async with pool.connection() as connection:
-        rows = await (await connection.execute(CALLS_WITH, params)).fetchall()
-    return [str(row["call"]) for row in rows]
-
-
-async def ever_reached(pool: Pool, org: str, env: Env, contact: str) -> bool:
-    """Return whether the contact ever had a call with any agent of the org in the world."""
-    params = {"org": org, "env": env, "contact": contact}
-    async with pool.connection() as connection:
-        row = await (await connection.execute(EVER_REACHED, params)).fetchone()
-    return row is not None and bool(row["reached"])
-
-
-async def read(pool: Pool, inbox: Inbox, contact: str, at: float) -> None:
-    """Mark the contact's thread read up to that time for this reader."""
-    params = {
-        **asdict(inbox.scope),
-        "agent": inbox.agent,
-        "reader": inbox.reader,
-        "contact": contact,
-        "at": at,
-    }
-    async with pool.connection() as connection:
-        await connection.execute(READ, params)
-
-
 async def _unsealed(
     pool: Pool, query: LiteralString, quiet_since: float, limit: int
 ) -> list[Unsealed]:
@@ -448,38 +135,3 @@ async def _unsealed(
         )
         for row in rows
     ]
-
-
-def _after_the_cursor(cursor: str | None) -> tuple[float | None, str | None]:
-    if cursor is None or ":" not in cursor:
-        return None, None
-    moved_at, contact = cursor.split(":", 1)
-    try:
-        return float(moved_at), contact
-    except ValueError:
-        return None, None
-
-
-def _like_escaped(words: str) -> str:
-    return words.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
-# Every day of the window has its row, a day nobody called included, so a chart has no holes.
-def _every_day(start: float, end: float, counted: dict[int, DictRow]) -> list[WindowDay]:
-    first, last = int(start // A_DAY_S), int(end // A_DAY_S)
-    return [_day_of(epoch_day, counted.get(epoch_day)) for epoch_day in range(first, last)]
-
-
-def _day_of(epoch_day: int, row: DictRow | None) -> WindowDay:
-    day = datetime.fromtimestamp(epoch_day * A_DAY_S, UTC).date()
-    if row is None:
-        return WindowDay(
-            day=day, channels=dict.fromkeys(CHANNELS, 0), spent=0.0, judged=0, passed=0
-        )
-    return WindowDay(
-        day=day,
-        channels={door: int(row[door]) for door in CHANNELS},
-        spent=float(row["spent"]),
-        judged=int(row["judged"]),
-        passed=int(row["passed"]),
-    )

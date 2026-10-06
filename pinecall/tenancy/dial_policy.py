@@ -13,7 +13,7 @@ from pinecall.domain.country_codes import CALLING_CODES, NEVER_DIALLED, SHORTEST
 from pinecall.domain.errors import DeclarationRefused, NotAllowed, QuotaExhausted
 from pinecall.domain.names import parse_e164
 from pinecall.domain.scope import Scope
-from pinecall.log.queries import ever_reached
+from pinecall.log.inbox import ever_reached
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy import consents, policy
 from pinecall.tenancy.consents import Given

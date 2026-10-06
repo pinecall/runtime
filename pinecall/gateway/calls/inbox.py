@@ -62,10 +62,6 @@ class Elsewhere:
         """Stop hearing and saying."""
         await self.shared.close()
 
-    def put(self, rows: tuple[SocketRow, ...]) -> None:
-        """This gateway's sockets changed."""
-        self.shared.put(rows)
-
     def rows_of(self, org: str, env: str) -> list[SocketRow]:
         """The org's sockets in the world on every other gateway."""
         return [

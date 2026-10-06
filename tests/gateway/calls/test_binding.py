@@ -4,8 +4,8 @@ import asyncio
 
 from pinecall.domain.agent import AgentConfig
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import served_call
 from pinecall.gateway.calls.binding import attach, handed_on
+from pinecall.gateway.calls.serving import served_call
 from pinecall.wire.frames import Entry
 from tests.conftest import postgres
 from tests.gateway.conftest import AGENT, OURS, a_call, a_start

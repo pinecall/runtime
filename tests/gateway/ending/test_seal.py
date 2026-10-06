@@ -15,7 +15,7 @@ from pinecall.domain.names import JsonObject
 from pinecall.domain.org import Quotas
 from pinecall.domain.scope import Scope
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import opened, served_call
+from pinecall.gateway.calls.serving import opened, served_call
 from pinecall.gateway.ending.seal import A_RUN_JUDGES_IT, NO_JUDGE, drifted, sealed, summed_up
 from pinecall.log.logs import log_name
 from pinecall.log.store import Claim

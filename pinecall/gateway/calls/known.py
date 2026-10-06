@@ -2,7 +2,8 @@
 
 import time
 
-from pinecall.gateway._served import Served, Serving, first_seen
+from pinecall.gateway._served import Served, Serving
+from pinecall.gateway.calls.serving import first_seen
 from pinecall.log import openings, queries
 
 

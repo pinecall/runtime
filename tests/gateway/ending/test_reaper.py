@@ -9,7 +9,7 @@ from pinecall.domain.agent import AgentConfig
 from pinecall.domain.call import CallContext, Route, new_call_id
 from pinecall.domain.scope import Scope
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import opened, served_call
+from pinecall.gateway.calls.serving import opened, served_call
 from pinecall.gateway.ending.reaper import reaped
 from pinecall.gateway.ending.seal import sealed
 from pinecall.log import openings

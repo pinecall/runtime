@@ -5,8 +5,8 @@ import json
 
 from pinecall.domain.agent import AgentConfig
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._served import served_call
 from pinecall.gateway.calls.commands import commanded
+from pinecall.gateway.calls.serving import served_call
 from pinecall.wire.frames import Command
 from pinecall.wire.rest.calls import OpenCallRequest
 from tests.conftest import AGENT as THE_KNOCKED_AGENT
