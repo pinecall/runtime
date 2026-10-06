@@ -74,13 +74,12 @@ def test_an_apps_refusal_is_passed_on_with_its_own_status_and_sentence() -> None
     assert (refused.status, str(refused)) == (422, "the app has no tool named book")
 
 
-def test_an_unreachable_embedder_names_itself_where_it_was_asked_and_its_own_words() -> None:
+# Its sentence reaches a tenant: the vendor and its words, never the box's internal address.
+def test_an_unreachable_embedder_names_itself_and_its_words_and_keeps_where_it_was_asked() -> None:
     refused = EmbedderUnreachable("perplexity", "https://embed.test/v1/embeddings", "Invalid model")
-    assert (
-        str(refused)
-        == "perplexity at https://embed.test/v1/embeddings did not answer: Invalid model"
-    )
-    assert refused.words == "Invalid model"
+    assert str(refused) == "perplexity did not answer: Invalid model"
+    assert "embed.test" not in str(refused)
+    assert (refused.url, refused.words) == ("https://embed.test/v1/embeddings", "Invalid model")
 
 
 def test_a_base_of_another_model_names_both_models_and_the_way_out() -> None:

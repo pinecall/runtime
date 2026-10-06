@@ -338,7 +338,7 @@ async def test_a_refused_request_names_the_vendor_the_door_and_the_endpoints_own
     vendor.script = [refused(400, "Invalid model")]
     with pytest.raises(EmbedderUnreachable) as raised:
         await an_embedder(client, slept, FLAT).embed(["hola"])
-    assert str(raised.value) == f"openrouter at {URL}/embeddings did not answer: Invalid model"
+    assert str(raised.value) == "openrouter did not answer: Invalid model"
 
 
 async def test_a_refusal_with_no_sentence_in_it_falls_back_to_the_status(
@@ -420,12 +420,15 @@ async def test_an_embedder_that_answers_5xx_three_times_is_unreachable_after_two
     assert len(slept) == 2
 
 
+# The sentence names the vendor; where the box asked it is the refusal's own, never its words.
 async def test_a_connection_refused_is_retried_then_unreachable_by_name_and_url(
     vendor: Embeddings, client: httpx.AsyncClient, slept: list[float]
 ) -> None:
     vendor.script = [httpx.ConnectError("connection refused")] * 3
-    with pytest.raises(EmbedderUnreachable, match=f"openrouter at {URL}/embeddings did not answer"):
+    with pytest.raises(EmbedderUnreachable, match="openrouter did not answer") as raised:
         await an_embedder(client, slept, FLAT).embed(["hola"])
+    assert raised.value.url == f"{URL}/embeddings"
+    assert URL not in str(raised.value)
     assert len(vendor.requests) == 3
 
 

@@ -172,8 +172,9 @@ class ImportNumberRequest(WireModel):
 class BuyNumberRequest(WireModel):
     """POST /v1/numbers/buy: a number wanted from the box's own account."""
 
-    country: str = Field(min_length=2, max_length=2)
-    area_code: str | None = None
+    # Two letters and digits alone: both ride a URL path the box signs with its own account.
+    country: str = Field(pattern=r"^[A-Za-z]{2}$")
+    area_code: str | None = Field(default=None, pattern=r"^[0-9]{1,6}$")
     agent: str
     channel: Channel = "phone"
 

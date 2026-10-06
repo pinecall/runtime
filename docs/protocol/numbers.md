@@ -103,7 +103,8 @@ Twilio's own sentence.
 ## Buying one — `POST /v1/numbers/buy {country, area_code?, agent, channel?}`
 
 For an org with no account of its own: a number bought on the box's own Twilio account (the
-sealed `credentials/twilio` row of `box_settings`), then hooked as an import and routed with
+sealed `credentials/twilio` row of `box_settings`; `country` is two letters and `area_code`
+digits, `422` otherwise, since both ride a path the box signs), then hooked as an import and routed with
 `managed: true`, in the key's world. The `numbers` quota of that world caps it, and is counted on
 the managed numbers alone: `429` before Twilio is asked. `404` when Twilio has nothing for sale
 there, `503` when the box holds no Twilio account. `?dry_run=true` names the number it would buy

@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import logging
 import math
 import re
 import secrets
@@ -15,6 +16,8 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from pinecall.domain.errors import EmbedderUnreachable, NotAvailable, WrongWidth
 from pinecall.domain.names import Credentials, Json
 from pinecall.providers.catalog import Embedding
+
+logger = logging.getLogger(__name__)
 
 type Sleep = Callable[[float], Awaitable[None]]
 
@@ -250,6 +253,7 @@ class Embedder:
         return [float(value) for value in values]
 
     def _unreachable(self, words: str) -> EmbedderUnreachable:
+        logger.warning("the embedder at %s did not answer: %s", self._url, words)
         return EmbedderUnreachable(self.embedding.vendor, self._url, words)
 
 

@@ -1,6 +1,14 @@
 """Tests for the bodies of the number doors."""
 
-from pinecall.wire.rest.numbers import DialRequest, DialResponse, ImportNumberRequest
+import pytest
+from pydantic import ValidationError
+
+from pinecall.wire.rest.numbers import (
+    BuyNumberRequest,
+    DialRequest,
+    DialResponse,
+    ImportNumberRequest,
+)
 
 
 def test_a_dial_takes_the_number_shown_by_its_wire_name_from() -> None:
@@ -31,3 +39,11 @@ def test_a_dial_answered_says_the_number_shown_as_from() -> None:
         }
     )
     assert answer.written()["from"] == "+15550100133"
+
+
+# Both ride a URL path the box signs with its own account: two letters, and digits.
+def test_a_number_bought_names_a_country_of_two_letters_and_an_area_code_of_digits() -> None:
+    assert BuyNumberRequest(country="uy", area_code="2", agent="a").country == "uy"
+    for wrong in ({"country": ".."}, {"country": "U1"}, {"country": "US", "area_code": "../x"}):
+        with pytest.raises(ValidationError):
+            BuyNumberRequest.model_validate({"agent": "a", **wrong})

@@ -102,9 +102,12 @@ class EmbedderUnreachable(PinecallError):
 
     status = 503
 
+    # The sentence reaches a tenant (a lookup's error on its call's log): it names the vendor and
+    # never where the box asked it, which is the operator's to read in the process's log.
     def __init__(self, vendor: str, url: str, words: str) -> None:
         """The embedder, where it was asked, and what it said or why it said nothing."""
-        super().__init__(f"{vendor} at {url} did not answer: {words}")
+        super().__init__(f"{vendor} did not answer: {words}")
+        self.url = url
         self.words = words
 
 
