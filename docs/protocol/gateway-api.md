@@ -100,6 +100,11 @@ entry of the call through `call.score`. The call-scoped commands carry `"call": 
 | `call.claim` | the caller said a page's code: [codes.md](codes.md) |
 | `tool.result` | the answer to a `tool.call`, by its `call_id`: an `output` or an `error`, never both |
 
+A refusal (`error`, with the command's `type` and `id`) and a `pong` land on the agent's log only
+when this socket holds that agent; a frame naming any other slug, or no JSON at all, is answered
+down the socket alone (`seq: 0`) and the socket stays. A `tool.result` answers a call of an agent
+this socket holds, in its own org.
+
 The prompt has three regions, in this order: the static blocks (cached by the provider), the
 history, and the dynamic blocks at the end. The default layout is `identity`, `knowledge`, `tools`
 before the history and `view` after it. A spoken call runs in a worker; the tool round trip is the

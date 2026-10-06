@@ -83,6 +83,9 @@ DIAL = (
 NO_SESSION = "{kind} names call {call!r}, which is not running here"
 
 
+NOT_JSON = "a frame is one JSON object: this one did not parse"
+
+
 # Where an opt-out the agent heard came from, as the do-not-call list says it.
 ASKED_THE_AGENT = "the caller asked the agent"
 
@@ -132,7 +135,11 @@ class AppSocket:
     async def serve(self) -> None:
         """Read frames until the app goes; every frame is answered and none raises."""
         while True:
-            raw: Json = await self.websocket.receive_json()
+            try:
+                raw: Json = await self.websocket.receive_json()
+            except ValueError:
+                await self.refuse("", "bad_shape", NOT_JSON, None)
+                continue
             await self.take(raw)
 
     async def send(self, entry: Entry) -> None:
@@ -237,8 +244,15 @@ class AppSocket:
     # The worker may have asked another gateway: the answer is written on the call's log here,
     # once per call id, and whoever waits reads it there.
     async def _answered(self, command: Command, result: ToolResult) -> None:
+        self._holds(command.agent)
         served = None if command.call is None else self.gateway.live.calls.get(command.call)
-        if served is not None and served.agent == command.agent and await _written(served, result):
+        ours = served is not None and served.scope.org == self.scope.org
+        if (
+            served is not None
+            and ours
+            and served.agent == command.agent
+            and await _written(served, result)
+        ):
             return
         text = NOBODY_WAITING.format(call_id=result.call_id, call=command.call)
         await self.refuse(command.agent, "no_session", text, command.written())
@@ -291,12 +305,17 @@ class AppSocket:
             raise DeclarationRefused(NOT_REGISTERED.format(slug=slug))
         return registration
 
+    # On the agent's log only when this socket holds the agent: a slug is one org's, and a frame
+    # naming any other is answered down the socket alone, so nothing of it lands on a log.
     async def _emitted(self, slug: str, kind: str, event: WireModel) -> None:
+        if self.gateway.sockets.on(self.id, self.scope.env, slug) is None:
+            await self.send(_deps.ephemeral_entry(slug, event, kind=kind))
+            return
         entry = await self.gateway.logs.agent(slug).append(kind, event.written())
         await self.send(entry)
 
     async def refuse(self, slug: str, code: str, message: str, raw: Json) -> None:
-        """An error naming the command refused and its id; on the agent's log when it names one."""
+        """An error naming the command refused and its id; on the agent's log when it holds one."""
         text = ErrorEvent(
             code=code,
             message=message,
@@ -304,10 +323,7 @@ class AppSocket:
             id=_named(raw, "id") or None,
             recoverable=True,
         )
-        if slug:
-            await self._emitted(slug, "error", text)
-            return
-        await self.send(_deps.ephemeral_entry("", text))
+        await self._emitted(slug, "error", text)
 
 
 @router.websocket("/v1/apps")

@@ -325,3 +325,39 @@ async def test_a_member_bound_to_other_agents_does_not_register_this_one(
     assert f"agent {AGENT} is not one of them" in str(refused.data["message"])
     assert knocking.gateway.sockets.slugs(knocking.org.id) == frozenset()
     await socket.close()
+
+
+# A socket writes on the logs of the agents it holds and no other: a frame naming a slug it does
+# not hold — another org's, or nobody's — is answered down the socket alone, and nothing lands on
+# that agent's log.
+@postgres
+async def test_a_frame_naming_a_slug_the_socket_does_not_hold_lands_nothing_on_its_log(
+    knocking: Knocking,
+) -> None:
+    store = knocking.gateway.logs.store
+    await store.claim(None, "sales", "org_elsewhere")
+    socket = await an_app(knocking)
+    frames: list[JsonObject] = [
+        {"type": "ping", "agent": "sales", "call": None, "data": {}},
+        {"type": "agent.dance", "agent": "sales", "call": None, "data": {}},
+        {"type": "tool.result", "agent": "sales", "call": "call_x", "data": {"call_id": "c"}},
+        {"hello": "there", "agent": "sales"},
+    ]
+    for frame in frames:
+        await socket.send(json.dumps(frame))
+        answered = await received(socket)
+        assert answered.seq == 0, answered
+        assert answered.type in {"pong", "error"}
+    assert await store.whole("@sales") == []
+    await socket.close()
+
+
+@postgres
+async def test_a_frame_that_is_no_json_is_refused_and_the_socket_stays(knocking: Knocking) -> None:
+    socket = await an_app(knocking)
+    await socket.send("{not json")
+    refused = await received(socket)
+    assert (refused.type, refused.data["code"], refused.seq) == ("error", "bad_shape", 0)
+    await sent(socket, "ping", {})
+    assert (await received(socket)).type == "pong"
+    await socket.close()
