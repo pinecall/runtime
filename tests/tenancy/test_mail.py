@@ -59,6 +59,18 @@ async def test_a_relay_that_asks_for_nothing_is_never_signed_in_to(postbox: Post
     assert (postbox.starttls, postbox.logins, len(postbox.sent)) == (0, [], 1)
 
 
+async def test_a_mailbox_with_no_tls_reaches_no_server_across_the_internet(
+    postbox: Postbox,
+) -> None:
+    public = Mailbox("8.8.8.8", 25, "none", "them@clinica.test", "their-pass", SENDER)
+    with pytest.raises(
+        UpstreamFailed, match=r"8\.8\.8\.8 is not on this machine or a private network"
+    ):
+        await post(public, LETTER)
+    await post(Mailbox("10.0.0.7", 25, "none", "", "", SENDER), LETTER)
+    assert postbox.hosts == [("10.0.0.7", 25)]
+
+
 async def test_a_server_that_refuses_the_password_is_its_own_sentence(postbox: Postbox) -> None:
     postbox.refuses_login = (535, "Authentication credentials invalid")
     with pytest.raises(UpstreamFailed, match="535 Authentication credentials invalid") as refused:

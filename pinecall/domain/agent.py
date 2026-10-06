@@ -62,6 +62,9 @@ LONGEST_LIMIT_S = 3600
 
 NO_LIMIT = 0
 
+# How long a tool may run before the model hears it timed out.
+LONGEST_TOOL_S = 300
+
 
 # Unset knobs are None, never "": an empty string reaches the vendor as a value (an empty voice
 # once made every call silent).
@@ -180,8 +183,11 @@ class ToolSpec:
             )
         if self.preview is not None and self.preview < 1:
             raise DeclarationRefused(f"tool {self.name}: a preview shows at least one item")
-        if self.timeout_s <= 0:
-            raise DeclarationRefused(f"tool {self.name}: timeout_s is a positive number of seconds")
+        # The caller waits in silence or on the melody while a tool runs: five minutes at most.
+        if not 0 < self.timeout_s <= LONGEST_TOOL_S:
+            raise DeclarationRefused(
+                f"tool {self.name}: timeout_s is seconds above 0, {LONGEST_TOOL_S} at most"
+            )
 
     @property
     def parameter_names(self) -> frozenset[str]:

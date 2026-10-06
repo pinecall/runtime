@@ -84,6 +84,16 @@ async def test_the_fleet_is_handed_each_fallback_on_its_key_and_reads_it_back(
 
 
 @postgres
+async def test_an_orgs_own_worker_is_lent_none_of_the_boxs_keys(knocking: Knocking) -> None:
+    socket = await an_app(knocking)
+    async with knocking.http(knocking.app["sandbox"]) as own_worker:
+        refused = await own_worker.get(f"/v1/agents/{AGENT}/provider-keys")
+    assert refused.status_code == 403
+    assert "it may run on nothing of the box's, or on a key of its own" in refused.text
+    await socket.close()
+
+
+@postgres
 async def test_a_key_that_only_reads_is_handed_no_keys(knocking: Knocking) -> None:
     socket = await an_app(knocking)
     reads = await issued(

@@ -36,7 +36,7 @@ a client may not set.
 | field | whose | meaning |
 |---|---|---|
 | `agent` | ours | the agent's slug, or `room_config.agents[0].agent_name` as a stock client sends `agentName` |
-| `scope` | ours | `talk` (default): publish the microphone, hear the agent. `chat`: the same room with no microphone. Any other is `400`: `observe` and `supervise` take the API key |
+| `scope` | ours | `talk` (default): publish the microphone, hear the agent. `chat`: the same room with no microphone. Both write on the call's data channel, the caller's own words; `observe` and `supervise` never do. Any other is `400`: `observe` and `supervise` take the API key |
 | `contact` | ours | the org's opaque id for the person; becomes `participant_metadata` |
 | `metadata` | ours | JSON sealed into the call, reaching the worker in the signed dispatch |
 | `ttl_s` | ours | 60 by default, 600 at most |

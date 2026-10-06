@@ -162,6 +162,23 @@ async def test_releases_are_numbered_from_one_and_come_back_newest_first(pool: P
 
 
 @postgres
+async def test_an_app_keeps_its_newest_ten_releases_and_the_one_its_runner_serves(
+    pool: Pool,
+) -> None:
+    org = await an_org(pool)
+    app = HostedApp(org=org.id, env="production", name="support")
+    await open_app(pool, VAULT, app, created_by="m_ana")
+    source = checked_source(PROJECT)
+    for _ in range(3):
+        await keep_release(pool, app, source, author="m_ana", note="")
+    await went_live(pool, app, host_of(app, 3, source.sha256, ""), runner="r_1")
+    for _ in range(12):
+        await keep_release(pool, app, source, author="m_ana", note="")
+    kept = [row.release for row in await releases_of(pool, app)]
+    assert kept == [*range(15, 5, -1), 3]
+
+
+@postgres
 async def test_each_world_hosts_its_own_apps(pool: Pool) -> None:
     org = await an_org(pool)
     await open_app(

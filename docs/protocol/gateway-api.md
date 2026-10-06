@@ -9,7 +9,8 @@ every door in one table, [every-door.md](every-door.md).
 
 One gateway serves both worlds, production and the sandbox, at `/v1`, and beside it the console at
 `/` and the widget at `/widget/pinecall-widget.js`, the one answer carrying
-`Access-Control-Allow-Origin: *`. Three kinds of connection:
+`Access-Control-Allow-Origin: *`. The API's own description is public too, `GET /v1/docs` and
+`/openapi.json`: every door and every body, none of them a secret. Three kinds of connection:
 
 | | what it is | who opens it |
 |---|---|---|
@@ -128,6 +129,13 @@ agent's log; `GET /v1/callbacks?agent=&after=` lists them for your app to dial.
 wins), `limit` up to 500, `types` a comma list, `durable=1` drops the ephemeral entries, `token` a
 page's log token. `next` is the last seq the page read, so a filtered page still moves you on. The
 SSE frames are `id: <seq>`, `event: <type>`, `data: <the entry>`, a `: ping` every 25 s.
+
+A reader may watch before there is anything to read. A call id no worker has opened yet reads as
+an empty log to any key, so a backend that minted a token can tail the call it names before the
+caller arrives; a call id is random, and nothing is in it until its org's worker opens it, after
+which only its org reads it (`404` to anyone else). An agent's own log reads the same way while no
+org has registered the slug, so `pinecall logs` can wait for a first `start`; once an org holds
+it, it is that org's alone.
 
 | door | |
 |---|---|

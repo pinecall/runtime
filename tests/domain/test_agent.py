@@ -150,6 +150,13 @@ def test_how_long_a_barge_in_must_last_is_zero_or_more_milliseconds() -> None:
         Turn(min_interruption_ms=-1)
 
 
+def test_a_tool_runs_five_minutes_at_most() -> None:
+    assert ToolSpec("free_slots", "Lists slots.", A_DAY_AND_A_TIME, timeout_s=300).timeout_s == 300
+    for seconds in (0, 301, 86_400):
+        with pytest.raises(DeclarationRefused, match="timeout_s is seconds above 0, 300 at most"):
+            ToolSpec("free_slots", "Lists slots.", A_DAY_AND_A_TIME, timeout_s=seconds)
+
+
 def test_no_count_of_the_turn_is_below_zero() -> None:
     assert Turn(endpointing_ms=0, min_interruption_words=0).endpointing_ms == 0
     with pytest.raises(DeclarationRefused, match="endpointing_ms is a count"):

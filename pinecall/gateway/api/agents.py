@@ -1,5 +1,6 @@
 """What a worker asks about an agent, and the agents and routes the org holds."""
 
+import dataclasses
 import time
 from typing import Annotated
 
@@ -64,11 +65,12 @@ async def agent_config(
     return tuned_config
 
 
-# The one answer that carries keys: to the fleet's key, or the org's own worker's.
+# The one answer that carries keys: to the fleet's key, or the org's own worker's. The box's
+# keys leave it only for its own workers: an org's process is handed the org's keys alone.
 @router.get("/v1/agents/{slug}/provider-keys")
 async def agent_credentials(
     slug: str,
-    _key: WorkerKey,
+    key: WorkerKey,
     where: ScopeDep,
     gateway: GatewayDep,
     for_call: Annotated[str | None, Query()] = None,
@@ -80,6 +82,8 @@ async def agent_credentials(
         gateway.connections.pool, found.config, where, configured, Picked(call=for_call)
     )
     keys = await keys_of(gateway.connections.pool, gateway.connections.vault, where)
+    if THE_FLEET not in key.bearer.key.scopes:
+        keys = dataclasses.replace(keys, lends=frozenset())
     now = time.monotonic()
     stages = pipeline(tuned_config, configured, keys, gateway.counters.failing(now))
     gateway.counters.handed_out((stages.llm.vendor, stages.stt.vendor, stages.tts.vendor), now)

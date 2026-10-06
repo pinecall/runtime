@@ -50,7 +50,9 @@ means. Those are measured per vendor and per day (`GET /v1/insights`, `stages`),
 
 No door a person reads answers with a key. The one door that does is the worker's,
 `GET /v1/agents/{slug}/provider-keys`, which hands a call's three stages with the credentials each
-runs on, to the fleet's key or the org's own worker; the worker names the call it is about to open
+runs on, to the fleet's key or the org's own worker. The box's keys go to its own workers alone: an
+org's worker (its app key) is handed the org's own keys and lent none of the box's, a stage on a
+vendor it brought no key for refused `403` in those words. The worker names the call it is about to open
 (`?for_call=`), as it does to `GET /v1/agents/{slug}/config`, so a canary picks the call's version
 ([settings-api.md](settings-api.md)). Every row is sealed under `PINECALL_VAULT_KEY`,
 which a gateway does not start without.

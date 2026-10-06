@@ -1,7 +1,7 @@
 # Each world's workers, on that world's machines alone. On its media node, a few small ones: the
 # calls of a quiet hour cost nothing more. On its workers pool, the ones KEDA scales from none on
 # the gateway's own number
-# (GET /v1/ops/fleet/{fleet}/wanted, fleet/demand.py, counting the core's seats first); the
+# (GET /v1/fleet/wanted, fleet/demand.py, counting the core's seats first); the
 # cluster autoscaler makes a node for each and takes it away once it is empty. A worker told to
 # stop drains its calls, up to ten minutes: Kubernetes waits fifteen.
 {{- range $world, $core := .Values.workers.core }}
@@ -86,7 +86,8 @@ metadata:
   name: worker-scaled-{{ $world }}
 spec:
   secretTargetRef:
-    - { parameter: token, name: pinecall, key: PINECALL_OPS_KEY }
+    # The world's fleet key, not the operator's: the one number is all KEDA reads.
+    - { parameter: token, name: pinecall-fleet-keys, key: {{ $world }} }
 ---
 # The gateway computes how many; KEDA keeps the Deployment at it: up at once, down one at a time,
 # never sooner than ten minutes after the last change, each going only once its calls end.
@@ -114,7 +115,7 @@ spec:
       authenticationRef: { name: worker-scaled-{{ $world }} }
       metadata:
         # KEDA asks from its own namespace: the gateway's Service by its whole name.
-        url: {{ printf "http://pinecall-gateway.%s.svc.cluster.local:8080/v1/ops/fleet/%s/wanted?scaled=worker-scaled-%s-&seats=%v&most=%v" $.Release.Namespace (index $.Values.fleets $world) $world $scaled.seats $scaled.most | quote }}
+        url: {{ printf "http://pinecall-gateway.%s.svc.cluster.local:8080/v1/fleet/wanted?scaled=worker-scaled-%s-&seats=%v&most=%v" $.Release.Namespace $world $scaled.seats $scaled.most | quote }}
         valueLocation: wanted
         targetValue: "1"
         authMode: bearer

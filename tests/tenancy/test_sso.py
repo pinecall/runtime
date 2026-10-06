@@ -1,5 +1,6 @@
 """Tests for sign-in with the org's identity provider."""
 
+import socket
 import time
 
 import httpx
@@ -95,6 +96,20 @@ async def test_a_configuration_naming_another_issuer_or_no_endpoint_is_refused()
     silent = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(404)))
     with pytest.raises(UpstreamFailed, match="not an OpenID provider"):
         await discovered(silent, "https://idp.test")
+
+
+async def test_a_public_name_that_resolves_inside_is_refused_like_an_address(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def inside(*_asked: object, **_kwargs: object) -> list[tuple[object, ...]]:
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.5", 0))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", inside)
+    silent = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(404)))
+    with pytest.raises(NotAllowed, match="never an address"):
+        await discovered(silent, "https://sso.clinica.test")
+    with pytest.raises(NotAllowed, match="never an address"):
+        await discovered(silent, "https://keycloak.auth.svc")
 
 
 async def test_a_signed_id_token_with_this_sign_ins_nonce_vouches_for_a_verified_address() -> None:

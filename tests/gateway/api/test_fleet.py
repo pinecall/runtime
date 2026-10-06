@@ -9,9 +9,10 @@ from pinecall.channels.telephony.hand_over import LEG_PREFIX
 from pinecall.domain.scope import Scope
 from pinecall.log.store import Claim
 from pinecall.wire.rest.fleet import HeartbeatRequest
-from tests.conftest import AGENT, LIVEKIT_KEY, Knocking, a_worker_heard, postgres
+from tests.conftest import AGENT, FLEETS, LIVEKIT_KEY, Knocking, a_worker_heard, postgres
 from tests.fakes.livekit import Server, signed
 from tests.gateway.api.conftest import a_call
+from tests.gateway.api.test_ops import THE_OPS_KEY, with_an_ops_key
 
 WEBHOOK = "/v1/livekit/webhook"
 
@@ -52,6 +53,32 @@ def agent_lost(call: str) -> str:
             },
         }
     )
+
+
+# KEDA's question, with the world's fleet key, which names the fleet: the core's two full workers
+# ask for one scaled worker of 32 seats, no more; the operator's key is refused.
+@postgres
+async def test_kubernetes_is_told_the_scaled_workers_the_fleet_wants(knocking: Knocking) -> None:
+    with_an_ops_key(knocking)
+    ours = "/v1/fleet/wanted"
+    params = {"scaled": "worker-burst-", "seats": 32}
+    async with knocking.http(knocking.fleet["sandbox"]) as worker:
+        for name in ("worker-core-a", "worker-core-b"):
+            beat = {
+                "fleet": FLEETS["sandbox"],
+                "worker": name,
+                "active": 2,
+                "max_jobs": 2,
+                "load": 1.0,
+                "draining": False,
+            }
+            await worker.post("/v1/fleet/heartbeat", json=beat)
+        wanted = await worker.get(ours, params=params)
+        unsaid = await worker.get(ours)
+    async with knocking.http(THE_OPS_KEY) as operator:
+        refused = await operator.get(ours, params=params)
+    assert wanted.json() == {"fleet": FLEETS["sandbox"], "wanted": 1, "active": 4, "seats": 4}
+    assert (unsaid.status_code, refused.status_code) == (422, 401)
 
 
 @postgres

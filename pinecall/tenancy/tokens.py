@@ -160,9 +160,11 @@ class Grant:
     reads_log: bool
     own_call_only: bool
     ttl_s: int | None
-    # `audio` publishes and subscribes; `hears` only subscribes; `hidden` is not seen in the room.
+    # `audio` publishes and subscribes; `hears` only subscribes; `hidden` is not seen in the room;
+    # `writes` sends on the call's data channel, which the agent reads as the caller's words.
     hears: bool = False
     hidden: bool = False
+    writes: bool = False
 
 
 GRANTS: Mapping[RoomScope, Grant] = {
@@ -170,6 +172,7 @@ GRANTS: Mapping[RoomScope, Grant] = {
     "talk": Grant(
         connects=True,
         audio=True,
+        writes=True,
         reads_log=True,
         own_call_only=True,
         ttl_s=ONE_VISIT_TTL_S,
@@ -179,6 +182,7 @@ GRANTS: Mapping[RoomScope, Grant] = {
         connects=True,
         audio=False,
         hears=True,
+        writes=True,
         reads_log=True,
         own_call_only=True,
         ttl_s=ONE_VISIT_TTL_S,
@@ -210,6 +214,7 @@ GRANTS: Mapping[RoomScope, Grant] = {
     "participate": Grant(
         connects=False,
         audio=False,
+        writes=True,
         reads_log=True,
         own_call_only=True,
         ttl_s=None,
@@ -245,8 +250,8 @@ def room_token(signer: Signer, call: str, scope: RoomScope, visitor: Visitor) ->
         room_join=True,
         can_publish=grant.audio,
         can_subscribe=grant.audio or grant.hears,
-        # A widget talks to its call over the data channel, whatever the scope.
-        can_publish_data=True,
+        # A widget writes to its call over the data channel; one that watches or listens does not.
+        can_publish_data=grant.writes,
         can_publish_sources=[THE_MICROPHONE] if grant.audio else [],
         hidden=grant.hidden,
     )

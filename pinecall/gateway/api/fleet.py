@@ -9,10 +9,13 @@ from pinecall.channels import rooms
 from pinecall.channels.telephony.hand_over import unbridged
 from pinecall.domain.errors import NotAllowed
 from pinecall.domain.names import PRODUCTION, Env
+from pinecall.fleet import worlds
+from pinecall.fleet.demand import Line, wanted_scaled
 from pinecall.gateway._deps import FleetKey, GatewayDep
 from pinecall.gateway.dispatching.arrivals import arrived, settled
 from pinecall.gateway.ending.stranded import stranded
 from pinecall.wire.rest.fleet import HeartbeatRequest, HeartbeatResponse
+from pinecall.wire.rest.ops import FleetDemand
 
 router = APIRouter()
 
@@ -25,6 +28,24 @@ async def heartbeat(
 ) -> HeartbeatResponse:
     """A worker's report; the answer says whether it is cordoned and its fleet full."""
     return gateway.roster.report(body, time.time())
+
+
+# KEDA's metrics-api scaler reads `wanted` and keeps the scaled Deployment at it (infra/charts),
+# asking with its world's fleet key, which names the fleet: one number needs no operator's key.
+@router.get("/v1/fleet/wanted")
+async def wanted_workers(
+    key: FleetKey,
+    gateway: GatewayDep,
+    scaled: Annotated[str, Query(min_length=1)],
+    seats: Annotated[int, Query(gt=0)],
+    most: Annotated[int, Query(gt=0)] = Line.at_most,
+) -> FleetDemand:
+    """How many workers whose names start with `scaled` the fleet wants, each of `seats` seats."""
+    fleet = worlds.fleet_of(await worlds.fleets(gateway.connections.pool), key.env)
+    line = Line(at_most=most, seats_per_worker=seats)
+    now = time.time()
+    wanted, active, capacity = wanted_scaled(gateway.roster.of(fleet, now), scaled, line, now)
+    return FleetDemand(fleet=fleet, wanted=wanted, active=active, seats=capacity)
 
 
 # livekit sends its token bare in Authorization, and every room event of the box: all but an

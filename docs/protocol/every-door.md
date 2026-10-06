@@ -121,6 +121,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `POST` | `/v1/evals/voice` | evals | Dispatch the agent into a room, play the persona as a spoken caller, and hang up. |
 | `GET` | `/v1/events` | calls | The org's calls and agents changing, as they change. |
 | `POST` | `/v1/fleet/heartbeat` | fleet | A worker's report; the answer says whether it is cordoned and its fleet full. |
+| `GET` | `/v1/fleet/wanted` | fleet | How many workers whose names start with `scaled` the fleet wants, each of `seats` seats. |
 | `GET` | `/v1/hosted` | app | The apps the box hosts for the org in this world, by name. |
 | `DELETE` | `/v1/hosted/{name}` | app | Stop hosting the app: its releases go, and its token is revoked. |
 | `GET` | `/v1/hosted/usage` | app | The time the org's apps served here per UTC day, in one month: this one by default. |
@@ -193,7 +194,6 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/ops/hosted-usage` | operator | The time every org's apps served, both worlds, per UTC day, one month: what bills them. |
 | `GET` | `/v1/ops/events` | operator | Every org's floor at once, each frame saying whose. |
 | `GET` | `/v1/ops/fleet` | operator | Every worker heard from, of both fleets, and each fleet summed over the ones up. |
-| `GET` | `/v1/ops/fleet/{fleet}/wanted` | operator | How many workers whose names start with `scaled` the fleet wants, each of `seats` seats. |
 | `DELETE` | `/v1/ops/fleet/{worker}/cordon` | operator | Take a worker's cordon back, when it has not left yet. |
 | `POST` | `/v1/ops/fleet/{worker}/cordon` | operator | Cordon a worker of a fleet; the fleet is found by the worker's name when not named. |
 | `GET` | `/v1/ops/fleets` | operator | The fleet of workers each world's calls are dispatched to. |

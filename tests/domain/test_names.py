@@ -56,7 +56,7 @@ def test_a_preview_shows_at_least_one_item_and_a_timeout_is_positive() -> None:
     assert read_tool(preview=2).preview == 2
     with pytest.raises(DeclarationRefused, match="at least one"):
         read_tool(preview=0)
-    with pytest.raises(DeclarationRefused, match="positive"):
+    with pytest.raises(DeclarationRefused, match="above 0"):
         read_tool(timeout_s=0)
 
 

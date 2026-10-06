@@ -1,0 +1,6 @@
+# The console and the widget a release builds into the wheel (release.yml), each by its commit:
+# a tag publishes the same pages however far either repository moved after it. Bumped by hand
+# before a release, from the checkouts beside this one:
+#   for r in console widget; do echo "$r $(git -C ../$r rev-parse origin/main)"; done
+console 7031c24bb4398fa66a0ccb141fb6302b72456937
+widget 3e18b89149d8923dbc282d0c47663c2097e0c71c

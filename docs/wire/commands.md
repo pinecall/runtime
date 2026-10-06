@@ -98,7 +98,7 @@ Lands in the log as: `attention.requested`, `call.line`, `attention.answered`.
 | field | type | required | meaning |
 |---|---|---|---|
 | `reason` | `string` | yes | Why a person is wanted, in the app's words: what the supervisor reads before taking the line. |
-| `wait_s` | `number` | yes | How long the caller waits for somebody to take the line before the agent has it back. The app's to choose: there is no default. |
+| `wait_s` | `number` | yes | How long the caller waits for somebody to take the line before the agent has it back, above 0 and 900 at most (fifteen minutes). The app's to choose: there is no default. |
 
 ### `call.callback`
 

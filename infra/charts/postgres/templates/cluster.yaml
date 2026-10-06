@@ -10,8 +10,10 @@ metadata:
 spec:
   instances: {{ .Values.postgres.instances }}
   imageName: {{ required "postgres.image" .Values.postgres.image }}
-  # The superuser makes the two extensions at initdb; the application connects as its owner.
-  enableSuperuserAccess: true
+  # No superuser secret: initdb makes the two extensions as postgres whatever this says
+  # (postInitTemplateSQL), the application connects as the database's owner, and an operator's
+  # psql goes through `kubectl exec` as the pod's own postgres, by peer.
+  enableSuperuserAccess: false
   # One instance: a stop waits 15 s for the gateways' pooled sessions, not the default 180, during
   # which no new connection opens (measured on staging, 2026-10-03: three minutes without one).
   smartShutdownTimeout: 15

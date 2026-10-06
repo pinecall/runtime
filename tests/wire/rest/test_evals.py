@@ -1,12 +1,16 @@
 """Tests for the bodies of the eval doors."""
 
 import pytest
+from pydantic import ValidationError
 
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.wire.rest.evals import (
+    CallerPersona,
     Golden,
     JudgeRequest,
+    NextLineRequest,
     PersonaRequest,
+    PlaceVoiceCallRequest,
     RunSuiteRequest,
     ScoreRow,
     Spoken,
@@ -96,3 +100,16 @@ def test_a_judge_runs_on_every_call_or_on_simulations_and_nothing_else() -> None
     )
     with pytest.raises(DeclarationRefused):
         JudgeRequest.read({"question": "q", "runs_on": "sometimes"}, "judge")
+
+
+def test_the_simulated_caller_the_box_pays_for_has_a_ceiling() -> None:
+    persona = CallerPersona(goal="book", style="brief")
+    assert PlaceVoiceCallRequest(call="c", agent="a", persona=persona, turns=40).turns == 40
+    with pytest.raises(ValidationError):
+        PlaceVoiceCallRequest(call="c", agent="a", persona=persona, turns=41)
+    with pytest.raises(ValidationError):
+        NextLineRequest(persona=persona, turns_left=1_000)
+    with pytest.raises(ValidationError):
+        RunSuiteRequest(agent="a", goldens=[Golden(name=f"g{n}") for n in range(201)])
+    suite = RunSuiteRequest(agent="a", goldens=[Golden(name=f"g{n}") for n in range(200)])
+    assert len(suite.goldens) == 200

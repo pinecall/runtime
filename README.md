@@ -160,4 +160,5 @@ you run.
 | billing on top of a runtime | `docs/charging-for-it.md` |
 
 Every page is published at [docs.pinecall.io](https://docs.pinecall.io). A release is a `v*` tag;
+its wheel carries the console and the widget at the commits `console.lock` names, and
 `CHANGELOG.md` says what each one changed. Apache-2.0.

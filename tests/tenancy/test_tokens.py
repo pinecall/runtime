@@ -126,6 +126,16 @@ def test_an_observe_token_hears_a_room_and_opens_no_read_at_all() -> None:
     )
 
 
+def test_only_a_scope_that_speaks_for_the_caller_writes_on_the_data_channel() -> None:
+    verifier = TokenVerifier(SIGNER.api_key, SIGNER.secret)
+    writes = {}
+    for scope in ("talk", "chat", "observe", "supervise"):
+        claims = verifier.verify(room_token(SIGNER, "c", scope, Visitor(in_a_minute())))
+        assert claims.video is not None
+        writes[scope] = claims.video.can_publish_data
+    assert writes == {"talk": True, "chat": True, "observe": False, "supervise": False}
+
+
 def test_every_scope_reads_through_exactly_one_projection_and_only_visits_are_minted() -> None:
     assert set(PROJECTION_OF) == set(GRANTS)
     assert PROJECTION_OF["supervise"] == "tenant"

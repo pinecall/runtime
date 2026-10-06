@@ -37,7 +37,9 @@ sets, lists and drops the org's secrets. Their page is the agents repo's `docs/t
 of zero hosts nothing), and a server's token is minted for it — the org's, in that world, labelled
 `hosted app <name>`, listed in `GET /v1/keys` like any other and kept sealed under the vault key
 for the process the box will start. No door answers it. Later uploads are releases 2, 3, …: a
-release is never edited, and its number never reused.
+release is never edited, and its number never reused. An app keeps its newest ten releases and the
+one its runner serves while a newer one starts; an older one is let go when the next is kept, and
+a rollback to it is `404`.
 
 An upload is read before it is kept, and refused with a `400` that says why:
 

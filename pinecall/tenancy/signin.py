@@ -145,7 +145,8 @@ NONCE_BYTES = 24
 
 # The issuer and the endpoints are the tenant's to write, so only https at a public name is
 # fetched: never an address, never a local name.
-LOCAL_SUFFIXES = (".localhost", ".local", ".internal", ".arpa", ".home", ".lan")
+# `.svc`: a cluster's own services, `<service>.<namespace>.svc`.
+LOCAL_SUFFIXES = (".localhost", ".local", ".internal", ".arpa", ".home", ".lan", ".svc")
 
 
 # No query or fragment: it is compared with every id_token's `iss` as a string.

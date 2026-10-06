@@ -144,7 +144,8 @@ class CallAttention(WireModel):
     """Ask for a person without sending the caller anywhere."""
 
     reason: str
-    wait_s: float
+    # Fifteen minutes at most: past it nobody is coming, and the call holds a worker's seat.
+    wait_s: float = Field(gt=0, le=900)
 
 
 class CallCallback(WireModel):

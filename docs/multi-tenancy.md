@@ -72,7 +72,10 @@ whatever orgs they belong to. The last active admin of an org cannot be removed.
 A role is a preset of scopes (`qa`, `supervisor`, `manager`, `admin`, `developer`), given to the
 keys minted for the person. A key grants only a role whose scopes it holds itself, and production
 access only when it has it. An invitation's link sets the person's one password, so it is handed
-to the admin only for somebody in no other org; anybody else gets it by mail alone.
+to the admin only for somebody in no other org; anybody else gets it by mail alone. A person who
+proved their address in another org and has a password is seated at once, with no link to accept:
+the org's admin sees them as a member, and they see the org among theirs the next time they sign
+in. Nothing of either org crosses to the other: membership is the one fact both now share.
 
 ## Signing in
 

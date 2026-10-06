@@ -1,9 +1,11 @@
 """Mail: the mailboxes a letter goes out through, the box's brand, and SMTP."""
 
 import asyncio
+import ipaddress
 import logging
 import re
 import smtplib
+import socket
 import ssl
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -23,7 +25,7 @@ from pinecall.process.connections import Connections
 from pinecall.tenancy.letters import Letter
 from pinecall.tenancy.vault import opened, sealed
 
-# starttls on 587, implicit TLS on 465; none only for a relay on the same machine.
+# starttls on 587, implicit TLS on 465; none only for a relay on this machine or a private network.
 type Security = Literal["starttls", "tls", "none"]
 
 
@@ -64,6 +66,13 @@ TIMED_OUT = "{host}:{port} did not answer in {seconds:g}s"
 
 
 NOT_WRITTEN = "the letter could not be written: {said}"
+
+
+# The password travels in clear on a plain connection: never across the internet.
+NOT_PRIVATE = (
+    "{host} is not on this machine or a private network: a mailbox with no TLS sends its "
+    "password in clear, so it reaches only a relay there; use starttls or tls"
+)
 
 
 BOX_MAIL = "mail"
@@ -396,7 +405,18 @@ def _connected(mailbox: Mailbox, timeout: float) -> smtplib.SMTP:
     if mailbox.security == "tls":
         context = ssl.create_default_context()
         return smtplib.SMTP_SSL(mailbox.host, mailbox.port, timeout=timeout, context=context)
+    if mailbox.security == "none":
+        return smtplib.SMTP(_private_address(mailbox.host), mailbox.port, timeout=timeout)
     return smtplib.SMTP(mailbox.host, mailbox.port, timeout=timeout)
+
+
+# Resolved once and connected to by the address checked: a name cannot point elsewhere between.
+def _private_address(host: str) -> str:
+    found = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    addresses = [ipaddress.ip_address(str(item[4][0]).partition("%")[0]) for item in found]
+    if not addresses or not all(item.is_private or item.is_loopback for item in addresses):
+        raise UpstreamFailed(NOT_PRIVATE.format(host=host))
+    return str(addresses[0])
 
 
 # The text first: a client that shows one part shows it, and every link is written out in it.

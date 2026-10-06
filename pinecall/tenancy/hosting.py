@@ -115,6 +115,20 @@ RETURNING release, sha256, bytes, author, note, created_at
 """
 
 
+# Each release is its whole tarball: an app keeps its newest ten, and the one its runner serves
+# while a newer one starts, never more.
+KEPT_RELEASES = 10
+
+
+PRUNED = """
+DELETE FROM hosted_releases
+WHERE org = %(org)s AND env = %(env)s AND name = %(name)s AND release <= %(newest)s - %(kept)s
+  AND release IS DISTINCT FROM (
+    SELECT live_release FROM hosted_apps WHERE org = %(org)s AND env = %(env)s AND name = %(name)s
+  )
+"""
+
+
 RELEASES = """
 SELECT release, sha256, bytes, author, note, created_at FROM hosted_releases
 WHERE org = %(org)s AND env = %(env)s AND name = %(name)s ORDER BY release DESC
@@ -317,7 +331,7 @@ async def open_app(pool: Pool, vault: MultiFernet, app: HostedApp, *, created_by
 async def keep_release(
     pool: Pool, app: HostedApp, source: Source, *, author: str, note: str
 ) -> Release:
-    """Keep the upload as the app's next release; NotFound for an app the box does not host."""
+    """Keep the upload as the next release, the oldest past ten let go; NotFound if not hosted."""
     values = {
         **app.columns,
         "source": source.data,
@@ -330,6 +344,9 @@ async def keep_release(
         locked = await (await connection.execute(LOCK_APP, app.columns)).fetchone()
         kept = None if locked is None else await connection.execute(KEEP_RELEASE, values)
         row = None if kept is None else await kept.fetchone()
+        if row is not None:
+            newest = {**app.columns, "newest": row["release"], "kept": KEPT_RELEASES}
+            await connection.execute(PRUNED, newest)
     if row is None:
         raise NotFound(NOT_HOSTED.format(name=app.name, env=app.env))
     return _release(row)

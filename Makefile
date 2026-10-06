@@ -102,6 +102,9 @@ image:            ## the runtime's container image, TAG=<commit>, built and chec
 # superuser) and a Redis made for the run: the checkout's files as they are now and TREE.md, built
 # by Cloud Build like the runtime's image; the Job's log is the result.
 suite:            ## ENV=…: every suite as a Job on the cluster, TAG=<commit>; its log printed
+ifeq ($(ENV),production)
+	$(error make suite runs every suite against the cluster's own Postgres: never production's)
+endif
 	rm -rf .suite && mkdir .suite
 	{ git ls-files -co --exclude-standard; echo TREE.md; } | while read -r f; do [ -f "$$f" ] && echo "$$f"; done \
 	  | tar -cf - -T - | tar -xf - -C .suite

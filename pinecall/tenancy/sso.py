@@ -1,8 +1,11 @@
 """Sign-in with the org's identity provider over OpenID Connect: handshake, code, claims."""
 
+import asyncio
 import base64
 import hashlib
+import ipaddress
 import secrets
+import socket
 from dataclasses import dataclass
 
 import httpx
@@ -232,9 +235,24 @@ def reachable(url: str, *, issuer: str, field: str) -> str:
     return url
 
 
+# Asked before each request: a public name that resolves inside (10.x, a cluster's service) is
+# refused like the address itself. A name that does not resolve is the request's to fail.
+async def resolves_public(url: str, *, issuer: str, field: str) -> str:
+    """The URL, when every address its name resolves to is a public one; refused otherwise."""
+    host = httpx.URL(reachable(url, issuer=issuer, field=field)).host
+    try:
+        found = await asyncio.to_thread(socket.getaddrinfo, host, None, type=socket.SOCK_STREAM)
+    except OSError:
+        return url
+    addresses = [ipaddress.ip_address(str(item[4][0]).partition("%")[0]) for item in found]
+    if not all(address.is_global for address in addresses):
+        raise NotAllowed(NOT_REACHED.format(issuer=issuer, field=field, url=url))
+    return url
+
+
 async def discovered(http: httpx.AsyncClient, issuer: str) -> Provider:
     """The provider's endpoints, from its own discovery document."""
-    url = f"{reachable(issuer, issuer=issuer, field='issuer')}{CONFIGURATION}"
+    url = f"{await resolves_public(issuer, issuer=issuer, field='issuer')}{CONFIGURATION}"
     try:
         answer = await http.get(url, timeout=TIMEOUT_S)
         answer.raise_for_status()
@@ -340,6 +358,7 @@ async def _exchanged(
     }
     if not provider.basic_auth:
         form["client_secret"] = client.client_secret
+    await resolves_public(provider.token_endpoint, issuer=provider.issuer, field="token_endpoint")
     try:
         answer = await http.post(
             provider.token_endpoint,
@@ -396,6 +415,7 @@ async def _claims(
 
 
 async def _signing_key(http: httpx.AsyncClient, provider: Provider, id_token: str) -> jwt.PyJWK:
+    await resolves_public(provider.jwks_uri, issuer=provider.issuer, field="jwks_uri")
     try:
         answer = await http.get(provider.jwks_uri, timeout=TIMEOUT_S)
         answer.raise_for_status()

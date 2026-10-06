@@ -48,7 +48,7 @@ gateway:
   podNetwork: 10.111.0.0/16
 
 # Each world's workers on its media node, and the ones KEDA scales on its own workers pool from 0
-# on the gateway's own number (GET /v1/ops/fleet/{fleet}/wanted); `most` is the pool's ceiling
+# on the gateway's own number (GET /v1/fleet/wanted); `most` is the pool's ceiling
 # (terraform/modules/gke, workers_max).
 workers:
   core:

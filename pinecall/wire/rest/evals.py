@@ -72,7 +72,8 @@ class RunSuiteRequest(WireModel):
     """POST /v1/evals/run, the body: the agent, its goldens and cases, the models, a version."""
 
     agent: str
-    goldens: list[Golden] = Field(default_factory=list[Golden])
+    # Each golden is a call whose simulated caller the box pays for: two hundred at most.
+    goldens: list[Golden] = Field(default_factory=list[Golden], max_length=200)
     # Cases of the org's dataset by name; a case held out is played only when named here.
     cases: list[str] = Field(default_factory=list[str])
     # Every case of the agent's that is not held out: the nightly run.
@@ -281,7 +282,7 @@ class NextLineRequest(WireModel):
 
     persona: CallerPersona
     heard: list[Spoken] = Field(default_factory=list[Spoken])
-    turns_left: int = 1
+    turns_left: int = Field(default=1, ge=0, le=40)
 
 
 class NextLineResponse(WireModel):
@@ -298,7 +299,8 @@ class PlaceVoiceCallRequest(WireModel):
     call: str
     agent: str
     persona: CallerPersona
-    turns: int = 6
+    # The caller's lines, each paid for by the box (its model and its voice): forty at most.
+    turns: int = Field(default=6, ge=1, le=40)
     # dB of a background voice under the caller's; absent is a clean line.
     interferer_db: float | None = None
     packet_loss: float = Field(default=0.0, ge=0, le=1)

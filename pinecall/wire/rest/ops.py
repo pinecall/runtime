@@ -287,7 +287,7 @@ class FleetListed(WireModel):
 
 
 class FleetDemand(WireModel):
-    """GET /v1/ops/fleet/{fleet}/wanted: how many scaled workers the fleet wants, for KEDA."""
+    """GET /v1/fleet/wanted: how many scaled workers the fleet wants, for KEDA."""
 
     fleet: str
     wanted: int

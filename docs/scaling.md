@@ -356,8 +356,10 @@ of `/v1/evals/voice` does) leaves before it; a phone caller stays on the line an
 The core node's workers hold a quiet hour's calls; every call beyond them goes to a **scaled
 worker**, a pod of 32 seats alone on a node of the workers pool (e2-standard-8). How many of them
 a fleet runs is one number the gateway computes from the roster it already hears,
-`GET /v1/ops/fleet/{fleet}/wanted?scaled=<prefix>&seats=<n>&most=<n>` (`fleet/demand.py`), and
-KEDA keeps the Deployment at it, asking every 15 seconds:
+`GET /v1/fleet/wanted?scaled=<prefix>&seats=<n>&most=<n>` → `{fleet, wanted, active, seats}`
+(`fleet/demand.py`), and KEDA keeps the Deployment at it, asking every 15 seconds with the world's
+fleet key, which names the fleet (never the operator's: a read of one number needs no more); `422`
+without `scaled` and `seats`:
 
 | when | the number |
 |---|---|
