@@ -15,6 +15,12 @@ resource "random_id" "ops" {
   byte_length = 24
 }
 
+# The gateway's own signing key (PINECALL_TOKEN_KEY): no worker and no LiveKit holds it.
+resource "random_password" "token" {
+  length  = 48
+  special = false
+}
+
 resource "random_id" "livekit_key" {
   byte_length = 6
 }
@@ -32,6 +38,7 @@ locals {
   drawn = {
     "vault-key"          = "${random_id.vault.b64_url}="
     "ops-key"            = "pc_ops_${random_id.ops.hex}"
+    "token-key"          = random_password.token.result
     "livekit-api-key"    = "API${random_id.livekit_key.hex}"
     "livekit-api-secret" = random_password.livekit_secret.result
     "redis-password"     = random_id.redis.hex

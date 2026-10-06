@@ -41,7 +41,11 @@ from pinecall.tenancy.tokens import (
 )
 from tests.conftest import DSN, postgres
 
-SIGNER = Signer("APIthisisatest", "a-livekit-secret-long-enough-for-hs256-signing")
+SIGNER = Signer(
+    "APIthisisatest",
+    "a-livekit-secret-long-enough-for-hs256-signing",
+    "the-gateways-own-key-long-enough-for-hs256-signing",
+)
 ANA = Invitee(email="ana@clinica.test", name="Ana García", role="developer")
 SERVER = Key("k_server", "org_1", env="production")
 SANDBOX_SERVER = Key("k_ci", "org_1", env="sandbox")

@@ -59,7 +59,7 @@ from pinecall.tenancy.words import Words
 from pinecall.wire.frames import Entry
 from pinecall.wire.rest.fleet import HeartbeatRequest
 from tests.fakes.acme import ACME
-from tests.fakes.livekit import A_SECRET, acme_plugin, per_world
+from tests.fakes.livekit import A_SECRET, OUR_KEY, acme_plugin, per_world
 from tests.fakes.meta import Graph, outside
 from tests.fakes.twilio import Twilio
 
@@ -321,6 +321,7 @@ def settings_of(domain: str | None = BOX_DOMAIN) -> Settings:
             "LIVEKIT_SANDBOX_URL": "ws://127.0.0.1:10",
             "LIVEKIT_API_KEY": LIVEKIT_KEY,
             "LIVEKIT_API_SECRET": A_SECRET,
+            "PINECALL_TOKEN_KEY": OUR_KEY,
             **({"PINECALL_DOMAIN": domain} if domain else {}),
         }
     )
@@ -412,7 +413,7 @@ async def a_gateway(pool: Pool, logs: Logs, shared: Shared) -> AsyncGenerator[Ga
         roster=roster,
         codes=Codes(logs),
         keys=remembered,
-        signer=Signer(LIVEKIT_KEY, A_SECRET),
+        signer=Signer(LIVEKIT_KEY, A_SECRET, OUR_KEY),
         threads=threads,
         closing=asyncio.Event(),
         embedder=None,

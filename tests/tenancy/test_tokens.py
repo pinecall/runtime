@@ -3,7 +3,9 @@
 import time
 from datetime import UTC, datetime, timedelta
 
-from livekit.api import AccessToken, TokenVerifier
+import jwt
+import pytest
+from livekit.api import AccessToken, TokenVerifier, VideoGrants
 
 from pinecall.domain.person import Key
 from pinecall.domain.scope import Scope
@@ -101,7 +103,7 @@ def test_a_token_dies_on_time() -> None:
 
 def test_a_forged_or_edited_token_is_nothing() -> None:
     token = room_token(SIGNER, "c", "talk", Visitor(in_a_minute()))
-    other = Signer(SIGNER.api_key, "another-secret-that-is-long-enough-to-sign")
+    other = Signer(SIGNER.api_key, "another-secret-that-is-long-enough-to-sign", SIGNER.own)
     assert read(other, token) is None
     head, body, signature = token.split(".")
     assert read(SIGNER, f"{head}.{body}x.{signature}") is None
@@ -155,10 +157,24 @@ def test_a_log_token_reads_its_call_through_the_projection_it_was_minted_for() -
     assert (visit.call, visit.scope, visit.projection) == ("call_1", "read", "tenant")
 
 
-def test_a_log_token_opens_no_room() -> None:
-    claims = TokenVerifier(SIGNER.api_key, SIGNER.secret).verify(log_token(SIGNER, "c", "public"))
-    assert claims.video is not None
-    assert not claims.video.room_join
+# LiveKit never reads a log token: it is signed with the gateway's own key, not the pair, and
+# a worker holding the pair mints none; a token the pair signs in its shape reads nothing here.
+def test_a_log_token_opens_no_room_and_is_not_the_livekit_pairs_to_mint() -> None:
+    token = log_token(SIGNER, "c", "public")
+    with pytest.raises(jwt.PyJWTError):
+        TokenVerifier(SIGNER.api_key, SIGNER.secret).verify(token)
+    claims = jwt.decode(token, SIGNER.own, algorithms=["HS256"])
+    assert claims["video"] == {"room": "c", "roomJoin": False}
+    forged = (
+        AccessToken(SIGNER.api_key, SIGNER.secret)
+        .with_identity("worker")
+        .with_grants(VideoGrants(room="c", room_join=False))
+        .with_attributes({"pinecall.scope": "read", "pinecall.projection": "tenant"})
+        .to_jwt()
+    )
+    assert read(SIGNER, forged) is None
+    another = Signer(SIGNER.api_key, SIGNER.secret, "another-own-key-long-enough-to-sign-with")
+    assert read(another, token) is None
 
 
 def test_a_code_token_names_its_code_and_no_call_and_dies_with_the_code() -> None:

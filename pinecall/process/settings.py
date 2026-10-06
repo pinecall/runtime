@@ -339,6 +339,14 @@ class Settings(BaseModel):
         repr=False,
         description="The Fernet key every sealed secret is under; the gateway needs it.",
     )
+    # The gateway's own, held by no worker and no LiveKit: a token that reads a log or asks after
+    # a caller code is signed with it, so the LiveKit pair every worker holds mints none.
+    token_key: str | None = Field(
+        None,
+        alias="PINECALL_TOKEN_KEY",
+        repr=False,
+        description="The key the gateway signs its own tokens with; the gateway needs it.",
+    )
     smtp_url: str | None = Field(
         None,
         alias="PINECALL_SMTP_URL",

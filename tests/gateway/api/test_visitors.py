@@ -202,7 +202,9 @@ async def test_a_code_lives_a_minute_at_least_and_half_an_hour_at_most(knocking:
 
 
 def test_a_room_token_reads_as_its_call() -> None:
-    signer = tokens.Signer("APIkey", "a secret of thirty-two bytes or more")
+    signer = tokens.Signer(
+        "APIkey", "a secret of thirty-two bytes or more", "its own key of thirty-two bytes"
+    )
     visitor = tokens.Visitor(expires_at=time.time() + 60, identity="web_1")
     token = tokens.room_token(signer, "call_1", "talk", visitor)
     visit = tokens.read(signer, token)

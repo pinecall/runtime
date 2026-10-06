@@ -105,6 +105,9 @@ NO_EMBEDDER_KEY = "the providers row embeds with %s and the box holds no key for
 NO_LIVEKIT = "LIVEKIT_API_KEY and LIVEKIT_API_SECRET: the gateway signs every room token with them"
 
 
+NO_SIGNING = "PINECALL_TOKEN_KEY: the gateway signs its log and code tokens with it"
+
+
 NO_BOX_MAIL = "PINECALL_SMTP_URL does not read (%s): the box posts no letter of its own"
 
 
@@ -286,6 +289,8 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
     connections = await stack.enter_async_context(opened(settings))
     if not settings.livekit_api_key or not settings.livekit_api_secret:
         raise SettingsRefused(NO_LIVEKIT)
+    if not settings.token_key:
+        raise SettingsRefused(NO_SIGNING)
     logs = Logs(Store(connections.pool, writing=connections.writing), connections.signal)
     # Pushed before everything that appends on its way out, so it runs after them and before the
     # pool closes: every append a request was promised is written.
@@ -322,7 +327,7 @@ async def wire(settings: Settings, stack: AsyncExitStack) -> Gateway:
         roster=roster,
         codes=codes,
         keys=remembered,
-        signer=Signer(settings.livekit_api_key, settings.livekit_api_secret),
+        signer=Signer(settings.livekit_api_key, settings.livekit_api_secret, settings.token_key),
         threads=threads,
         closing=asyncio.Event(),
         embedder=embedder,

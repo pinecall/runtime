@@ -64,6 +64,10 @@ from tests.fakes.acme import ACME, AcmeLLM, AcmeStreamedTTS, AcmeSTT, AcmeTTS, s
 A_SECRET = "a secret of thirty-two bytes or more"
 
 
+# The gateway's own signing key in a test, as PINECALL_TOKEN_KEY.
+OUR_KEY = "the gateways own key of thirty-two bytes"
+
+
 def signed(body: str, key: str, secret: str = A_SECRET) -> str:
     """The token livekit sends with a webhook's body: the body's sha256 in a claim, signed."""
     digest = base64.b64encode(hashlib.sha256(body.encode()).digest()).decode()

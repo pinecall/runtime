@@ -59,16 +59,23 @@ type Spending = Literal["spent", "already_spent", "never_minted", "minted_elsewh
 ONE_VISIT_TTL_S = 60
 
 
+# The header of a token the gateway signs with its own key; a LiveKit token names no key id.
+OUR_KEY_ID = "pinecall"
+
+
 # Longer than any call, short enough that a copied link dies the same day.
 READ_TTL_S = 4 * 60 * 60
 
 
 @dataclass(frozen=True)
 class Signer:
-    """The LiveKit key pair a room token is signed and checked with."""
+    """The LiveKit pair a room token is signed with, and the gateway's own key for every other."""
 
     api_key: str
     secret: str
+    # A log token and a code token open no room, so LiveKit never reads them: they are signed with
+    # this key, which no worker holds, and the pair every worker holds forges none.
+    own: str
 
 
 @dataclass(frozen=True)
@@ -314,16 +321,26 @@ def code_token(signer: Signer, code: str, agent: str, world: Env, expires_at: fl
 def read(signer: Signer, token: str) -> Visit | None:
     """What a token of ours says; None for anything else, whatever the reason."""
     try:
+        ours = jwt.get_unverified_header(token).get("kid") == OUR_KEY_ID
         decoded = jwt.decode(
-            token, signer.secret, algorithms=["HS256"], options={"require": ["exp"]}, leeway=0
+            token,
+            signer.own if ours else signer.secret,
+            algorithms=["HS256"],
+            options={"require": ["exp"]},
+            leeway=0,
         )
         claims = _Claims.model_validate(decoded)
     except (jwt.PyJWTError, ValidationError):
         return None
     data = claims.attributes
     # A livekit token minted for another purpose with the same pair reads nothing here, and a
-    # listener hears the room but reads no log.
-    if not claims.video.room or data.scope not in BOUND_TO_ONE_CALL:
+    # listener hears the room but reads no log. A reading token is the gateway's own key's alone:
+    # one in its shape under the pair is a worker's forgery.
+    if (
+        not claims.video.room
+        or data.scope not in BOUND_TO_ONE_CALL
+        or ours != (data.scope == "read")
+    ):
         return None
     return Visit(
         call="" if data.code is not None else claims.video.room,
@@ -365,18 +382,18 @@ async def spend(pool: Pool, call: str, scope: Scope, agent: str) -> Spending:
     return "minted_elsewhere" if row["spent_at"] is None else "already_spent"
 
 
+# The shape LiveKit gives a token (sub, exp, video, attributes), so one reader reads both; signed
+# with the gateway's own key under its key id, and joining no room.
 def _unjoinable(signer: Signer, room: str, ttl_s: float, attributes: dict[str, str]) -> str:
-    grants = VideoGrants(
-        room=room, room_join=False, can_publish=False, can_subscribe=False, can_publish_data=False
-    )
-    return (
-        AccessToken(signer.api_key, signer.secret)
-        .with_identity(_identity(A_VISITOR))
-        .with_grants(grants)
-        .with_ttl(timedelta(seconds=ttl_s))
-        .with_attributes(attributes)
-        .to_jwt()
-    )
+    now = int(time.time())
+    claims = {
+        "sub": _identity(A_VISITOR),
+        "iat": now,
+        "exp": now + int(ttl_s),
+        "video": {"room": room, "roomJoin": False},
+        "attributes": attributes,
+    }
+    return jwt.encode(claims, signer.own, algorithm="HS256", headers={"kid": OUR_KEY_ID})
 
 
 def _identity(prefix: str) -> str:

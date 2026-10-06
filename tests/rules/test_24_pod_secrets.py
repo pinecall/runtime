@@ -8,7 +8,13 @@ from tests.rules.tree import ROOT
 TEMPLATES = ROOT / "infra" / "charts" / "pinecall" / "templates"
 
 # What only the gateway (and the migrations, the retention) may be handed.
-THE_GATEWAYS = ("DATABASE_URL", "PINECALL_VAULT_KEY", "PINECALL_OPS_KEY", "PINECALL_REDIS_URL")
+THE_GATEWAYS = (
+    "DATABASE_URL",
+    "PINECALL_VAULT_KEY",
+    "PINECALL_OPS_KEY",
+    "PINECALL_TOKEN_KEY",
+    "PINECALL_REDIS_URL",
+)
 
 # The helper that carries them, and the templates that must never include it.
 GATEWAY_ENV = re.compile(r'include "pinecall\.env"')

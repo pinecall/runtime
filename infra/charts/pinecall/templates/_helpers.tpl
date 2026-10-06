@@ -21,7 +21,7 @@
 {{- end }}{{ end }}
 {{- end -}}
 
-{{/* What the gateway reads: the database, the signal, the vault, the operator's key, the LiveKit pair,
+{{/* What the gateway reads: the database, the signal, the vault, the operator's key, its own signing key, the LiveKit pair,
      the names, and where recordings are. A worker gets none of the first four (pinecall.workerEnv): it
      has no database, and a worker runs the vendors' plugins and decodes a caller's audio. */}}
 {{- define "pinecall.env" -}}
@@ -33,6 +33,8 @@
   valueFrom: { secretKeyRef: { name: pinecall, key: PINECALL_VAULT_KEY } }
 - name: PINECALL_OPS_KEY
   valueFrom: { secretKeyRef: { name: pinecall, key: PINECALL_OPS_KEY } }
+- name: PINECALL_TOKEN_KEY
+  valueFrom: { secretKeyRef: { name: pinecall, key: PINECALL_TOKEN_KEY } }
 - name: LIVEKIT_API_KEY
   valueFrom: { secretKeyRef: { name: pinecall, key: LIVEKIT_API_KEY } }
 - name: LIVEKIT_API_SECRET

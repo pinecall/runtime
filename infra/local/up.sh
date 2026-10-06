@@ -23,6 +23,7 @@ if [ ! -f "$ENV" ]; then
         echo "PINECALL_WORKER_HTTP_PORT=8182"
         printf 'PINECALL_VAULT_KEY=%s\n' "$(openssl rand -base64 32 | tr '+/' '-_')"
         printf 'PINECALL_OPS_KEY=pc_ops_%s\n' "$(openssl rand -hex 24)"
+        printf 'PINECALL_TOKEN_KEY=%s\n' "$(openssl rand -hex 32)"
     } > "$ENV"
 fi
 set -a
