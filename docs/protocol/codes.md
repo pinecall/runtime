@@ -40,7 +40,9 @@ issued. Any origin may ask.
 
 Either way the gateway writes `code.claimed {code, call}` on the agent's log, wakes the page
 waiting on it, and writes `call.claimed {code, via: "keypad" | "agent"}` on the call's. A code is
-claimed once. An expired code is closed lazily, by the next issue, ask or claim that finds it.
+claimed once. A call keys three codes, by either way: its fourth and every one after are refused
+like a code nobody issued, a live one too, so keying at random has three chances a call. An
+expired code is closed lazily, by the next issue, ask or claim that finds it.
 
 ## The code token
 

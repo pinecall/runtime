@@ -34,6 +34,12 @@ ISSUED = "code.issued"
 
 LIVE_PER_AGENT = 50
 
+# A call keys three codes at most: past them a code it keys ties it to no page, answered as one
+# nobody issued, so a caller keying at random learns nothing and has three chances in all.
+TRIES_PER_CALL = 3
+
+A_DAY_S = 24 * 60 * 60.0
+
 # Where a claim wakes the page waiting on the code, whichever gateway it waits on.
 TAKEN_CHANNEL = "code:{agent}:{code}"
 
@@ -54,6 +60,15 @@ FOUND = """
 select agent, code, env, log, expires_at, claimed from caller_codes
 where agent = %(agent)s and code = %(code)s
 """
+
+# Each try counted in one statement, so two gateways serving one call count both.
+TRIED = """
+insert into code_tries (call, tries, first_at) values (%(call)s, 1, %(now)s)
+on conflict (call) do update set tries = code_tries.tries + 1
+returning tries
+"""
+
+TRIES_GONE = "delete from code_tries where first_at <= %(since)s"
 
 # Taken by one call: the second finds it claimed and gets nothing.
 TAKEN = """
@@ -122,10 +137,16 @@ class Codes:
         return await self._found(issued.agent, issued.code) or issued
 
     async def claim(self, env: Env, agent: str, code: str, call: str) -> IssuedCode | None:
-        """Give the code to the call that keyed it; None when it is nobody's, dead or taken."""
+        """Tie the code to the call that keyed it; None if nobody's, dead, taken, or a 4th try."""
         await self._swept(agent, time.time())
-        wanted = {"agent": agent, "code": code, "env": env, "call": call, "now": time.time()}
+        now = time.time()
+        wanted = {"agent": agent, "code": code, "env": env, "call": call, "now": now}
+        # independent: a sweep of old counts, a try counted (a try refused stays counted), the take
         async with self.pool.connection() as connection:
+            await connection.execute(TRIES_GONE, {"since": now - A_DAY_S})
+            tried = await (await connection.execute(TRIED, wanted)).fetchone()
+            if tried is None or int(tried["tries"]) > TRIES_PER_CALL:
+                return None
             row = await (await connection.execute(TAKEN, wanted)).fetchone()
         if row is None:
             return None

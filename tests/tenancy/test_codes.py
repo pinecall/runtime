@@ -8,7 +8,7 @@ from pinecall.domain.errors import QuotaExhausted
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store
 from pinecall.process.signal import LocalSignal
-from pinecall.tenancy.codes import CLAIMED, ISSUED, LIVE_PER_AGENT, Codes
+from pinecall.tenancy.codes import CLAIMED, ISSUED, LIVE_PER_AGENT, TRIES_PER_CALL, Codes
 from tests.conftest import postgres
 from tests.tenancy.test_agents import AGENT, agent_log
 
@@ -47,6 +47,23 @@ async def test_a_code_stands_waiting_then_claimed_by_one_call_and_never_by_a_sec
     assert claimed is not None
     assert claimed.claimed == "call_1"
     assert await codes.claim("sandbox", AGENT, issued.code, "call_2") is None
+
+
+# Past its three, a call's fourth code is refused like one nobody issued, though it is live.
+@postgres
+async def test_a_call_keys_three_codes_and_its_fourth_ties_it_to_no_page(store: Store) -> None:
+    codes = Codes(Logs(store))
+    issued = await codes.issue("sandbox", AGENT, 60, "public")
+    nobodys = "0000" if issued.code != "0000" else "0001"
+    for _ in range(TRIES_PER_CALL):
+        assert await codes.claim("sandbox", AGENT, nobodys, "call_1") is None
+    assert await codes.claim("sandbox", AGENT, issued.code, "call_1") is None
+    left = await codes.status_of("sandbox", AGENT, issued.code)
+    assert left is not None
+    assert left.claimed is None, "still the page's, for another call"
+    claimed = await codes.claim("sandbox", AGENT, issued.code, "call_2")
+    assert claimed is not None
+    assert claimed.claimed == "call_2"
 
 
 @postgres
