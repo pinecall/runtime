@@ -25,7 +25,6 @@ spec:
           image: {{ include "pinecall.image" $ }}
           args: ["worker", "start"]
           env:
-            {{- include "pinecall.env" $ | nindent 12 }}
             {{- include "pinecall.workerEnv" (dict "root" $ "world" $world "seats" $core.seats) | nindent 12 }}
             # Small workers beside the box's services: one warm process each, not one per CPU.
             - name: PINECALL_IDLE_PROCESSES
@@ -64,7 +63,6 @@ spec:
           image: {{ include "pinecall.image" $ }}
           args: ["worker", "start"]
           env:
-            {{- include "pinecall.env" $ | nindent 12 }}
             {{- include "pinecall.workerEnv" (dict "root" $ "world" $world "seats" $scaled.seats) | nindent 12 }}
           startupProbe:
             httpGet: { path: /, port: 8082 }

@@ -60,7 +60,7 @@ module reads top to bottom; the gateway's private modules within budget; `docs/a
 carries today's measures; `docs/wire/` describes every field; a migration that contracts (drops,
 renames, a `NOT NULL` with no default) names the release that stopped reading what it contracts;
 the pool is autocommit, and a block of statements that is not a transaction says why they are
-independent.
+independent; a worker's pod is handed no database, no vault key and no operator's key.
 
 ## How a file is written (`docs/conventions.md` is the long version)
 

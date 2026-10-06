@@ -17,7 +17,6 @@ spec:
           image: {{ include "pinecall.image" . }}
           args: ["worker", "overflow"]
           env:
-            {{- include "pinecall.env" . | nindent 12 }}
             {{- include "pinecall.workerEnv" (dict "root" . "world" "production" "seats" 1) | nindent 12 }}
             {{- with .Values.overflow.says }}
             - name: PINECALL_OVERFLOW_SAYS

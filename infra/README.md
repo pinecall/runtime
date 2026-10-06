@@ -67,7 +67,12 @@ $ make suite ENV=<env>              # every suite inside the cluster
 
 `make deploy` runs the migrations before anything new starts (a pre-upgrade hook), mints each
 world's fleet key once at install, waits for every workload, and knocks at the production name.
-The secrets never leave Secret Manager but into the pods' environment; the values file holds no
+The secrets never leave Secret Manager but into the pods' environment, each pod the ones its
+verb reads: the gateway the database, the signal, the vault key, the operator's key and the
+LiveKit pair; a worker and the overflow the LiveKit pair, their fleet key and the recordings
+store, never the database, the vault or the operator's key (rule 24 holds the templates to it);
+the retention the database, the vault and the store; the migrations the database. The values
+file holds no
 secret.
 
 ## A pool a world
