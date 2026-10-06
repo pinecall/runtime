@@ -59,9 +59,13 @@ CONTAINERS: tuple[tuple[int, bytes, str], ...] = (
     (0, b"fLaC", "flac"),
     (4, b"ftyp", "mov,mp4,m4a,3gp,3g2,mj2"),
     (0, b"ID3", "mp3"),
+    # An MPEG audio frame's sync with layer III: MPEG-1, MPEG-2 and MPEG-2.5, with and without CRC.
     (0, b"\xff\xfb", "mp3"),
+    (0, b"\xff\xfa", "mp3"),
     (0, b"\xff\xf3", "mp3"),
     (0, b"\xff\xf2", "mp3"),
+    (0, b"\xff\xe3", "mp3"),
+    (0, b"\xff\xe2", "mp3"),
 )
 
 

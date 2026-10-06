@@ -119,6 +119,8 @@ def test_the_container_is_read_off_the_bytes_and_a_script_is_no_audio() -> None:
     assert container_of(a_wav(1.0)) == "wav"
     assert container_of(b"OggS" + bytes(40)) == "ogg"
     assert container_of(b"ID3" + bytes(40)) == "mp3"
+    for frame in (b"\xff\xfb", b"\xff\xfa", b"\xff\xf3", b"\xff\xf2", b"\xff\xe3", b"\xff\xe2"):
+        assert container_of(frame + bytes(40)) == "mp3"
     assert container_of(bytes(4) + b"ftypM4A " + bytes(32)) == "mov,mp4,m4a,3gp,3g2,mj2"
     playlist = b"#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:1,\nhttp://169.254.169.254/x\n"
     script = b"ffconcat version 1.0\nfile recordings/call_1/audio.ogg\n"
