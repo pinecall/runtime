@@ -158,6 +158,18 @@ NOT_BUILT = "the console is not built into this gateway: `make deploy` builds it
 WIDGET_HEADERS = {"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=300"}
 
 
+# The console is framed by nobody (a page that framed it could dress a click as another), reached
+# over HTTPS alone once a browser has seen it, read as the type it is served as, and tells another
+# site no more of where it came from than its origin (a sign-in lands with a code in the query).
+PAGE_HEADERS = {
+    "Content-Security-Policy": "frame-ancestors 'none'",
+    "X-Frame-Options": "DENY",
+    "Strict-Transport-Security": "max-age=31536000",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+}
+
+
 ROUTERS = (
     accounts,
     agents,
@@ -375,9 +387,9 @@ def console(path: str) -> Response:
         raise HTTPException(404, NOT_BUILT)
     params = (root / path).resolve()
     if path and root in params.parents and params.is_file() and params.name != THE_PAGE:
-        return FileResponse(params)
+        return FileResponse(params, headers=PAGE_HEADERS)
     page = (root / THE_PAGE).read_text(encoding="utf-8")
-    return HTMLResponse(page, headers={"cache-control": "no-store"})
+    return HTMLResponse(page, headers={**PAGE_HEADERS, "cache-control": "no-store"})
 
 
 # One gateway's app: a test serves two, each with a gateway of its own in its state. Swagger under

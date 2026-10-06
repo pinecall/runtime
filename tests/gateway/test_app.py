@@ -1,8 +1,10 @@
 """Tests for the gateway process: its doors, the one answer to a refusal, CORS, the pages."""
 
 from collections.abc import Callable
+from pathlib import Path
 
 import httpx
+import pytest
 from fastapi import Request
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
@@ -10,6 +12,7 @@ from psycopg.errors import QueryCanceled
 from psycopg_pool import PoolTimeout
 
 from pinecall.domain.errors import Conflict, NotSignedIn
+from pinecall.gateway import app as gateway_app
 from pinecall.gateway._deps import SCOPES_OF, operator
 from pinecall.gateway.app import ROUTERS, app, busy, origins_allowed, refused
 from pinecall.process.settings import Settings
@@ -157,3 +160,20 @@ async def test_a_gateway_nobody_built_the_console_into_says_so(knocking: Knockin
     assert page.status_code == 404
     assert "make deploy" in page.json()["detail"]
     assert widget.status_code == 404
+
+
+# The page and its assets are framed by nobody, kept on HTTPS, read as served, and leak no path.
+def test_the_console_is_framed_by_nobody_and_says_no_more_than_its_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "console" / "assets").mkdir(parents=True)
+    (tmp_path / "console" / "index.html").write_text("<html></html>")
+    (tmp_path / "console" / "assets" / "a.js").write_text("1")
+    monkeypatch.setattr(gateway_app, "BUILT", tmp_path)
+    for path in ("calls/123", "assets/a.js"):
+        answer = gateway_app.console(path)
+        assert answer.headers["content-security-policy"] == "frame-ancestors 'none'"
+        assert answer.headers["x-frame-options"] == "DENY"
+        assert answer.headers["x-content-type-options"] == "nosniff"
+        assert answer.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+        assert "max-age" in answer.headers["strict-transport-security"]

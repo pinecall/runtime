@@ -9,7 +9,9 @@ every door in one table, [every-door.md](every-door.md).
 
 One gateway serves both worlds, production and the sandbox, at `/v1`, and beside it the console at
 `/` and the widget at `/widget/pinecall-widget.js`, the one answer carrying
-`Access-Control-Allow-Origin: *`. The API's own description is public too, `GET /v1/docs` and
+`Access-Control-Allow-Origin: *`. The console's page and its assets are framed by nobody
+(`frame-ancestors 'none'`, `X-Frame-Options: DENY`), kept on HTTPS (`Strict-Transport-Security`),
+read as served (`nosniff`), and tell another site its origin alone (`strict-origin-when-cross-origin`). The API's own description is public too, `GET /v1/docs` and
 `/openapi.json`: every door and every body, none of them a secret. Three kinds of connection:
 
 | | what it is | who opens it |
