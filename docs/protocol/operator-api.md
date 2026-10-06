@@ -68,7 +68,9 @@ Four rows of `box_settings`, each read and written whole, the console's box scre
 concurrent_calls, memory_facts, knowledge_chunks, numbers, seats, llm_tokens, hosted_apps},
 budget_usd, lends}}`
 replaces the org's limits **in one world**, whole: a limit left out is no limit, `lends` null lends
-every key the box holds, `[]` none, else vendors or `vendor/model`. They bite the next call and
+every key the box holds, `[]` none, else vendors or `vendor/model` (a model and its dated
+snapshots, `-20251001` or `-2025-08-07`, never a sibling that only starts the same:
+`openai/gpt-5` lends no `gpt-5-pro`). They bite the next call and
 the next register. `budget_usd` is whole dollars a calendar month, both worlds together, shown
 beside what was spent; a new call is refused once the month's spend reaches it. `PUT /v1/ops/orgs/{named}/dialling {dial_anywhere?, per_minute?, per_day?,
 max_duration_s?}` replaces the dial guards whole; one left out is the default. What the limits

@@ -80,9 +80,14 @@ def test_a_whole_vendor_lends_every_model_of_it_and_its_default() -> None:
 
 
 def test_a_model_entry_lends_its_snapshots_and_nothing_dearer() -> None:
-    lends = frozenset({"anthropic/claude-haiku-4-5"})
+    lends = frozenset({"anthropic/claude-haiku-4-5", "openai/gpt-5", "anthropic/claude-haiku-4"})
     assert lent(lends, "anthropic", "claude-haiku-4-5-20251001")
+    assert lent(lends, "openai", "gpt-5")
+    assert lent(lends, "openai", "gpt-5-2025-08-07")
     assert not lent(lends, "anthropic", "claude-sonnet-5")
+    # A sibling that only starts the same is another model, and dearer.
+    assert not lent(lends, "openai", "gpt-5-pro")
+    assert not lent(frozenset({"anthropic/claude-haiku-4"}), "anthropic", "claude-haiku-4-5")
 
 
 def test_a_model_entry_does_not_lend_the_plugins_unnamed_default() -> None:

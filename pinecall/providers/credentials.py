@@ -2,6 +2,7 @@
 
 import dataclasses
 import logging
+import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Literal
@@ -18,6 +19,10 @@ from pinecall.providers.declared import SEPARATOR
 type Availability = Literal["yours", "offered", "bring your own", "broken"]
 
 logger = logging.getLogger(__name__)
+
+
+# What a dated snapshot adds to a model's name: `-20251001`, `-2025-08-07`, `@20240229`.
+A_SNAPSHOT = re.compile(r"[-@](\d{8}|\d{4}-\d{2}-\d{2})")
 
 
 @dataclass(frozen=True)
@@ -127,8 +132,9 @@ def running(keys: Keyring, vendor: str, model: str | None) -> Running:
     return Running(vendor=vendor, credentials=box, model=model, lent=True)
 
 
-# A model entry lends its dated snapshots (`anthropic/claude-haiku-4-5` lends
-# `claude-haiku-4-5-20251001`), never a sibling; a plugin's own default needs the whole vendor.
+# A model entry lends itself and its dated snapshots (`anthropic/claude-haiku-4-5` lends
+# `claude-haiku-4-5-20251001`), never a sibling that only starts the same (`openai/gpt-5` lends no
+# `gpt-5-pro`); a plugin's own default needs the whole vendor.
 def lent(lends: frozenset[str] | None, vendor: str, model: str | None) -> bool:
     """Whether the box lends this org its key for this vendor and model."""
     if lends is None or vendor in lends:
@@ -136,9 +142,8 @@ def lent(lends: frozenset[str] | None, vendor: str, model: str | None) -> bool:
     if model is None:
         return False
     prefix = f"{vendor}{SEPARATOR}"
-    return any(
-        model.startswith(entry.removeprefix(prefix)) for entry in lends if entry.startswith(prefix)
-    )
+    named = (entry.removeprefix(prefix) for entry in lends if entry.startswith(prefix))
+    return any(model == entry or _a_snapshot_of(entry, model) for entry in named)
 
 
 def refusal(lends: frozenset[str], vendor: str, model: str | None) -> str:
@@ -182,6 +187,10 @@ def stage(
                 "%s fallback %s has no key this org may run it on", modality, fallback.vendor
             )
     return _over(chosen, *backups)
+
+
+def _a_snapshot_of(entry: str, model: str) -> bool:
+    return model.startswith(entry) and A_SNAPSHOT.fullmatch(model[len(entry) :]) is not None
 
 
 def _on_its_key(
