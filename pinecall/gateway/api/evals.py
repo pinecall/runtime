@@ -37,6 +37,8 @@ from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._sockets import NO_AGENT, Registration
 from pinecall.gateway._text_calls import TextSetup, open_text_as
 from pinecall.gateway.ending.seal import compliance_of, drifted, judge_of, judged_call
+from pinecall.log import queries
+from pinecall.log.store import Claim
 from pinecall.providers import catalog, credentials
 from pinecall.providers.build import Running, llm_of, tts_of
 from pinecall.providers.catalog import Providers
@@ -102,6 +104,12 @@ NO_PINNED_DAY_OUT_LOUD = (
 
 
 NO_LINE = "the simulated call could not be held: {broke}"
+
+
+# A call id names a room, a log and a recording: a simulated caller is put on a new one alone.
+NOT_A_NEW_CALL = (
+    "call {call} exists already: a simulated caller is placed on a call id nobody opened"
+)
 
 
 CASES_IN_THE_SANDBOX = (
@@ -295,6 +303,7 @@ async def place_voice_call(
     persona = body.persona
     if persona.name and await personas.persona(pool, key.org, body.agent, persona.name) is None:
         raise NotFound(personas.NOBODY.format(name=persona.name, agent=body.agent))
+    await _a_new_call(gateway, body.call, body.agent, scope)
     line = spoken.Line(interferer_db=body.interferer_db, packet_loss=body.packet_loss)
     dispatch = rooms.Dispatch(
         agent=body.agent,
@@ -487,6 +496,14 @@ async def _said_out_loud(
         await speech.aclose()
     await _until_sealed(gateway, opened.call)
     return goldens.Played(held=True, requests=())
+
+
+# The head is claimed in the caller's scope before the room is offered, so the worker opens it
+# there or not at all (api/calls.py _unclaimed_or_in), and another org's call can never be named.
+async def _a_new_call(gateway: Gateway, call: str, agent: str, scope: Scope) -> None:
+    if await queries.scope_of_call(gateway.connections.pool, call) is not None:
+        raise Conflict(NOT_A_NEW_CALL.format(call=call))
+    await gateway.logs.store.claim(call, agent, scope.org, Claim(scope))
 
 
 # ── the caller ──

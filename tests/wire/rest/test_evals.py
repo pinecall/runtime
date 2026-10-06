@@ -104,9 +104,9 @@ def test_a_judge_runs_on_every_call_or_on_simulations_and_nothing_else() -> None
 
 def test_the_simulated_caller_the_box_pays_for_has_a_ceiling() -> None:
     persona = CallerPersona(goal="book", style="brief")
-    assert PlaceVoiceCallRequest(call="c", agent="a", persona=persona, turns=40).turns == 40
+    assert PlaceVoiceCallRequest(call="call_c", agent="a", persona=persona, turns=40).turns == 40
     with pytest.raises(ValidationError):
-        PlaceVoiceCallRequest(call="c", agent="a", persona=persona, turns=41)
+        PlaceVoiceCallRequest(call="call_c", agent="a", persona=persona, turns=41)
     with pytest.raises(ValidationError):
         NextLineRequest(persona=persona, turns_left=1_000)
     with pytest.raises(ValidationError):

@@ -231,6 +231,14 @@ def recordings_of(settings: Settings, http: httpx.AsyncClient) -> Recordings:
 
 # The worker's pointer says which file it kept, never where: a summary that named any path would
 # have the gateway serve any file its own disk holds.
+def call_directory(root: Path, call: str) -> Path | None:
+    """The call's directory under the root; None for an id that would name a path outside it."""
+    directory = (root / call).resolve()
+    if directory == root.resolve() or not directory.is_relative_to(root.resolve()):
+        return None
+    return directory
+
+
 def kept_on_disk(root: Path, call: str, pointer: str) -> Path | None:
     """The call's recording under the root, by the name its summary gave; None for any other."""
     name = PurePath(pointer).name
@@ -290,12 +298,13 @@ async def _streamed(answer: httpx.Response) -> AsyncIterator[bytes]:
         await answer.aclose()
 
 
-# A recording is a directory named for its call (worker/_recorder.py recording_path).
+# A recording is a directory named for its call (worker/_recorder.py recording_path): one under
+# the root, whatever the id says, or nothing is removed.
 def _removed(root: Path, calls: list[str]) -> set[str]:
     removed: set[str] = set()
     for call in calls:
-        directory = root / call
-        if directory.is_dir():
+        directory = call_directory(root, call)
+        if directory is not None and directory.is_dir():
             shutil.rmtree(directory)
             removed.add(call)
     return removed

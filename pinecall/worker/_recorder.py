@@ -6,9 +6,9 @@ from pathlib import Path
 
 import httpx
 
-from pinecall.domain.errors import GatewayRefused, UpstreamFailed
+from pinecall.domain.errors import DeclarationRefused, GatewayRefused, UpstreamFailed
 from pinecall.fleet.client import GatewayClient
-from pinecall.process.recordings import AUDIO_FILE, SEALED_FILE, recordings_of
+from pinecall.process.recordings import AUDIO_FILE, SEALED_FILE, call_directory, recordings_of
 from pinecall.process.sealed_audio import seal_file
 from pinecall.process.settings import Settings
 
@@ -18,9 +18,14 @@ logger = logging.getLogger(__name__)
 PLAIN = "the recording of %s is kept as it was written, not sealed: %s"
 
 
+NOT_UNDER_THE_ROOT = "call {call!r} names no directory under the recordings root"
+
+
 def recording_path(root: Path, call: str) -> Path:
-    """The call's audio file, in a directory of its own."""
-    directory = root / call
+    """The call's audio file, in a directory of its own under the root; refused outside it."""
+    directory = call_directory(root, call)
+    if directory is None:
+        raise DeclarationRefused(NOT_UNDER_THE_ROOT.format(call=call))
     directory.mkdir(parents=True, exist_ok=True)
     return directory / AUDIO_FILE
 

@@ -1,5 +1,6 @@
 """Tests for where a recording is kept: the disk as always, or an S3 bucket under its org."""
 
+import asyncio
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from pinecall.process.recordings import (
     SEALED_FILE,
     Bucket,
     Disk,
+    call_directory,
     kept_on_disk,
     recordings_of,
     served_sealed,
@@ -171,3 +173,18 @@ def test_a_pointer_is_read_for_its_name_only_and_kept_under_the_root(tmp_path: P
     assert kept_on_disk(root, "c1", "/proc/self/environ") is None
     assert kept_on_disk(root, "c1", "/var/run/secrets/token") is None
     assert kept_on_disk(root, "..", "audio.ogg") is None
+
+
+# A call id is a path component on the disk: one that would leave the root names nothing there.
+def test_a_call_id_that_leaves_the_root_names_no_directory(tmp_path: Path) -> None:
+    root = tmp_path / "recordings"
+    (root / "call_1").mkdir(parents=True)
+    (tmp_path / "elsewhere").mkdir()
+    assert call_directory(root, "call_1") == (root / "call_1").resolve()
+    for outside in ("..", "../elsewhere", str(tmp_path / "elsewhere"), "", "."):
+        assert call_directory(root, outside) is None
+    disk = Disk(root)
+    assert asyncio.run(disk.erase("org", ["..", "../elsewhere", "call_1"])) == 1
+    assert (tmp_path / "elsewhere").is_dir()
+    assert tmp_path.is_dir()
+    assert not (root / "call_1").exists()

@@ -295,8 +295,9 @@ class NextLineResponse(WireModel):
 class PlaceVoiceCallRequest(WireModel):
     """POST /v1/evals/voice, the body: the room, the agent, the persona, and the line."""
 
-    # Minted by the client: the room is named by it, and the client tails its log.
-    call: str
+    # Minted by the client, as the box mints one (`call_` and a word), so it tails the log before
+    # the call starts; the door takes it only for a call nobody opened yet.
+    call: str = Field(pattern=r"^call_[A-Za-z0-9]{1,64}$")
     agent: str
     persona: CallerPersona
     # The caller's lines, each paid for by the box (its model and its voice): forty at most.

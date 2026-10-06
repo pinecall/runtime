@@ -12,9 +12,10 @@ from pinecall.domain.names import Json, JsonObject
 from pinecall.domain.org import Quotas
 from pinecall.domain.scope import Scope
 from pinecall.evals import runs
+from pinecall.log import queries
 from pinecall.log.store import Claim, log_name
 from pinecall.providers import catalog
-from pinecall.tenancy import admission, judges, personas
+from pinecall.tenancy import admission, judges, orgs, personas
 from pinecall.tenancy.personas import Persona, PersonaEdit
 from pinecall.wire.rest.evals import EvalRunResponse
 from tests.conftest import (
@@ -606,3 +607,32 @@ async def test_the_agent_is_dispatched_with_the_persona_and_the_room_is_deleted_
     assert '"persona":"apurado"' in dispatch.metadata
     assert '"accepts_when":"a Tuesday slot"' in dispatch.metadata
     assert [str(getattr(request, "room", "")) for request in server.rooms.requests] == ["call_1"]
+
+
+# A simulated caller is placed on a call id nobody opened: another org's call, or any call that
+# exists, is a 409, and an id that is no call id is a 422, before any room is touched.
+@postgres
+async def test_a_voice_eval_names_a_new_call_alone_and_its_id_has_a_shape(
+    knocking: Knocking,
+) -> None:
+    await written_for(knocking, AGENT)
+    pool = knocking.gateway.connections.pool
+    other = await orgs.create(pool, "otra", "Otra")
+    theirs = Scope(other.id, "sandbox")
+    await knocking.gateway.logs.store.claim("call_theirs", "sales", other.id, Claim(theirs))
+    async with knocking.http(knocking.app["sandbox"]) as http:
+        taken = await http.post(
+            "/v1/evals/voice", json={"call": "call_theirs", "agent": AGENT, "persona": APURADO}
+        )
+        shaped = await http.post(
+            "/v1/evals/voice", json={"call": "../x", "agent": AGENT, "persona": APURADO}
+        )
+    assert taken.status_code == 409
+    assert "exists already" in taken.json()["detail"]
+    assert shaped.status_code == 422
+    server = knocking.gateway.connections.servers["sandbox"]
+    assert isinstance(server, Server)
+    assert server.dispatcher.made == []
+    kept = await queries.scope_of_call(pool, "call_theirs")
+    assert kept is not None
+    assert kept.scope == theirs
