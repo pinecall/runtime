@@ -47,7 +47,7 @@
   `server_url` is `wss://<the name>` in both worlds. The SIP names stay one a world
   (`PINECALL_SIP_DOMAIN`, `PINECALL_SANDBOX_SIP_DOMAIN`): a carrier's, written into its trunk by the
   runtime, typed by nobody.
-- **v1's machines left the repository** (`../infra-v1`): the box, the cell, the fleet loop and its
+- **v1's machines left the repository**: the box, the cell, the fleet loop and its
   clouds, the Packer image, the AWS fleet and the lab's own Terraform, and with them `box up`,
   `box upgrade`, `box failover`, every `cell` verb, `fleet loop`, `fence apply` (`pinecall-fence`),
   the join door and its scope. The fence is the cloud's firewall: `fence export` prints the
@@ -70,8 +70,8 @@
   spool `doctor` reads (a cluster's Postgres archives through its operator, with none, and the
   application connects there as no superuser).
 - **A chat in a room ends after ten minutes without a message.** It was the one call with no
-  ceiling, and a visitor who left pinecall.io's chat open held a production seat for over an hour
-  on 2026-10-03. It ends as `timeout`, the ten minutes the voice ceiling has.
+  ceiling: a visitor who left a chat open held a worker's seat for as long as the page stayed
+  open. It ends as `timeout`, the ten minutes the voice ceiling has.
 - `gcp-mig.py delete` asks the group's list first and deletes only a machine still on it, instead
   of reading a refusal's text to tell one already gone.
 - `gcp-mig.py list` leaves out a machine the group is deleting: it stays listed for about a minute
@@ -255,8 +255,8 @@
   on every gateway at once, said on the signal, and so is a person whose role, agents, production
   access or operator standing changes; one revoked at a shell opens for those seconds.
 - A summary or a score written before money in dollars (`eur`, `judge_cost_eur`, the euro's `rate`)
-  is read again, its euros as the same number of dollars, as migration 0007 kept the facts: 1113
-  of box.pinecall.io's 1154 summaries had become unreadable. `facts rebuild` and doctor's sample
+  is read again, its euros as the same number of dollars, as migration 0007 kept the facts: on a
+  box that ran before dollars, most summaries had become unreadable. `facts rebuild` and doctor's sample
   leave a call whose log holds an entry the wire still refuses as it was folded, instead of
   refolding it to nothing.
 - The providers row may name the language a vendor's ears are told (`tuning."stt/<vendor>".options.language_code`),
@@ -284,9 +284,9 @@
 
 ## 0.1.1 — The runtime written again, in production
 
-The runtime written again from a blank page, and the one that runs `box.pinecall.io` since
-2026-09-29. `pip install pinecall` installs the gateway, the worker and `pinecall-runtime`, the
-console and the widget inside; `docs/from-zero.md` walks a box to its first call.
+The runtime written again from a blank page, in production since 2026-09-29. `pip install pinecall`
+installs the gateway, the worker and `pinecall-runtime`, the console and the widget inside;
+`docs/from-zero.md` walks a box to its first call.
 
 - The skeleton: the domain types, the error hierarchy, the settings, the wire, the database pool
   and the migration runner, the schema as one migration, and the rules `make check` enforces.
@@ -471,8 +471,7 @@ console and the widget inside; `docs/from-zero.md` walks a box to its first call
   `PINECALL_RUNNER_ROOT`, `PINECALL_RUNNER_IMAGE`, `PINECALL_RUNNER_RUNTIME`.
 - Each runner sees only its world's containers (`pinecall.world`), so two share a machine; an app's
   network is DNS-less and on a bridge of the runner's own (`pca…`), the only one the fence matches;
-  the install's HOME is a scratch folder on disk. Found putting northwind and clinica-norte on the
-  first apps machine. From a terminal: `pinecall deploy` and `pinecall secrets` (pinecall 0.9.10).
+  the install's HOME is a scratch folder on disk. From a terminal: `pinecall deploy` and `pinecall secrets` (pinecall 0.9.10).
 - A hosted app stopped and started (`POST /v1/hosted/{name}/stop`·`start`: its process drains, its
   releases and token stay), rolled back on the gateway (`POST …/rollback {release}`), and its logs
   read (`GET …/logs`: the runner sends its container's last 300 lines on the beat after they are
