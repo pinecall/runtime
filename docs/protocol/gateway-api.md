@@ -70,7 +70,9 @@ another's, nor its other world, nor its other families. A call's own doors (the 
 writes and reads a call through, which admission already bounds), the fleet's and the runner's
 keys and a person who runs the box are never counted; the doors that take no key or any key
 (`/v1/login…`, `/v1/whoami`, `/v1/keys`, `/v1/limits`) and the sockets are not either. The count
-is the gateway process's own today.
+is the box's, not one gateway's: each gateway counts what reaches it and says its busy names on
+the signal every second, and the wall is the sum, so an org spread over every gateway meets it
+within a second of reaching it (a gateway with no `PINECALL_REDIS_URL` counts alone).
 
 ## 1. Your own app: `WS /v1/apps`
 
