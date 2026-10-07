@@ -12,7 +12,7 @@ from pinecall.log.logs import Subscription
 from pinecall.session import text
 from pinecall.session.call import Lookup
 from pinecall.session.session import Session
-from pinecall.wire.commands import CallEvent, SessionConfigure
+from pinecall.wire.commands import CallEvent
 from pinecall.wire.parts import EndedBy, EndReason, PlatformTool
 from pinecall.wire.rest.evals import EventStep, Golden, Register
 
@@ -163,8 +163,6 @@ async def settled(heard: Subscription, *, quiet_s: float = QUIET_S) -> None:
 async def _played(
     session: Session, golden: Golden, heard: Subscription, *, is_held: Callable[[], bool]
 ) -> bool:
-    await settled(heard)
-    await session.apply(SessionConfigure(state=dict(golden.state)))
     await settled(heard)
     for turn, line in enumerate([*golden.input, None]):
         for event in events_after(golden, turn):

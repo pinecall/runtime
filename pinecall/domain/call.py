@@ -92,6 +92,8 @@ class CallContext:
     declines_when: str | None = None
     # Sandbox developer the call belongs to; None for the org itself.
     holder: str | None = None
+    # The state the call opens in, when a golden, a persona or `?state=` asked for one.
+    state: Mapping[str, Json] = field(default_factory=dict[str, Json])
 
     def __post_init__(self) -> None:
         if not self.call:

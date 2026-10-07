@@ -10,6 +10,11 @@
 - **`call.started` says how the call is had**: `medium`, `voice` for a call in a room and `text` for
   a written one, so an app tells the widget's spoken call from its chat, which share the `web`
   channel. SDKs before 0.9.19 refuse a field they do not know: release them first.
+- **A call opens in the state its opener asked for, on `call.started`.** `WS /v1/chat?state=<json>`
+  (an object, 16 KB at most; anything else closes the socket with the sentence) and a golden's
+  `state` ride the call's `call.started` as `state`, absent when nobody asked; the app applies it
+  before the first render. The eval runner no longer sends a `session.configure` with the
+  golden's state, so the log holds no `state.changed` the app did not write.
 - **Breaking: the console's directory verbs go to the socket that answers the console.**
   `agent.register` may say `answers_dev: true`, and `POST /v1/agents/{slug}/dev/{family}/{verb}`
   goes to the newest such socket that is not draining; `view.render` still goes to the socket

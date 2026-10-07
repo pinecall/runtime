@@ -3,17 +3,19 @@
 import asyncio
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from pydantic import TypeAdapter, ValidationError
 from starlette.websockets import WebSocketState
 
 from pinecall.domain.call import CallContext, Contact, Route, new_call_id, today_in
 from pinecall.domain.errors import (
     Conflict,
+    DeclarationRefused,
     NotAllowed,
     NotFound,
     PinecallError,
     QuotaExhausted,
 )
-from pinecall.domain.names import THE_WIDGET, Json
+from pinecall.domain.names import THE_WIDGET, Json, JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.gateway import _deps
 from pinecall.gateway._call_setup import exhausted
@@ -29,6 +31,14 @@ router = APIRouter()
 
 
 NOT_TAKEN_UP = "call {call} cannot be taken up: it is over, or not this agent's; open a new one"
+
+NOT_A_STATE = "?state= is the state the call opens in: a JSON object of the class's fields"
+
+STATE_TOO_BIG = "?state= is {size} bytes: the state a call opens in is {at_most} bytes at most"
+
+A_STATE_AT_MOST = 16 * 1024
+
+_A_STATE: TypeAdapter[JsonObject] = TypeAdapter(JsonObject)
 
 OVER = "the call ended: {reason}"
 
@@ -130,7 +140,21 @@ async def _chat_context(
         route=Route(org=scope.org, agent=registration.slug, channel=THE_WIDGET, env=scope.env),
         today=today_in(gateway.connections.settings.timezone),
         holder=scope.holder or None,
+        state=_opening_state(websocket),
     )
+
+
+def _opening_state(websocket: WebSocket) -> JsonObject:
+    query = websocket.query_params.get("state")
+    if not query:
+        return {}
+    size = len(query.encode())
+    if size > A_STATE_AT_MOST:
+        raise DeclarationRefused(STATE_TOO_BIG.format(size=size, at_most=A_STATE_AT_MOST))
+    try:
+        return _A_STATE.validate_json(query)
+    except ValidationError:
+        raise DeclarationRefused(NOT_A_STATE) from None
 
 
 # A failed send flips the application state; a receive after it raises RuntimeError, so the

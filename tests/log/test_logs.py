@@ -1,6 +1,7 @@
 """Tests for a process's logs: append, live readers, replay, feeds, a call's first entries."""
 
 import asyncio
+import dataclasses
 import time
 from datetime import date
 
@@ -541,6 +542,13 @@ def test_the_start_says_whether_the_call_is_spoken_or_written() -> None:
     spoken = started_entry(context("in"), "+34955111222", 1.0, medium="voice")
     written = started_entry(context("in"), "+34955111222", 1.0, medium="text")
     assert (spoken["medium"], written["medium"]) == ("voice", "text")
+
+
+def test_the_start_carries_the_state_asked_for_and_a_call_nobody_seeded_carries_none() -> None:
+    seeded = dataclasses.replace(context("in"), state={"patient_name": "Ana"})
+    opened = started_entry(seeded, "+34955111222", 1.0, medium="voice")
+    assert opened["state"] == {"patient_name": "Ana"}
+    assert "state" not in started_entry(context("in"), "+34955111222", 1.0, medium="voice")
 
 
 def test_the_start_carries_the_persona_and_its_rules_for_the_judges() -> None:

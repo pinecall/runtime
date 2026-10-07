@@ -2,10 +2,12 @@
 
 import asyncio
 import json
+from urllib.parse import quote
 
 from livekit.agents.llm import ChatMessage
 
 from pinecall.gateway._deps import POLICY_VIOLATION
+from pinecall.gateway.api.chat import NOT_A_STATE
 from pinecall.providers import catalog
 from pinecall.tenancy import personas
 from pinecall.tenancy.personas import Persona, PersonaEdit
@@ -62,6 +64,28 @@ async def test_a_persona_named_on_a_chat_is_the_agents_own_and_its_rules_ride_th
         rules.append((started.data.get("persona"), started.data.get("accepts_when")))
         await chat.close()
     assert rules == [("apurado", "a Tuesday slot"), ("lento", None)]
+    await app.close()
+
+
+@postgres
+async def test_the_state_a_chat_asks_for_is_the_one_its_call_starts_in(knocking: Knocking) -> None:
+    app = await an_app(knocking)
+    state = quote(json.dumps({"patient_name": "Ana", "step": 2}))
+    chat = await knocking.socket(f"/v1/chat?agent={AGENT}&state={state}", knocking.app["sandbox"])
+    started = await received_until(app, "call.started")
+    assert started.data["state"] == {"patient_name": "Ana", "step": 2}
+    await chat.close()
+    await app.close()
+
+
+@postgres
+async def test_a_state_that_is_not_an_object_closes_the_chat_with_the_reason(
+    knocking: Knocking,
+) -> None:
+    app = await an_app(knocking)
+    chat = await knocking.socket(f"/v1/chat?agent={AGENT}&state=%5B1%5D", knocking.app["sandbox"])
+    await chat.wait_closed()
+    assert (chat.close_code, chat.close_reason) == (POLICY_VIOLATION, NOT_A_STATE)
     await app.close()
 
 

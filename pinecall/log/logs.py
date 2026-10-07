@@ -551,6 +551,7 @@ def started_entry(
     """Return the call.started entry, written once media is up: spoken or written, and by whom."""
     from_, to = _two_ends(context, door)
     ran_by: JsonObject = {} if worker is None else {"worker": worker}
+    opened_in: JsonObject = {"state": dict(context.state)} if context.state else {}
     started = CallStarted.read(
         {
             "channel": context.channel,
@@ -567,6 +568,7 @@ def started_entry(
             "env": context.env,
             "medium": medium,
             **ran_by,
+            **opened_in,
         },
         "call.started",
     )

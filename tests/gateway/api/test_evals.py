@@ -277,6 +277,22 @@ async def test_a_run_whose_app_leaves_fails_with_the_partial_matrix_and_opens_no
 
 
 @postgres
+async def test_a_goldens_state_rides_its_call_started_and_the_runner_writes_none_of_its_own(
+    knocking: Knocking,
+) -> None:
+    await scripted(knocking, ["Buenos días."])
+    app = await an_app(knocking)
+    seeded = golden("booking", "hola", state={"stage": "book", "patient": {"id": "p-1"}})
+    run = (await a_suite(knocking, {"agent": AGENT, "goldens": [seeded]})).json()
+    started = await received_until(app, "call.started")
+    [opened] = run["calls"]
+    kinds = [entry.type for entry in await knocking.gateway.logs.store.whole(opened["call"])]
+    assert started.data["state"] == {"stage": "book", "patient": {"id": "p-1"}}
+    assert "state.changed" not in kinds
+    await app.close()
+
+
+@postgres
 async def test_a_golden_pins_the_day_the_model_is_told_it_is(knocking: Knocking) -> None:
     await scripted(knocking, ["Buenos días."])
     app = await an_app(knocking)

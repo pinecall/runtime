@@ -98,7 +98,7 @@ entry of the call through `call.score`. The call-scoped commands carry `"call": 
 
 | command | when |
 |---|---|
-| `session.configure` | before the first turn: the state this call opens in |
+| `session.configure` | a declaration for this call only, before the first turn |
 | `state.set` | the app's state changed, and this is all of it; `state.changed` is written and the prompt re-rendered |
 | `prompt.set` · `tools.set` | one named block of the prompt, whole; the tools the model may see now |
 | `agent.say` · `agent.reply` | say these words; make the model speak now, guided by an instruction the caller never hears |
@@ -123,7 +123,7 @@ only the process in the agent's directory can do: [dev-verbs.md](dev-verbs.md).
 
 | door | the caller |
 |---|---|
-| `WS /v1/chat?agent=<slug>` | text: send `{"text": "…"}`, receive the call's entries; `app=`, `contact=`, `caller=`, and `call=` to take up a call whose gateway restarted |
+| `WS /v1/chat?agent=<slug>` | text: send `{"text": "…"}`, receive the call's entries; `app=`, `contact=`, `caller=`, `persona=`, `state=` (a JSON object, 16 KB at most: the state the call opens in, carried on its `call.started`), and `call=` to take up a call whose gateway restarted |
 | `POST /v1/tokens` | web voice: [tokens.md](tokens.md) |
 | a phone number | a route to the agent: [numbers.md](numbers.md) |
 | `POST /v1/codes` | a phone call tied to a page: [codes.md](codes.md) |

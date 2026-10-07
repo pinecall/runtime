@@ -28,7 +28,8 @@ The run drives the app that holds the agent in the key's scope (`app` names one,
 session a real caller gets, tuned where the app holds the agent, on the org's keys:
 
 - it opens with no greeting: a golden starts in the middle of a conversation;
-- its `state` is set as the app's `session.configure` would, before the first line;
+- its `state` rides the call's `call.started` (its `state` field), and the app opens the call in
+  it before the first render, as `WS /v1/chat?state=` does; the run declares no state of its own;
 - each `events` step is the app's `call.event`, after the caller line it names (`0` is before the
   first), so an event the agent never declared is refused by name (`400`) and the call ends;
 - `memory` answers `recall` for this call alone; `search` is the real index;

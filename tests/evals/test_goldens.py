@@ -157,17 +157,15 @@ async def test_a_golden_run_writes_no_opening_turn_at_all(
     assert kinds.index("turn.user") < kinds.index("turn.agent")
 
 
+# The state rides call.started to the app, which applies it: the runner declares none of its own.
 @postgres
-async def test_the_goldens_state_is_the_one_the_call_opens_in(
+async def test_a_golden_with_a_state_is_played_without_the_runner_declaring_one(
     store: Store, call: str, acme: str
 ) -> None:
     del acme
     golden = a_golden(state={"stage": "book", "patient": {"id": "p-1"}})
     _, kinds = await played(store, call, golden, FREED, ["hola"])
-    entries = await store.whole(call)
-    seeded = next(entry for entry in entries if entry.type == "state.changed")
-    assert seeded.data["state"] == {"stage": "book", "patient": {"id": "p-1"}}
-    assert kinds.index("state.changed") < kinds.index("turn.user")
+    assert "state.changed" not in kinds
 
 
 @postgres

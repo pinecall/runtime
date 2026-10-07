@@ -471,6 +471,7 @@ async def _written(
         today=golden.today or today_in(gateway.connections.settings.timezone),
         run=suite.run.id,
         holder=scope.holder or None,
+        state=dict(golden.state),
     )
     session = await open_text_as(
         gateway.serving,
