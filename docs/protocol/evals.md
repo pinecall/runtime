@@ -220,8 +220,10 @@ judges at all (the three conditions above), and each is one more request to the 
 ## The simulated caller
 
 Every line of the simulated caller is paid for by the box (its model and its voice), so each door
-has a ceiling: a suite runs 200 goldens at most, a call 40 caller turns at most (`turns`,
-`turns_left`); past them it is `422`.
+has a ceiling: a suite takes 200 goldens, 200 cases and 8 models at most, a golden 40 caller lines
+(`input`), a call 40 caller turns (`turns`, `turns_left`); past them it is `422`. And a run plays
+200 calls at most in all, its goldens and the cases it joins each played under every model:
+`400` past them, with the count.
 
 `POST /v1/evals/caller` `{persona, heard, turns_left}` answers `{say, hangup}`: the persona's next
 line on the call so far, on the persona's `llm` or the box's default, on the org's own key or the

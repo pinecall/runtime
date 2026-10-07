@@ -179,6 +179,29 @@ async def test_a_run_against_an_agent_nobody_is_holding_is_a_404(knocking: Knock
     assert "tienda-sur" in refused.json()["detail"]
 
 
+# Each model plays every golden again: 101 goldens under two models are 202 calls, past the 200 a
+# run may play, refused before one is opened.
+@postgres
+async def test_a_run_past_two_hundred_calls_in_all_is_refused_with_its_count(
+    knocking: Knocking,
+) -> None:
+    app = await an_app(knocking)
+    body = {
+        "agent": AGENT,
+        "goldens": [golden(f"g{n}", "hola") for n in range(101)],
+        "models": [
+            {"provider": "acme", "model": "acme-2"},
+            {"provider": "acme", "model": "acme-3"},
+        ],
+    }
+    refused = await a_suite(knocking, body)
+    assert refused.status_code == 400
+    assert "202" in refused.json()["detail"]
+    pool, sandbox = knocking.gateway.connections.pool, Scope(knocking.org.id, "sandbox")
+    assert await runs.listed(pool, sandbox, agent=AGENT, since=0.0, limit=10) == []
+    await app.close()
+
+
 @postgres
 async def test_a_second_run_on_one_agent_is_refused_naming_the_first(knocking: Knocking) -> None:
     app = await an_app(knocking)

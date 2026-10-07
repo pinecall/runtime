@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from pinecall.domain.errors import DeclarationRefused
+from pinecall.wire.parts import ModelConfig
 from pinecall.wire.rest.evals import (
     CallerPersona,
     Golden,
@@ -113,3 +114,11 @@ def test_the_simulated_caller_the_box_pays_for_has_a_ceiling() -> None:
         RunSuiteRequest(agent="a", goldens=[Golden(name=f"g{n}") for n in range(201)])
     suite = RunSuiteRequest(agent="a", goldens=[Golden(name=f"g{n}") for n in range(200)])
     assert len(suite.goldens) == 200
+    model = ModelConfig(provider="acme", model="acme-2")
+    with pytest.raises(ValidationError):
+        RunSuiteRequest(agent="a", models=[model] * 9)
+    with pytest.raises(ValidationError):
+        RunSuiteRequest(agent="a", cases=[f"c{n}" for n in range(201)])
+    with pytest.raises(ValidationError):
+        Golden(name="g", input=["hola"] * 41)
+    assert len(Golden(name="g", input=["hola"] * 40).input) == 40

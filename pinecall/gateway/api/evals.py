@@ -121,6 +121,17 @@ CASES_IN_THE_SANDBOX = (
 CASES_WRITTEN = "cases are played as written calls: drop --voice, or play only goldens out loud"
 
 
+# Every call of a run is a simulated caller and an agent the box may pay for: goldens and cases,
+# each played once under every model.
+CALLS_A_RUN = 200
+
+
+TOO_MANY_CALLS = (
+    "a run plays 200 calls at most, and {played} goldens and cases under {models} models are "
+    "{total}: run fewer, or fewer models"
+)
+
+
 NO_SUCH_VERSION = "no version {version} of {slug} in the scope of the app that holds it"
 
 
@@ -192,6 +203,7 @@ async def run_suite(
         _refuse_out_loud(body)
     if body.cases or body.dataset:
         body = await _with_cases(gateway, body, scope)
+    _refuse_past_the_ceiling(body)
     suite = await _suite_of(gateway, body, registration)
     pool, where = gateway.connections.pool, registration.scope
     async with gateway.evals.alone(suite.run.id, body.agent):
@@ -594,6 +606,15 @@ async def _until_sealed(gateway: Gateway, call: str) -> None:
         raise NotAvailable(NEVER_SEALED.format(call=call, seconds=A_SEAL_MAY_TAKE_S)) from never
     finally:
         subscription.close()
+
+
+def _refuse_past_the_ceiling(body: RunSuiteRequest) -> None:
+    models = max(len(body.models), 1)
+    total = len(body.goldens) * models
+    if total > CALLS_A_RUN:
+        raise DeclarationRefused(
+            TOO_MANY_CALLS.format(played=len(body.goldens), models=models, total=total)
+        )
 
 
 def _refuse_out_loud(body: RunSuiteRequest) -> None:

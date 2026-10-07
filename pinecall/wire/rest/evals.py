@@ -54,7 +54,8 @@ class Golden(WireModel):
 
     name: str
     state: JsonObject = Field(default_factory=dict[str, Json])
-    input: list[str] = Field(default_factory=list[str])
+    # The caller's lines, each one a turn the box pays the agent's model for: forty at most.
+    input: list[str] = Field(default_factory=list[str], max_length=40)
     # Answered to `recall` for this call only; the memory table is never written.
     memory: list[str] = Field(default_factory=list[str])
     events: list[EventStep] = Field(default_factory=list[EventStep])
@@ -72,16 +73,17 @@ class RunSuiteRequest(WireModel):
     """POST /v1/evals/run, the body: the agent, its goldens and cases, the models, a version."""
 
     agent: str
-    # Each golden is a call whose simulated caller the box pays for: two hundred at most.
+    # Each golden is a call whose simulated caller the box pays for: two hundred at most, and two
+    # hundred calls in all once the cases join and every model plays each (the door counts them).
     goldens: list[Golden] = Field(default_factory=list[Golden], max_length=200)
     # Cases of the org's dataset by name; a case held out is played only when named here.
-    cases: list[str] = Field(default_factory=list[str])
+    cases: list[str] = Field(default_factory=list[str], max_length=200)
     # Every case of the agent's that is not held out: the nightly run.
     dataset: bool = False
     # A version of the agent's settings in the app's scope to run instead of the one standing.
     version: int | None = Field(default=None, ge=1)
-    # Empty: the model the agent declares.
-    models: list[ModelConfig] = Field(default_factory=list[ModelConfig])
+    # Empty: the model the agent declares. Each one plays every golden again: eight at most.
+    models: list[ModelConfig] = Field(default_factory=list[ModelConfig], max_length=8)
     # The app socket to drive, as `WS /v1/chat?app=`; absent, the newest that holds the agent.
     app: str | None = None
     # Each golden said out loud, through the world's fleet.
