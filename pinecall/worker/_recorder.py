@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from http import HTTPStatus
 from pathlib import Path
 
 import httpx
@@ -15,7 +16,11 @@ from pinecall.process.settings import Settings
 logger = logging.getLogger(__name__)
 
 
-PLAIN = "the recording of %s is kept as it was written, not sealed: %s"
+DROPPED = "the recording of %s is dropped, never kept unsealed: %s"
+
+
+# A gateway that is away is asked again after each wait; one that answered a refusal is not.
+KEY_WAITS_S = (1.0, 3.0, 9.0)
 
 
 # A call that ended before its session started recording has no file, and the summary names none.
@@ -27,9 +32,11 @@ def written(audio: Path) -> bool:
 # The seal waits for this: the summary names the file, and the gateway finds it wherever it went.
 async def stored(
     settings: Settings, gateway: GatewayClient, org: str, call: str, audio: Path
-) -> Path:
+) -> Path | None:
     """Seal a written recording and move it where the box keeps it; the file the summary names."""
     kept = await _sealed(gateway, call, audio)
+    if kept is None:
+        return None
     async with httpx.AsyncClient() as http:
         try:
             await recordings_of(settings, http).store(org, call, kept)
@@ -39,21 +46,37 @@ async def stored(
 
 
 # Sealed on this disk before it goes anywhere, under a key the gateway keeps sealed for the call.
-# A key the gateway cannot give leaves the recording as it was written, and says so: losing the
-# call's audio would be worse than keeping it plain.
-async def _sealed(gateway: GatewayClient, call: str, audio: Path) -> Path:
-    try:
-        key = await gateway.recording_key(call)
-    except GatewayRefused:
-        logger.warning(PLAIN, call, "the gateway gave no key", exc_info=True)
-        return audio
-    if key is None:
-        logger.warning(PLAIN, call, "this gateway seals no recording")
-        return audio
+# No recording is ever kept as it was written: one the worker cannot seal is removed and the call's
+# summary names none, as a call nobody recorded (docs/security/private-values.md).
+async def _sealed(gateway: GatewayClient, call: str, audio: Path) -> Path | None:
+    key = await _key_of(gateway, call)
     sealed = audio.with_name(SEALED_FILE)
+    if key is None:
+        logger.error(DROPPED, call, "the gateway gave no key")
+        await asyncio.to_thread(_removed, audio, sealed)
+        return None
     try:
         await asyncio.to_thread(seal_file, audio, sealed, key)
     except OSError:
-        logger.warning(PLAIN, call, "the sealed file could not be written", exc_info=True)
-        return audio
+        logger.exception(DROPPED, call, "the sealed file could not be written")
+        await asyncio.to_thread(_removed, audio, sealed)
+        return None
     return sealed
+
+
+async def _key_of(gateway: GatewayClient, call: str) -> bytes | None:
+    for wait_s in (*KEY_WAITS_S, None):
+        try:
+            return await gateway.recording_key(call)
+        except GatewayRefused as refused:
+            away = refused.answered is None or refused.answered >= HTTPStatus.INTERNAL_SERVER_ERROR
+            if not away or wait_s is None:
+                logger.warning("no key for the recording of %s", call, exc_info=True)
+                return None
+            await asyncio.sleep(wait_s)
+    return None
+
+
+def _removed(*files: Path) -> None:
+    for file in files:
+        file.unlink(missing_ok=True)

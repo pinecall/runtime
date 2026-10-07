@@ -483,10 +483,12 @@ def _platform(
     return Platform(append_many=append_many, tool=tool, lookup=lookup, seal=seal)
 
 
-async def _kept(audio: Path | None, store: Callable[[Path], Awaitable[Path]]) -> str | None:
+# A recording the worker could not seal is dropped (worker/_recorder.py): the summary names none.
+async def _kept(audio: Path | None, store: Callable[[Path], Awaitable[Path | None]]) -> str | None:
     if audio is None or not await asyncio.to_thread(written, audio):
         return None
-    return str(await store(audio))
+    kept = await store(audio)
+    return None if kept is None else str(kept)
 
 
 # The platform wants a claim that answers nothing; the client's says whether a page was waiting.

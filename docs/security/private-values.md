@@ -71,9 +71,11 @@ read whole before a byte of it is trusted.
 The key is erased with the call, by an erasure or the nightly retention; a backup taken before
 holds the file and its sealed key both, for its days, as it holds the log. `vault rotate`
 re-seals the key.
-A worker whose gateway gives no key (a gateway of before, or one away) keeps the recording as it
-was written and says so in its journal; the name says which a stored recording is, and a plain
-one, like every recording made before, is served as it always was.
+No recording is kept as it was written. A gateway that is away is asked for the key again, three
+times over thirteen seconds; one that refuses, or stays away, or a sealed file that cannot be
+written, and the worker removes the recording, says so in its journal as an error, and the call's
+summary names no recording, as a call nobody recorded. A plain `audio.ogg` made before sealing
+began is served as it always was; the name says which a stored recording is.
 
 The call's summary names the file the worker kept, and the gateway reads only its name: what it
 serves from its own disk is `<PINECALL_RECORDINGS>/<call>/audio.ogg` or `audio.sealed` and nothing
