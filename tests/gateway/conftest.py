@@ -32,4 +32,4 @@ def a_call(scope: Scope = OURS, channel: str = "web") -> CallContext:
 
 def a_start(context: CallContext) -> JsonObject:
     """The call.started a worker would write for the call."""
-    return started_entry(context, context.route.number or AGENT, 1.0)
+    return started_entry(context, context.route.number or AGENT, 1.0, medium="voice")

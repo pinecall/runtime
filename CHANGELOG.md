@@ -7,6 +7,10 @@
   `words` key cannot set, tried on the ears and the voice before it is kept. Unset, each vendor
   keeps its own default; an app on an SDK before 0.9.19 still declares one, read only when the world
   set none.
+- **`call.started` says how the call is had**: `medium`, `voice` for a call in a room and `text` for
+  a written one, so an app tells the widget's spoken call from its chat, which share the `web`
+  channel. SDKs before 0.9.19 refuse a field they do not know: release them first.
+
 - **The start-up rebuild of the SIP trunks tries again until whole**: a gateway started beside a
   LiveKit still starting (or down) left that world's numbers unadmitted until its own next start;
   it now retries, 2 s and doubling, a minute at most, while an org is refused or a LiveKit cannot

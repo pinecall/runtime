@@ -6,7 +6,7 @@ from pydantic import Field
 
 from pinecall.domain.agent import EventSource
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.names import Channel, Direction, Env, JsonObject
+from pinecall.domain.names import Channel, Direction, Env, JsonObject, Medium
 from pinecall.domain.org import QuotaName
 from pinecall.wire.frames import Entry, WireModel
 from pinecall.wire.metrics import (
@@ -177,6 +177,7 @@ class CallStarted(WireModel):
     started_at: float
     env: Env | None = None
     worker: str | None = None
+    medium: Medium | None = None
 
 
 class CallAttached(WireModel):

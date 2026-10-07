@@ -202,7 +202,7 @@ async def test_the_tools_still_waiting_are_re_sent_to_the_socket_that_takes_the_
     context = a_call(knocking)
     async with knocking.http(knocking.fleet["sandbox"]) as worker:
         await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
-        started = started_entry(context, A_NUMBER, time.time())
+        started = started_entry(context, A_NUMBER, time.time(), medium="voice")
         await worker.post(
             f"/v1/calls/{context.call}/events", json={"type": "call.started", "data": started}
         )
@@ -251,7 +251,7 @@ async def test_what_is_private_reaches_the_app_whole_and_the_log_only_masked(
     context = a_call(knocking)
     async with knocking.http(knocking.fleet["sandbox"]) as worker:
         await worker.post("/v1/calls", json=OpenCallRequest(agent=AGENT, context=context).written())
-        started = started_entry(context, A_NUMBER, time.time())
+        started = started_entry(context, A_NUMBER, time.time(), medium="voice")
         state: JsonObject = {"state": HER_STATE, "changed": ["patient"]}
         batch = [
             {"type": "call.started", "data": started, "ts": time.time()},

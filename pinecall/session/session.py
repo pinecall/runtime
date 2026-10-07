@@ -203,8 +203,10 @@ class Session:
         self.call.writing.open()
         context = self.call.context
         door = context.route.number or self.call.config.slug
+        # A written call is given no room.
+        medium = "text" if where is None else "voice"
         started = wire.CallStarted.model_validate(
-            started_entry(context, door, self.started_at, worker)
+            started_entry(context, door, self.started_at, worker, medium=medium)
         )
         await self.call.writing.write("call.started", started)
         knowledge = _prompt.knowledge_changed(self.blocks)

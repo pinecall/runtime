@@ -123,6 +123,7 @@ Media is up: the caller and the agent can hear each other, or the text session i
 | `started_at` | `number` | yes | When media came up, unix seconds. |
 | `env` | `Env` | no | The world this call ran in: the one the key that holds its agent opens. Absent on entries written before keys knew where they were, which read as production. |
 | `worker` | `string | null` | no | The worker that ran the call, as its heartbeats name it (`PINECALL_WORKER_NAME`, or its machine's short hostname) within its world's fleet. Absent on a written call, which the gateway runs, and on a call a worker of an older release ran. |
+| `medium` | `Medium | null` | no | How the call is had: `voice` when it runs in a room, spoken; `text` when it is a written session. A `web` call is either. Absent from a gateway before this release, and an app reading it then falls back to its channel (`phone` spoken, `whatsapp` written). |
 
 ### `call.summary`
 

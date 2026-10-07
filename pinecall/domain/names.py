@@ -25,6 +25,10 @@ type Env = Literal["production", "sandbox"]
 type Channel = Literal["phone", "web", "whatsapp"]
 
 
+# How the call is had: spoken (a room, a voice) or written (a text session); `web` is either.
+type Medium = Literal["voice", "text"]
+
+
 type Direction = Literal["inbound", "outbound"]
 
 

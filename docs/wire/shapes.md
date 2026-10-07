@@ -34,6 +34,12 @@ The door the public came through: a phone call over SIP, the browser widget over
 
 One of: `phone`, `web`, `whatsapp`.
 
+### `Medium`
+
+How a call is had: spoken in a room, or written in a text session. A `web` call is either.
+
+One of: `voice`, `text`.
+
 ### `Direction`
 
 Inbound: the public reached the agent. Outbound: the agent reached out (a dial).

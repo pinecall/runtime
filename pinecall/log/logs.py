@@ -7,7 +7,7 @@ from typing import Self
 
 from pinecall.domain.call import CallContext
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.domain.names import ENVS, Env, JsonObject, parse_env
+from pinecall.domain.names import ENVS, Env, JsonObject, Medium, parse_env
 from pinecall.log import private
 from pinecall.log._relay import BOX_CHANNEL, CHANNEL, FEED_CHANNEL, FEED_PREFIX, LOG_PREFIX, Relay
 from pinecall.log.private import Privacy
@@ -546,9 +546,9 @@ def arrival_entry(
 
 
 def started_entry(
-    context: CallContext, door: str, at: float, worker: str | None = None
+    context: CallContext, door: str, at: float, worker: str | None = None, *, medium: Medium
 ) -> JsonObject:
-    """Return the call.started entry, written once media is up, naming the worker that runs it."""
+    """Return the call.started entry, written once media is up: spoken or written, and by whom."""
     from_, to = _two_ends(context, door)
     ran_by: JsonObject = {} if worker is None else {"worker": worker}
     started = CallStarted.read(
@@ -565,6 +565,7 @@ def started_entry(
             "caller": None,
             "started_at": at,
             "env": context.env,
+            "medium": medium,
             **ran_by,
         },
         "call.started",

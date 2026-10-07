@@ -136,6 +136,17 @@ async def test_a_call_starts_with_call_started_then_the_knowledge_it_ships_with(
 
 
 @postgres
+async def test_a_call_opened_with_no_room_starts_as_a_written_one(
+    box: Box, store: Store, call: str
+) -> None:
+    session = a_session(box, AgentConfig(slug="clinica-norte"))
+    await session.start()
+    await text.end(session, "caller_hung_up", "caller")
+    entries = await store.whole(call)
+    assert entries[0].data["medium"] == "text"
+
+
+@postgres
 async def test_a_class_that_ships_no_file_writes_no_line_about_one(
     box: Box, store: Store, call: str
 ) -> None:
