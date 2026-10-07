@@ -177,3 +177,27 @@ async def test_a_verb_knocks_with_the_token_of_the_moment_and_a_refusal_says_why
             await cluster.pods("production")
     assert seen[:2] == ["Bearer first", "Bearer first"]
     assert seen[2:4] == ["Bearer second", "Bearer second"]
+
+
+async def test_a_host_whose_pod_went_with_its_node_starts_over_its_secret_left_behind(
+    tmp_path: Path,
+) -> None:
+    token = tmp_path / "token"
+    token.write_text("t\n")
+    seen: list[str] = []
+
+    def answered(request: httpx.Request) -> httpx.Response:
+        seen.append(f"{request.method} {request.url.path.rsplit('/', 2)[-2:]}")
+        if request.method == "POST" and request.url.path.endswith("/secrets"):
+            return httpx.Response(409, json={"reason": "AlreadyExists"})
+        return httpx.Response(201, json={})
+
+    async with httpx.AsyncClient(
+        base_url="https://cluster", transport=httpx.MockTransport(answered)
+    ) as http:
+        await Cluster(http=http, engine=ENGINE, token=token).start(LAUNCH, {"A": "1"})
+    assert seen == [
+        "POST ['pinecall-apps', 'secrets']",
+        "PUT ['secrets', 'support-r1-abcdef12-env']",
+        "POST ['pinecall-apps', 'pods']",
+    ]

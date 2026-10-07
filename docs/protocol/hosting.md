@@ -107,4 +107,5 @@ is not root, with no service account token, no capability, the public resolvers,
 of their own (`TMPDIR`); the hosting cluster's network policy lets a pod reach the internet and
 its runner's sources, and nothing private. The environment is a secret of that one pod, mounted
 read-only, which the container's own shell reads before it becomes `pinecall start`: a secret named
-like `LD_PRELOAD` or `PATH` is the app's own, never the runner's.
+like `LD_PRELOAD` or `PATH` is the app's own, never the runner's. A pod that went with its node
+leaves that secret behind; the host started again replaces it.

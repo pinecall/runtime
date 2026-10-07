@@ -80,6 +80,10 @@ NOT_A_VARIABLE = "{name!r} is not an environment variable's name"
 NOT_THERE = 404
 
 
+# What creating a host's secret answers when its pod went with a node and the secret stayed.
+ALREADY_THERE = 409
+
+
 REFUSED = "the cluster {verb}: {status} {detail}"
 
 
@@ -214,7 +218,12 @@ class Cluster:
     async def start(self, launch: Launch, environment: Mapping[str, str]) -> None:
         """The host's environment as a secret, then its pod: installing first, then running."""
         secret = environment_secret(launch.host, environment)
-        await self._required(_Knock("create", "POST", self._at("secrets"), body=secret))
+        made = await self._request(_Knock("create", "POST", self._at("secrets"), body=secret))
+        if made.status_code == ALREADY_THERE:
+            path = self._at(f"secrets/{_secret_of(launch.host)}")
+            await self._required(_Knock("replace", "PUT", path, body=secret))
+        elif not made.is_success:
+            raise UpstreamFailed(_refusal("create", made))
         await self._required(
             _Knock("create", "POST", self._at("pods"), body=pod(self.engine, launch))
         )
