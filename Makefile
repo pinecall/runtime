@@ -85,11 +85,21 @@ hooks:            ## the pre-commit hook: `make check`
 
 # The runtime's image, built by Cloud Build as the builds' own identity (infra/terraform/modules/
 # build), never on the laptop. Its context is the Containerfile and this checkout's wheel alone;
-# its tag is the commit, so a cluster runs exactly what the commit holds.
+# its tag is the commit, so a cluster runs exactly what the commit holds: the wheel is built from
+# the working tree and the console and the widget from their checkouts, so each must be the commit
+# it says, with nothing changed and nothing new beside it, and TAG must name this checkout's commit.
 REGISTRY ?= us-central1-docker.pkg.dev/$(PROJECT)/pinecall
 BUILDER  ?= projects/$(PROJECT)/serviceAccounts/pinecall-build@$(PROJECT).iam.gserviceaccount.com
 TAG      ?= $(shell git rev-parse --short HEAD)
+CONSOLE  ?= $(or $(PINECALL_CONSOLE),../console)
+WIDGET   ?= $(or $(PINECALL_WIDGET),../widget)
 image:            ## the runtime's container image, TAG=<commit>, built and checked by Cloud Build
+	@for tree in . $(CONSOLE) $(WIDGET); do \
+	  if [ -n "$$(git -C $$tree status --porcelain)" ]; then \
+	    echo "make image: $$tree has changes no commit holds; commit them or set them aside" >&2; \
+	    exit 2; fi; done
+	@[ "$$(git rev-parse HEAD)" = "$$(git rev-parse --verify --quiet '$(TAG)^{commit}')" ] || \
+	  { echo "make image: TAG=$(TAG) is not this checkout's commit, $$(git rev-parse --short HEAD)" >&2; exit 2; }
 	scripts/console
 	rm -rf dist && uv build --wheel --quiet
 	rm -rf .image && mkdir .image
