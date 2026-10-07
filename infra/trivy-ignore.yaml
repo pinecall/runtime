@@ -1,0 +1,68 @@
+# What trivy finds in infra/ and in the charts as released (check.yml, `supply chain`) and is let
+# stand, each by its path and with why. A finding not here fails the check. Those with a date are
+# owed, not accepted: past it the check fails again until they are fixed or a reason replaces it.
+misconfigurations:
+  # By design.
+  - id: KSV-0009
+    paths:
+      - pinecall/templates/livekit.yaml
+      - pinecall/templates/sip.yaml
+    statement: >-
+      A world's LiveKit and SIP hold its media node's ports and announce the node's one address
+      (charts/pinecall livekit.yaml, sip.yaml): a pod network would put NAT between them and the
+      caller's media.
+  - id: GCP-0048
+    paths:
+      - terraform/modules/gke/main.tf
+    statement: >-
+      The legacy metadata endpoints (v0.1, v1beta1) are disabled on every GKE node since 1.12 and
+      were turned down for all of Compute Engine in 2020; setting the key by hand recreates the
+      node pools for no change.
+  - id: KSV-0014
+    paths:
+      - manifests/suite.yaml
+    statement: >-
+      The suite's Job writes its caches beside the checkout, and runs on a cluster that is not
+      production's alone (`make suite` refuses ENV=production).
+  - id: KSV-0118
+    paths:
+      - manifests/suite.yaml
+    statement: The suite's Job, never on production's cluster (`make suite` refuses ENV=production).
+  - id: DS-0002
+    paths:
+      - images/suite/Containerfile
+      - local/postgres/Dockerfile
+    statement: >-
+      The suite's image (never on production's cluster) and the laptop's Postgres, whose
+      entrypoint starts as root to own its data directory and drops to postgres itself.
+
+  # Bernardo's call: it can lock him out of the cluster (internal-docs, the security plan).
+  - id: GCP-0061
+    paths:
+      - terraform/modules/gke/main.tf
+    statement: >-
+      The Kubernetes API is reached by IAM alone until authorized networks are chosen: a list
+      that forgets the place he works from locks him out.
+    expired_at: 2026-11-07
+
+  # Owed: the third-party images' pods (Redis, LiveKit, SIP, kubeip, the fleets' keys Job) carry
+  # no security context yet; the runtime's own pods do (5f5cd06). Each is set and proven on the
+  # cluster at a release: a uid, its volumes' owner, a port under 1024 for SIP.
+  - id: KSV-0014
+    paths:
+      - pinecall/templates/redis.yaml
+      - pinecall/templates/livekit.yaml
+      - pinecall/templates/sip.yaml
+      - pinecall/templates/kubeip.yaml
+      - pinecall/templates/jobs.yaml
+    statement: Third-party images' pods with a writable root, owed a read-only one.
+    expired_at: 2026-11-07
+  - id: KSV-0118
+    paths:
+      - pinecall/templates/redis.yaml
+      - pinecall/templates/livekit.yaml
+      - pinecall/templates/sip.yaml
+      - pinecall/templates/kubeip.yaml
+      - pinecall/templates/jobs.yaml
+    statement: Third-party images' pods with the default security context, owed their own.
+    expired_at: 2026-11-07

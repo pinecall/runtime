@@ -65,6 +65,15 @@ $ make deploy ENV=<env>             # the front door, Postgres, the runtime at t
 $ make suite ENV=<env>              # every suite inside the cluster
 ```
 
+`make image` builds only what commits hold: the runtime's tree, the console's and the widget's
+checkouts each clean, and `TAG` this checkout's commit; the image installs `uv.lock`'s versions,
+each checked by its hash. Every push and pull request is also scanned (`check.yml`, `supply
+chain`): the image's locked dependencies against the advisories (pip-audit), every commit for a
+secret (gitleaks), and `infra/` with each chart rendered as production releases it for a
+misconfiguration (trivy, HIGH and CRITICAL). What trivy finds and is let stand is
+`infra/trivy-ignore.yaml`, each by its path and with why; the owed ones carry a date, past which
+the check fails again.
+
 `make deploy` runs the migrations before anything new starts (a pre-upgrade hook), mints each
 world's fleet key once at install, waits for every workload, and knocks at the production name.
 The secrets never leave Secret Manager but into the pods' environment, each pod the ones its
