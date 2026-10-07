@@ -1,27 +1,10 @@
 # runtime-v2 — how to work here
 
 The Pinecall runtime, rewritten: one Python package (`pinecall`), one wheel, the gateway that
-answers the doors and the worker that runs the calls, on LiveKit. It runs on Kubernetes,
-production's cluster since 2026-10-04. The full history of decisions is in
-`../internal-docs/runtime-v2/SESSION-LOG.md`; read it only when a question is not answered here.
+answers the doors and the worker that runs the calls, on LiveKit. It runs on Kubernetes (`infra/`).
 
-## Talking to Bernardo
-
-- Reply in Spanish, short: what was done, what was verified (numbers), what he must decide.
-- Code, comments, commits and pages in English. Author `Bernardo Castro <me@bernardocastro.dev>`,
-  no `Co-Authored-By`, no "Generated with".
-- Commit, push and deploy when he asks. Never decide a product question alone (limits, defaults,
-  security, what a tenant sees): ask in one line, with the options and a recommendation.
-- A question explains what is behind it and, when a tenant is involved, shows what they type or see.
-
-## The rule above every other: we are new, and we publish when it is ready
-
-Pinecall has few tenants and is not announced yet. Nothing is owed to an installed base, so every
-decision is taken for what is best for the system and for the tenant, never for what is quickest
-to ship or cheapest to change later: the safe default, the strict check, the schema that is right.
-On a security or hygiene pass, Bernardo has delegated the calls (2026-10-06): decide by this rule,
-say in the reply what was decided and why, and leave for him only what spends money, recreates
-infrastructure, or could lock him out. "Publish when it is ready" is the schedule.
+Code, comments, commits and pages are in English. A commit subject is a plain sentence saying
+what is now true (`git log --oneline` shows the style).
 
 ## Commands
 
@@ -29,23 +12,24 @@ infrastructure, or could lock him out. "Publish when it is ready" is the schedul
 uv sync                           the venv and every dev tool
 make check                        the rules (tests/rules/) and the suites with no database
 make test [T=tests/log]           every suite on a local Postgres and Redis (colima; `make db`)
-make image                        the runtime's image at this commit, built by Cloud Build
-make deploy ENV=staging           the chart released on the cluster at that image, then the live suite
-make suite ENV=staging            every suite as a Job inside the cluster
-make logs ENV=staging             the gateways' and the workers' logs of the last hour
+make image                        the runtime's image at this commit
+make deploy ENV=<env>             the chart released on the cluster at that image, then the live suite
+make suite ENV=<env>              every suite as a Job inside the cluster
+make logs ENV=<env>               the gateways' and the workers' logs of the last hour
 make local                        the runtime on this laptop: Postgres, Redis, LiveKit in docker
 make local-gateway / local-worker the gateway and a sandbox worker against it (infra/local)
-make tf-plan ENV=staging          what Terraform would change, saved; "No changes." is the norm
-make tf-apply ENV=staging         exactly the saved plan, after it was read
+make tf-plan ENV=<env>            what Terraform would change, saved; "No changes." is the norm
+make tf-apply ENV=<env>           exactly the saved plan, after it was read
 vibesmell check                   the hygiene findings; must say "nothing to fix"
 ```
 
 The runtime runs on Kubernetes (`infra/`, its README): the cloud (cluster, pools, registry,
 address, firewall, names, secrets) is Terraform's and the runtime on it is `charts/pinecall`;
-nothing cloud-side is made or changed by hand. v1's machines (the box, the cell, the fleet loop,
-the lab, v1's Terraform) left the repository on 2026-10-03 and live in `../infra-v1/`.
+nothing cloud-side is made or changed by hand. An operator's own values and Terraform variables
+live outside the repo, in the directory `PINECALL_OPS` names (see `infra/README.md`); the repo
+carries none of any deployment's.
 
-Both suites run before a reply says green. No test is skipped or deleted to pass.
+Both suites run before a change is called green. No test is skipped or deleted to pass.
 
 ## The map
 
@@ -98,38 +82,11 @@ independent; a worker's pod is handed no database, no vault key and no operator'
 - `PINECALL_VAULT_KEY` is required: it seals every key and secret the box holds.
 - An applied migration is never edited; the fix is a new one.
 
-## Production
-
-**Production is the cluster** `pinecall-production` (GKE, `environments/production`, kubectl context
-`gke_example-project_us-central1-c_pinecall-production`) since the cutover of 2026-10-04
-(`../internal-docs/runtime-v2/CUTOVER-K8S-RUNBOOK.md`): `cloud.pinecall.io`, both worlds, on its
-Gateway (203.0.113.1, Certificate Manager's certificate). A pool a world since the same day
-(`infra/README.md`, "A pool a world"): the core pool shares the gateways, Postgres, Redis, notify
-and billing; each world has a media node of its own (its LiveKit, SIP, Redis and core workers) at
-its own address, `sip.pinecall.io` at 203.0.113.10 (kept) and `sip.sandbox.pinecall.io` at
-203.0.113.11, and a workers pool of its own from 0; a Cloud NAT carries any node left with no
-address. Released with
-`make deploy ENV=production TAG=<commit>`; tested against the domain, never a local gateway; local
-is for the suites. Postgres is CloudNativePG's, its WAL and nightly base backups in
-`pinecall-production-postgres-000000000000`; recordings in `pinecall-box-recordings-000000000000`
-(S3, its key in Secret Manager); the vault key and the ops key are the box's, carried over.
-
-The old box, `ssh example-box` (203.0.113.20), is kept for a week as the way back: its
-runtime units masked and stopped, its database frozen at the cutover, Prometheus off.
-notify and billing left it for the cluster the same day (`infra/README.md`, "Pinecall's own
-services"); `ssh example-replica` is its replica. Its files and
-Terraform are `../infra-v1/`.
-
 ## Secrets and what never gets committed
 
 - Keys come from `~/.pinecall/credentials` into an env var and are never printed, logged,
-  committed or pasted. A key minted on the sandbox is said in the reply.
-- Never committed: `TREE.md`, `PARITY.md`, plans, notes (they are in `.git/info/exclude`).
-  Internal documents live in `../internal-docs/`, never in the repo. This page is committed.
+  committed or pasted.
+- Never committed: `TREE.md`, `PARITY.md`, plans, notes (they are in `.git/info/exclude`), and
+  no operator's deployment (values, Terraform variables, addresses, buckets). This page is
+  committed.
 - Before a commit: `git ls-files --others --exclude-standard`, read whole.
-
-## Open, waiting on Bernardo
-
-- The first real phone call on the new box.
-- WhatsApp needs a Meta token.
-- Publishing the `pinecall` CLI and `@pinecall/room` to npm (their GitHub repos do not exist yet).
