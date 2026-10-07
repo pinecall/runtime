@@ -124,6 +124,7 @@ class AgentRegister(WireModel):
     sdk: str | None = None
     host: str | None = None
     takes_unclaimed: bool = True
+    answers_dev: bool = False
 
 
 class AgentReply(WireModel):

@@ -178,6 +178,7 @@ class CallStarted(WireModel):
     env: Env | None = None
     worker: str | None = None
     medium: Medium | None = None
+    state: JsonObject | None = None
 
 
 class CallAttached(WireModel):

@@ -66,6 +66,7 @@ Lands in the log as: `agent.registered`.
 | `sdk` | `string` | no | The SDK and version the app runs: pinecall/2.0.0. |
 | `host` | `string` | no | The machine the app runs on, as it names itself: what a person reading the org's live processes reads to tell a laptop from a server. |
 | `takes_unclaimed` | `boolean` | no | Whether this socket may be handed a call that named no app — every phone call, and every web call that did not ask for one. A console holds the agent to serve the call it opens itself and says false, so a real caller is never answered from somebody's terminal. Absent means yes. |
+| `answers_dev` | `boolean` | no | Whether this socket answers the console's dev verbs for the agent (POST /v1/agents/{slug}/dev/…): the companion `pinecall start` holds beside the process serving the class. `view.render` still goes to the socket serving the call, whose class draws the panel. Absent means no. |
 
 ### `agent.reply`
 

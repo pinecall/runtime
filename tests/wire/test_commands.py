@@ -4,7 +4,15 @@ import pytest
 from pydantic import ValidationError
 
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.wire.commands import COMMANDS, PRODUCES, CallAttention, CallDial, Ping, command_of
+from pinecall.wire.commands import (
+    COMMANDS,
+    PRODUCES,
+    AgentRegister,
+    CallAttention,
+    CallDial,
+    Ping,
+    command_of,
+)
 from pinecall.wire.events import EVENTS
 from pinecall.wire.frames import Command
 
@@ -33,3 +41,9 @@ def test_a_call_waits_for_a_person_fifteen_minutes_at_most() -> None:
     for seconds in (0, 901):
         with pytest.raises(ValidationError):
             CallAttention(reason="a refund", wait_s=seconds)
+
+
+def test_a_socket_answers_the_console_only_when_it_says_so() -> None:
+    assert AgentRegister.read({"routes": []}, "agent.register").answers_dev is False
+    companion = AgentRegister.read({"routes": [], "answers_dev": True}, "agent.register")
+    assert companion.answers_dev is True
