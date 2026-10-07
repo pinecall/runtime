@@ -92,7 +92,8 @@ log's days) and the fleets' keys at install. A gateway that reaches the database
 alter or truncate a table. The first release with it needs `make tf-apply` before, for the secret.
 charts/postgres reads Secret Manager through a store of its own (`pinecall-postgres`), so a cluster
 from nothing comes up in the order `make deploy` keeps: the role's secret exists before
-charts/pinecall's migrations wait for the role.
+charts/pinecall's migrations wait for the role, and CloudNativePG watches it (`cnpg.io/reload`),
+so the role is made the moment the secret lands rather than at its next pass.
 
 Every pod of the runtime's image runs as its user (10001), with no capability, no privilege to
 gain, the runtime's syscall filter and a root filesystem it cannot write: what it writes goes to

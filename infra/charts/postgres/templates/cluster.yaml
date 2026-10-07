@@ -102,6 +102,10 @@ spec:
     name: {{ .Values.postgres.appSecret }}
     template:
       type: kubernetes.io/basic-auth
+      # CloudNativePG watches a secret so labelled: the role is made the moment this one lands
+      # (on 2026-10-07 it waited for a nudge to the Cluster), and a new password is applied by it.
+      metadata:
+        labels: { cnpg.io/reload: "true" }
       data:
         username: {{ .Values.postgres.appRole }}
         password: "{{`{{ .password }}`}}"
