@@ -15,9 +15,16 @@
 #        it (its media and its workers: what a burst here must leave alone); `--kill-at N` resets
 #        the node of a scaled worker holding calls at the first step's N-th call, at once
 # Each world is its own pools (infra/README.md, "A pool a world"): its media node, its workers.
+# The cluster is the operator's, named by the environment, with no default (infra/lab/README.md):
+#   PINECALL_LAB_URL        the gateway's https URL
+#   PINECALL_LAB_PROJECT    the Google Cloud project, PINECALL_LAB_ZONE its zone
+#   PINECALL_LAB_CONTEXT    kubectl's context for the cluster
+#   PINECALL_LAB_OPS_SECRET the Secret Manager secret holding the operator's key
+#   PINECALL_LAB_TERRAFORM  the Terraform root module applied with `-var lab=true`
 
 import argparse
 import json
+import os
 import secrets
 import shlex
 import subprocess
@@ -30,12 +37,7 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent
 RUNTIME = HERE.parent.parent
-ROOT = RUNTIME / "infra" / "terraform" / "environments" / "staging"
 AGENT = RUNTIME.parent / "agents" / "examples" / "clinica-norte"
-PROJECT, ZONE = "example-project", "us-central1-c"
-CONTEXT = f"gke_{PROJECT}_{ZONE}_pinecall-staging"
-URL = "https://staging.pinecall.io"
-OPS_KEY = "pinecall-staging-ops-key"
 NUMBERS = {"production": "+15550100100", "sandbox": "+15550100101"}
 # SIPp's first caller (caller.xml), the lab developer's own phone; and the developer.
 DEVELOPERS_PHONE = "+15557001"
@@ -130,6 +132,8 @@ class Lab:
 
     def __init__(self, world: str) -> None:
         """The generator's addresses from Terraform; the ops key from Secret Manager, held here."""
+        self.url, self.context = _env("PINECALL_LAB_URL"), _env("PINECALL_LAB_CONTEXT")
+        self.project, self.zone = _env("PINECALL_LAB_PROJECT"), _env("PINECALL_LAB_ZONE")
         self.world = world
         self.other = next(other for other in WORLDS if other != world)
         self.number = NUMBERS[world]
@@ -140,14 +144,14 @@ class Lab:
                 "env",
                 f"GOOGLE_OAUTH_ACCESS_TOKEN={token}",
                 "terraform",
-                f"-chdir={ROOT}",
+                f"-chdir={_env('PINECALL_LAB_TERRAFORM')}",
                 "output",
                 "-json",
                 "lab_generator",
             )
         )
         if not made:
-            raise SystemExit("no generator: apply staging with -var lab=true first")
+            raise SystemExit("no generator: apply the cluster's Terraform with -var lab=true first")
         self.gen_internal, self.gen_public = made[0]["internal"], made[0]["public"]
         self.ops = _ran(
             "gcloud",
@@ -155,8 +159,8 @@ class Lab:
             "versions",
             "access",
             "latest",
-            f"--secret={OPS_KEY}",
-            f"--project={PROJECT}",
+            f"--secret={_env('PINECALL_LAB_OPS_SECRET')}",
+            f"--project={self.project}",
         )
         self.notes: list[str] = []
 
@@ -190,7 +194,7 @@ class Lab:
         key = str(minted["key"])
         _call("PUT", "/v1/org/judging", {"on": False}, key, self.world)
         progress(f"the {self.world} agent under `pinecall start`, the key by stdin")
-        self.ssh(f"bash /tmp/generator.sh agent {URL} {self.world}", given=key)
+        self.ssh(f"bash /tmp/generator.sh agent {self.url} {self.world}", given=key)
         progress(f"the number {self.number}, hooked from {self.gen_public}, approved")
         self.ssh(f"bash /tmp/generator.sh number {self.gen_public} {self.number} {self.world}")
         waiting = self.ops_call("GET", "/v1/ops/carrier-networks?state=waiting", None)
@@ -206,7 +210,7 @@ class Lab:
         key = self.developer(org)
         self.copy(str(self.sdk()), "/tmp/sdk.tgz")
         self.copy(str(HERE / "generator.sh"), "/tmp/generator.sh")
-        self.ssh(f"bash /tmp/generator.sh developer {URL}", given=key)
+        self.ssh(f"bash /tmp/generator.sh developer {self.url}", given=key)
         _call("PUT", "/v1/line/from", {"number": DEVELOPERS_PHONE}, key, "sandbox")
         progress(f"one ring from {DEVELOPERS_PHONE} at {NUMBERS['production']}")
         t0 = time.time()
@@ -270,7 +274,7 @@ class Lab:
             self.step(calls, rung, rate, kill_at if n == 0 else None)
             for n, calls in enumerate(steps)
         ]
-        print(f"\nstaging · {self.world} · SIP at {rung} · {rate} a second\n\n{HEADER}")
+        print(f"\n{self.url} · {self.world} · SIP at {rung} · {rate} a second\n\n{HEADER}")
         for row in rows:
             print(row)
         for note in self.notes:
@@ -292,8 +296,8 @@ class Lab:
                 "compute",
                 "ssh",
                 GEN,
-                f"--zone={ZONE}",
-                f"--project={PROJECT}",
+                f"--zone={self.zone}",
+                f"--project={self.project}",
                 "--command",
                 sipp,
             ),
@@ -379,8 +383,8 @@ class Lab:
             "instances",
             "reset",
             node,
-            f"--zone={ZONE}",
-            f"--project={PROJECT}",
+            f"--zone={self.zone}",
+            f"--project={self.project}",
         )
         self.notes.append(
             f"{node} reset at once during the first step, its worker {busiest['worker']} "
@@ -426,8 +430,8 @@ class Lab:
         )
 
     def kubectl(self, *argv: str) -> str:
-        """One kubectl command on staging; its stdout."""
-        return _ran("kubectl", f"--context={CONTEXT}", *argv)
+        """One kubectl command on the cluster; its stdout."""
+        return _ran("kubectl", f"--context={self.context}", *argv)
 
     def ops_call(self, method: str, path: str, body: Any) -> Any:
         """One door of the operator's, with the ops key."""
@@ -443,8 +447,8 @@ class Lab:
                     "compute",
                     "ssh",
                     GEN,
-                    f"--zone={ZONE}",
-                    f"--project={PROJECT}",
+                    f"--zone={self.zone}",
+                    f"--project={self.project}",
                     "--command",
                     "cloud-init status --wait >/dev/null 2>&1; echo ok",
                 ),
@@ -466,8 +470,8 @@ class Lab:
                 "compute",
                 "ssh",
                 GEN,
-                f"--zone={ZONE}",
-                f"--project={PROJECT}",
+                f"--zone={self.zone}",
+                f"--project={self.project}",
                 "--command",
                 command,
             ),
@@ -490,8 +494,8 @@ class Lab:
             "scp",
             path,
             f"{GEN}:{there}",
-            f"--zone={ZONE}",
-            f"--project={PROJECT}",
+            f"--zone={self.zone}",
+            f"--project={self.project}",
         )
 
 
@@ -512,7 +516,7 @@ def progress(text: str) -> None:
 
 def _call(method: str, path: str, body: Any, key: str, world: str = "production") -> Any:
     data = None if body is None else json.dumps(body).encode()
-    request = urllib.request.Request(f"{URL}{path}", data=data, method=method)
+    request = urllib.request.Request(f"{_env('PINECALL_LAB_URL')}{path}", data=data, method=method)
     request.add_header("Authorization", f"Bearer {key}")
     request.add_header("pinecall-env", world)
     if data is not None:
@@ -525,6 +529,14 @@ def _call(method: str, path: str, body: Any, key: str, world: str = "production"
             f"{method} {path}: {refused.code} {refused.read().decode()[:400]}"
         ) from None
     return json.loads(text) if text else None
+
+
+def _env(name: str) -> str:
+    """A variable naming the operator's cluster; there is no default to fall back on."""
+    value = os.environ.get(name, "")
+    if not value:
+        raise SystemExit(f"{name} is not set: the lab names no cluster of its own")
+    return value
 
 
 def _ran(*argv: str) -> str:

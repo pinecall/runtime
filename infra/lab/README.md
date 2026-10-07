@@ -7,13 +7,25 @@ real calls do and bills nothing: the runtime's plugins are the real ones, pointe
 by the providers row. The callers are SIP, from SIPp, with audio, through the cluster's SIP node,
 LiveKit and the workers, in production's world, whose scaled workers KEDA grows.
 
+The cluster is yours and the lab names none of its own: `measure.py` reads it from the
+environment, with no default, and stops at the first one unset.
+
+| variable | what |
+|---|---|
+| `PINECALL_LAB_URL` | the gateway's https URL, where the lab's doors are knocked |
+| `PINECALL_LAB_PROJECT` | the Google Cloud project the cluster and the generator are in |
+| `PINECALL_LAB_ZONE` | their zone |
+| `PINECALL_LAB_CONTEXT` | kubectl's context for the cluster |
+| `PINECALL_LAB_OPS_SECRET` | the Secret Manager secret holding the operator's key, read by gcloud and held in memory |
+| `PINECALL_LAB_TERRAFORM` | the Terraform root module that makes the generator (`-var lab=true`) |
+
 ```console
-$ cd infra/terraform/environments/staging
+$ cd "$PINECALL_LAB_TERRAFORM"
 $ terraform plan -var lab=true -out=plan && terraform apply plan    # the generator, 5060 open to it alone
 $ cd -
 $ uv run --no-project python infra/lab/measure.py up                # configured, the agent connected
 $ uv run --no-project python infra/lab/measure.py run --calls 4,24,32 [--rate 2] [--kill-at 8]
-$ cd infra/terraform/environments/staging
+$ cd "$PINECALL_LAB_TERRAFORM"
 $ terraform plan -var lab=false -out=plan && terraform apply plan   # the generator gone, 5060 closed
 ```
 
