@@ -77,6 +77,18 @@ spec:
     parameters:
       barmanObjectName: pinecall-postgres
 ---
+# Secret Manager, read as the identity External Secrets runs as. A store of this chart's own, not
+# charts/pinecall's: this chart is released first, and charts/pinecall's migrations (a pre-install
+# hook, run before any of its resources exist) wait for the role the secret below makes.
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: pinecall-postgres
+spec:
+  provider:
+    gcpsm:
+      projectID: {{ required "secrets.project" .Values.secrets.project | quote }}
+---
 # The gateway's role's password, from Secret Manager, as CloudNativePG reads a managed role's
 # (basic-auth: username, password) and with the URI the gateway connects by beside it.
 apiVersion: external-secrets.io/v1
@@ -85,7 +97,7 @@ metadata:
   name: {{ .Values.postgres.appSecret }}
 spec:
   refreshInterval: {{ .Values.secrets.refresh }}
-  secretStoreRef: { kind: ClusterSecretStore, name: pinecall }
+  secretStoreRef: { kind: ClusterSecretStore, name: pinecall-postgres }
   target:
     name: {{ .Values.postgres.appSecret }}
     template:

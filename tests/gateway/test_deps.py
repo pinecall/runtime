@@ -1,5 +1,7 @@
 """Tests for what a request is: the bearer, its world and scope, a reader, a stream."""
 
+import asyncio
+import contextvars
 from dataclasses import replace
 
 import pytest
@@ -11,6 +13,7 @@ from pinecall.domain.scope import Scope
 from pinecall.gateway._deps import (
     SCOPES_OF,
     Reader,
+    bearer,
     bearer_of,
     capped_body,
     check_knock,
@@ -21,6 +24,7 @@ from pinecall.gateway._deps import (
     world_of_request,
 )
 from pinecall.gateway._gateway import Gateway
+from pinecall.postgres.pool import SCOPED_ORG
 from pinecall.tenancy import orgs, people, throttle
 from pinecall.tenancy.keys import Bearer
 from pinecall.tenancy.signin import TRIES
@@ -51,6 +55,35 @@ def test_the_bearer_is_read_from_the_header_and_nothing_else_is_one() -> None:
     assert bearer_of({"authorization": "Bearer pc_test_1"}) == "pc_test_1"
     assert bearer_of({"authorization": "Basic abc"}) is None
     assert bearer_of({}) is None
+
+
+# The org is said where the key is verified, so a door that takes the bare bearer is held too;
+# the fleet's key serves every org of its world (postgres/pool.py, migration 0096).
+@postgres
+async def test_a_tenant_key_scopes_its_request_to_its_org_where_it_is_verified(
+    knocking: Knocking,
+) -> None:
+    async def scoped_by(secret: str) -> str | None:
+        request = Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/v1/keys",
+                "headers": [(b"authorization", f"Bearer {secret}".encode())],
+            }
+        )
+        await bearer(request, knocking.gateway)
+        return SCOPED_ORG.get()
+
+    tenant = await asyncio.create_task(
+        scoped_by(knocking.app["sandbox"]), context=contextvars.copy_context()
+    )
+    fleet = await asyncio.create_task(
+        scoped_by(knocking.fleet["sandbox"]), context=contextvars.copy_context()
+    )
+    assert tenant == knocking.org.id
+    assert fleet is None
+    assert SCOPED_ORG.get() is None, "the test's own context was never scoped"
 
 
 def test_each_scope_a_door_opens_is_recorded_for_the_walk() -> None:

@@ -81,6 +81,9 @@ database's owner, grant it each release (`PINECALL_DB_APP_ROLE`, waiting two min
 the first time). The owner keeps the migrations, the nightly retention (it makes and drops the
 log's days) and the fleets' keys at install. A gateway that reaches the database cannot drop,
 alter or truncate a table. The first release with it needs `make tf-apply` before, for the secret.
+charts/postgres reads Secret Manager through a store of its own (`pinecall-postgres`), so a cluster
+from nothing comes up in the order `make deploy` keeps: the role's secret exists before
+charts/pinecall's migrations wait for the role.
 
 Every pod of the runtime's image runs as its user (10001), with no capability, no privilege to
 gain, the runtime's syscall filter and a root filesystem it cannot write: what it writes goes to

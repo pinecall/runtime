@@ -267,6 +267,7 @@ async def bearer(connection: HTTPConnection, gateway: GatewayDep) -> Bearer:
     verified = None if data is None or tokens.is_a_jwt(data) else await gateway.keys.verify(data)
     if verified is None:
         raise NotSignedIn(TAKES_A_KEY)
+    _scoped_to_its_org(verified)
     return verified
 
 
@@ -355,7 +356,6 @@ def opening(*scopes: KeyScope) -> Callable[[HTTPConnection, Acting, Gateway], Aw
         _check_agent_named(connection, key.bearer)
         if THE_FLEET not in scopes:
             await _paced(gateway, key, family)
-        _scoped_to_its_org(key)
         return key
 
     SCOPES_OF[opened] = frozenset(scopes)
@@ -465,7 +465,7 @@ def reading(*opens: KeyScope) -> Callable[..., Awaitable[Reader]]:
         await _paced(gateway, key, "calls")
         if THE_FLEET in verified.key.scopes:
             return Reader(acting=key)
-        _scoped_to_its_org(key)
+        _scoped_to_its_org(verified)
         return Reader(acting=key, scope=await scope(connection, key, gateway, named))
 
     SCOPES_OF[read] = frozenset(opens)
@@ -548,8 +548,9 @@ async def _paced(gateway: Gateway, key: Acting, family: str) -> None:
     )
 
 
-# A tenant's key acts in its org alone, and from here on so does every connection of the request
-# (postgres/pool.py, migration 0096). The fleet's and the runner's serve every org of a world.
-def _scoped_to_its_org(key: Acting) -> None:
-    if not key.bearer.key.scopes & {THE_FLEET, THE_RUNNER}:
-        scope_to(key.org)
+# A tenant's key acts in its org alone, and from the moment it is verified so does every connection
+# of the request (postgres/pool.py, migration 0096). The fleet's and the runner's serve every org
+# of a world. A door that reads another org of the same person says so with `box_wide()`.
+def _scoped_to_its_org(key: Bearer) -> None:
+    if not key.key.scopes & {THE_FLEET, THE_RUNNER}:
+        scope_to(key.key.org)

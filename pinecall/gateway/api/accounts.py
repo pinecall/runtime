@@ -15,6 +15,7 @@ from pinecall.gateway._deps import (
     client_of,
     public_url,
 )
+from pinecall.postgres.pool import box_wide
 from pinecall.tenancy import keys, letters, mail, orgs, people, signin
 from pinecall.tenancy.signin import Asking
 from pinecall.wire.rest.accounts import (
@@ -162,38 +163,40 @@ async def list_orgs_of_person(key: BearerDep, gateway: GatewayDep) -> OrgsOfPers
     pool = gateway.connections.pool
     person = _person_of(key.member)
     rows: list[OrgOfPersonRow] = []
-    for row in await people.orgs_of(pool, person.email):
-        if row.status == "disabled":
-            continue
-        org = await orgs.find(pool, row.org)
-        rows.append(
-            OrgOfPersonRow(
-                org=row.org,
-                slug=None if org is None else org.slug,
-                name=None if org is None else org.name,
-                role=row.role,
-                status=row.status,
-                here=row.org == key.key.org,
-                member=True,
+    # The person's other orgs are other orgs: read past the key's own (postgres/pool.py).
+    with box_wide():
+        for row in await people.orgs_of(pool, person.email):
+            if row.status == "disabled":
+                continue
+            org = await orgs.find(pool, row.org)
+            rows.append(
+                OrgOfPersonRow(
+                    org=row.org,
+                    slug=None if org is None else org.slug,
+                    name=None if org is None else org.name,
+                    role=row.role,
+                    status=row.status,
+                    here=row.org == key.key.org,
+                    member=True,
+                )
             )
-        )
-    if not person.operator:
-        return OrgsOfPersonResponse(orgs=rows)
-    theirs = {row.org for row in rows}
-    for org in await orgs.listed(pool):
-        if org.id in theirs:
-            continue
-        rows.append(
-            OrgOfPersonRow(
-                org=org.id,
-                slug=org.slug,
-                name=org.name,
-                role=AS_THE_OPERATOR,
-                status="active",
-                here=org.id == key.key.org,
-                member=False,
+        if not person.operator:
+            return OrgsOfPersonResponse(orgs=rows)
+        theirs = {row.org for row in rows}
+        for org in await orgs.listed(pool):
+            if org.id in theirs:
+                continue
+            rows.append(
+                OrgOfPersonRow(
+                    org=org.id,
+                    slug=org.slug,
+                    name=org.name,
+                    role=AS_THE_OPERATOR,
+                    status="active",
+                    here=org.id == key.key.org,
+                    member=False,
+                )
             )
-        )
     return OrgsOfPersonResponse(orgs=rows)
 
 
@@ -204,10 +207,12 @@ async def switch_org(
     """The same person's key in another org of theirs, or a visit for a person of the box."""
     pool = gateway.connections.pool
     person = _person_of(key.member)
-    org = await orgs.find(pool, body.org)
-    if org is None:
-        raise NotAllowed(signin.NOT_THEIRS.format(org=body.org))
-    signed = await signin.key_in(pool, person, org.id, label=key.key.label)
+    # The org asked for is another org, and the key minted is written in it.
+    with box_wide():
+        org = await orgs.find(pool, body.org)
+        if org is None:
+            raise NotAllowed(signin.NOT_THEIRS.format(org=body.org))
+        signed = await signin.key_in(pool, person, org.id, label=key.key.label)
     return KeyIssuedResponse.of(signed.key, signed.secret)
 
 

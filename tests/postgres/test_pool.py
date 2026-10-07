@@ -2,10 +2,13 @@
 
 import asyncio
 import contextvars
+from unittest.mock import patch
 
 import pytest
-from psycopg import errors
+from psycopg import AsyncConnection, errors
+from psycopg.abc import Params, QueryNoTemplate
 from psycopg.pq import TransactionStatus
+from psycopg.rows import DictRow
 from psycopg_pool import PoolTimeout
 
 from pinecall.domain.errors import DeclarationRefused, StoreUnreachable
@@ -23,7 +26,7 @@ from pinecall.postgres.pool import (
     scope_to,
     unbounded,
 )
-from tests.conftest import DSN, HELD_PAST_THE_TIMEOUT_S, postgres
+from tests.conftest import DSN, HELD_PAST_THE_TIMEOUT_S, as_the_app, postgres
 
 
 def test_a_schema_name_is_a_lowercase_word_and_public_stays_on_the_path() -> None:
@@ -193,3 +196,47 @@ async def test_a_connection_taken_for_an_org_sees_and_writes_its_rows_alone(pool
         ).fetchone()
     assert row is not None
     assert row["name"] == "B", "the scoped update touched nothing"
+
+
+# The set is told on checkout and remembered per connection. A request cancelled right after the
+# server took its org, before the answer was read, must not leave a connection the server has
+# moved and the pool remembers as before: the next request taking it would read the wrong org.
+@postgres
+async def test_a_set_cut_after_the_server_took_it_is_asked_again_on_the_next_checkout(
+    schema: str,
+) -> None:
+    pool = await open_pool(as_the_app(DSN), schema=schema, max_size=1)
+    try:
+        async with pool.connection() as connection:
+            await connection.execute("insert into orgs (id, slug, name) values ('org_a', 'a', 'A')")
+            await connection.execute("insert into orgs (id, slug, name) values ('org_b', 'b', 'B')")
+
+        async def slugs() -> list[str]:
+            async with pool.connection() as connection:
+                rows = await (
+                    await connection.execute("select slug from orgs order by slug")
+                ).fetchall()
+            return [str(row["slug"]) for row in rows]
+
+        for_a = contextvars.copy_context()
+        for_a.run(scope_to, "org_a")
+        for_b = contextvars.copy_context()
+        for_b.run(scope_to, "org_b")
+        assert await asyncio.create_task(slugs(), context=for_a.copy()) == ["a"]
+
+        real = AsyncConnection[DictRow].execute
+
+        async def set_then_cut(
+            connection: AsyncConnection[DictRow], query: QueryNoTemplate, params: Params
+        ) -> None:
+            await real(connection, query, params)
+            raise asyncio.CancelledError
+
+        with (
+            patch.object(AsyncConnection, "execute", autospec=True, side_effect=set_then_cut),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await asyncio.create_task(slugs(), context=for_b.copy())
+        assert await asyncio.create_task(slugs(), context=for_a.copy()) == ["a"]
+    finally:
+        await pool.close()

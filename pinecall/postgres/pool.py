@@ -68,8 +68,9 @@ class Timeouts:
 TIMEOUTS = Timeouts()
 
 
-# What each connection was last told, so a connection that already says the org is asked nothing:
-# a request's doors share a few connections, and the box's loops never name one.
+# What each connection is known to say, so one that already says the org is asked nothing: a
+# request's doors share a few connections, and the box's loops never name one. A connection is
+# written here only once the server answered; absent means unknown, and unknown is asked.
 _SAYS: weakref.WeakKeyDictionary[Connection, str] = weakref.WeakKeyDictionary()
 
 
@@ -177,8 +178,13 @@ def database_named(dsn: str) -> str:
     return f"{parts.get('host', 'localhost')}/{parts.get('dbname', '')}"
 
 
+# The memory is dropped before the set and written after it: a set cut between the server's
+# answer and ours (a request cancelled) leaves a connection the server has moved and we have
+# forgotten, which the next checkout asks again, never one we remember wrong.
 async def _scoped(connection: Connection) -> None:
     wanted = SCOPED_ORG.get() or ""
-    if _SAYS.get(connection, "") != wanted:
-        await connection.execute(SCOPE, (wanted,))
-        _SAYS[connection] = wanted
+    if _SAYS.get(connection) == wanted:
+        return
+    _SAYS.pop(connection, None)
+    await connection.execute(SCOPE, (wanted,))
+    _SAYS[connection] = wanted
