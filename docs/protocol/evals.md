@@ -67,6 +67,7 @@ One run per agent at a time: a second is `409` naming the run in flight.
 caller's lines are spoken (under `interferer_db` of a background voice and `packet_loss`, when
 set), the room is deleted, and the call is judged once its worker sealed it. The worker builds the
 session from the declaration, so a spoken run refuses `models` and a golden that pins `today`.
+The golden's `state` rides the dispatch, and the worker writes it on the call's `call.started`.
 
 `GET /v1/evals/runs?agent=&since=&limit=` lists the runs of the key's org in its world, newest
 first; `GET /v1/evals/runs/{id}` is one of them, and another org's is `404`.
@@ -233,8 +234,9 @@ nobody keyed `503`, a model that answered no line `502`. Each line is a model ca
 120 a minute at most (`429` past them), `heard` holds 80 turns, and a turn, the `goal` and the
 `style` 4000 characters each (`422` past them).
 
-`POST /v1/evals/voice` `{call, agent, persona, turns, interferer_db?, packet_loss?}` places a
-spoken call: the agent is dispatched into the room named `call` with the persona and its rule on
+`POST /v1/evals/voice` `{call, agent, persona, turns, interferer_db?, packet_loss?, state?}` places
+a spoken call: the agent is dispatched into the room named `call` with the persona, its rule and
+`state` (the object the agent opens the call in, on its `call.started`; absent, the class's own) on
 the dispatch, the caller joins and speaks in a voice the agent does not use (the persona's own,
 else one of the operator's voices for the language), and the room is deleted at the end whatever
 happened. `call` is minted by the client as the box mints one (`call_` and a word, `422` for any

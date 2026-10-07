@@ -650,10 +650,9 @@ async def test_the_agent_is_dispatched_with_the_persona_and_the_room_is_deleted_
     await written_for(knocking, AGENT)
     a_worker_heard(knocking.gateway.roster)
     ruled = {**APURADO, "accepts_when": "a Tuesday slot"}
+    body = {"call": "call_1", "agent": AGENT, "persona": ruled, "state": {"stage": "book"}}
     async with knocking.http(knocking.app["sandbox"]) as http:
-        answer = await http.post(
-            "/v1/evals/voice", json={"call": "call_1", "agent": AGENT, "persona": ruled}
-        )
+        answer = await http.post("/v1/evals/voice", json=body)
     assert answer.status_code == 503
     assert "could not be held" in answer.json()["detail"]
     server = knocking.gateway.connections.servers["sandbox"]
@@ -663,6 +662,7 @@ async def test_the_agent_is_dispatched_with_the_persona_and_the_room_is_deleted_
     assert dispatch.agent_name == "pinecall-sandbox/w1"
     assert '"persona":"apurado"' in dispatch.metadata
     assert '"accepts_when":"a Tuesday slot"' in dispatch.metadata
+    assert '"state":{"stage":"book"}' in dispatch.metadata
     assert [str(getattr(request, "room", "")) for request in server.rooms.requests] == ["call_1"]
 
 

@@ -334,6 +334,7 @@ async def place_voice_call(
         persona=persona.name or None,
         accepts_when=persona.accepts_when or None,
         declines_when=persona.declines_when or None,
+        state=dict(body.state),
     )
     spending = Spending(await catalog.providers(pool))
     stopped = False
@@ -503,6 +504,7 @@ async def _said_out_loud(
         caller=spoken.A_SIMULATED_CALLER,
         app=registration.owner,
         run=suite.run.id,
+        state=dict(golden.state),
     )
 
     async def scripted(turns_left: int) -> tuple[str, bool]:

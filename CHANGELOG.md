@@ -14,7 +14,9 @@
   (an object, 16 KB at most; anything else closes the socket with the sentence) and a golden's
   `state` ride the call's `call.started` as `state`, absent when nobody asked; the app applies it
   before the first render. The eval runner no longer sends a `session.configure` with the
-  golden's state, so the log holds no `state.changed` the app did not write.
+  golden's state, so the log holds no `state.changed` the app did not write. A spoken call carries
+  it too: a spoken golden's state and `POST /v1/evals/voice`'s new `state` ride the dispatch to the
+  worker, which writes them on `call.started`.
 - **Breaking: the console's directory verbs go to the socket that answers the console.**
   `agent.register` may say `answers_dev: true`, and `POST /v1/agents/{slug}/dev/{family}/{verb}`
   goes to the newest such socket that is not draining; `view.render` still goes to the socket

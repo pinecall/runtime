@@ -4,7 +4,12 @@ import pytest
 
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import JsonObject
-from pinecall.wire.rest.calls import AppendEntriesRequest, AppendEntryRequest, MintTokenRequest
+from pinecall.wire.rest.calls import (
+    AppendEntriesRequest,
+    AppendEntryRequest,
+    MintTokenRequest,
+    OpenCallRequest,
+)
 
 
 def test_a_token_asked_with_nothing_is_a_talk_token_reading_the_public_log() -> None:
@@ -32,3 +37,19 @@ def test_a_batch_says_how_many_came_before_it_and_when_each_entry_happened() -> 
         AppendEntriesRequest.read(
             {"after": 0, "entries": [{"type": "turn.user", "data": {}}]}, "batch"
         )
+
+
+# A spoken call is opened by its worker: the state it opens in crosses to the gateway with it.
+def test_a_call_a_worker_opens_carries_the_state_it_opens_in_to_the_gateway() -> None:
+    route: JsonObject = {"org": "org_a", "agent": "agenda", "channel": "web", "env": "sandbox"}
+    context: JsonObject = {
+        "call": "call_1",
+        "channel": "web",
+        "direction": "inbound",
+        "caller": "web_1",
+        "route": route,
+        "today": "2026-10-07",
+        "state": {"stage": "book"},
+    }
+    opened = OpenCallRequest.read({"agent": "agenda", "context": context}, "open")
+    assert opened.context.state == {"stage": "book"}

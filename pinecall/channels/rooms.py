@@ -68,6 +68,8 @@ class Dispatch(BaseModel):
     accepts_when: str | None = None
     declines_when: str | None = None
     diverted_from: Env | None = None
+    # The state the call opens in, when a golden or a persona asked for one.
+    state: JsonObject = Field(default_factory=dict[str, Json])
     # The call's worker went away mid-call: the job tells the caller once and closes the room.
     worker_gone: bool = False
     # How many entries the log took from the worker that went: where the told job's writer follows.

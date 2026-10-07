@@ -26,6 +26,12 @@ def test_a_dispatch_travels_as_compact_json_without_what_was_not_said() -> None:
     assert rooms.read_dispatch(data) == carried
 
 
+def test_a_dispatch_carries_the_state_its_call_opens_in_and_says_nothing_without_one() -> None:
+    seeded = Dispatch(agent="agenda", state={"stage": "book"})
+    assert rooms.read_dispatch(rooms.written(seeded)).state == {"stage": "book"}
+    assert "state" not in json.loads(rooms.written(Dispatch(agent="agenda")))
+
+
 def test_an_outbound_dispatch_carries_its_leg() -> None:
     leg = Dialling(trunk="ST_1", to="+59899000001", shown=A_NUMBER, max_duration_s=600)
     carried = Dispatch(agent="agenda", direction="outbound", dial=leg)

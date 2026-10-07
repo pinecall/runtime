@@ -309,6 +309,8 @@ class PlaceVoiceCallRequest(WireModel):
     # dB of a background voice under the caller's; absent is a clean line.
     interferer_db: float | None = None
     packet_loss: float = Field(default=0.0, ge=0, le=1)
+    # The state the agent opens the call in: the persona's, as `pinecall simulate` reads it.
+    state: JsonObject = Field(default_factory=dict[str, Json])
 
 
 class PlaceVoiceCallResponse(WireModel):

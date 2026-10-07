@@ -309,6 +309,7 @@ def context_of(
         accepts_when=dispatch.accepts_when,
         declines_when=dispatch.declines_when,
         holder=dispatch.holder,
+        state=dispatch.state,
     )
 
 
