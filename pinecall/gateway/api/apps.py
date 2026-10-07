@@ -208,9 +208,7 @@ class AppSocket:
         except QuotaExhausted as refused:
             await exhausted(self.gateway.logs, scope.org, slug, refused)
             raise
-        entry = await self.gateway.sockets.register(
-            self.id, scope, slug, sdk=wanted.sdk, takes_unclaimed=wanted.takes_unclaimed
-        )
+        entry = await self.gateway.sockets.register(self.id, scope, slug, wanted)
         await self.send(entry)
         # A console takes no call it did not open; an app takes the calls a previous one left.
         if wanted.takes_unclaimed:

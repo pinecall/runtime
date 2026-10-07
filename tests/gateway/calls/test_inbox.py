@@ -8,7 +8,7 @@ from pinecall.domain.scope import Scope
 from pinecall.gateway._sockets import HELD_CHANNEL
 from pinecall.gateway.calls.inbox import SOCKETS_CHANNEL
 from tests.conftest import AGENT, Knocking, postgres, received, sent
-from tests.gateway.api.conftest import an_app
+from tests.gateway.api.conftest import a_companion, an_app
 
 
 async def heard_on(second: Knocking, channel: str, until: Callable[[], bool]) -> None:
@@ -28,7 +28,7 @@ async def heard_on(second: Knocking, channel: str, until: Callable[[], bool]) ->
 async def test_a_consoles_ask_on_one_gateway_is_answered_by_the_app_on_the_other(
     knocking: Knocking, knocking_two: Knocking
 ) -> None:
-    socket = await an_app(knocking)
+    socket = await a_companion(knocking)
     own = Scope(knocking.org.id, "sandbox")
     await heard_on(
         knocking_two, HELD_CHANNEL, lambda: knocking_two.gateway.sockets.of(own, AGENT) is not None

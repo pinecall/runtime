@@ -88,7 +88,8 @@ socket is outbound. Commands go up, entries come down, one JSON object each.
 | `agent.drain` | this process is leaving; [a-deploy-never-cuts-a-call.md](a-deploy-never-cuts-a-call.md) |
 
 `takes_unclaimed: false` makes a process a console: it holds the agent but is never handed a call
-that named no app. Several sockets may hold one agent; a call goes to the one it names or to the
+that named no app. `answers_dev: true` makes it the one the console's directory verbs go to
+([dev-verbs.md](dev-verbs.md), "Which process answers"). Several sockets may hold one agent; a call goes to the one it names or to the
 newest that takes unclaimed calls. In the sandbox an agent is held per person: two developers each
 run the same slug and reach their own. The same slug in production and the sandbox is two agents.
 

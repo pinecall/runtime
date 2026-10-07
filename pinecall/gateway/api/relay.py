@@ -13,10 +13,17 @@ from pinecall.domain.errors import (
     NotFound,
 )
 from pinecall.domain.names import JsonObject
+from pinecall.domain.scope import Scope
 from pinecall.gateway import _deps
 from pinecall.gateway._deps import Acting, CallsKey, GatewayDep
 from pinecall.gateway._gateway import Gateway
-from pinecall.gateway._sockets import NO_AGENT, NO_UNCLAIMED, NOT_THAT_APP
+from pinecall.gateway._sockets import (
+    NO_AGENT,
+    NO_DEV_ANSWERER,
+    NO_UNCLAIMED,
+    NOT_THAT_APP,
+    Registration,
+)
 from pinecall.tenancy import keys
 from pinecall.wire.events import DevRequest
 from pinecall.wire.parts import DevVerb
@@ -80,7 +87,7 @@ AskDep = Annotated[Ask, Depends(Ask)]
 async def relay_chat(
     slug: str, verb: str, ask: AskDep, key: _deps.TalkKey, gateway: GatewayDep
 ) -> JsonObject:
-    """A chat verb, answered by the app holding the agent."""
+    """A chat verb, answered by the process that answers the console for the agent."""
     return await _relayed(gateway, key, Relay("chat", slug, verb), ask)
 
 
@@ -88,7 +95,7 @@ async def relay_chat(
 async def relay_knowledge(
     slug: str, verb: str, ask: AskDep, key: _deps.KnowledgeKey, gateway: GatewayDep
 ) -> JsonObject:
-    """A knowledge verb, answered by the app holding the agent."""
+    """A knowledge verb, answered by the process that answers the console for the agent."""
     return await _relayed(gateway, key, Relay("knowledge", slug, verb), ask)
 
 
@@ -96,7 +103,7 @@ async def relay_knowledge(
 async def relay_memory(
     slug: str, verb: str, ask: AskDep, key: _deps.MemoryKey, gateway: GatewayDep
 ) -> JsonObject:
-    """A memory verb, answered by the app holding the agent."""
+    """A memory verb, answered by the process that answers the console for the agent."""
     return await _relayed(gateway, key, Relay("memory", slug, verb), ask)
 
 
@@ -104,7 +111,7 @@ async def relay_memory(
 async def relay_view(
     slug: str, verb: str, ask: AskDep, key: CallsKey, gateway: GatewayDep
 ) -> JsonObject:
-    """The side panel beside a conversation, rendered by the app."""
+    """The side panel beside a conversation, rendered by the app serving the call."""
     return await _relayed(gateway, key, Relay("view", slug, verb), ask)
 
 
@@ -112,7 +119,7 @@ async def relay_view(
 async def relay_evals(
     slug: str, verb: str, ask: AskDep, key: _deps.EvalsKey, gateway: GatewayDep
 ) -> JsonObject:
-    """An evals verb, answered by the app holding the agent."""
+    """An evals verb, answered by the process that answers the console for the agent."""
     return await _relayed(gateway, key, Relay("evals", slug, verb), ask)
 
 
@@ -121,14 +128,7 @@ async def _relayed(gateway: Gateway, key: Acting, relay: Relay, params: Ask) -> 
     if relay.verb not in FAMILIES[relay.family]:
         verbs = sorted(FAMILIES[relay.family])
         raise NotFound(NO_SUCH_VERB.format(verb=relay.verb, family=relay.family, verbs=verbs))
-    where = keys.scope_of(key.bearer, key.env)
-    registration = gateway.sockets.serving(where, relay.slug, params.app)
-    if registration is None:
-        if params.app is not None:
-            raise Conflict(NOT_THAT_APP.format(app=params.app, slug=relay.slug))
-        if gateway.sockets.of(where, relay.slug) is not None:
-            raise Conflict(NO_UNCLAIMED.format(slug=relay.slug))
-        raise NotFound(NO_AGENT.format(slug=relay.slug))
+    registration = _answering(gateway, keys.scope_of(key.bearer, key.env), relay, params.app)
     ask_id = f"dev_{uuid4().hex[:12]}"
     request = DevRequest.model_validate({"id": ask_id, "verb": relay.verb, "data": params.said})
     waiting = await gateway.live.ask(ask_id)
@@ -148,3 +148,22 @@ async def _relayed(gateway: Gateway, key: Acting, relay: Relay, params: Ask) -> 
     if answer.refused is not None:
         raise AppRefused(answer.refused.status, answer.refused.detail)
     return answer.result or {}
+
+
+# The panel is drawn by the class serving the call; every other verb by the CLI beside it.
+def _answering(gateway: Gateway, where: Scope, relay: Relay, app: str | None) -> Registration:
+    sockets = gateway.sockets
+    if app is not None:
+        named = sockets.serving(where, relay.slug, app)
+        if named is None:
+            raise Conflict(NOT_THAT_APP.format(app=app, slug=relay.slug))
+        return named
+    if relay.family == "view":
+        found, refusal = sockets.serving(where, relay.slug, None), NO_UNCLAIMED
+    else:
+        found, refusal = sockets.answering_dev(where, relay.slug), NO_DEV_ANSWERER
+    if found is not None:
+        return found
+    if sockets.of(where, relay.slug) is not None:
+        raise Conflict(refusal.format(slug=relay.slug))
+    raise NotFound(NO_AGENT.format(slug=relay.slug))

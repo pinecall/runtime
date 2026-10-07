@@ -9,7 +9,7 @@ import pytest
 from websockets.asyncio.client import ClientConnection
 
 from pinecall.domain.call import CallContext, Route, new_call_id
-from pinecall.domain.names import Env
+from pinecall.domain.names import Env, JsonObject
 from pinecall.tenancy import mail, people
 from tests.conftest import AGENT, Knocking, a_developer, received_until, sent
 from tests.fakes.mail import MailServer, Postbox
@@ -39,13 +39,24 @@ def a_call(knocking: Knocking, *, env: Env = "sandbox", channel: str = "phone") 
 
 
 async def an_app(
-    knocking: Knocking, key: str | None = None, *, env: Env = "sandbox", console: bool = False
+    knocking: Knocking,
+    key: str | None = None,
+    *,
+    env: Env = "sandbox",
+    console: bool = False,
+    answers_dev: bool = False,
 ) -> ClientConnection:
     """An app socket holding the agent in the world of the key, the org's own unless given."""
     socket = await knocking.socket("/v1/apps", key or knocking.app[env])
-    await sent(socket, "agent.register", {"routes": [], "takes_unclaimed": not console})
+    wanted: JsonObject = {"routes": [], "takes_unclaimed": not console, "answers_dev": answers_dev}
+    await sent(socket, "agent.register", wanted)
     await received_until(socket, "agent.registered")
     return socket
+
+
+async def a_companion(knocking: Knocking) -> ClientConnection:
+    """What `pinecall start` holds beside the class: no unclaimed call, every dev verb."""
+    return await an_app(knocking, console=True, answers_dev=True)
 
 
 async def bound_to(knocking: Knocking, email: str, agents: frozenset[str]) -> str:

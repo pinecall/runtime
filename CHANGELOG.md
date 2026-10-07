@@ -10,7 +10,12 @@
 - **`call.started` says how the call is had**: `medium`, `voice` for a call in a room and `text` for
   a written one, so an app tells the widget's spoken call from its chat, which share the `web`
   channel. SDKs before 0.9.19 refuse a field they do not know: release them first.
-
+- **Breaking: the console's directory verbs go to the socket that answers the console.**
+  `agent.register` may say `answers_dev: true`, and `POST /v1/agents/{slug}/dev/{family}/{verb}`
+  goes to the newest such socket that is not draining; `view.render` still goes to the socket
+  serving the call. An agent held only by sockets that serve calls is `409`, naming
+  `pinecall start`. Update the CLI with this runtime: an older `pinecall start` registers no
+  companion, and the console's Chat, Tests, Simulations, Docs and Memory screens are refused.
 - **The start-up rebuild of the SIP trunks tries again until whole**: a gateway started beside a
   LiveKit still starting (or down) left that world's numbers unadmitted until its own next start;
   it now retries, 2 s and doubling, a minute at most, while an org is refused or a LiveKit cannot

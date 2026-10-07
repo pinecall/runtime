@@ -13,6 +13,7 @@ from pinecall.domain.names import PRODUCTION, Env, JsonObject
 from pinecall.domain.scope import THE_ORGS_OWN, Scope
 from pinecall.log.logs import Logs
 from pinecall.process.shared import Assigned, Shared, newest
+from pinecall.wire.commands import AgentRegister
 from pinecall.wire.events import (
     AgentConfigured,
     AgentDetached,
@@ -52,6 +53,12 @@ NO_UNCLAIMED = (
 )
 
 
+NO_DEV_ANSWERER = (
+    "agent {slug} is held, but nothing answers the console for it: "
+    "run `pinecall start` in its directory"
+)
+
+
 type Stop = Callable[[str], Awaitable[None]]
 
 # Every gateway's sockets, lines and phones, said on this channel and merged by each.
@@ -69,6 +76,8 @@ class Registration:
     sdk: str | None = None
     # False for a console: it takes only the calls that name it.
     takes_unclaimed: bool = True
+    # True for the CLI's companion: the console's dev verbs go to it, never to the class's socket.
+    answers_dev: bool = False
     # When it was claimed, on any gateway, so the newest holder is known across all of them.
     claimed: float = 0.0
     # Set by agent.drain: its tools still answer, it takes no new call.
@@ -130,6 +139,10 @@ class Sockets:
             found = self.on(app, scope.env, slug)
             return found if found is not None and found.scope.org == scope.org else None
         return self._taker((scope, slug)) or self._taker((orgs_own(scope), slug))
+
+    def answering_dev(self, scope: Scope, slug: str) -> Registration | None:
+        """The socket the console's dev verbs go to: the newest that answers them, scope first."""
+        return self._answerer((scope, slug)) or self._answerer((orgs_own(scope), slug))
 
     # A caller's registered phone reaches their own scope first; then the line.
     def taking(self, scope: Scope, slug: str, caller: str | None) -> Registration | None:
@@ -255,7 +268,7 @@ class Sockets:
     # ── claiming ──
 
     async def register(
-        self, owner: SocketId, scope: Scope, slug: str, *, sdk: str | None, takes_unclaimed: bool
+        self, owner: SocketId, scope: Scope, slug: str, wanted: AgentRegister
     ) -> Entry:
         """This socket holds the agent from now on; agent.registered is written on its log."""
         store = self.logs.store
@@ -272,11 +285,12 @@ class Sockets:
                 scope=scope,
                 owner=owner,
                 config=config,
-                sdk=sdk,
-                takes_unclaimed=takes_unclaimed,
+                sdk=wanted.sdk,
+                takes_unclaimed=wanted.takes_unclaimed,
+                answers_dev=wanted.answers_dev,
             )
         )
-        data = AgentRegistered(routes=[], app=owner, sdk=sdk, env=scope.env)
+        data = AgentRegistered(routes=[], app=owner, sdk=wanted.sdk, env=scope.env)
         return await self._written(scope.env, slug, "agent.registered", data.written())
 
     async def configure(
@@ -387,6 +401,10 @@ class Sockets:
     def _taker(self, holding_found: Held) -> Registration | None:
         holding = reversed(self.holders.get(holding_found, ()))
         return next((item for item in holding if item.takes_unclaimed and not item.draining), None)
+
+    def _answerer(self, holding_found: Held) -> Registration | None:
+        holding = reversed(self.holders.get(holding_found, ()))
+        return next((item for item in holding if item.answers_dev and not item.draining), None)
 
     def _next_takes_the_line(self, scope: Scope, slug: str, *, leaving: str | None = None) -> None:
         waiting = [

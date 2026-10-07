@@ -13,6 +13,7 @@ from pinecall.session.call import ToolUse
 from pinecall.wire.parts import ToolResult
 from tests.conftest import postgres
 from tests.gateway.conftest import AGENT, OURS, a_call
+from tests.gateway.test_served import holding
 from tests.session.test_tools import went_out
 
 ANA = Scope("org_a", "sandbox", "m_ana")
@@ -25,8 +26,8 @@ async def test_a_call_that_rang_reaches_its_phones_owner_and_one_opened_with_a_k
     store: Store,
 ) -> None:
     sockets = Sockets(Logs(store))
-    await sockets.register("app_ana", ANA, AGENT, sdk=None, takes_unclaimed=True)
-    await sockets.register("app_ben", BEN, AGENT, sdk=None, takes_unclaimed=True)
+    await holding(sockets, "app_ana", ANA)
+    await holding(sockets, "app_ben", BEN)
     sockets.calls_from("sandbox", "+59899123456", "m_ben")
     rang = serving_agent(sockets, ANA, AGENT, None, a_call(ANA, channel="phone"))
     opened = serving_agent(sockets, ANA, AGENT, None, a_call(ANA))

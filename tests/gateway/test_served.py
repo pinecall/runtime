@@ -19,6 +19,7 @@ from pinecall.log.queries import CallScope
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy import admission
+from pinecall.wire.commands import AgentRegister
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
 from tests.conftest import AGENT as THE_KNOCKED_AGENT
 from tests.conftest import Knocking, postgres
@@ -35,9 +36,12 @@ def sockets_over(store: Store) -> Sockets:
     return Sockets(Logs(store))
 
 
-async def holding(sockets: Sockets, app: str, scope: Scope, *, console: bool = False) -> None:
+async def holding(
+    sockets: Sockets, app: str, scope: Scope, *, console: bool = False, answers_dev: bool = False
+) -> None:
     """A socket holding the agent in the scope."""
-    await sockets.register(app, scope, AGENT, sdk=None, takes_unclaimed=not console)
+    wanted = AgentRegister(routes=[], takes_unclaimed=not console, answers_dev=answers_dev)
+    await sockets.register(app, scope, AGENT, wanted)
 
 
 # ── who holds the agent ──

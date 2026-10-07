@@ -17,6 +17,7 @@ from pinecall.log.logs import Logs
 from pinecall.log.store import Store
 from pinecall.process import shared
 from pinecall.process.signal import LocalSignal
+from pinecall.wire.commands import AgentRegister
 from tests.conftest import postgres
 from tests.gateway.test_served import (
     AGENT,
@@ -36,8 +37,10 @@ async def test_a_production_register_is_kept_and_a_sandbox_one_is_forgettable(
 ) -> None:
     sockets_over(store)
     sockets = sockets_over(store)
-    sandbox = await sockets.register("app_1", OURS, AGENT, sdk=None, takes_unclaimed=True)
-    production = await sockets.register("app_2", PRODUCTION, AGENT, sdk="ts", takes_unclaimed=True)
+    sandbox = await sockets.register("app_1", OURS, AGENT, AgentRegister(routes=[]))
+    production = await sockets.register(
+        "app_2", PRODUCTION, AGENT, AgentRegister(routes=[], sdk="ts")
+    )
     assert (sandbox.ephemeral, production.ephemeral) == (True, False)
     assert production.data == {"routes": [], "app": "app_2", "sdk": "ts", "env": "production"}
 
@@ -90,6 +93,36 @@ async def test_a_listing_is_one_row_per_slug_and_a_team_reader_sees_every_corner
     await holding(sockets, "app_ben", BEN)
     assert len(sockets.holding(ANA, every_corner=False)) == 1
     assert len(sockets.holding(ANA, every_corner=True)) == 2
+
+
+@postgres
+async def test_the_console_is_answered_by_the_companion_and_not_by_the_newest_server(
+    store: Store,
+) -> None:
+    sockets = sockets_over(store)
+    await holding(sockets, "app_companion", OURS, console=True, answers_dev=True)
+    await holding(sockets, "app_server", OURS)
+    answering = sockets.answering_dev(OURS, AGENT)
+    assert answering is not None
+    assert answering.owner == "app_companion"
+
+
+@postgres
+async def test_a_draining_companion_answers_the_console_no_more(store: Store) -> None:
+    sockets = sockets_over(store)
+    await holding(sockets, "app_old", OURS, console=True, answers_dev=True)
+    await holding(sockets, "app_new", OURS, console=True, answers_dev=True)
+    sockets.drain("app_new", "sandbox", AGENT)
+    answering = sockets.answering_dev(OURS, AGENT)
+    assert answering is not None
+    assert answering.owner == "app_old"
+
+
+@postgres
+async def test_servers_alone_leave_nobody_to_answer_the_console(store: Store) -> None:
+    sockets = sockets_over(store)
+    await holding(sockets, "app_server", OURS)
+    assert sockets.answering_dev(OURS, AGENT) is None
 
 
 @postgres
