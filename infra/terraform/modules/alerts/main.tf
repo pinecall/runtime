@@ -41,6 +41,49 @@ locals {
   }
 }
 
+# The name from outside: the load balancer, its certificate and a gateway, as a browser reaches
+# them. The door answers who the box is and needs no key.
+resource "google_monitoring_uptime_check_config" "name" {
+  display_name = "Pinecall ${var.name}: ${var.domain}"
+  timeout      = "10s"
+  period       = "60s"
+  http_check {
+    path         = "/.well-known/pinecall"
+    port         = 443
+    use_ssl      = true
+    validate_ssl = true
+  }
+  monitored_resource {
+    type   = "uptime_url"
+    labels = { host = var.domain }
+  }
+}
+
+resource "google_monitoring_alert_policy" "name" {
+  display_name = "Pinecall ${var.name}: ${var.domain} unreachable"
+  combiner     = "OR"
+  conditions {
+    display_name = "${var.domain} unreachable"
+    condition_threshold {
+      filter          = "metric.type=\"monitoring.googleapis.com/uptime_check/check_passed\" AND metric.label.check_id=\"${google_monitoring_uptime_check_config.name.uptime_check_id}\" AND resource.type=\"uptime_url\""
+      duration        = "120s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 1
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_NEXT_OLDER"
+        cross_series_reducer = "REDUCE_COUNT_FALSE"
+        group_by_fields      = ["resource.label.host"]
+      }
+    }
+  }
+  documentation {
+    content   = "${var.domain} fails from more than one of Google's regions: the load balancer, its certificate or every gateway."
+    mime_type = "text/markdown"
+  }
+  notification_channels = [for channel in google_monitoring_notification_channel.emails : channel.id]
+}
+
 resource "google_monitoring_alert_policy" "rules" {
   for_each     = local.rules
   display_name = "Pinecall ${var.name}: ${each.value.title}"
