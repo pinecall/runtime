@@ -36,11 +36,11 @@ misconfigurations:
       The suite's image (never on production's cluster) and the laptop's Postgres, whose
       entrypoint starts as root to own its data directory and drops to postgres itself.
 
-  # Bernardo's call: it can lock him out of the cluster (internal-docs, the security plan).
+  # The operator's call, owed by the date below: a list that is wrong locks them out.
   - id: GCP-0061
     paths:
       - terraform/modules/gke/main.tf
     statement: >-
       The Kubernetes API is reached by IAM alone until authorized networks are chosen: a list
-      that forgets the place he works from locks him out.
+      that forgets the place the operator works from locks them out.
     expired_at: 2026-11-07

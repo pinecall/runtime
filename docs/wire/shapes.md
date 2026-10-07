@@ -58,7 +58,7 @@ Why the call is over. Who hung up, what failed before anybody could, drained: th
 
 One of: `caller_hung_up`, `agent_hung_up`, `supervisor_ended`, `transferred`, `no_answer`, `busy`, `dial_failed`, `timeout`, `drained`, `app_detached`, `error`.
 
-`caller_hung_up` is also a caller whose connection dropped and who did not come back within 20 s, LiveKit's own wait for a room's last person: a supervisor watching keeps the room up, so the call is ended then rather than left waiting. `timeout` is the call's ceiling (`max_duration_s`, ten minutes unless the agent says otherwise) and, for a chat in a room, which has no ceiling, ten minutes without a message from the person: a page left open held its seat for over an hour on 2026-10-03.
+`caller_hung_up` is also a caller whose connection dropped and who did not come back within 20 s, LiveKit's own wait for a room's last person: a supervisor watching keeps the room up, so the call is ended then rather than left waiting. `timeout` is the call's ceiling (`max_duration_s`, ten minutes unless the agent says otherwise) and, for a chat in a room, which has no ceiling, ten minutes without a message from the person: a page left open would otherwise hold its seat for as long as it stays open.
 
 ### `EndedBy`
 

@@ -1,6 +1,6 @@
-# Where every org's hosted app runs, one pod a host, under gVisor. The fence the apps' machine had
-# (infra-v1's fence.nft) is this policy: an app's pod reaches the internet and its runner's sources,
-# and nothing private — no other pod, no node, no address of a network — and nothing reaches it.
+# Where every org's hosted app runs, one pod a host, under gVisor. Its fence is this policy: an
+# app's pod reaches the internet and its runner's sources, and nothing private — no other pod, no
+# node, no address of a network — and nothing reaches it.
 apiVersion: v1
 kind: Namespace
 metadata:
