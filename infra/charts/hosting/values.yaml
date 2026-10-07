@@ -1,10 +1,13 @@
+# The orgs' hosted apps on a GKE Autopilot cluster of their own (terraform/modules/hosting): GKE
+# Sandbox's gVisor runs each app, and Secret Manager's CSI driver hands each runner its key.
 # The runtime's image: the runner is `pinecall-runtime runner start`. The tag is the commit,
 # given by `make hosting`.
 image:
   repository: ""
   tag: ""
-# The box the runners serve, by its public name: the hosting cluster is not the box's.
-gatewayUrl: https://cloud.pinecall.io
+# The box the runners serve, by its public name (https://…): the hosting cluster is not the box's.
+# Required.
+gatewayUrl: ""
 project: ""
 # modules/secrets' prefix: each world's runner key is <prefix>runner-key-<world>.
 secretPrefix: ""
@@ -14,8 +17,9 @@ serviceAccount: ""
 appImage: docker.io/library/node:24-slim
 runtimeClass: gvisor
 appsNamespace: pinecall-apps
-# A world's runner serves its releases' sources at a fixed address of the services range: an
-# app's pod resolves nothing of the cluster's (public resolvers only), so it reaches it by address.
+# A world's runner serves its releases' sources at a fixed address of the services range
+# (modules/hosting, services_range): an app's pod resolves nothing of the cluster's (public
+# resolvers only), so it reaches it by address. Required.
 worlds:
-  production: { address: 10.132.15.200 }
-  sandbox: { address: 10.132.15.201 }
+  production: { address: "" }
+  sandbox: { address: "" }

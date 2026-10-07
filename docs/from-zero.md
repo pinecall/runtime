@@ -9,9 +9,12 @@ laptop writes agents and knocks at a box.
 A box is the runtime on a cluster: Terraform makes the cluster on Google Cloud (its node pools,
 address, firewall, names and secrets) and a Helm chart runs the gateways, the workers, LiveKit,
 SIP, Redis and Postgres on it, all of it in the repository's `infra/`. Your box is an environment
-of your own: a copy of `infra/terraform/environments/staging` and of `infra/values/staging.yaml`
-with your project and your name, the one both worlds answer at. Then, from a checkout, with
-gcloud signed in:
+of your own, its values kept outside the checkout in a directory of yours (`OPS`, `../ops` by
+default): `<env>.mk` with your project, `values/<env>.yaml` from `infra/values/example.yaml`, and
+`terraform/<env>.tfvars` and `<env>.backend.hcl` for `infra/terraform/environments/production`'s
+variables and your state bucket, with your name, the one both worlds answer at
+([../infra/README.md](../infra/README.md), "Your own values"). Then, from a checkout, with gcloud
+signed in:
 
 ```console
 $ make tf-init tf-plan ENV=<yours>     # read the plan before anything is made

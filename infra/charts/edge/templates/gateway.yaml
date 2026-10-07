@@ -1,5 +1,6 @@
-# The one name on the global address Terraform reserves, on Google's HTTPS load balancer through
-# the Gateway API, with Certificate Manager's certificate (modules/edge); plain HTTP sent to HTTPS.
+# The one name on the cluster's load balancer through the Gateway API (values.yaml, `ingress`: on
+# GKE, the global address and Certificate Manager's certificate of modules/edge); plain HTTP sent
+# to HTTPS.
 # LiveKit's signalling paths go to production's LiveKit, the same paths under /sandbox to the
 # sandbox's with the prefix taken off, everything else to the gateways; a socket lives up to an
 # hour on any of them (an app's, a room's). A browser's paths alone: LiveKit's API (/twirp) and its
@@ -10,13 +11,16 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: pinecall
+  {{- with .Values.ingress.annotations }}
   annotations:
-    networking.gke.io/certmap: {{ required "ingress.certificateMap" .Values.ingress.certificateMap | quote }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
-  gatewayClassName: gke-l7-global-external-managed
+  gatewayClassName: {{ required "ingress.className" .Values.ingress.className }}
+  {{- with .Values.ingress.addresses }}
   addresses:
-    - type: NamedAddress
-      value: {{ required "ingress.address" .Values.ingress.address | quote }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   listeners:
     - { name: https, protocol: HTTPS, port: 443 }
     - { name: http, protocol: HTTP, port: 80 }
@@ -55,6 +59,7 @@ spec:
     - filters:
         - type: RequestRedirect
           requestRedirect: { scheme: https, statusCode: 301 }
+{{- if .Values.ingress.gkePolicies }}
 {{- range $service, $port := dict "pinecall-gateway" 8080 "pinecall-livekit-production" 7880 "pinecall-livekit-sandbox" 7880 }}
 ---
 apiVersion: networking.gke.io/v1
@@ -77,4 +82,5 @@ spec:
       type: HTTP
       httpHealthCheck: { port: {{ $port }}, requestPath: / }
   targetRef: { group: "", kind: Service, name: {{ $service }} }
+{{- end }}
 {{- end }}

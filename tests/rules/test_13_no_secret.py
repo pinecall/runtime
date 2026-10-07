@@ -24,7 +24,12 @@ READ = (
     *("*.py", "*.md", "*.toml", "*.sql", "*.yaml", "*.yml", "*.service", "*.env.example"),
     *("*.tf", "*.tfvars", "*.json", "*.sh", "*.tpl", "*.csv", "*.ts"),
 )
-NOT_READ = (ROOT / ".venv", FIXTURES, TESTS / "fakes", ROOT / ".git", ROOT / "build", ROOT / "dist")
+# A coding agent's own directory holds other checkouts of this tree (its worktrees), never a file
+# of this one: each checkout is read by its own run.
+NOT_READ = (
+    *(ROOT / ".venv", FIXTURES, TESTS / "fakes", ROOT / ".git", ROOT / "build", ROOT / "dist"),
+    ROOT / ".claude",
+)
 # Wherever they sit, what the tree holds but never wrote: providers Terraform downloaded, packages.
 NOT_WRITTEN_HERE = frozenset({".terraform", ".terraform-check", "node_modules", ".lab", ".local"})
 

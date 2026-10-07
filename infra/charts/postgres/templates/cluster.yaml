@@ -38,11 +38,15 @@ spec:
           name: {{ .Values.postgres.appSecret }}
   storage:
     size: {{ .Values.postgres.size }}
-    storageClass: standard-rwo
+    {{- with .Values.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  {{- with .Values.postgres.backups.serviceAccountAnnotations }}
   serviceAccountTemplate:
     metadata:
       annotations:
-        iam.gke.io/gcp-service-account: {{ required "postgres.backups.serviceAccount" .Values.postgres.backups.serviceAccount | quote }}
+        {{- toYaml . | nindent 8 }}
+  {{- end }}
   plugins:
     - name: barman-cloud.cloudnative-pg.io
       isWALArchiver: true
@@ -56,9 +60,11 @@ metadata:
 spec:
   retentionPolicy: {{ .Values.postgres.backups.retention | quote }}
   configuration:
-    destinationPath: {{ printf "gs://%s/postgres" (required "postgres.backups.bucket" .Values.postgres.backups.bucket) | quote }}
-    googleCredentials:
-      gkeEnvironment: true
+    destinationPath: {{ required "postgres.backups.destination" .Values.postgres.backups.destination | quote }}
+    {{- if not .Values.postgres.backups.credentials }}
+    {{- fail "postgres.backups.credentials: the ObjectStore's credentials block (googleCredentials, s3Credentials, azureCredentials)" }}
+    {{- end }}
+    {{- toYaml .Values.postgres.backups.credentials | nindent 4 }}
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: ScheduledBackup
@@ -77,7 +83,7 @@ spec:
     parameters:
       barmanObjectName: pinecall-postgres
 ---
-# Secret Manager, read as the identity External Secrets runs as. A store of this chart's own, not
+# The cloud's secret store, read as the identity External Secrets runs as. A store of this chart's own, not
 # charts/pinecall's: this chart is released first, and charts/pinecall's migrations (a pre-install
 # hook, run before any of its resources exist) wait for the role the secret below makes.
 apiVersion: external-secrets.io/v1
@@ -85,11 +91,13 @@ kind: ClusterSecretStore
 metadata:
   name: pinecall-postgres
 spec:
+  {{- if not .Values.secrets.provider }}
+  {{- fail "secrets.provider: the secret store's provider block (gcpsm, aws, vault…), as External Secrets takes it" }}
+  {{- end }}
   provider:
-    gcpsm:
-      projectID: {{ required "secrets.project" .Values.secrets.project | quote }}
+    {{- toYaml .Values.secrets.provider | nindent 4 }}
 ---
-# The gateway's role's password, from Secret Manager, as CloudNativePG reads a managed role's
+# The gateway's role's password, from the secret store, as CloudNativePG reads a managed role's
 # (basic-auth: username, password) and with the URI the gateway connects by beside it.
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret

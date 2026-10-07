@@ -22,10 +22,8 @@ terraform {
       version = "~> 5.0"
     }
   }
-  backend "gcs" {
-    bucket = "pinecall-terraform-state-000000000000"
-    prefix = "cluster/staging"
-  }
+  # bucket and prefix: the operator's <env>.backend.hcl (`make tf-init`).
+  backend "gcs" {}
 }
 
 provider "google" {
@@ -48,7 +46,7 @@ variable "zone" {
   default = "us-central1-c"
 }
 
-# Route 53 holds pinecall.io; its credentials are ~/.aws.
+# Route 53 holds the names' zone (dns_zone); its credentials are the operator's AWS login.
 provider "aws" {
   region = "us-east-1"
 }
@@ -97,7 +95,7 @@ module "lab" {
   count      = var.lab ? 1 : 0
   source     = "../../modules/lab"
   zone       = var.zone
-  pods_range = "10.111.0.0/16"
+  pods_range = var.ranges.pods
 }
 
 # Helm reaches the cluster as the gcloud login, by a token Terraform reads, never a stored file.
@@ -140,15 +138,20 @@ module "secrets" {
   depends_on = [module.gke]
 }
 
+# The cluster's private ranges (modules/gke); the charts are told the first two.
+variable "ranges" {
+  type = object({ nodes = string, pods = string, services = string })
+}
+
 module "gke" {
   source              = "../../modules/gke"
   project             = var.project
   name                = "staging"
   region              = var.region
   zone                = var.zone
-  nodes_range         = "10.110.0.0/22"
-  pods_range          = "10.111.0.0/16"
-  services_range      = "10.112.0.0/20"
+  nodes_range         = var.ranges.nodes
+  pods_range          = var.ranges.pods
+  services_range      = var.ranges.services
   deletion_protection = false
 }
 

@@ -113,6 +113,16 @@ securityContext:
   seccompProfile: { type: RuntimeDefault }
 {{- end -}}
 
+{{/* A ClusterSecretStore's provider, as the values' `secrets.provider` gives it whole: never
+     guessed, so a values file that names none fails here rather than at the first sync. */}}
+{{- define "pinecall.secretProvider" -}}
+{{- if not .provider }}
+{{- fail "secrets.provider: the secret store's provider block (gcpsm, aws, vault…), as External Secrets takes it" }}
+{{- end }}
+provider:
+  {{- toYaml .provider | nindent 2 }}
+{{- end -}}
+
 {{/* A pod of a third-party image, as the uid given: the image's own where it names one (Redis's
      999, kubeip's 1001), the runtime's 10001 where it runs as root by default (LiveKit, SIP,
      kubectl). Its containers take pinecall.containerSecurity like the runtime's. */}}

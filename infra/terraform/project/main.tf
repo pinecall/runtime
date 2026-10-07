@@ -10,10 +10,8 @@ terraform {
       version = "~> 6.0"
     }
   }
-  backend "gcs" {
-    bucket = "pinecall-terraform-state-000000000000"
-    prefix = "cluster/project"
-  }
+  # bucket and prefix: the operator's project.backend.hcl (`terraform init -backend-config=…`).
+  backend "gcs" {}
 }
 
 provider "google" {

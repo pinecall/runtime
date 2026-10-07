@@ -1,6 +1,6 @@
-# Production: a world-pair's cluster. Every name, address and account of the operator who runs it
-# is a variable, its values in terraform.tfvars (Pinecall's own, committed: since the cutover of
-# 2026-10-04 they are Pinecall's production); the state bucket below is the operator's too.
+# Production: a world-pair's cluster. Every name, address, range and account of the operator who
+# runs it is a variable, its values in the operator's own <env>.tfvars, and the state bucket is
+# theirs too (<env>.backend.hcl): both outside this tree, given by `make tf-init`/`tf-plan` (OPS).
 
 terraform {
   required_version = ">= 1.5"
@@ -22,10 +22,8 @@ terraform {
       version = "~> 5.0"
     }
   }
-  backend "gcs" {
-    bucket = "pinecall-terraform-state-000000000000"
-    prefix = "cluster/production"
-  }
+  # bucket and prefix: the operator's <env>.backend.hcl (`make tf-init`).
+  backend "gcs" {}
 }
 
 provider "google" {
@@ -48,7 +46,7 @@ variable "zone" {
   default = "us-central1-c"
 }
 
-# Route 53 holds pinecall.io; its credentials are ~/.aws.
+# Route 53 holds the names' zone (dns_zone); its credentials are the operator's AWS login.
 provider "aws" {
   region = "us-east-1"
 }
@@ -100,7 +98,7 @@ variable "alert_emails" {
   description = "Who the cluster's alerts are mailed to."
 }
 
-# Pinecall's own notifier (supervisor/apps/notify) signs Android's pushes in this Firebase project;
+# A notifier of the operator's own signs Android's pushes in this Firebase project (modules/notify);
 # unset, no identity for it is made.
 variable "firebase_project" {
   type    = string
@@ -119,16 +117,37 @@ locals {
   runner_keys = var.hosting ? ["runner-key-production", "runner-key-sandbox"] : []
 }
 
-# On since the cutover of 2026-10-04: cloud.pinecall.io and sandbox.pinecall.io point at this cluster.
+# The names point at this cluster's address; off while another box still answers them.
 variable "point_names" {
   type    = bool
   default = true
 }
 
-# On since notify and billing moved onto this cluster, 2026-10-04.
+# The services' names point at this cluster's address; off while they are served elsewhere.
 variable "point_services" {
   type    = bool
   default = true
+}
+
+# The cluster's private ranges (modules/gke): its nodes' subnet, its pods' and its services'. The
+# charts are told the first two (media.nodeNetwork, gateway.podNetwork).
+variable "ranges" {
+  type = object({ nodes = string, pods = string, services = string })
+}
+
+# The hosting cluster's, apart from the cluster's (modules/hosting); its runners take fixed
+# addresses of `services` (charts/hosting, worlds).
+variable "hosting_ranges" {
+  type    = object({ nodes = string, pods = string, services = string })
+  default = null
+}
+
+# Secrets the operator puts by hand, each made empty here: the vault key and the ops key the
+# runtime needs, the object store's key when recordings leave the pod, and any of the operator's
+# own services' that read the same store.
+variable "given_secrets" {
+  type    = list(string)
+  default = ["vault-key", "ops-key"]
 }
 
 # Written by `pinecall-runtime fence export` into sip_sources.auto.tfvars.json: the orgs'
@@ -184,40 +203,11 @@ module "notify" {
   firebase_project = var.firebase_project
 }
 
-moved {
-  from = module.notify
-  to   = module.notify[0]
-}
-
-# The core node's address became production's media address on 2026-10-04 (a pool a world): the
-# same address, kept (kept_addresses), so no carrier or PBX that knows it is told another.
-moved {
-  from = module.edge.google_compute_address.core
-  to   = module.edge.google_compute_address.media["production"]
-}
-
-# The SIP names' records, kept by world now: the same records, moved, never made again.
-moved {
-  from = module.edge.aws_route53_record.sip_names["sip.pinecall.io"]
-  to   = module.edge.aws_route53_record.sip_names["production"]
-}
-
-moved {
-  from = module.edge.aws_route53_record.sip_names["sip.sandbox.pinecall.io"]
-  to   = module.edge.aws_route53_record.sip_names["sandbox"]
-}
-
 module "secrets" {
-  source  = "../../modules/secrets"
-  project = var.project
-  name    = "production"
-  # The vault key the box's database is sealed under, the box's ops key (billing and notify knock
-  # with it), and the object store's key, made by hand: all the box's own, carried over; and
-  # notify's and billing's own (their charts read them), carried over from the box the same way.
-  given = concat([
-    "vault-key", "ops-key", "s3-access-key-id", "s3-secret-access-key",
-    "notify-vapid", "billing-stripe-key", "billing-webhook-secret", "billing-cookie-secret",
-  ], local.runner_keys)
+  source     = "../../modules/secrets"
+  project    = var.project
+  name       = "production"
+  given      = concat(var.given_secrets, local.runner_keys)
   depends_on = [module.gke]
 }
 
@@ -227,9 +217,9 @@ module "hosting" {
   project        = var.project
   name           = "production"
   region         = var.region
-  nodes_range    = "10.130.0.0/22"
-  pods_range     = "10.131.0.0/16"
-  services_range = "10.132.0.0/20"
+  nodes_range    = var.hosting_ranges.nodes
+  pods_range     = var.hosting_ranges.pods
+  services_range = var.hosting_ranges.services
   runner_keys    = { for world in ["production", "sandbox"] : world => module.secrets.ids["runner-key-${world}"] }
 }
 
@@ -239,9 +229,9 @@ module "gke" {
   name                = "production"
   region              = var.region
   zone                = var.zone
-  nodes_range         = "10.120.0.0/22"
-  pods_range          = "10.121.0.0/16"
-  services_range      = "10.122.0.0/20"
+  nodes_range         = var.ranges.nodes
+  pods_range          = var.ranges.pods
+  services_range      = var.ranges.services
   deletion_protection = true
 }
 

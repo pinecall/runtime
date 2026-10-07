@@ -12,12 +12,17 @@ REDIS_PORT ?= 56379
 LOCAL_REDIS = redis://127.0.0.1:$(REDIS_PORT)/1
 T        ?= tests
 
-# A world's cluster: its Terraform root (infra/terraform/environments/<ENV>), its values
-# (infra/values/<ENV>.yaml) and its kubectl context. Google's credentials are the gcloud login's,
-# handed over as a short-lived token in the environment, never printed.
+# A world's cluster: its Terraform root (infra/terraform/environments/<ENV>), and the operator's
+# own of it, which no public tree holds: OPS (PINECALL_OPS, else ../ops) has <ENV>.mk (PROJECT, and
+# REGION, ZONE or CONTEXT where they are not these), values/<ENV>.yaml (infra/values/example.yaml
+# is one) and terraform/<ENV>.tfvars and <ENV>.backend.hcl. Google's credentials are the gcloud
+# login's, handed over as a short-lived token in the environment, never printed.
 ENV      ?= staging
-PROJECT  ?= $(shell awk '/^  project:/{print $$2; exit}' infra/values/$(ENV).yaml)
-ZONE     ?= us-central1-c
+OPS      ?= $(abspath $(or $(PINECALL_OPS),../ops))
+-include $(OPS)/$(ENV).mk
+VALUES    = $(OPS)/values/$(ENV).yaml
+REGION   ?= us-central1
+ZONE     ?= $(REGION)-c
 CONTEXT  ?= gke_$(PROJECT)_$(ZONE)_pinecall-$(ENV)
 TF        = terraform -chdir=infra/terraform/environments/$(ENV)
 TF_AUTH   = GOOGLE_OAUTH_ACCESS_TOKEN="$$(gcloud auth print-access-token)"
@@ -37,11 +42,11 @@ tf-check:         ## every root module formatted and valid, with no backend reac
 	done
 
 tf-init:          ## ENV=staging: the root module's providers and its state in the bucket
-	$(TF_AUTH) $(TF) init -input=false
+	$(TF_AUTH) $(TF) init -input=false -backend-config=$(OPS)/terraform/$(ENV).backend.hcl
 
 # Saved, so what is applied is exactly what was read.
 tf-plan:          ## ENV=…: what an apply would change, saved as its plan; "No changes." is the norm
-	$(TF_AUTH) $(TF) plan -input=false -out=plan
+	$(TF_AUTH) $(TF) plan -input=false -var-file=$(OPS)/terraform/$(ENV).tfvars -out=plan
 
 tf-apply:         ## ENV=…: the saved plan applied, after it was read
 	$(TF_AUTH) $(TF) apply -input=false plan
@@ -88,7 +93,7 @@ hooks:            ## the pre-commit hook: `make check`
 # its tag is the commit, so a cluster runs exactly what the commit holds: the wheel is built from
 # the working tree and the console and the widget from their checkouts, so each must be the commit
 # it says, with nothing changed and nothing new beside it, and TAG must name this checkout's commit.
-REGISTRY ?= us-central1-docker.pkg.dev/$(PROJECT)/pinecall
+REGISTRY ?= $(REGION)-docker.pkg.dev/$(PROJECT)/pinecall
 BUILDER  ?= projects/$(PROJECT)/serviceAccounts/pinecall-build@$(PROJECT).iam.gserviceaccount.com
 TAG      ?= $(shell git rev-parse --short HEAD)
 CONSOLE  ?= $(or $(PINECALL_CONSOLE),../console)
@@ -107,7 +112,7 @@ image:            ## the runtime's container image, TAG=<commit>, built and chec
 	uv export --locked --extra voice --no-dev --no-emit-project --quiet -o .image/requirements.txt
 	gcloud builds submit .image --config infra/images/pinecall/cloudbuild.yaml \
 	  --service-account $(BUILDER) --substitutions _IMAGE=$(REGISTRY)/runtime:$(TAG) \
-	  --project $(PROJECT) --region us-central1; status=$$?; rm -rf .image; exit $$status
+	  --project $(PROJECT) --region $(REGION); status=$$?; rm -rf .image; exit $$status
 
 # Every suite inside the cluster, against its Postgres (CloudNativePG, the application user, no
 # superuser) and a Redis made for the run: the checkout's files as they are now and TREE.md, built
@@ -122,7 +127,7 @@ endif
 	cp infra/images/suite/Containerfile .suite/
 	gcloud builds submit .suite --config infra/images/cloudbuild.yaml \
 	  --service-account $(BUILDER) --substitutions _IMAGE=$(REGISTRY)/suite:$(TAG) \
-	  --project $(PROJECT) --region us-central1; status=$$?; rm -rf .suite; exit $$status
+	  --project $(PROJECT) --region $(REGION); status=$$?; rm -rf .suite; exit $$status
 	kubectl --context $(CONTEXT) delete job/suite pod/suite-redis service/suite-redis --ignore-not-found
 	sed "s|SUITE_IMAGE|$(REGISTRY)/suite:$(TAG)|" infra/manifests/suite.yaml | kubectl --context $(CONTEXT) apply -f -
 	kubectl --context $(CONTEXT) wait job/suite --for=condition=complete --timeout=30m; status=$$?; \
@@ -131,27 +136,26 @@ endif
 # The cluster's front door (charts/edge) and Postgres (charts/postgres), then charts/pinecall at
 # the image of this commit, waiting for every workload; then the live suite against the world's
 # production name.
-DOMAIN    = $(shell awk '/^domain:/{print $$2; exit}' infra/values/$(ENV).yaml)
+DOMAIN    = $(shell awk '/^domain:/{print $$2; exit}' $(VALUES))
 deploy:           ## ENV=staging: charts/pinecall released at TAG=<commit> (make image first)
 	helm upgrade --install pinecall-edge infra/charts/edge --kube-context $(CONTEXT) \
-	  -f infra/values/$(ENV).yaml --wait --timeout 10m
+	  -f $(VALUES) --wait --timeout 10m
 	helm upgrade --install pinecall-postgres infra/charts/postgres --kube-context $(CONTEXT) \
-	  -f infra/values/$(ENV).yaml --wait --timeout 10m
+	  -f $(VALUES) --wait --timeout 10m
 	kubectl --context $(CONTEXT) wait cluster/pinecall-postgres --for=condition=Ready --timeout=600s
 	helm upgrade --install pinecall infra/charts/pinecall --kube-context $(CONTEXT) \
-	  -f infra/values/$(ENV).yaml --set image.tag=$(TAG) --wait --timeout 20m
+	  -f $(VALUES) --set image.tag=$(TAG) --wait --timeout 20m
 	PINECALL_URL=https://$(DOMAIN) uv run pytest -q tests/live
 
 # The hosting cluster (modules/hosting, when the environment has one): the runners of both worlds,
 # at TAG=<commit>, the same image as the runtime's. Its context is the regional Autopilot cluster's.
-REGION   ?= us-central1
 HOSTING   = gke_$(PROJECT)_$(REGION)_pinecall-$(ENV)-hosting
 hosting:          ## ENV=…: charts/hosting released on the hosting cluster at TAG=<commit>
 	gcloud container clusters get-credentials pinecall-$(ENV)-hosting --region $(REGION) \
 	  --project $(PROJECT) >/dev/null
 	helm upgrade --install pinecall-hosting infra/charts/hosting --kube-context $(HOSTING) \
 	  --namespace pinecall-runner --create-namespace \
-	  -f infra/values/hosting-$(ENV).yaml --set image.tag=$(TAG) --wait --timeout 15m
+	  -f $(OPS)/values/hosting-$(ENV).yaml --set image.tag=$(TAG) --wait --timeout 15m
 
 # A box's database into the cluster's Postgres, once, at its cutover (and its rehearsal on
 # staging): the box's schema `public` and its rows, dumped on the box and streamed into the
@@ -159,13 +163,14 @@ hosting:          ## ENV=…: charts/hosting released on the hosting cluster at 
 # extensions made again, as initdb made them; restored as the database's owner, the extensions
 # and the schema itself left out. The box's runtime must be stopped first: a row written after
 # the dump is lost.
-BOX      ?= example-box
+BOX      ?=
 PG        = kubectl --context $(CONTEXT) exec -i pinecall-postgres-1 -c postgres --
 DUMP      = /var/lib/postgresql/data/box.dump
 restore-from-box: ## ENV=…: the box's database restored into the cluster's Postgres (BOX=<ssh alias>)
 ifeq ($(ENV),production)
-	$(error make restore-from-box empties the cluster's schema first: production lives there since 2026-10-04)
+	$(error make restore-from-box empties the cluster's schema first: never on production)
 endif
+	@[ -n "$(BOX)" ] || { echo "make restore-from-box: BOX=<the box's ssh alias>" >&2; exit 2; }
 	$(PG) psql -v ON_ERROR_STOP=1 -d pinecall -c 'DROP SCHEMA public CASCADE' \
 	  -c 'CREATE SCHEMA public AUTHORIZATION pinecall' \
 	  -c 'CREATE EXTENSION vector' -c 'CREATE EXTENSION pg_textsearch'

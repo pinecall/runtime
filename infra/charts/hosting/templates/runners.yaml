@@ -61,11 +61,11 @@ spec:
           image: "{{ required "image.repository" $.Values.image.repository }}:{{ required "image.tag" $.Values.image.tag }}"
           command: ["sh", "-c", 'PINECALL_RUNNER_KEY="$(cat /run/secrets/runner/key)" exec pinecall-runtime runner start']
           env:
-            - { name: PINECALL_GATEWAY_URL, value: {{ $.Values.gatewayUrl | quote }} }
+            - { name: PINECALL_GATEWAY_URL, value: {{ required "gatewayUrl" $.Values.gatewayUrl | quote }} }
             - { name: PINECALL_RUNNER_IMAGE, value: {{ $.Values.appImage | quote }} }
             - { name: PINECALL_RUNNER_RUNTIME_CLASS, value: {{ $.Values.runtimeClass | quote }} }
             - { name: PINECALL_RUNNER_NAMESPACE, value: {{ $.Values.appsNamespace | quote }} }
-            - { name: PINECALL_RUNNER_SOURCES_URL, value: "http://{{ $runner.address }}:8080" }
+            - { name: PINECALL_RUNNER_SOURCES_URL, value: "http://{{ required (printf "worlds.%s.address" $world) $runner.address }}:8080" }
             - { name: PINECALL_RUNNER_LISTEN, value: 0.0.0.0 }
             - { name: PINECALL_RUNNER_PORT, value: "8080" }
           ports: [{ name: sources, containerPort: 8080 }]

@@ -9,14 +9,14 @@ made by hand and nothing is built on a laptop.
 |---|---|
 | `terraform/bootstrap` | the bucket every other root module keeps its state in, made once with local state |
 | `terraform/project` | what every cluster of the project shares: the images' registry and the identity Cloud Build builds them as |
-| `terraform/environments/<world-pair>` | one cluster each: `production` (cloud.pinecall.io, both worlds), Pinecall's own since the cutover of 2026-10-04, and `staging`, made for a proof with calls and destroyed after it |
+| `terraform/environments/<world-pair>` | one cluster each: `production` (both worlds at one name) and `staging`, made for a proof with calls and destroyed after it |
 | `terraform/modules/gke` | a cluster: zonal, Workload Identity; a core pool both worlds share, and for each world a media node and a workers pool from 0 that the cluster autoscaler sizes alone ("A pool a world" below) |
 | `terraform/modules/registry` · `build` | where images live, and the identity Cloud Build builds them as (`terraform/project`) |
 | `terraform/modules/secrets` | the runtime's secrets, drawn once into Secret Manager, and the identity External Secrets reads them as |
 | `terraform/modules/addons` | CloudNativePG with its Barman Cloud plugin and cert-manager, External Secrets and KEDA, each its pinned chart |
 | `terraform/modules/backups` | the bucket Postgres's WAL and base backups go to, and the identity that writes them, which touches it alone |
-| `terraform/modules/edge` | the global address and a certificate for each name, proved by DNS before it points here, and a certificate of its own for Pinecall's services at the same door (`services`: notify, billing); each world's media address and its SIP name; the firewall (media open, 5060 to the carriers alone); the names in Route 53 |
-| `terraform/modules/notify` | the Google identity notify signs Android's pushes as (Firebase Cloud Messaging alone), bound to its chart's service account |
+| `terraform/modules/edge` | the global address and a certificate for each name, proved by DNS before it points here, and a certificate of its own for services of the operator's own at the same door (`services`); each world's media address and its SIP name; the firewall (media open, 5060 to the carriers alone); the names in Route 53 |
+| `terraform/modules/notify` | optional (`firebase_project`): the Google identity a notifier of the operator's own signs Android's pushes as (Firebase Cloud Messaging alone), bound to its chart's service account |
 | `terraform/modules/kubeip` | the identity kubeip acts as: it gives each world's media node the static address `modules/edge` reserves, and can do nothing else |
 | `terraform/modules/hosting` | the hosting cluster, optional (`hosting = true`): GKE Autopilot in a VPC of its own, where the orgs' hosted apps run, one gVisor pod each |
 | `terraform/modules/lab` | the voice lab's generator, beside a cluster made for a proof and destroyed after it (`lab = false`) |
@@ -30,7 +30,7 @@ made by hand and nothing is built on a laptop.
 | `charts/pinecall/` | the runtime: two gateways and Redis on the shared core pool; each world's LiveKit, SIP and a few workers on its media node, and its scaled workers on its own pool (KEDA, on the gateway's own number); the overflow, the migrations, the fleets' keys, the nightly retention |
 | `charts/hosting/` | the hosting cluster's workloads: a runner per world and the namespace their apps run in, fenced (`make hosting`) |
 | `charts/edge/` | the front door, released apart and first: the Gateway (Google's HTTPS load balancer, the Gateway API) with Certificate Manager's certificate, its routes, the HTTP redirect and the backends' policies; its load balancer takes minutes to make, so a reinstall of the runtime never makes it again |
-| `values/<world-pair>.yaml` | a release's names, its secrets' project and prefix, its address |
+| `values/example.yaml` · `hosting-example.yaml` | an operator's values for the charts, every one an example: copied into `OPS` (below) and filled in; CI renders and scans the charts with them |
 | `lab/` | calls with real audio and the vendors faked, against staging, measured (`terraform/modules/lab` is its generator) |
 | `local/` | the runtime on a laptop, and the Postgres image of the suites (`make local`, `make db`) |
 | `models/` | the open stack: three model servers on one GPU and the providers row that points a box at them |
@@ -38,25 +38,36 @@ made by hand and nothing is built on a laptop.
 
 ## Your own values
 
-Nothing in the modules or the roots names Pinecall's: each environment's `terraform.tfvars` holds
-its operator's values (the DNS zone, the worlds' names, the SIP names, services of their own, who
-alerts mail, the project), and `infra/values/<env>.yaml` the chart's (the same names, the secrets'
-project and prefix, the addresses Terraform made, the registry's images); the Makefile reads its
-project from there too. Pinecall's own are committed as an example of each. The one
-thing a variable cannot name is the state bucket in each root's `backend "gcs"`: change it there,
-or give it at `terraform init -backend-config="bucket=<yours>"`.
+Nothing in the charts, the modules or the roots names an operator's own: every name, address,
+range, account, provider and bucket is a value or a variable, and an operator's values live
+outside this tree, in a directory of their own, `OPS` (`PINECALL_OPS`, else `../ops`, beside this
+checkout; a private repository is the place for it). The Makefile reads it:
+
+| `OPS/` | what |
+|---|---|
+| `<env>.mk` | `PROJECT = <the Google Cloud project>`, and `REGION`, `ZONE` or `CONTEXT` where they are not `us-central1`, `<region>-c` and `gke_<project>_<zone>_pinecall-<env>` |
+| `values/<env>.yaml` | every chart's values (`infra/values/example.yaml`, filled in): the name, the secret store's provider and prefix, the ingress, the backups' destination and identity, the ranges, the addresses Terraform made, the registry's images |
+| `values/hosting-<env>.yaml` | `charts/hosting`'s (`infra/values/hosting-example.yaml`) |
+| `terraform/<env>.tfvars` | the root's variables: the project, the DNS zone, the names, the SIP names, the ranges, services of your own, the secrets you put, who alerts mail |
+| `terraform/<env>.backend.hcl` | the state bucket and prefix (`bucket = "…"`, `prefix = "cluster/<env>"`), given to `make tf-init` |
+| `terraform/bootstrap.tfvars` · `project.tfvars` · `project.backend.hcl` | the same for the two roots made once |
+
+The charts never guess a provider: the secret store is the values' `secrets.provider`, the front
+door's class and annotations `ingress`, Postgres's backups `postgres.backups` (destination,
+credentials, the pods' identity), the disks' class `storageClass`, the collector
+`monitoring.collector`. Unset where one is required, the release fails and says which.
 
 ## From nothing to a release
 
 With gcloud signed in on the project, and the zone of the names on Route 53 (`~/.aws`):
 
 ```console
-$ terraform -chdir=infra/terraform/bootstrap init && terraform -chdir=infra/terraform/bootstrap apply   # once
-$ terraform -chdir=infra/terraform/project init && terraform -chdir=infra/terraform/project plan -out=plan && terraform -chdir=infra/terraform/project apply plan   # once
+$ terraform -chdir=infra/terraform/bootstrap init && terraform -chdir=infra/terraform/bootstrap apply -var-file=$OPS/terraform/bootstrap.tfvars   # once
+$ terraform -chdir=infra/terraform/project init -backend-config=$OPS/terraform/project.backend.hcl && terraform -chdir=infra/terraform/project plan -var-file=$OPS/terraform/project.tfvars -out=plan && terraform -chdir=infra/terraform/project apply plan   # once
 $ make tf-init ENV=<env>
 $ make tf-plan ENV=<env>            # read it; the plan is saved
 $ make tf-apply ENV=<env>           # exactly the plan read
-$ gcloud container clusters get-credentials pinecall-<env> --zone us-central1-c
+$ gcloud container clusters get-credentials pinecall-<env> --zone <zone>
 $ gcloud builds submit infra/images/postgres --config infra/images/cloudbuild.yaml \
     --service-account "$(terraform -chdir=infra/terraform/project output -raw build_service_account)" \
     --substitutions _IMAGE="$(terraform -chdir=infra/terraform/project output -raw registry)/postgres:17.11-pgvector0.8.6-pgtextsearch1.4.0"
@@ -139,7 +150,7 @@ its address, found by its label (`pinecall-media=<cluster>-<world>`), and gives 
 that replaces it; the world's LiveKit and SIP announce it (`node_ip`, `nat_1_to_1_ip`). A Twilio
 trunk made before the SIP name moved is sent on once, by `pinecall-runtime sip repoint`.
 
-The core node lost, drilled on staging on 2026-10-04 (when it also held LiveKit and SIP): its VM
+The core node lost, drilled on staging (when it also held LiveKit and SIP): its VM
 deleted at 01:27:50 UTC (gone at 01:29:46), the node pool made another at 01:29:48, kubeip gave it
 the same address at 01:32:35, the gateways answered at 01:34:46 with Postgres ready, and four
 calls then started, every turn answered. A core of one node is down for those minutes; a second
@@ -150,7 +161,7 @@ core node is the shape that is not (`docs/scaling.md`).
 The name is served by `charts/edge`'s Gateway (the Gateway API, `gke-l7-global-external-managed`)
 on the global address `terraform/modules/edge` reserves, with a Certificate Manager certificate
 proved by DNS (a CNAME each in Route 53): it is issued before a name points at the address, so a
-cutover moves the names onto a certificate that is valid already. Made on staging on 2026-10-04:
+cutover moves the names onto a certificate that is valid already. Made on staging:
 the certificate active before any load balancer served it, the names answering over HTTPS on it,
 plain HTTP redirected, a LiveKit room joined over its WebSocket and calls placed, the address the
 Ingress had served kept.
@@ -159,17 +170,17 @@ Ingress had served kept.
 
 Terraform draws most of a cluster's secrets. The ones a world names in `given`
 (`terraform/modules/secrets`) are made empty, and the operator puts each once, piped, so that no
-state and no terminal holds it: production's `vault-key` is the key the box's database is already
-sealed under, and `s3-access-key-id` with `s3-secret-access-key` are the object store's key,
-made by hand.
+state and no terminal holds it: `vault-key` is the key the database is sealed under (a box's,
+when its database moves here), and `s3-access-key-id` with `s3-secret-access-key` are the object
+store's key, made by hand. The environment's `given_secrets` lists them.
 
 ```console
 $ <the value> | gcloud secrets versions add pinecall-<env>-<name> --data-file=-
 ```
 
 A recording moves to the object store `store` names in the world's values (endpoint, region,
-bucket); unset, it stays on the pod's disk and goes with the pod. Proven on staging on
-2026-10-04 with the lab's store (moto on the generator): two calls, each recording in the bucket,
+bucket); unset, it stays on the pod's disk and goes with the pod. Proven on staging with the
+lab's store (moto on the generator): two calls, each recording in the bucket,
 sealed, under its org and call.
 
 ## Hosting
@@ -201,9 +212,8 @@ extensions again, and restores the box's schema `public` and its rows into it as
 owner, the dump streamed from the box into the Postgres pod and deleted there. The box's runtime is
 stopped first, and the runtime's chart is installed after, so its fleets' keys are minted in the
 database it will run on (the install replaces a key secret an earlier install left). Rehearsed on
-staging on 2026-10-04 with production's database: restored in 43 s, the same 43 515 rows of
-`call_log` and 48 migrations, the chart installed on it, the live suite green, production's orgs,
-fleet and carriers served.
+staging with a box's database of some 43 000 log rows: restored in 43 s, every row and migration
+there, the chart installed on it, the live suite green, the box's orgs, fleet and carriers served.
 
 ## Backups, and a restore
 
@@ -245,11 +255,11 @@ Drilled on staging on 2026-10-04: a base backup in 9 s, the restore ready in 106
 
 The alerts are written once, as a Prometheus rule file: `charts/pinecall/alerts.yaml`. Who
 collects the metrics and evaluates the rules is the environment's `monitoring.collector` in
-`infra/values/<env>.yaml`, which both charts read and neither guesses (unset, the release fails):
+values file (`OPS/values/<env>.yaml`), which both charts read and neither guesses (unset, the release fails):
 
 | `monitoring.collector` | collects | evaluates and tells |
 |---|---|---|
-| `gmp` (Google Cloud, both our environments) | Google's Managed Prometheus: a `PodMonitoring` for the gateways and one for Postgres | `terraform/modules/alerts`, a Cloud Monitoring policy for each rule (scoped to the cluster, as a project holds several), mailed to the environment's `emails`, and an uptime check of the name |
+| `gmp` (Google Cloud) | Google's Managed Prometheus: a `PodMonitoring` for the gateways and one for Postgres | `terraform/modules/alerts`, a Cloud Monitoring policy for each rule (scoped to the cluster, as a project holds several), mailed to the environment's `emails`, and an uptime check of the name |
 | `prometheus-operator` (any other cluster: EKS, AKS, your own) | the cluster's Prometheus: a `PodMonitor` for each | the cluster's Prometheus, `alerts.yaml` carried as the chart's `PrometheusRule`; Alertmanager tells whom it is told to, and the name's check from outside is that cloud's own (a Route 53 health check, a blackbox exporter) |
 | `none` | nothing | nothing |
 
@@ -262,45 +272,32 @@ gateway's reaper or sweep stopped (`pinecall_loop_running`), Postgres not answer
 (`cnpg_collector_up`), each for 2 minutes; the WAL failing to reach the bucket for 15 minutes (the
 backups stop there). On Google Cloud, the name failing from outside too (`/.well-known/pinecall`
 every minute from Google's regions, more than one failing for 2 minutes: the load balancer, its
-certificate, every gateway). Production's channel is verified (the code Google mailed it,
-2026-10-04).
+certificate, every gateway). Each address in `alert_emails` is verified once, by the code Google
+mails it.
 
-## Pinecall's own services
+## Services of your own
 
-notify (`supervisor/apps/notify`) and billing (`cloud/`) run on production's cluster since
-2026-10-04, each its own repository's chart released beside the runtime's and never part of it:
-one pod each, SQLite on its own disk, its name (`notify.pinecall.io`, `billing.pinecall.io`) an
-`HTTPRoute` on this Gateway under `modules/edge`'s services certificate, its credentials Secret
-Manager's (`given`). Both reach the runtime at `http://pinecall-gateway:8080`; notify signs
-Android's pushes as `modules/notify`'s identity. Each repository's `make image` and `make deploy`
-release it. Their SQLite files came over from the box once, on 2026-10-04: each service's units
-stopped there, the file copied whole by SQLite's own backup onto the pod's disk while no pod ran,
-then the pod started.
+A service of the operator's own (a notifier, billing) runs on the same cluster as its own chart,
+released beside the runtime's and never part of it: its name (`services` in the environment) an
+`HTTPRoute` on this Gateway under `modules/edge`'s services certificate, its credentials the
+secret store's (`given_secrets`), the runtime reached at `http://pinecall-gateway:8080` with the
+ops key. A notifier that signs Android's pushes does it as `modules/notify`'s identity
+(`firebase_project`).
 
 ## Staging, made and destroyed
 
-Staging is made for a proof and destroyed after it (destroyed on 2026-10-04, after the cutover):
-the runtime's own releases first, so no object is left waiting on a controller Terraform removes,
+Staging is made for a proof and destroyed after it: the runtime's own releases first, so no object is left waiting on a controller Terraform removes,
 then Terraform:
 
 ```console
 $ for r in pinecall pinecall-edge pinecall-postgres; do helm --kube-context <staging> uninstall $r --wait; done
 $ gcloud storage rm -r "gs://pinecall-staging-postgres-<project number>/**"
-$ terraform -chdir=infra/terraform/environments/staging plan -destroy -var lab=true -out=plan && terraform -chdir=infra/terraform/environments/staging apply plan
+$ terraform -chdir=infra/terraform/environments/staging plan -destroy -var-file=$OPS/terraform/staging.tfvars -var lab=true -out=plan && terraform -chdir=infra/terraform/environments/staging apply plan
 ```
-
-## Production
-
-`environments/production` runs Pinecall's own production since the cutover of 2026-10-04 at
-03:24–03:40 UTC, with 0 calls up: the box's runtime stopped, its database restored here (43 520
-rows of `call_log`, 48 migrations, in 21 s) and backed up, the chart installed on it, the five
-Twilio trunks sent on to the SIP names (`sip repoint`), the names moved onto the Gateway's active
-certificate, notify and billing on the box pointed at the cluster; the live suite green on both
-names, the tenants' agents and the apps runner reconnected on their own.
 
 ## Proven
 
-On 2026-10-03, on staging: every suite, 3 113 tests, green inside the cluster against Postgres
+On staging: every suite, 3 113 tests, green inside the cluster against Postgres
 17.11 under CloudNativePG 1.30.1, pgvector 0.8.6 and pg_textsearch 1.4.0 preloaded, the runtime
 connecting as the database's owner, no superuser. The chart released: two gateways, LiveKit and
 SIP on the core node's network, each world's two core workers registered with LiveKit under their

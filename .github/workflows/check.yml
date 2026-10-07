@@ -24,9 +24,10 @@ jobs:
       - run: uv run pytest -q -n auto
 
   # What ships and what is written down, against what is known: the image's locked dependencies
-  # against the advisories, every commit for a secret, the infrastructure and the charts as
-  # production releases them for a misconfiguration (infra/trivy-ignore.yaml says what stands and
-  # why). Each tool at a version and its release's checksum.
+  # against the advisories, every commit for a secret, the infrastructure and the charts as an
+  # operator releases them (infra/values/example.yaml) for a misconfiguration
+  # (infra/trivy-ignore.yaml says what stands and why). Each tool at a version and its release's
+  # checksum.
   supply-chain:
     name: dependencies, secrets and configuration, scanned
     runs-on: ubuntu-latest
@@ -48,7 +49,7 @@ jobs:
           echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tgz" | sha256sum -c
           tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
           "$RUNNER_TEMP/gitleaks" git --no-banner --redact .
-      - name: the infrastructure and the charts as released (trivy)
+      - name: the infrastructure and the charts as an operator releases them (trivy)
         run: |
           curl -sSfL -o "$RUNNER_TEMP/trivy.tgz" \
             https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_Linux-64bit.tar.gz
@@ -56,15 +57,15 @@ jobs:
           tar -xzf "$RUNNER_TEMP/trivy.tgz" -C "$RUNNER_TEMP" trivy
           rendered="$RUNNER_TEMP/rendered"
           for chart in edge postgres pinecall; do
-            helm template "$chart" "infra/charts/$chart" -f infra/values/production.yaml \
+            helm template "$chart" "infra/charts/$chart" -f infra/values/example.yaml \
               --set image.tag=ci --output-dir "$rendered"
           done
-          helm template hosting infra/charts/hosting -f infra/values/hosting-production.yaml \
+          helm template hosting infra/charts/hosting -f infra/values/hosting-example.yaml \
             --set image.tag=ci --output-dir "$rendered"
           # The same charts on a cluster that runs the Prometheus Operator, not Google's collector.
           operator="$RUNNER_TEMP/rendered-operator"
           for chart in postgres pinecall; do
-            helm template "$chart" "infra/charts/$chart" -f infra/values/production.yaml \
+            helm template "$chart" "infra/charts/$chart" -f infra/values/example.yaml \
               --set image.tag=ci --set monitoring.collector=prometheus-operator \
               --set monitoring.namespace=monitoring --output-dir "$operator"
           done

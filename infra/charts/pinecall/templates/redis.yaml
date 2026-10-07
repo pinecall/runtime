@@ -53,7 +53,9 @@ metadata:
   name: pinecall-redis-{{ $world }}
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: standard-rwo
+  {{- with $.Values.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
   resources: { requests: { storage: 1Gi } }
 ---
 apiVersion: apps/v1

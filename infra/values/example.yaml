@@ -1,0 +1,53 @@
+# An operator's values for charts/edge, charts/postgres and charts/pinecall, on Google Cloud as
+# terraform/environments/production makes it: copy it into your own OPS directory as
+# values/<env>.yaml (infra/README.md, "Your own values") and replace every example. CI renders the
+# charts with it and scans what they release. The image's tag is the commit `make deploy` gives.
+domain: voice.example.com
+secrets:
+  provider:
+    gcpsm:
+      projectID: my-project
+  prefix: example-production-
+storageClass: standard-rwo
+# Google's HTTPS load balancer (modules/edge's outputs: ingress_address_name, certificate_map).
+ingress:
+  className: gke-l7-global-external-managed
+  annotations:
+    networking.gke.io/certmap: example-production
+  addresses:
+    - type: NamedAddress
+      value: example-production-ingress
+  gkePolicies: true
+image:
+  repository: us-central1-docker.pkg.dev/my-project/pinecall/runtime
+postgres:
+  image: us-central1-docker.pkg.dev/my-project/pinecall/postgres:17.11-pgvector0.8.6-pgtextsearch1.4.0
+  # modules/backups' outputs.
+  backups:
+    destination: gs://example-production-postgres/postgres
+    credentials:
+      googleCredentials:
+        gkeEnvironment: true
+    serviceAccountAnnotations:
+      iam.gke.io/gcp-service-account: example-production-postgres@my-project.iam.gserviceaccount.com
+cluster: production
+monitoring:
+  collector: gmp
+  namespace: gmp-system
+# modules/kubeip's output; unset, kubeip is not installed and media.addresses are not given.
+kubeip:
+  identity: example-production-kubeip@my-project.iam.gserviceaccount.com
+sipDomains:
+  production: sip.example.com
+  sandbox: sip.sandbox.example.com
+media:
+  # modules/edge's media_addresses.
+  addresses:
+    production: 203.0.113.10
+    sandbox: 203.0.113.11
+  # environments/<env>'s `ranges`.
+  nodeNetwork: 10.120.0.0/22
+gateway:
+  podNetwork: 10.121.0.0/16
+  # Google's load balancer's ranges, and its own address (modules/edge's ingress_address).
+  trustedProxies: 35.191.0.0/16,130.211.0.0/22,203.0.113.1/32

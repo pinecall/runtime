@@ -1,6 +1,6 @@
 # One release per world-pair: production and sandbox share a cluster, one gateway and one database.
 
-# The registry's runtime image (infra/values/<env>.yaml); the tag is the commit `make deploy` gives.
+# The registry's runtime image (the operator's values); the tag is the commit `make deploy` gives.
 image:
   repository: ""
   tag: ""
@@ -13,11 +13,17 @@ fleets:
   production: pinecall
   sandbox: pinecall-sandbox
 
-# Secret Manager, synced by External Secrets Operator (terraform/modules/secrets).
+# The cloud's secret store, synced by External Secrets Operator: `provider` is its
+# ClusterSecretStore's provider block as External Secrets takes it, whichever cloud
+# (`gcpsm: { projectID: … }` for Google's Secret Manager, terraform/modules/secrets; `aws: { service:
+# SecretsManager, region: … }`; `vault: …`), and every secret is read as <prefix><name>.
 secrets:
-  project: ""
+  provider: {}
   prefix: ""
   refresh: 1h
+
+# The class of the disks this chart claims (each world's media Redis); unset, the cluster's default.
+storageClass: ""
 
 # CloudNativePG's application secret of the cluster's Postgres (charts/postgres).
 postgres:
@@ -34,9 +40,10 @@ media:
   kubectl: registry.k8s.io/kubectl:v1.35.0
   kubeip: docker.io/doitintl/kubeip-agent:2.2.1@sha256:a0e4bc33b2027644bd952042e913453365caf2a69179a06482c1ad2673983749
   rtpPorts: 10000-10199
-  # The nodes' subnet (terraform/modules/gke): LiveKit on the node's network sees GKE's virtual
-  # interfaces too (the pods' bridge, the DNS cache's address) and takes its port on these alone.
-  nodeNetwork: 10.110.0.0/22
+  # The nodes' subnet (terraform/modules/gke, nodes_range): LiveKit on the node's network sees the
+  # cluster's virtual interfaces too (the pods' bridge, the DNS cache's address) and takes its port
+  # on these alone. Required.
+  nodeNetwork: ""
   # Each world's media address (terraform/modules/edge, media_addresses): kubeip gives it to the
   # world's media node by the address's label (pinecall-media=<cluster>-<world>), and the world's
   # LiveKit and SIP announce it. Unset, they announce the node's ephemeral address.
@@ -46,10 +53,13 @@ media:
 
 gateway:
   replicas: 2
-  # Google's load balancers and health checkers: the only X-Forwarded-For believed.
-  trustedProxies: 35.191.0.0/16,130.211.0.0/22
-  # The cluster's pods: /metrics answers them (a forwarded request never).
-  podNetwork: 10.111.0.0/16
+  # The load balancer's addresses, the only X-Forwarded-For believed (comma-separated CIDRs: on
+  # Google Cloud, 35.191.0.0/16,130.211.0.0/22 and the ingress's own address). Unset, none is, and
+  # every request is counted by the address that reached the pod.
+  trustedProxies: ""
+  # The cluster's pods (terraform/modules/gke, pods_range): /metrics answers them (a forwarded
+  # request never). Required.
+  podNetwork: ""
 
 # Each world's workers on its media node, and the ones KEDA scales on its own workers pool from 0
 # on the gateway's own number (GET /v1/fleet/wanted); `most` is the pool's ceiling

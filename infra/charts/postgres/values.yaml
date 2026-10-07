@@ -1,12 +1,15 @@
 # A cluster's Postgres, released before charts/pinecall (`make deploy`): the runtime's migrations
-# need it up. The world-pair's own values (infra/values/<env>.yaml) name the bucket and identity.
-# Secret Manager, read through a store of this chart's own (`pinecall-postgres`), since this chart
-# is released before charts/pinecall's: the gateway's role's password is drawn there
-# (terraform/modules/secrets, postgres-app-password). The same values charts/pinecall is given.
+# need it up. The operator's values file (infra/values/example.yaml is one) names the store, the
+# backups' destination and identity; the same file is given to every chart.
+# The cloud's secret store, read through a store of this chart's own (`pinecall-postgres`), since
+# this chart is released before charts/pinecall's: the gateway's role's password is drawn there
+# (terraform/modules/secrets, postgres-app-password). `provider` as charts/pinecall reads it.
 secrets:
-  project: ""
+  provider: {}
   prefix: ""
   refresh: 1h
+# The class of Postgres's disk; unset, the cluster's default.
+storageClass: ""
 # Who collects each instance's metrics: gmp, prometheus-operator or none, as charts/pinecall's
 # `monitoring` says (the same values file is given to both).
 monitoring:
@@ -17,14 +20,20 @@ postgres:
   appRole: pinecall_app
   appSecret: pinecall-postgres-runtime
   # images/postgres, built by Cloud Build: CloudNativePG's operand with pg_textsearch on it, in the
-  # project's registry (infra/values/<env>.yaml).
+  # project's registry (the operator's values).
   image: ""
   instances: 1
   size: 20Gi
   backups:
-    # terraform/modules/backups' outputs.
-    bucket: ""
-    serviceAccount: ""
+    # Where the Barman Cloud plugin writes the WAL and the base backups (gs://<bucket>/postgres,
+    # s3://<bucket>/postgres, an Azure container), and how it is let in: `credentials` is its
+    # ObjectStore's credentials block (`googleCredentials: { gkeEnvironment: true }`,
+    # `s3Credentials: { inheritFromIAMRole: true }`), and `serviceAccountAnnotations` give the
+    # instances' pods the cloud identity those credentials are (terraform/modules/backups' outputs:
+    # `iam.gke.io/gcp-service-account: …`; on EKS `eks.amazonaws.com/role-arn: …`). Required.
+    destination: ""
+    credentials: {}
+    serviceAccountAnnotations: {}
     # What the plugin keeps: base backups and the WAL to restore to any minute inside it.
     retention: 35d
     # A base backup a night, at the hour with fewest calls (UTC).
