@@ -51,6 +51,9 @@ class Gateway:
     # What GET /metrics reads: counted on the append path since the process started.
     counters: Counters = field(default_factory=Counters)
     prompts: Prompts = field(default_factory=Prompts)
+    # The loops that must run for the life of the process (the reaper, the sweep), by name: a loop
+    # that stopped on an error none of them catches is said on /metrics, for the alert.
+    loops: dict[str, asyncio.Task[None]] = field(default_factory=dict[str, asyncio.Task[None]])
 
     @property
     def offering(self) -> Offering:

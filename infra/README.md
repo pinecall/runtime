@@ -240,10 +240,15 @@ Drilled on staging on 2026-10-04: a base backup in 9 s, the restore ready in 106
 
 Google's managed Prometheus reads each gateway's `/metrics` every 30 s (`charts/pinecall`'s
 `PodMonitoring`; the collector comes from the pod network, which `PINECALL_METRICS_FROM` admits),
-and `terraform/modules/alerts` makes three alerts on what it read, mailed to the environment's
-`emails`: a write to the log slow (p99 over 250 ms for 5 minutes), a fleet over 80% of its seats
-for 5 minutes, and a vendor over its error line for 2 minutes. Production's channel is verified
-(the code Google mailed it, 2026-10-04).
+and each Postgres instance's exporter on 9187 (`charts/postgres`' `PodMonitoring`).
+`terraform/modules/alerts` makes eight alerts, mailed to the environment's `emails`: a write to
+the log slow (p99 over 250 ms for 5 minutes), a fleet over 80% of its seats for 5 minutes, a
+vendor over its error line for 2 minutes; no gateway answering its collector, a gateway's reaper
+or sweep stopped (`pinecall_loop_running`), Postgres not answering, each for 2 minutes; the WAL
+failing to reach the bucket for 15 minutes (the backups stop there); and the name failing from
+outside (an uptime check of `/.well-known/pinecall` every minute from Google's regions, more than
+one failing for 2 minutes: the load balancer, its certificate, every gateway). Production's
+channel is verified (the code Google mailed it, 2026-10-04).
 
 ## Pinecall's own services
 

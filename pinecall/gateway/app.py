@@ -328,6 +328,7 @@ async def lifespan(fastapi_app: FastAPI) -> AsyncGenerator[None]:
         stack.push_async_callback(_cancelled, reaper)
         sweep = box_task(sweep_forever(gateway.offering))
         stack.push_async_callback(_cancelled, sweep)
+        gateway.loops.update(reaper=reaper, sweep=sweep)
         # After the start, so a slow SFU never keeps the gateway from answering; again until whole.
         rebuilt = box_task(rebuilt_until_whole(gateway.connections))
         stack.push_async_callback(_cancelled, rebuilt)

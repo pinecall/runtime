@@ -1,8 +1,10 @@
 """Tests for GET /metrics: what the append doors count, what the gateway holds, on loopback."""
 
+import asyncio
 import time
 
 import httpx
+import pytest
 
 from pinecall.domain.names import JsonObject
 from pinecall.gateway.api.metrics import from_any
@@ -99,6 +101,30 @@ async def test_an_orgs_unusual_spend_stands_on_metrics_while_it_lasts(knocking: 
         usual = (await scraper.get("/metrics")).text
     assert 'pinecall_spend_unusual{org="org_a"} 3.5' in flagged
     assert "pinecall_spend_unusual{" not in usual
+
+
+# A loop that stopped on an error nobody caught reads 0, so the alert sees it before the calls do.
+@postgres
+async def test_a_loop_that_stopped_reads_as_stopped_and_one_that_runs_as_running(
+    knocking: Knocking,
+) -> None:
+    async def dies() -> None:
+        raise KeyError("an error none of the loop's catches")
+
+    async def runs() -> None:
+        await asyncio.Event().wait()
+
+    running = asyncio.create_task(runs())
+    stopped = asyncio.create_task(dies())
+    await asyncio.wait([stopped])
+    knocking.gateway.loops.update(reaper=running, sweep=stopped)
+    async with httpx.AsyncClient(base_url=knocking.url) as scraper:
+        read = (await scraper.get("/metrics")).text
+    running.cancel()
+    assert 'pinecall_loop_running{loop="reaper"} 1' in read
+    assert 'pinecall_loop_running{loop="sweep"} 0' in read
+    with pytest.raises(KeyError):
+        stopped.result()
 
 
 @postgres

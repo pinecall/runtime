@@ -109,3 +109,14 @@ spec:
   data:
     - secretKey: password
       remoteRef: { key: {{ printf "%spostgres-app-password" .Values.secrets.prefix | quote }} }
+---
+# Each instance's metrics (CloudNativePG's exporter, on 9187: whether Postgres answers, its WAL
+# archiver), collected by Managed Prometheus like the gateways' for terraform/modules/alerts.
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: pinecall-postgres
+spec:
+  selector: { matchLabels: { cnpg.io/cluster: pinecall-postgres } }
+  endpoints:
+    - { port: 9187, path: /metrics, interval: 30s }

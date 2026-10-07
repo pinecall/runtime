@@ -159,6 +159,7 @@ module "addons" {
 module "alerts" {
   source = "../../modules/alerts"
   name   = "production"
+  domain = var.names[0]
   emails = var.alert_emails
 }
 

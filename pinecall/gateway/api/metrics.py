@@ -186,6 +186,15 @@ def _measures_of(
                 [({"replica": replica}, lag) for replica, lag in replicas],
             ),
             family(
+                "pinecall_loop_running",
+                "Whether each loop the process must keep (the reaper, the sweep) still runs.",
+                "gauge",
+                [
+                    ({"loop": name}, int(not task.done()))
+                    for name, task in sorted(gateway.loops.items())
+                ],
+            ),
+            family(
                 "pinecall_spend_unusual",
                 "How many times its usual day an org's calls cost today, while they do.",
                 "gauge",

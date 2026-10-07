@@ -18,7 +18,8 @@ spec:
       ports: [{ port: 6379, protocol: TCP }]
 ---
 # Postgres: the gateways, the pods labelled as reaching it (the migrations, the fleets' keys, the
-# retention, a suite's Job), its own instances, and CloudNativePG's operator and backup plugin.
+# retention, a suite's Job), its own instances, CloudNativePG's operator and backup plugin, and
+# Managed Prometheus's collector to the metrics' port.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -34,3 +35,7 @@ spec:
     - from:
         - podSelector: { matchLabels: { cnpg.io/cluster: pinecall-postgres } }
         - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: cnpg-system } }
+    # Managed Prometheus's collector, to the instances' metrics alone (charts/postgres).
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: gmp-system } }
+      ports: [{ port: 9187, protocol: TCP }]
