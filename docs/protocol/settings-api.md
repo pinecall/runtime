@@ -51,7 +51,9 @@ A rollback is a new version equal to an old one, and the history says so.
 Each scope's **own** newest, or null when that scope set nothing; never the fallthrough, because
 `if_version` is about the scope being written. `config` carries only the knobs the row set: `voice`,
 `tts`, `tts_model`, `stt`, `llm` (the three model knobs take `vendor/model`, a vendor alone to keep
-its own default model, or a model alone on whichever vendor is in use), `greeting` (`{say}` or
+its own default model, or a model alone on whichever vendor is in use), `language` (a tag, `en` or
+`pt-BR`, given to the ears and the voice; unset, each vendor's own default, or the language an app on
+an SDK before 0.9.19 still declares), `greeting` (`{say}` or
 `{reply}`), `hangup {when}`, `turn {min_interruption_words, endpointing_ms, eot_threshold,
 eager_eot_threshold, min_interruption_ms}` (the last is how long the caller must speak over the
 agent before it stops; unset, livekit's own half second), `memory {remember, forget}`, `record`, `max_duration_s` (voice calls; `0` is

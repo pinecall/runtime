@@ -95,6 +95,21 @@ async def test_the_models_deadline_is_kept_as_set_and_is_the_pipelines_to_set(
 
 
 @postgres
+async def test_the_language_is_kept_as_set_and_is_the_pipelines_to_set(knocking: Knocking) -> None:
+    pool = knocking.gateway.connections.pool
+    words = await issued(pool, knocking.org.id, "sandbox", frozenset({"words"}))
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        kept = await org.put(SETTINGS, json={"config": {"language": "en"}})
+        blank = await org.put(SETTINGS, json={"config": {"language": "  "}})
+    async with knocking.http(words) as supervisor:
+        refused = await supervisor.put(SETTINGS, json={"config": {"language": "es"}})
+    assert kept.json()["team"]["config"] == {"language": "en"}
+    assert blank.status_code == 400
+    assert refused.status_code == 403
+    assert "language: the pipeline's" in refused.json()["detail"]
+
+
+@postgres
 async def test_a_knob_the_vendor_takes_under_no_name_is_refused_where_it_is_set(
     knocking: Knocking,
 ) -> None:

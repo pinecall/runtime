@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **An agent's language is a setting of its world**, like its voice and its models: `language` in
+  the settings body (`pinecall agent set --language en`, the console's Settings), a pipeline knob a
+  `words` key cannot set, tried on the ears and the voice before it is kept. Unset, each vendor
+  keeps its own default; an app on an SDK before 0.9.19 still declares one, read only when the world
+  set none.
 - **The start-up rebuild of the SIP trunks tries again until whole**: a gateway started beside a
   LiveKit still starting (or down) left that world's numbers unadmitted until its own next start;
   it now retries, 2 s and doubling, a minute at most, while an org is refused or a LiveKit cannot

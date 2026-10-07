@@ -23,6 +23,7 @@ class SettingsBody(WireModel):
     tts_model: str | None = None
     stt: str | None = None
     llm: str | None = None
+    language: str | None = None
     greeting: GreetingConfig | None = None
     hangup: HangupConfig | None = None
     turn: TurnConfig | None = None

@@ -256,6 +256,8 @@ class Tuning:
     tts_model: str | None = None
     stt: str | None = None
     llm: str | None = None
+    # A tag (`en`, `pt-BR`); None leaves each vendor its own default.
+    language: str | None = None
     greeting: Greeting | None = None
     hangup: Hangup | None = None
     turn: Turn | None = None
@@ -278,6 +280,7 @@ class Tuning:
             ("tts_model", self.tts_model),
             ("stt", self.stt),
             ("llm", self.llm),
+            ("language", self.language),
             ("knowledge", self.knowledge),
         )
         for name, value in knobs:

@@ -228,7 +228,9 @@ def test_nothing_set_is_every_knob_none_the_bases_with_the_rest() -> None:
     assert Tuning(bases=()).bases == ()
 
 
-@pytest.mark.parametrize("knob", ["voice", "tts", "tts_model", "stt", "llm", "knowledge"])
+@pytest.mark.parametrize(
+    "knob", ["voice", "tts", "tts_model", "stt", "llm", "language", "knowledge"]
+)
 def test_a_blank_named_knob_is_refused_in_the_sentence_that_says_why(knob: str) -> None:
     blank: dict[str, str] = {knob: "   "}
     with pytest.raises(DeclarationRefused, match=re.escape(BLANK.format(field=knob))):
@@ -238,6 +240,7 @@ def test_a_blank_named_knob_is_refused_in_the_sentence_that_says_why(knob: str) 
             tts_model=blank.get("tts_model"),
             stt=blank.get("stt"),
             llm=blank.get("llm"),
+            language=blank.get("language"),
             knowledge=blank.get("knowledge"),
         )
 

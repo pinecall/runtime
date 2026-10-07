@@ -56,6 +56,7 @@ PIPELINE_ONLY = (
     "tts_model",
     "stt",
     "llm",
+    "language",
     "hangup",
     "turn",
     "bases",
@@ -82,9 +83,9 @@ OUT_OF_BAND = "{knob} {value} is outside {low} to {high}, the band the ears take
 # The knobs of each stage: a set that changes one has the stage tried before it is kept, and a
 # save that changes none asks no vendor anything.
 STAGE_KNOBS: dict[Modality, tuple[str, ...]] = {
-    "tts": ("voice", "tts", "tts_model"),
+    "tts": ("voice", "tts", "tts_model", "language"),
     "llm": ("llm",),
-    "stt": ("stt", "turn"),
+    "stt": ("stt", "turn", "language"),
 }
 
 

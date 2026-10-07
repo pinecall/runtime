@@ -136,6 +136,17 @@ def test_a_voice_call_runs_ten_minutes_unless_the_world_says_otherwise(
     assert limit(Tuning(max_duration_s=0)) == 0
 
 
+def test_the_language_is_the_worlds_and_unset_it_is_what_an_older_app_declared(
+    configured: Providers,
+) -> None:
+    def language(declared: AgentConfig, tuning: Tuning) -> str | None:
+        return apply_tuning(declared, tuning, NOTHING, defaults=configured.defaults).language
+
+    assert language(DECLARED, Tuning(language="en")) == "en"
+    assert language(DECLARED, Tuning()) == "es"
+    assert language(AgentConfig(slug="clinica-norte"), Tuning()) is None
+
+
 def test_the_models_deadline_is_the_worlds_and_unset_it_is_none(configured: Providers) -> None:
     def deadline(tuning: Tuning) -> float | None:
         return apply_tuning(DECLARED, tuning, NOTHING, defaults=configured.defaults).llm_timeout_s

@@ -19,6 +19,8 @@ def apply_tuning(
     return dataclasses.replace(
         declared,
         greeting=tuning.greeting,
+        # An app on an SDK before 0.9.19 still declares one; the world's wins.
+        language=declared.language if tuning.language is None else tuning.language,
         voice=_voice(declared, tuning, defaults),
         stt=model_of(tuning.stt, "stt", in_use=_in_use(declared.stt, defaults["stt"])),
         llm=model_of(tuning.llm, "llm", in_use=_in_use(declared.llm, defaults["llm"])),
