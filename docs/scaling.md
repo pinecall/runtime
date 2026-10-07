@@ -434,7 +434,7 @@ The control plane, measured on 2026-10-01 with `pinecall-runtime load` from a ma
 What this says of a cell: Postgres grows by about 1.4 cores per 1 000 calls at once, so a cell of
 100 000 would need some 140 cores of one database, which no one machine holds; a cell is sized
 instead at 15 000–20 000 calls (a 32-core Postgres, ~50 gateway cores, ~1 000 worker machines) and
-the platform grows by cells (P8 in `internal-docs`). What saturated first at 2 000 calls was not
+the platform grows by cells. What saturated first at 2 000 calls was not
 Postgres but the box's own two gateway processes and the proxy in front of them, on the same
 machine: in a cluster the gateways are pods of their own (`gateway.replicas`) and the balancer is
 Google's.

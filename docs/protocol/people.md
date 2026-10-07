@@ -28,7 +28,7 @@ Any key. The org as an id and as the slug people type, the key's id and label, t
 request acts in, its scopes, whose it is, and whether it may act in production:
 
 ```json
-{"org": "org_…", "slug": "clinica-norte", "key_id": "k_…", "label": "berna-mbp",
+{"org": "org_…", "slug": "clinica-norte", "key_id": "k_…", "label": "ana-laptop",
  "env": "sandbox", "scopes": ["app", "calls", …], "subject": "m_…", "name": "Ana García",
  "email": "ana@clinica.test", "operator": false, "visiting": false, "production": true}
 ```
