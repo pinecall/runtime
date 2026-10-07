@@ -2,7 +2,7 @@
 
 The operator's terminal: the two processes, the database, the tenants and the fleet. One verb per
 group; `pinecall-runtime --help` prints them all, `<group> --help` that group's verbs. The tenant's
-terminal is `pinecall`, the agents repo's `docs/the-cli.md`, and they never overlap: nothing here
+terminal is `pinecall`, the CLI repo's (`pinecall/cli`) `docs/the-cli.md`, and they never overlap: nothing here
 writes an agent, nothing there issues a key.
 
 ## What each group speaks to

@@ -24,7 +24,8 @@ Redis carries what the gateways say to one another. It runs Pinecall's own produ
 sandbox, at `cloud.pinecall.io`, on one Kubernetes cluster.
 
 Agents are written with the SDKs, [`pinecall/agents`](https://github.com/pinecall/agents)
-(TypeScript) or the Ruby SDK, and talk to this runtime over the wire `pinecall/wire/` declares.
+(TypeScript) or the Ruby SDK, run with the [`pinecall`](https://github.com/pinecall/cli) CLI, and
+talk to this runtime over the wire `pinecall/wire/` declares.
 Nothing here is imported by an agent.
 
 ![The console the gateway serves: an agent's overview, its calls by channel, how calls end, how fast it answers, and a caller asking for a person](docs/images/console-overview.webp)

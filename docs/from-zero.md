@@ -46,7 +46,7 @@ told apart: [multi-tenancy.md](multi-tenancy.md).
 
 ## 3. A terminal, and a project
 
-In the directory of an agent, with the tenant's CLI (the agents repo's `docs/the-cli.md`):
+In the directory of an agent, with the tenant's CLI (the CLI repo's (`pinecall/cli`) `docs/the-cli.md`):
 
 ```bash
 pinecall login https://voice.example.com     # a key for this device, minted when you sign in
