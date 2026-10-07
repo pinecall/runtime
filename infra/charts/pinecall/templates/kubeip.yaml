@@ -42,9 +42,12 @@ spec:
       serviceAccountName: pinecall-kubeip
       {{- include "pinecall.onMedia" $world | nindent 6 }}
       terminationGracePeriodSeconds: 30
+      # The image's own user (distroless, 1001), said here so the cluster holds it to it.
+      {{- include "pinecall.podSecurityAs" 1001 | nindent 6 }}
       containers:
         - name: kubeip
           image: {{ $.Values.media.kubeip }}
+          {{- include "pinecall.containerSecurity" $ | nindent 10 }}
           env:
             - name: NODE_NAME
               valueFrom: { fieldRef: { fieldPath: spec.nodeName } }

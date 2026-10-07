@@ -88,19 +88,20 @@ spec:
     spec:
       restartPolicy: Never
       serviceAccountName: pinecall-fleet-keys
+      # Every container as the runtime's user; kubectl's home, where it keeps its discovery cache,
+      # is an emptyDir (HOME), since its root is read-only.
+      {{- include "pinecall.podSecurity" . | nindent 6 }}
       initContainers:
         - name: forget
           image: {{ .Values.media.kubectl }}
           args: ["delete", "secret", "pinecall-fleet-keys", "--ignore-not-found"]
+          {{- include "pinecall.containerSecurity" . | nindent 10 }}
+          env: [{ name: HOME, value: /tmp }]
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
         - name: mint
           image: {{ include "pinecall.image" . }}
           command: ["sh", "-c", "umask 077 && pinecall-runtime keys fleet production > /keys/production && pinecall-runtime keys fleet sandbox > /keys/sandbox"]
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 10001
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities: { drop: [ALL] }
+          {{- include "pinecall.containerSecurity" . | nindent 10 }}
           env:
             - name: DATABASE_URL
               valueFrom: { secretKeyRef: { name: {{ .Values.postgres.secret }}, key: uri } }
@@ -109,9 +110,14 @@ spec:
         - name: secret
           image: {{ .Values.media.kubectl }}
           args: ["create", "secret", "generic", "pinecall-fleet-keys", "--from-file=/keys/production", "--from-file=/keys/sandbox"]
-          volumeMounts: [{ name: keys, mountPath: /keys, readOnly: true }]
+          {{- include "pinecall.containerSecurity" . | nindent 10 }}
+          env: [{ name: HOME, value: /tmp }]
+          volumeMounts:
+            - { name: keys, mountPath: /keys, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
       volumes:
         - { name: keys, emptyDir: { medium: Memory } }
+        - { name: tmp, emptyDir: { sizeLimit: 16Mi } }
 ---
 apiVersion: batch/v1
 kind: CronJob

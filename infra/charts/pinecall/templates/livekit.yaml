@@ -26,10 +26,13 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       {{- include "pinecall.onMedia" $world | nindent 6 }}
       terminationGracePeriodSeconds: 600
+      # Its ports are all above 1024, so no capability; it writes no file.
+      {{- include "pinecall.podSecurityAs" 10001 | nindent 6 }}
       containers:
         - name: livekit
           image: {{ $.Values.media.livekit }}
           args: ["--config", "/etc/livekit/livekit.yaml"]
+          {{- include "pinecall.containerSecurity" $ | nindent 10 }}
           ports:
             - { name: http, containerPort: 7880 }
             - { name: rtc-tcp, containerPort: 7881 }

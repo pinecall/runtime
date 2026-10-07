@@ -10,20 +10,27 @@ spec:
     metadata: { labels: { app: pinecall-redis } }
     spec:
       nodeSelector: { pinecall.io/pool: core }
+      # The image's own user; its config file is written to an emptyDir, the rest is read-only.
+      {{- include "pinecall.podSecurityAs" 999 | nindent 6 }}
       containers:
         - name: redis
           image: {{ .Values.media.redis }}
           # The password goes in a file of the container's own, never in argv: a process's command
           # line is read by anything that lists processes, its files by itself alone.
           args: ["sh", "-c", 'umask 077; printf "requirepass %s\n" "$REDIS_PASSWORD" > /tmp/redis.conf; exec redis-server /tmp/redis.conf --save "" --appendonly no']
+          {{- include "pinecall.containerSecurity" . | nindent 10 }}
           env:
             - name: REDIS_PASSWORD
               valueFrom: { secretKeyRef: { name: pinecall, key: REDIS_PASSWORD } }
           ports: [{ containerPort: 6379 }]
           readinessProbe:
             exec: { command: ["sh", "-c", 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG'] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
           resources:
             requests: { cpu: 50m, memory: 64Mi }
+      volumes:
+        - { name: tmp, emptyDir: { sizeLimit: 16Mi } }
 ---
 apiVersion: v1
 kind: Service
@@ -61,10 +68,15 @@ spec:
     metadata: { labels: { app: pinecall-media-redis, world: {{ $world }} } }
     spec:
       {{- include "pinecall.onMedia" $world | nindent 6 }}
+      # The image's own user, and the disk made its (fsGroup: a disk written as root before is
+      # given to it at mount); its config file is written to an emptyDir, the rest is read-only.
+      {{- include "pinecall.podSecurityAs" 999 | nindent 6 }}
+        fsGroup: 999
       containers:
         - name: redis
           image: {{ $.Values.media.redis }}
           args: ["sh", "-c", 'umask 077; printf "requirepass %s\n" "$REDIS_PASSWORD" > /tmp/redis.conf; exec redis-server /tmp/redis.conf --save "" --appendonly yes --dir /data']
+          {{- include "pinecall.containerSecurity" $ | nindent 10 }}
           env:
             - name: REDIS_PASSWORD
               valueFrom: { secretKeyRef: { name: pinecall, key: REDIS_PASSWORD } }
@@ -73,11 +85,13 @@ spec:
             exec: { command: ["sh", "-c", 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG'] }
           volumeMounts:
             - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
           resources:
             requests: { cpu: 50m, memory: 64Mi }
       volumes:
         - name: data
           persistentVolumeClaim: { claimName: pinecall-redis-{{ $world }} }
+        - { name: tmp, emptyDir: { sizeLimit: 16Mi } }
 ---
 apiVersion: v1
 kind: Service

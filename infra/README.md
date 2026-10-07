@@ -98,7 +98,11 @@ so the role is made the moment the secret lands rather than at its next pass.
 Every pod of the runtime's image runs as its user (10001), with no capability, no privilege to
 gain, the runtime's syscall filter and a root filesystem it cannot write: what it writes goes to
 `/tmp` and its home, each an emptyDir, and to the recordings' (`pinecall.podSecurity`,
-`pinecall.containerSecurity`). LiveKit, SIP and Redis are their own images, left as they are.
+`pinecall.containerSecurity`). The third-party images' pods hold to the same, each as its own
+user (`pinecall.podSecurityAs`): Redis as the image's 999 with its config file on an emptyDir and
+each world's disk made its own, LiveKit and SIP as 10001 (every port they take is above 1024, so
+no capability), kubeip as its 1001, and the fleets' keys Job as the runtime's user with kubectl's
+home on an emptyDir.
 Two NetworkPolicies (`templates/policies.yaml`) name who reaches each store: the gateways' Redis
 the gateways alone; Postgres the gateways, the pods labelled `pinecall.io/reaches-postgres` (the
 migrations, the fleets' keys, the retention, a suite's Job), its own instances and CloudNativePG's

@@ -44,25 +44,3 @@ misconfigurations:
       The Kubernetes API is reached by IAM alone until authorized networks are chosen: a list
       that forgets the place he works from locks him out.
     expired_at: 2026-11-07
-
-  # Owed: the third-party images' pods (Redis, LiveKit, SIP, kubeip, the fleets' keys Job) carry
-  # no security context yet; the runtime's own pods do (5f5cd06). Each is set and proven on the
-  # cluster at a release: a uid, its volumes' owner, a port under 1024 for SIP.
-  - id: KSV-0014
-    paths:
-      - pinecall/templates/redis.yaml
-      - pinecall/templates/livekit.yaml
-      - pinecall/templates/sip.yaml
-      - pinecall/templates/kubeip.yaml
-      - pinecall/templates/jobs.yaml
-    statement: Third-party images' pods with a writable root, owed a read-only one.
-    expired_at: 2026-11-07
-  - id: KSV-0118
-    paths:
-      - pinecall/templates/redis.yaml
-      - pinecall/templates/livekit.yaml
-      - pinecall/templates/sip.yaml
-      - pinecall/templates/kubeip.yaml
-      - pinecall/templates/jobs.yaml
-    statement: Third-party images' pods with the default security context, owed their own.
-    expired_at: 2026-11-07
