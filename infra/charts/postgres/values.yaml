@@ -7,6 +7,10 @@ secrets:
   project: ""
   prefix: ""
   refresh: 1h
+# Who collects each instance's metrics: gmp, prometheus-operator or none, as charts/pinecall's
+# `monitoring` says (the same values file is given to both).
+monitoring:
+  collector: ""
 postgres:
   # The role the gateway connects as: every table's rows, granted by `migrate up`, no table's shape.
   # The owner (initdb's) keeps running the migrations and the nightly retention, which makes days.

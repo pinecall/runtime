@@ -61,7 +61,14 @@ jobs:
           done
           helm template hosting infra/charts/hosting -f infra/values/hosting-production.yaml \
             --set image.tag=ci --output-dir "$rendered"
-          for target in infra "$rendered"; do
+          # The same charts on a cluster that runs the Prometheus Operator, not Google's collector.
+          operator="$RUNNER_TEMP/rendered-operator"
+          for chart in postgres pinecall; do
+            helm template "$chart" "infra/charts/$chart" -f infra/values/production.yaml \
+              --set image.tag=ci --set monitoring.collector=prometheus-operator \
+              --set monitoring.namespace=monitoring --output-dir "$operator"
+          done
+          for target in infra "$rendered" "$operator"; do
             "$RUNNER_TEMP/trivy" config --quiet --severity HIGH,CRITICAL --exit-code 1 \
               --ignorefile infra/trivy-ignore.yaml "$target"
           done

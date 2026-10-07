@@ -111,7 +111,10 @@ spec:
       remoteRef: { key: {{ printf "%spostgres-app-password" .Values.secrets.prefix | quote }} }
 ---
 # Each instance's metrics (CloudNativePG's exporter, on 9187: whether Postgres answers, its WAL
-# archiver), collected by Managed Prometheus like the gateways' for terraform/modules/alerts.
+# archiver), collected by whichever Prometheus the environment names (`monitoring`, as
+# charts/pinecall reads it), for the rules of charts/pinecall/alerts.yaml.
+{{- $collector := required "monitoring.collector: gmp, prometheus-operator or none" .Values.monitoring.collector }}
+{{- if eq $collector "gmp" }}
 apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
 metadata:
@@ -120,3 +123,15 @@ spec:
   selector: { matchLabels: { cnpg.io/cluster: pinecall-postgres } }
   endpoints:
     - { port: 9187, path: /metrics, interval: 30s }
+{{- else if eq $collector "prometheus-operator" }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: pinecall-postgres
+spec:
+  selector: { matchLabels: { cnpg.io/cluster: pinecall-postgres } }
+  podMetricsEndpoints:
+    - { port: metrics, path: /metrics, interval: 30s }
+{{- else if ne $collector "none" }}
+{{- fail (printf "monitoring.collector is gmp, prometheus-operator or none, not %q" $collector) }}
+{{- end }}

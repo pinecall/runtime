@@ -1,6 +1,11 @@
-# The gateways' /metrics, collected by Google Cloud Managed Service for Prometheus (on in every GKE
-# cluster): the series terraform/modules/alerts' policies read. A collector knocks from the pods'
-# network, which PINECALL_METRICS_FROM admits.
+# The gateways' /metrics, collected by whichever Prometheus the environment names (values.yaml,
+# `monitoring`): a collector knocks from the pods' network, which PINECALL_METRICS_FROM admits.
+# The job is `pinecall-gateway` under either, as alerts.yaml reads it.
+{{- $collector := required "monitoring.collector: gmp, prometheus-operator or none" .Values.monitoring.collector }}
+{{- if not (has $collector (list "gmp" "prometheus-operator" "none")) }}
+{{- fail (printf "monitoring.collector is gmp, prometheus-operator or none, not %q" $collector) }}
+{{- end }}
+{{- if eq $collector "gmp" }}
 apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
 metadata:
@@ -9,3 +14,23 @@ spec:
   selector: { matchLabels: { app: pinecall-gateway } }
   endpoints:
     - { port: http, path: /metrics, interval: 30s }
+{{- else if eq $collector "prometheus-operator" }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: pinecall-gateway
+spec:
+  selector: { matchLabels: { app: pinecall-gateway } }
+  jobLabel: app
+  podMetricsEndpoints:
+    - { port: http, path: /metrics, interval: 30s }
+---
+# The box's alerts (alerts.yaml), evaluated by this cluster's own Prometheus: it watches this
+# cluster alone, so no rule names one.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pinecall
+spec:
+{{ .Files.Get "alerts.yaml" | replace "$cluster" "" | indent 2 }}
+{{- end }}

@@ -65,6 +65,15 @@ workers:
 # staging or production: the cluster this release is (modules/edge labels its addresses by it).
 cluster: ""
 
+# Who collects the gateways' and Postgres's metrics and evaluates alerts.yaml, said by the
+# environment, never guessed: `gmp`, Google's Managed Prometheus (the alerts are then
+# terraform/modules/alerts'); `prometheus-operator`, any cluster that runs it (a PodMonitor each, and
+# alerts.yaml as this chart's PrometheusRule); `none`. `namespace` is where the collector runs,
+# which the Postgres policy admits to the metrics' port.
+monitoring:
+  collector: ""
+  namespace: ""
+
 # The identity kubeip acts as (terraform/modules/kubeip). Unset, kubeip is not installed.
 kubeip:
   identity: ""
