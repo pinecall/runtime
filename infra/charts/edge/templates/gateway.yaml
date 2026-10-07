@@ -2,8 +2,10 @@
 # the Gateway API, with Certificate Manager's certificate (modules/edge); plain HTTP sent to HTTPS.
 # LiveKit's signalling paths go to production's LiveKit, the same paths under /sandbox to the
 # sandbox's with the prefix taken off, everything else to the gateways; a socket lives up to an
-# hour on any of them (an app's, a room's).
-{{- $paths := list "/rtc" "/twirp" "/validate" "/agent" }}
+# hour on any of them (an app's, a room's). A browser's paths alone: LiveKit's API (/twirp) and its
+# workers' registration (/agent) are reached inside the cluster by the gateways and the workers
+# (LIVEKIT_URL), and from the internet they would answer anyone who held the API pair.
+{{- $paths := list "/rtc" "/validate" }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
