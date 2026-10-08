@@ -20,7 +20,7 @@ from pinecall.wire.metrics import (
 def test_a_cache_read_and_a_cache_write_are_priced_apart(configured: Providers) -> None:
     used = LLMModelUsage(
         provider="anthropic",
-        model="claude-haiku-4-5",
+        model="claude-haiku-5-5",
         input_tokens=1_000_000,
         input_cached_tokens=400_000,
         input_cache_creation_tokens=100_000,
@@ -41,8 +41,8 @@ def test_a_model_the_rates_do_not_know_is_listed_unpriced_and_never_at_zero(
 
 
 def test_a_model_is_priced_by_the_longest_prefix_that_matches_it() -> None:
-    rates = {"claude": Rate(input=9.0), "claude-haiku-4-5": Rate(input=1.0)}
-    found = rate_of(rates, "claude-haiku-4-5-20251001")
+    rates = {"claude": Rate(input=9.0), "claude-haiku-5-5": Rate(input=1.0)}
+    found = rate_of(rates, "claude-haiku-5-5-20261001")
     assert found is not None
     assert found.input == 1.0
     assert rate_of(rates, "gpt-5") is None
@@ -102,7 +102,7 @@ def test_livekits_own_turn_models_owe_nothing_and_are_neither_a_line_nor_unprice
 
 def test_one_call_bills_its_three_vendors_together(configured: Providers) -> None:
     usage = [
-        LLMModelUsage(provider="a", model="claude-haiku-4-5", input_tokens=1000, output_tokens=100),
+        LLMModelUsage(provider="a", model="claude-haiku-5-5", input_tokens=1000, output_tokens=100),
         TTSModelUsage(provider="c", model="sonic-3", characters_count=1000),
         STTModelUsage(provider="d", model="flux-general-multi", audio_duration=60.0),
     ]
@@ -114,7 +114,7 @@ def test_one_call_bills_its_three_vendors_together(configured: Providers) -> Non
 def test_a_row_labelled_with_the_api_host_is_priced_by_its_model_all_the_same(
     configured: Providers,
 ) -> None:
-    used = LLMModelUsage(provider="api.anthropic.com", model="claude-haiku-4-5", output_tokens=10)
+    used = LLMModelUsage(provider="api.anthropic.com", model="claude-haiku-5-5", output_tokens=10)
     assert [row.provider for row in cost([used], configured).rows] == ["api.anthropic.com"]
 
 
@@ -125,12 +125,12 @@ def test_a_prices_file_gathers_a_models_units_into_one_rate_dated_by_its_newest_
     rates = rates_from_csv(
         "# a note\n"
         + HEADER
-        + "anthropic,claude-haiku-4-5,input_tokens,1,2026-09-01,https://x\n"
-        + "anthropic,claude-haiku-4-5,output_tokens,5,2026-09-29,https://x\n"
+        + "anthropic,claude-haiku-5-5,input_tokens,1,2026-09-01,https://x\n"
+        + "anthropic,claude-haiku-5-5,output_tokens,5,2026-09-29,https://x\n"
         + "cartesia,sonic-3,characters,0.00005,2026-08-21,https://y\n"
     )
     assert rates == {
-        "claude-haiku-4-5": Rate(input=1.0, output=5.0, as_of="2026-09-29"),
+        "claude-haiku-5-5": Rate(input=1.0, output=5.0, as_of="2026-09-29"),
         "sonic-3": Rate(characters=0.00005, as_of="2026-08-21"),
     }
 
@@ -178,7 +178,8 @@ def test_the_prices_file_the_repository_ships_reads_whole() -> None:
     shipped = Path(__file__).parents[2] / "infra" / "seed" / "prices.csv"
     rates = rates_from_csv(shipped.read_text(encoding="utf-8"))
     assert rates["flux-general-multi"].audio_seconds == 0.00013
-    assert rates["claude-haiku-4-5"].output == 5.0
+    assert rates["claude-haiku-5-5"].output == 0.5
+    assert "claude-haiku-4-5" not in rates
     assert rates["twilio-inbound/+1"].minutes == 0.0034
 
 

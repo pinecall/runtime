@@ -44,7 +44,7 @@ A rollback is a new version equal to an old one, and the history says so.
 ```json
 { "world": "sandbox",
   "yours":      { "holder": "m_ana", "version": 4, "author": "m_ana", "note": "flat", "set_at": 1758300000, "config": { "voice": "amelia" } },
-  "team":       { "holder": "", "version": 11, "author": "m_bruno", "note": null, "set_at": 1758200000, "config": { "llm": "anthropic/claude-haiku-4-5", "greeting": { "say": "Buenas…" } } },
+  "team":       { "holder": "", "version": 11, "author": "m_bruno", "note": null, "set_at": 1758200000, "config": { "llm": "anthropic/claude-haiku-5-5", "greeting": { "say": "Buenas…" } } },
   "production": null }
 ```
 
@@ -66,7 +66,7 @@ llm_timeout}`; unset, 12 s), `knowledge` (Markdown read whole into the static bl
 ## `PUT /v1/agents/{slug}/settings` — `pipeline` or `words`
 
 ```json
-{ "config": { "voice": "amelia", "llm": "anthropic/claude-haiku-4-5" }, "if_version": 4, "note": "cleaner", "team": false }
+{ "config": { "voice": "amelia", "llm": "anthropic/claude-haiku-5-5" }, "if_version": 4, "note": "cleaner", "team": false }
 ```
 
 The **whole** set for this scope. It is checked as a call would be built from it: the declaration

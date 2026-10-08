@@ -7,10 +7,6 @@
 # Model rows from voice-prices (github.com/mahimailabs/voice-prices, MIT, notice in
 # prices.LICENSE); every row was checked against its source on `as_of`.
 vendor,model,unit,usd,as_of,source
-anthropic,claude-haiku-4-5,input_tokens,1,2026-09-29,https://claude.com/pricing
-anthropic,claude-haiku-4-5,cached_input_tokens,0.1,2026-09-29,https://claude.com/pricing
-anthropic,claude-haiku-4-5,cache_creation_tokens,1.25,2026-09-29,https://claude.com/pricing
-anthropic,claude-haiku-4-5,output_tokens,5,2026-09-29,https://claude.com/pricing
 anthropic,claude-haiku-5-5,input_tokens,0.1,2026-10-08,https://claude.com/pricing
 anthropic,claude-haiku-5-5,cached_input_tokens,0.01,2026-10-08,https://claude.com/pricing
 anthropic,claude-haiku-5-5,cache_creation_tokens,0.125,2026-10-08,https://claude.com/pricing

@@ -13,7 +13,7 @@ def test_a_key_python_cannot_spell_travels_by_its_wire_name() -> None:
 def test_a_cost_written_in_euros_reads_as_the_same_dollars_and_is_written_in_dollars() -> None:
     row: JsonObject = {
         "provider": "api.anthropic.com",
-        "model": "claude-haiku-4-5",
+        "model": "claude-haiku-5-5",
         "unit": "output_tokens",
     }
     priced: JsonObject = {**row, "quantity": 100.0, "unit_price_usd": 5.0}

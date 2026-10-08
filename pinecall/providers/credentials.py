@@ -132,8 +132,8 @@ def running(keys: Keyring, vendor: str, model: str | None) -> Running:
     return Running(vendor=vendor, credentials=box, model=model, lent=True)
 
 
-# A model entry lends itself and its dated snapshots (`anthropic/claude-haiku-4-5` lends
-# `claude-haiku-4-5-20251001`), never a sibling that only starts the same (`openai/gpt-5` lends no
+# A model entry lends itself and its dated snapshots (`anthropic/claude-haiku-5-5` lends
+# `claude-haiku-5-5-20261001`), never a sibling that only starts the same (`openai/gpt-5` lends no
 # `gpt-5-pro`); a plugin's own default needs the whole vendor.
 def lent(lends: frozenset[str] | None, vendor: str, model: str | None) -> bool:
     """Whether the box lends this org its key for this vendor and model."""

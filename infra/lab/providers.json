@@ -1,7 +1,7 @@
 {
  "hints": ["es", "en"],
  "defaults": {
-  "llm": {"vendor": "anthropic", "model": "claude-haiku-4-5-20251001", "fallbacks": []},
+  "llm": {"vendor": "anthropic", "model": "claude-haiku-5-5", "fallbacks": []},
   "stt": {"vendor": "deepgram", "model": "flux-general-multi", "fallbacks": []},
   "tts": {"vendor": "cartesia", "model": null, "fallbacks": []}
  },
@@ -10,6 +10,6 @@
   "stt/deepgram": {"builds": "STTv2", "options": {"base_url": "ws://FAKES_HOST:8700/v2/listen"}, "turn_model": "v1-mini", "ends_the_turn": true},
   "tts/cartesia": {"options": {"base_url": "http://FAKES_HOST:8700"}}
  },
- "judge": {"llm": {"vendor": "anthropic", "model": "claude-haiku-4-5-20251001", "fallbacks": []}, "ceiling_usd": 0.03},
+ "judge": {"llm": {"vendor": "anthropic", "model": "claude-haiku-5-5", "fallbacks": []}, "ceiling_usd": 0.03},
  "embedding": {"vendor": "openai", "url": "http://FAKES_HOST:8700/v1", "model": "none", "shape": "embeddings", "dimensions": 1024}
 }

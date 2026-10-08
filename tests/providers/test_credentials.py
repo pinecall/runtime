@@ -60,7 +60,7 @@ def test_an_orgs_own_key_runs_any_model_whatever_the_box_lends() -> None:
 
 
 def test_the_box_refuses_a_model_it_does_not_lend_before_building_anything() -> None:
-    keys = Keyring(box=THE_BOX, lends=frozenset({"anthropic/claude-haiku-4-5"}))
+    keys = Keyring(box=THE_BOX, lends=frozenset({"anthropic/claude-haiku-5-5"}))
     with pytest.raises(NotAllowed, match="anthropic/claude-opus-5 is not lent to this org"):
         running(keys, "anthropic", "claude-opus-5")
 
@@ -80,24 +80,24 @@ def test_a_whole_vendor_lends_every_model_of_it_and_its_default() -> None:
 
 
 def test_a_model_entry_lends_its_snapshots_and_nothing_dearer() -> None:
-    lends = frozenset({"anthropic/claude-haiku-4-5", "openai/gpt-5", "anthropic/claude-haiku-4"})
-    assert lent(lends, "anthropic", "claude-haiku-4-5-20251001")
+    lends = frozenset({"anthropic/claude-haiku-5-5", "openai/gpt-5", "anthropic/claude-haiku-4"})
+    assert lent(lends, "anthropic", "claude-haiku-5-5-20261001")
     assert lent(lends, "openai", "gpt-5")
     assert lent(lends, "openai", "gpt-5-2025-08-07")
     assert not lent(lends, "anthropic", "claude-sonnet-5")
     # A sibling that only starts the same is another model, and dearer.
     assert not lent(lends, "openai", "gpt-5-pro")
-    assert not lent(frozenset({"anthropic/claude-haiku-4"}), "anthropic", "claude-haiku-4-5")
+    assert not lent(frozenset({"anthropic/claude-haiku-4"}), "anthropic", "claude-haiku-5-5")
 
 
 def test_a_model_entry_does_not_lend_the_plugins_unnamed_default() -> None:
-    assert not lent(frozenset({"anthropic/claude-haiku-4-5"}), "anthropic", None)
+    assert not lent(frozenset({"anthropic/claude-haiku-5-5"}), "anthropic", None)
 
 
 def test_the_refusal_names_what_was_asked_what_may_run_and_the_other_way() -> None:
-    text = refusal(frozenset({"deepgram", "anthropic/claude-haiku-4-5"}), "openai", "gpt-5")
+    text = refusal(frozenset({"deepgram", "anthropic/claude-haiku-5-5"}), "openai", "gpt-5")
     assert text == (
-        "openai/gpt-5 is not lent to this org: it may run on anthropic/claude-haiku-4-5, "
+        "openai/gpt-5 is not lent to this org: it may run on anthropic/claude-haiku-5-5, "
         "deepgram, or on a key of its own"
     )
     assert "nothing of the box's" in refusal(frozenset(), "openai", None)
@@ -116,7 +116,7 @@ def test_a_door_takes_entries_spelled_once_and_refuses_what_names_nothing() -> N
 
 def test_an_agent_that_declares_nothing_runs_the_boxs_defaults(configured: Providers) -> None:
     stages = pipeline(AGENT, configured, Keyring(box=THE_BOX))
-    assert (stages.llm.vendor, stages.llm.model) == ("anthropic", "claude-haiku-4-5")
+    assert (stages.llm.vendor, stages.llm.model) == ("anthropic", "claude-haiku-5-5")
     assert (stages.stt.vendor, stages.stt.model) == ("deepgram", "flux-general-multi")
     assert (stages.tts.vendor, stages.tts.model) == ("cartesia", "sonic-3")
 
@@ -169,17 +169,18 @@ def test_a_models_own_tuning_replaces_its_vendors_and_its_request_reaches_the_st
     on_5 = AgentConfig(slug="a", llm=Model(provider="anthropic", model="claude-haiku-5-5-20261001"))
     stage = pipeline(on_5, tuned, keys).llm
     assert (stage.options, stage.request) == ({}, {"thinking": {"type": "disabled"}})
-    on_4 = pipeline(AGENT, tuned, keys).llm
-    assert (on_4.options, on_4.request) == ({"caching": "ephemeral"}, {})
+    on_sonnet = AgentConfig(slug="a", llm=Model(provider="anthropic", model="claude-sonnet-5-5"))
+    other = pipeline(on_sonnet, tuned, keys).llm
+    assert (other.options, other.request) == ({"caching": "ephemeral"}, {})
 
 
 def test_the_model_judged_for_lending_is_the_one_that_runs(configured: Providers) -> None:
     keys = Keyring(
-        box=THE_BOX, lends=frozenset({"anthropic/claude-haiku-4-5", "deepgram", "cartesia"})
+        box=THE_BOX, lends=frozenset({"anthropic/claude-haiku-5-5", "deepgram", "cartesia"})
     )
     assert pipeline(AGENT, configured, keys).llm.lent
     stingy = Keyring(box=THE_BOX, lends=frozenset({"anthropic/claude-sonnet-5"}))
-    with pytest.raises(NotAllowed, match="anthropic/claude-haiku-4-5 is not lent"):
+    with pytest.raises(NotAllowed, match="anthropic/claude-haiku-5-5 is not lent"):
         pipeline(AGENT, configured, stingy)
 
 

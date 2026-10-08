@@ -49,7 +49,7 @@ limits, which is what a self-hosted platform runs.
 {
   "first": {
     "sandbox":    {"minutes": 30, "messages": 300, "llm_tokens": 2000000, "concurrent_calls": 1,
-                   "lends": ["deepgram", "cartesia", "anthropic/claude-haiku-4-5"]},
+                   "lends": ["deepgram", "cartesia", "anthropic/claude-haiku-5-5"]},
     "production": {"minutes": 0, "messages": 0, "llm_tokens": 0, "lends": []}
   },
   "later": {
@@ -70,5 +70,5 @@ pinecall providers add deepgram        # the org's own key, sealed; every Deepgr
 Where an org brought no key, its calls run on the platform's, and only on what the org's `lends`
 says in that environment: **null** lends every key the platform holds, an **empty list** lends none, and
 otherwise each entry is a vendor (`deepgram`) or a vendor and a model prefix
-(`anthropic/claude-haiku-4-5`). A vendor nobody holds a key for is refused before the call
+(`anthropic/claude-haiku-5-5`). A vendor nobody holds a key for is refused before the call
 opens.

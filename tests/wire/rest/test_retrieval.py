@@ -131,7 +131,7 @@ BODIES: list[tuple[type[WireModel], JsonObject]] = [
         ExtractionRun,
         {
             "agent": "recepcion",
-            "model": "anthropic/claude-haiku-4-5",
+            "model": "anthropic/claude-haiku-5-5",
             "cases": 1,
             "held": 0,
             "took_ms": 900.0,

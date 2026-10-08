@@ -12,14 +12,14 @@ Every endpoint below takes a key with the `evals` scope and acts in the key's or
 ## A suite — `POST /v1/evals/run`
 
 ```
-$ pinecall test --model anthropic/claude-haiku-4-5
+$ pinecall test --model anthropic/claude-haiku-5-5
 POST /v1/evals/run
 {"agent": "recepcion",
  "goldens": [{"name": "reserva", "state": {"stage": "book"}, "input": ["quiero el jueves"],
               "memory": ["prefiere la mañana"], "today": "2026-09-08",
               "events": [{"after_turn": 1, "name": "slot_freed", "data": {"at": "10:15"}}],
               "expect": {"tools": ["book"], "not": ["gratis"], "register": "usted"}}],
- "models": [{"provider": "anthropic", "model": "claude-haiku-4-5"}],
+ "models": [{"provider": "anthropic", "model": "claude-haiku-5-5"}],
  "app": null, "voice": false}
 ```
 
@@ -42,8 +42,8 @@ run, finished:
 ```json
 {"id": "run_3f0c…", "agent": "recepcion", "started_at": 1790000000.1, "finished_at": 1790000031.4,
  "status": "done",
- "calls": [{"golden": "reserva", "model": "anthropic/claude-haiku-4-5", "call": "call_…"}],
- "matrix": {"models": ["anthropic/claude-haiku-4-5"], "goldens": ["reserva"],
+ "calls": [{"golden": "reserva", "model": "anthropic/claude-haiku-5-5", "call": "call_…"}],
+ "matrix": {"models": ["anthropic/claude-haiku-5-5"], "goldens": ["reserva"],
             "metrics": ["consent", "heard", "tools", "silence", "register"], "judge_calls": 0,
             "runs": [{"model": "…", "golden": "reserva", "summary": {…},
                       "scores": [{"metric": "consent", "score": 1.0, "passed": true,
@@ -259,7 +259,7 @@ of their own. `GET /v1/agents/recepcion/personas` lists that agent's callers.
 ```
 PUT /v1/agents/recepcion/personas/apurado
 {"goal": "cambiar la cita al martes", "style": "frases cortas", "facts": {"nombre": "Ana"},
- "llm": "anthropic/claude-haiku-4-5", "accepts_when": "le dan hora el martes", "was": null}
+ "llm": "anthropic/claude-haiku-5-5", "accepts_when": "le dan hora el martes", "was": null}
 ```
 
 The name is lower-case words joined by hyphens; `was` renames, within the agent. A vendor this deployment

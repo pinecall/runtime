@@ -14,7 +14,7 @@ from pinecall.wire.rest.evals import Golden, JudgeScore, OpenedCall, ScoreRow
 from tests.conftest import postgres
 from tests.evals.conftest import A_SUMMARY, THE_CLINIC, before_the_yes, confirmed, entry
 
-HAIKU = "anthropic/claude-haiku-4-5"
+HAIKU = "anthropic/claude-haiku-5-5"
 
 
 SONNET = "anthropic/claude-sonnet-4-6"
@@ -135,7 +135,7 @@ def test_a_cell_that_held_carries_no_requests_and_one_that_broke_carries_them() 
 
 def test_a_column_is_the_model_run_or_the_agents_own() -> None:
     assert runs.column_of(None) == "declared"
-    assert runs.column_of(ModelConfig(provider="anthropic", model="claude-haiku-4-5")) == HAIKU
+    assert runs.column_of(ModelConfig(provider="anthropic", model="claude-haiku-5-5")) == HAIKU
 
 
 def test_a_run_that_stops_early_keeps_its_cells_and_says_why() -> None:

@@ -11,7 +11,7 @@ def configured() -> Providers:
     return Providers.model_validate(
         {
             "defaults": {
-                "llm": {"vendor": "anthropic", "model": "claude-haiku-4-5"},
+                "llm": {"vendor": "anthropic", "model": "claude-haiku-5-5"},
                 "stt": {"vendor": "deepgram", "model": "flux-general-multi"},
                 "tts": {"vendor": "cartesia", "model": "sonic-3"},
             },
@@ -27,7 +27,7 @@ def configured() -> Providers:
             },
             "hints": ["es", "en"],
             "rates": {
-                "claude-haiku-4-5": {"input": 1.0, "output": 5.0, "cached_input": 0.1},
+                "claude-haiku-5-5": {"input": 1.0, "output": 5.0, "cached_input": 0.1},
                 "sonic": {"characters": 0.00003},
                 "flux": {"audio_seconds": 0.0001},
             },

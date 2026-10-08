@@ -10,7 +10,7 @@ What one agent would hear, decide and speak with on its next call, and how fast 
 ```json
 { "agent": "clinica-norte",
   "hears":   { "vendor": "soniox", "model": null, "voice_id": null, "language": "es" },
-  "decides": { "vendor": "anthropic", "model": "claude-haiku-4-5", "voice_id": null, "language": null },
+  "decides": { "vendor": "anthropic", "model": "claude-haiku-5-5", "voice_id": null, "language": null },
   "speaks":  { "vendor": "elevenlabs", "model": null, "voice_id": "a-voice", "language": "es" },
   "greeting": { "say": "Clínica Norte, buenas.", "reply": null, "allow_interruptions": null },
   "providers": [ … ],

@@ -263,7 +263,7 @@ async def messages(request: web.Request) -> web.StreamResponse:
         "id": f"msg_{uuid.uuid4().hex[:24]}",
         "type": "message",
         "role": "assistant",
-        "model": body.get("model", "claude-haiku-4-5"),
+        "model": body.get("model", "claude-haiku-5-5"),
         "content": [],
         "stop_reason": None,
         "stop_sequence": None,

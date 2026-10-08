@@ -47,7 +47,7 @@ def answered(ttft: float, ttfb: float) -> JsonObject:
     report: JsonObject = {
         "llm_node_ttft": ttft,
         "tts_node_ttfb": ttfb,
-        "llm_metadata": {"model_provider": "anthropic", "model_name": "claude-haiku-4-5"},
+        "llm_metadata": {"model_provider": "anthropic", "model_name": "claude-haiku-5-5"},
         "tts_metadata": {"model_provider": "cartesia", "model_name": "sonic-3"},
     }
     return {"speech_id": "a", "text": "claro", "interrupted": False, "metrics": report}
@@ -112,7 +112,7 @@ async def test_each_stage_of_a_window_is_read_by_vendor_and_model_every_version_
     stages = await drift.stages_of_window(store.pool, Scope(an_org), THE_DAY, THE_DAY, None)
     rows = [(stage.stage, stage.vendor, stage.model, stage.turns) for stage in stages]
     assert rows == [
-        ("llm", "anthropic", "claude-haiku-4-5", 1),
+        ("llm", "anthropic", "claude-haiku-5-5", 1),
         ("stt", "deepgram", "nova-3", 1),
         ("stt", "soniox", "stt-rt-v5", 3),
         ("tts", "cartesia", "sonic-3", 1),

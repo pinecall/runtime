@@ -211,7 +211,7 @@ async def test_every_quota_round_trips_and_zero_comes_back_as_zero_and_not_as_no
         llm_tokens=8,
         hosted_apps=10,
         budget_usd=9,
-        lends=frozenset({"deepgram", "anthropic/claude-haiku-4-5"}),
+        lends=frozenset({"deepgram", "anthropic/claude-haiku-5-5"}),
     )
     await set_quotas(pool, org.id, "production", every)
     assert await quotas_of(pool, org.id, "production") == every
