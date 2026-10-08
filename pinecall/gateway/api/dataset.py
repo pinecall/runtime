@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Path, Query
+from pydantic import BaseModel, Field
 
 from pinecall.domain.errors import Conflict, NotFound
 from pinecall.domain.names import Env
@@ -31,6 +32,13 @@ router = APIRouter()
 
 
 STILL_GOING = "call {call} is still going: a case is made of a call that ended"
+
+
+class GoldenQuery(BaseModel):
+    """What a call read as a golden is named, and the seq it is cut at."""
+
+    name: str | None = Field(default=None, min_length=1)
+    from_seq: int = Field(default=0, ge=0)
 
 
 # The case is the org's, played in the sandbox whichever world its call ran in; the key must be
@@ -67,13 +75,14 @@ async def golden_of_call(
     key: EvalsKey,
     scope: ScopeDep,
     gateway: GatewayDep,
-    name: Annotated[str | None, Query(min_length=1)] = None,
+    query: Annotated[GoldenQuery, Query()],
 ) -> Golden:
-    """The golden a finished call makes, its expect from its broken verdicts; nothing is kept."""
+    """The golden a finished call makes from a seq on, its expect from its broken verdicts."""
     entries, _, _, _ = await _finished(gateway, key, scope, call)
     score = _score_in(entries)
     expect = Expect() if score is None else dataset.expect_of(score.judges, entries)
-    return dataset.golden_of(entries, name or call, expect)
+    cut = dataset.cut_at(entries, query.from_seq)
+    return dataset.golden_of(cut, query.name or call, expect)
 
 
 @router.get("/v1/evals/cases", response_model_exclude_unset=True)

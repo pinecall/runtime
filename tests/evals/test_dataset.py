@@ -68,6 +68,18 @@ def test_a_broken_verdict_says_what_must_not_happen_again_and_a_model_judge_is_n
     assert expect.judges == ["promises"], "persona needs a simulated caller; a case has none"
 
 
+def test_a_call_cut_at_a_seq_opens_in_the_state_it_was_in_there_and_plays_what_came_after() -> None:
+    log = a_log(
+        ("state.changed", {"state": {"stage": "identify"}, "changed": ["stage"]}),
+        caller("Soy Marta"),
+        ("state.changed", {"state": {"stage": "book"}, "changed": ["stage"]}),
+        caller("El jueves"),
+    )
+    golden = golden_of(dataset.cut_at(log, 3), "jueves", Expect())
+    assert (golden.state, golden.input) == ({"stage": "book"}, ["El jueves"])
+    assert golden_of(dataset.cut_at(log, 0), "todo", Expect()).input == ["Soy Marta", "El jueves"]
+
+
 def test_a_call_whose_caller_said_nothing_is_no_case() -> None:
     with pytest.raises(Conflict, match="no line of the caller's"):
         golden_of(a_log(agent("¿Hola?")), "silence", Expect())

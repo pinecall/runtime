@@ -130,8 +130,9 @@ with a key of production. The case is the org's, in both environments, and playe
 A call still going is `409`, one whose caller said nothing is `409`, and a name the agent has
 already is `409`.
 
-**Read as a golden, kept nowhere.** `GET /v1/calls/{call}/golden?name=` answers the golden the
-call makes, with the same derived `expect`: what `pinecall runs promote` writes to the project's
+**Read as a golden, kept nowhere.** `GET /v1/calls/{call}/golden?name=&from_seq=` answers the
+golden the call makes, with the same derived `expect`; `from_seq` opens it in the state the call
+was in at that seq and plays only the lines after it: what `pinecall runs promote` writes to the project's
 `test/candidates/` for a case that names the code (a stage, a tool, an event) and belongs in the
 repository.
 

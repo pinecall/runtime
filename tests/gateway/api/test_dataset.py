@@ -151,11 +151,13 @@ async def test_a_call_read_as_a_golden_says_what_its_broken_verdicts_forbid(
     call = await a_real_call(knocking, "¿Me llaman mañana?", score=BROKE_A_PROMISE)
     async with knocking.http(knocking.app["production"]) as org:
         read = await org.get(f"/v1/calls/{call}/golden", params={"name": "llamada"})
+        cut = await org.get(f"/v1/calls/{call}/golden", params={"from_seq": 1})
         kept = await org.post(CASES, json={"call": call, "name": "llamada"})
         cases = await org.get(CASES, params={"agent": AGENT})
     assert read.status_code == 200, read.text
     assert read.json()["expect"] == {"judges": ["promises"]}
     assert read.json()["name"] == "llamada"
+    assert (cut.json()["state"], cut.json()["input"]) == ({"stage": "book"}, ["¿Me llaman mañana?"])
     case = kept.json()
     assert case["golden"]["expect"] == {"judges": ["promises"]}, "an expect left empty is derived"
     assert case["status"] == "approved", "a case a person kept is approved from the start"

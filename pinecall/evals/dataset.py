@@ -216,6 +216,15 @@ def golden_of(entries: Sequence[Entry], name: str, expect: Expect) -> Golden:
     )
 
 
+# `state.changed` holds the whole state, so the last one at or before the cut is where it opens.
+def cut_at(entries: Sequence[Entry], seq: int) -> list[Entry]:
+    """The call from after a seq on, opening in the state it was in at that seq."""
+    if seq == 0:
+        return list(entries)
+    states = [entry for entry in entries if entry.type == "state.changed" and entry.seq <= seq]
+    return [*states[-1:], *(entry for entry in entries if entry.seq > seq)]
+
+
 # A verdict knows what broke, never what was right: the expect says "not like this again", and a
 # person writes what the agent should have done.
 def expect_of(judgments: Sequence[Judgment], entries: Sequence[Entry]) -> Expect:
