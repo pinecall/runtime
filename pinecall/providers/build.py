@@ -1,5 +1,6 @@
 """The vendors livekit ships once installed, and one of them built for a stage of a call."""
 
+import asyncio
 import dataclasses
 import importlib
 import importlib.util
@@ -13,10 +14,18 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from functools import cache
 from types import ModuleType
-from typing import Literal, Never
+from typing import Any, Literal, Never, override
 
 from livekit.agents import llm, stt, tts
 from livekit.agents.language import LanguageCode
+from livekit.agents.llm import Tool, ToolChoice
+from livekit.agents.types import (
+    DEFAULT_API_CONNECT_OPTIONS,
+    NOT_GIVEN,
+    APIConnectOptions,
+    NotGivenOr,
+)
+from livekit.agents.utils import is_given
 from typing_extensions import TypeIs
 
 from pinecall.domain.agent import Tuning, Turn
@@ -152,10 +161,79 @@ class Running:
     ends_the_turn: bool = False
     # Which local model reads the end of the turn off the audio, where the ears do not.
     turn_model: TurnModel = "v1-mini"
+    # What every request of an llm stage carries beside the conversation, in the vendor's names.
+    request: JsonObject = field(default_factory=dict[str, Json])
     # On the box's key rather than the org's own.
     lent: bool = False
     # Who takes over, in order, each on its own key: the stage is livekit's FallbackAdapter.
     fallbacks: tuple["Running", ...] = ()
+
+
+# A plugin's constructor takes no field for every request (a model's thinking, its effort), and
+# livekit hands each request extra_kwargs: the row's ride every one, a caller's own over them.
+class LLMWithRequest(llm.LLM[Never]):
+    """A plugin's LLM whose every request also carries the operator's fields for its model."""
+
+    def __init__(self, built: llm.LLM[Never], request: JsonObject) -> None:
+        """Wrap the built LLM, and pass on what it reports as its own."""
+        super().__init__()
+        self.built = built
+        self.request = request
+        self._label = built.label
+        built.on("metrics_collected", self._reported_metrics)  # pyright: ignore[reportUnknownMemberType]
+        built.on("error", self._reported_error)  # pyright: ignore[reportUnknownMemberType]
+
+    @property
+    @override
+    def model(self) -> str:
+        """The built LLM's model, so usage and metrics name it."""
+        return self.built.model
+
+    @property
+    @override
+    def provider(self) -> str:
+        """The built LLM's vendor, so usage and metrics name it."""
+        return self.built.provider
+
+    @override
+    def chat(
+        self,
+        *,
+        chat_ctx: llm.ChatContext,
+        tools: list[Tool] | None = None,
+        conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS,
+        parallel_tool_calls: NotGivenOr[bool] = NOT_GIVEN,
+        tool_choice: NotGivenOr[ToolChoice] = NOT_GIVEN,
+        extra_kwargs: NotGivenOr[dict[str, Any]] = NOT_GIVEN,
+    ) -> llm.LLMStream:
+        """The built LLM's request, with the row's fields and the caller's over them."""
+        given = extra_kwargs if is_given(extra_kwargs) else {}
+        return self.built.chat(
+            chat_ctx=chat_ctx,
+            tools=tools,
+            conn_options=conn_options,
+            parallel_tool_calls=parallel_tool_calls,
+            tool_choice=tool_choice,
+            extra_kwargs={**self.request, **given},
+        )
+
+    @override
+    def prewarm(self, *, loop: asyncio.AbstractEventLoop | None = None) -> None:
+        """Open the built LLM's connection before the first request."""
+        self.built.prewarm(loop=loop)
+
+    @override
+    async def aclose(self) -> None:
+        """Stop listening to the built LLM, and close it."""
+        self.built.off("metrics_collected", self._reported_metrics)  # pyright: ignore[reportUnknownMemberType]
+        self.built.off("error", self._reported_error)  # pyright: ignore[reportUnknownMemberType]
+        await self.built.aclose()
+
+    def _reported_metrics(self, *args: object) -> None:
+        self.emit("metrics_collected", *args)
+
+    def _reported_error(self, *args: object) -> None:
+        self.emit("error", *args)
 
 
 MODALITIES: tuple[Modality, ...] = ("llm", "stt", "tts")
@@ -247,7 +325,8 @@ def primary(language: str | None) -> str | None:
 
 def llm_of(running: Running) -> llm.LLM[Never]:
     """The LLM a stage runs: the plugin's class called with the key, the model and the options."""
-    return _built("llm", _AN_LLM, running, {})
+    built = _built("llm", _AN_LLM, running, {})
+    return LLMWithRequest(built, running.request) if running.request else built
 
 
 # A model the runtime asks itself, outside a call's session: livekit meters none of it.

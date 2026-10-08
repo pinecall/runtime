@@ -18,7 +18,7 @@ from livekit.agents import (
 )
 from livekit.agents.llm import ChatContext, Tool, ToolChoice
 from livekit.agents.types import DEFAULT_API_CONNECT_OPTIONS, NOT_GIVEN, NotGivenOr
-from livekit.agents.utils import AudioBuffer
+from livekit.agents.utils import AudioBuffer, is_given
 from livekit.rtc._proto import handle_pb2, participant_pb2
 
 from pinecall.providers.build import a_mapping
@@ -244,6 +244,8 @@ class ModelRequest:
     items: list[llm.ChatItem]
     tools: list[str]
     tool_choice: object
+    # livekit's extra_kwargs: what the request carried beside the conversation.
+    extra: dict[str, object] = field(default_factory=dict[str, object])
 
 
 class AcmeLLM(llm.LLM[Never]):
@@ -298,7 +300,8 @@ class AcmeLLM(llm.LLM[Never]):
     ) -> llm.LLMStream:
         """Stream the next reply of the script; past its end, say nothing."""
         offered = [str(getattr(tool, "id", "")) for tool in tools or []]
-        self.requests.append(ModelRequest(list(chat_ctx.items), offered, tool_choice))
+        extra = dict(extra_kwargs) if is_given(extra_kwargs) else {}
+        self.requests.append(ModelRequest(list(chat_ctx.items), offered, tool_choice, extra))
         reply = self.replies.pop(0) if self.replies else ()
         return _Streamed(self, reply, chat_ctx, tools or [], conn_options)
 

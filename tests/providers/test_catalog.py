@@ -74,6 +74,18 @@ def test_a_key_of_the_row_names_a_stage_and_a_vendor_that_does_it(configured: Pr
     assert checked(configured) == configured
 
 
+def test_a_tuning_key_may_name_a_model_and_only_a_model_takes_a_request(
+    configured: Providers,
+) -> None:
+    disabled = StageOptions(request={"thinking": {"type": "disabled"}})
+    by_model = {"tuning": {"llm/anthropic/claude-haiku-5-5": disabled}}
+    assert checked(configured.model_copy(update=by_model)).tuning == by_model["tuning"]
+    with pytest.raises(DeclarationRefused, match="no vendor named 'nobody'"):
+        checked(configured.model_copy(update={"tuning": {"llm/nobody/a-model": disabled}}))
+    with pytest.raises(DeclarationRefused, match="only llm"):
+        checked(configured.model_copy(update={"tuning": {"stt/deepgram": disabled}}))
+
+
 @postgres
 async def test_whatsapp_is_a_key_and_never_a_stage(pool: Pool, configured: Providers) -> None:
     chatting = configured.model_copy(

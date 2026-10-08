@@ -8,7 +8,7 @@ from typing import Literal
 
 from pinecall.domain.call import PhoneLeg
 from pinecall.domain.errors import DeclarationRefused
-from pinecall.providers.catalog import Providers, Rate
+from pinecall.providers.catalog import Providers, Rate, longest_prefix
 from pinecall.wire.metrics import LLMModelUsage, ModelUsage, STTModelUsage, TTSModelUsage
 from pinecall.wire.parts import PLATFORM, Cost, CostRow, UnpricedRow
 
@@ -79,7 +79,7 @@ def cost(
 
 def rate_of(rates: Mapping[str, Rate], model: str) -> Rate | None:
     """The rate whose key is the longest prefix of the model id, so snapshots price by family."""
-    key = _longest_prefix(rates, model)
+    key = longest_prefix(rates, model)
     return None if key is None else rates[key]
 
 
@@ -196,7 +196,7 @@ def _row(
 # A carrier prices a leg by the longest prefix of its number, as its own rate tables do; the row
 # names the prefix it matched, never the number.
 def _leg_row(leg: PhoneLeg, rates: Mapping[str, Rate]) -> CostRow | None:
-    key = _longest_prefix(rates, f"{_leg_name(leg)}/{leg.number}")
+    key = longest_prefix(rates, f"{_leg_name(leg)}/{leg.number}")
     per = None if key is None else rates[key].minutes
     if key is None or per is None:
         return None
@@ -228,11 +228,6 @@ def _compute_row(seconds: float, rates: Mapping[str, Rate]) -> CostRow | None:
 
 def _leg_name(leg: PhoneLeg) -> str:
     return f"{leg.carrier}-{leg.direction}"
-
-
-def _longest_prefix(rates: Mapping[str, Rate], name: str) -> str | None:
-    listed = [key for key in rates if name.startswith(key)]
-    return max(listed, key=len) if listed else None
 
 
 def _usd(text: str, number: int) -> float:

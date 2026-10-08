@@ -28,6 +28,14 @@ Four rows of `box_settings`, each read and written whole, the console's platform
   one simulated call's caller may spend on its lines and its voice (`caller.ceiling_usd`: past it
   the caller hangs up; absent, it spends what its turns ask), the embedder. A vendor not installed, or not doing the stage it is named for, is `400` where it is
   written. No vendor is listed in code: every livekit plugin installed is one.
+  A `tuning` key names a stage and a vendor (`"llm/anthropic"`) or, after them, a model
+  (`"llm/anthropic/claude-haiku-5-5"`): the longest key the model's id starts with replaces the
+  vendor's whole, so a dated snapshot reads as its family. An llm entry's `request` is what every
+  request of that model carries beside the conversation, in the vendor's own field names —
+  `{"thinking": {"type": "disabled"}}`, `{"output_config": {"effort": "low"}}` — the judge's,
+  the simulated caller's and a call's alike; a field the runtime asks for itself wins over it. On
+  any other stage `request` is `400`. The judge is asked at its model's own temperature: put one
+  in `request` where its model takes it.
   How a spoken turn ends is the ears' `tuning` too, `"stt/<vendor>": {ends_the_turn, turn_model}`:
   ears with `ends_the_turn` close the turn themselves; the others get a local model that reads it
   off the caller's audio on the worker's CPU, no transcript: `turn_model` `v1-mini` (livekit's own,

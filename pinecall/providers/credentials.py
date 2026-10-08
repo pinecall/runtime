@@ -11,7 +11,7 @@ from pinecall.domain.agent import AgentConfig, Model, Voice
 from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotAvailable
 from pinecall.domain.names import Credentials
 from pinecall.providers.build import Modality, Running, Vendor, installed, primary
-from pinecall.providers.catalog import Providers
+from pinecall.providers.catalog import Providers, tuning_of
 from pinecall.providers.declared import SEPARATOR
 
 # yours: the org brought its key. offered: the box holds one and lends it to this org. bring your
@@ -198,7 +198,7 @@ def _on_its_key(
 ) -> Running:
     model = params or configured.models.get(f"{modality}{SEPARATOR}{vendor}")
     chosen = running(keys, vendor, model)
-    options = configured.tuning.get(f"{modality}{SEPARATOR}{vendor}")
+    options = tuning_of(configured, modality, vendor, model)
     if options is None:
         return chosen
     return dataclasses.replace(
@@ -207,6 +207,7 @@ def _on_its_key(
         options=dict(options.options),
         ends_the_turn=options.ends_the_turn,
         turn_model=options.turn_model,
+        request=dict(options.request),
     )
 
 

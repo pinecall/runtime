@@ -1,5 +1,6 @@
 """The box's providers configuration: one row in Postgres the operator edits from the console."""
 
+from collections.abc import Iterable
 from typing import Literal
 
 from psycopg.types.json import Jsonb
@@ -31,6 +32,8 @@ UNSET = (
 NO_JUDGE_FALLBACK = "the judge runs on one model: fallbacks are for the stages of a call"
 
 NESTED = "{modality} fallback {vendor}: a fallback names no fallbacks of its own"
+
+ASKED_OF_A_MODEL = "{key}: `request` is what a model is asked beside the conversation, so only llm"
 
 TURN_ENDED_OTHERWISE = (
     "stt fallback {vendor}: it {how} and {primary} does the other; the session reads the end "
@@ -78,6 +81,9 @@ class StageOptions(BaseModel):
     ends_the_turn: bool = False
     # Where they do not, which local model reads the end of the turn off the audio.
     turn_model: TurnModel = "v1-mini"
+    # What every request of an llm stage carries beside the conversation, in the vendor's own
+    # field names (`{"thinking": {"type": "disabled"}}`): livekit's extra_kwargs, each request.
+    request: JsonObject = Field(default_factory=dict[str, Json])
 
 
 class KeptVoice(BaseModel):
@@ -140,7 +146,8 @@ class Providers(BaseModel):
     listed: dict[str, tuple[KeptVoice, ...]] = Field(
         default_factory=dict[str, tuple[KeptVoice, ...]]
     )
-    # `stt/deepgram`: what that vendor is told for that stage.
+    # `stt/deepgram`: what that vendor is told for that stage; `llm/anthropic/claude-haiku-5-5`
+    # for the models whose id starts so, the longest such key replacing the vendor's whole.
     tuning: dict[str, StageOptions] = Field(default_factory=dict[str, StageOptions])
     # Languages the ears listen for beside the call's own.
     hints: tuple[str, ...] = ()
@@ -152,6 +159,24 @@ class Providers(BaseModel):
     # `es`: the line a voice reads in the picker.
     lines: dict[str, str] = Field(default_factory=dict[str, str])
     embedding: Embedding | None = None
+
+
+def tuning_of(
+    configured: Providers, modality: Modality, vendor: str, model: str | None
+) -> StageOptions | None:
+    """What a vendor is told for a stage: the longest key naming the model's id, else its own."""
+    stage = f"{modality}/{vendor}"
+    models = (
+        key.removeprefix(f"{stage}/") for key in configured.tuning if key.startswith(f"{stage}/")
+    )
+    named = None if model is None else longest_prefix(models, model)
+    return configured.tuning.get(stage if named is None else f"{stage}/{named}")
+
+
+def longest_prefix(keys: Iterable[str], name: str) -> str | None:
+    """The longest of the keys the name starts with, so a dated snapshot reads as its family."""
+    listed = [key for key in keys if name.startswith(key)]
+    return max(listed, key=len) if listed else None
 
 
 def judge_ceiling(configured: Providers) -> float | None:
@@ -194,11 +219,11 @@ def checked(written: Providers) -> Providers:
         doing(stage.vendor, modality)
         for fallback in stage.fallbacks:
             _a_fallback(written, modality, stage, fallback)
-    for key in (*written.models, *written.tuning):
-        modality, _, vendor = key.partition("/")
-        if modality not in MODALITIES:
-            raise DeclarationRefused(f"{key!r}: a stage is one of {', '.join(MODALITIES)}")
-        doing(vendor, modality)
+    for key in written.models:
+        _a_stage_key(key)
+    for key, options in written.tuning.items():
+        if _a_stage_key(key) != "llm" and options.request:
+            raise DeclarationRefused(ASKED_OF_A_MODEL.format(key=key))
     for key in (*written.voices, *written.listed):
         doing(key.partition("/")[0], "tts")
     if written.judge is not None:
@@ -211,6 +236,15 @@ def checked(written: Providers) -> Providers:
             f"column is halfvec({VECTOR_WIDTH}), so it must be asked for {VECTOR_WIDTH}"
         )
     return written
+
+
+# `stt/deepgram`, or `llm/anthropic/claude-haiku-5-5` where the key names a model of the vendor.
+def _a_stage_key(key: str) -> Modality:
+    modality, _, vendor = key.partition("/")
+    if modality not in MODALITIES:
+        raise DeclarationRefused(f"{key!r}: a stage is one of {', '.join(MODALITIES)}")
+    doing(vendor.partition("/")[0], modality)
+    return modality
 
 
 # The ears are chosen once for the whole session: a fallback that ends the turn itself where the
@@ -228,5 +262,5 @@ def _a_fallback(written: Providers, modality: Modality, primary: Stage, fallback
 
 
 def _ends_the_turn(written: Providers, stage: Stage) -> bool:
-    options = written.tuning.get(f"stt/{stage.vendor}")
+    options = tuning_of(written, "stt", stage.vendor, stage.model)
     return options is not None and options.ends_the_turn

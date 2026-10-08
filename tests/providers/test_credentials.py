@@ -6,7 +6,7 @@ from pinecall.domain.agent import AgentConfig, Model, Voice
 from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotAvailable
 from pinecall.domain.names import JsonObject
 from pinecall.providers.build import Running, Vendor
-from pinecall.providers.catalog import Providers, Stage
+from pinecall.providers.catalog import Providers, Stage, StageOptions
 from pinecall.providers.credentials import (
     Keyring,
     Pipeline,
@@ -156,6 +156,21 @@ def test_what_the_row_tells_a_vendor_reaches_its_stage_and_no_other(
     )
     assert stages.llm.options == {"caching": "ephemeral"}
     assert (stages.tts.builds, stages.tts.options, stages.tts.ends_the_turn) == (None, {}, False)
+
+
+def test_a_models_own_tuning_replaces_its_vendors_and_its_request_reaches_the_stage(
+    configured: Providers,
+) -> None:
+    newer = StageOptions(request={"thinking": {"type": "disabled"}})
+    tuned = configured.model_copy(
+        update={"tuning": {**configured.tuning, "llm/anthropic/claude-haiku-5": newer}}
+    )
+    keys = Keyring(box=THE_BOX)
+    on_5 = AgentConfig(slug="a", llm=Model(provider="anthropic", model="claude-haiku-5-5-20261001"))
+    stage = pipeline(on_5, tuned, keys).llm
+    assert (stage.options, stage.request) == ({}, {"thinking": {"type": "disabled"}})
+    on_4 = pipeline(AGENT, tuned, keys).llm
+    assert (on_4.options, on_4.request) == ({"caching": "ephemeral"}, {})
 
 
 def test_the_model_judged_for_lending_is_the_one_that_runs(configured: Providers) -> None:

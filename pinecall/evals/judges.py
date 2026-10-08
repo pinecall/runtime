@@ -45,7 +45,9 @@ from pinecall.wire.scores import CallScore, Judgment, JudgmentEvidence
 logger = logging.getLogger(__name__)
 
 
-# Asked as livekit's own judge asks: a forced tool call at temperature 0 (evals/judge.py).
+# Asked as livekit's own judge asks, a forced tool call (evals/judge.py), at the model's own
+# temperature: a model may refuse any other (Claude Haiku 5.5 does), and the row's `request` for
+# the judge's model is where an operator sets one.
 JUDGE = (
     "You are an evaluator for a conversational AI agent. Answer the question below about the "
     "conversation, then call submit_verdict with 'pass', 'fail' or 'maybe' and a brief reason."
@@ -393,7 +395,6 @@ async def _ask_judge(model: llm.LLM[Never], criteria: str, chat: ChatContext) ->
         chat_ctx=question,
         tools=[llm.function_tool(_never_run, raw_schema=SUBMIT_VERDICT)],
         tool_choice="required",
-        extra_kwargs={"temperature": 0.0},
     ).collect()
     if not response.tool_calls:
         raise UpstreamFailed(NO_VERDICT)

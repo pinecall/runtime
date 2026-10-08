@@ -14,6 +14,7 @@ from pinecall.domain.errors import DeclarationRefused, NotAvailable
 from pinecall.domain.names import JsonObject
 from pinecall.providers.build import (
     INFERENCE,
+    LLMWithRequest,
     Modality,
     Running,
     Vendor,
@@ -109,6 +110,34 @@ def test_credentials_of_more_than_a_key_reach_the_constructor_as_they_are(acme: 
     thinking = llm_of(Running(acme, {"api_key": "a-key", "temperature": 0.2}))
     assert isinstance(thinking, AcmeLLM)
     assert thinking.given == {"api_key": "a-key", "model": "acme-1", "temperature": 0.2}
+
+
+async def test_the_rows_request_rides_every_request_and_a_callers_own_field_wins(
+    acme: str,
+) -> None:
+    thinking = llm_of(Running(acme, "k", model="acme-2", request={"effort": "low", "top": 1}))
+    built = thinking.built if isinstance(thinking, LLMWithRequest) else None
+    assert isinstance(built, AcmeLLM)
+    assert (thinking.model, thinking.provider) == ("acme-2", built.provider)
+    await thinking.chat(chat_ctx=llm.ChatContext.empty()).collect()
+    await thinking.chat(chat_ctx=llm.ChatContext.empty(), extra_kwargs={"top": 2}).collect()
+    assert [request.extra for request in built.requests] == [
+        {"effort": "low", "top": 1},
+        {"effort": "low", "top": 2},
+    ]
+
+
+async def test_a_wrapped_models_metrics_reach_whoever_listens_to_the_stage(acme: str) -> None:
+    thinking = llm_of(Running(acme, "k", request={"effort": "low"}))
+    heard: list[object] = []
+    thinking.on("metrics_collected", heard.append)  # pyright: ignore[reportUnknownMemberType]
+    await thinking.chat(chat_ctx=llm.ChatContext.empty()).collect()
+    assert len(heard) == 1
+    await thinking.aclose()
+
+
+def test_a_stage_with_no_request_is_the_plugins_own_object(acme: str) -> None:
+    assert isinstance(llm_of(Running(acme, "k")), AcmeLLM)
 
 
 def test_the_model_asked_for_wins_and_none_leaves_the_plugins_own(acme: str) -> None:

@@ -61,6 +61,16 @@ SUPPRESSIONS: tuple[Allowed, ...] = (
         "encode and mux are typed loosely",
     ),
     Allowed(
+        "pinecall/providers/build.py",
+        "pyright: " + "ignore",
+        "livekit's LLM emits through a bare Callable (EventEmitter.on and off)",
+    ),
+    Allowed(
+        "tests/providers/test_build.py",
+        "pyright: " + "ignore",
+        "livekit's LLM emits through a bare Callable (EventEmitter.on)",
+    ),
+    Allowed(
         "pinecall/session/widget.py",
         "pyright: " + "ignore",
         "livekit's Room emits through a bare Callable",
