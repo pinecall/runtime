@@ -5,6 +5,8 @@
 - **A written caller can hang up**: `{"hangup": true}` on `WS /v1/chat` ends the call, then closes
   the socket with `the call ended: caller_hung_up`, so whatever served the call stops with nothing
   live. A caller that only closes its socket still ends the call, as before.
+- **A drain counts only calls still live**: a call that ended and waits for its seal is neither
+  handed on nor parked, so `pinecall chat` and `test` no longer say a live call was kept.
 - **`pinecall remember`'s refusal names the memory policy**, which is the world's: `agent <slug>
   remembers nothing: its memory policy names nothing to keep`.
 - **An agent's language is a setting of its world**, like its voice and its models: `language` in

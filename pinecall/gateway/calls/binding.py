@@ -51,7 +51,8 @@ async def handed_on(live: ServedCalls, sockets: Sockets, calls: Iterable[str]) -
     handed = parked = 0
     for call in calls:
         served = live.calls.get(call)
-        if served is None:
+        # An ended call waits for its seal, which needs no socket.
+        if served is None or (await served.log.snapshot()).status == "ended":
             continue
         taking = sockets.serving(served.scope, served.agent, None)
         if taking is not None and await attach(live, call, taking.owner) is not None:

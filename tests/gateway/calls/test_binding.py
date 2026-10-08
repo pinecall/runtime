@@ -3,6 +3,7 @@
 import asyncio
 
 from pinecall.domain.agent import AgentConfig
+from pinecall.domain.names import JsonObject
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway.calls.binding import attach, handed_on
 from pinecall.gateway.calls.serving import served_call
@@ -50,3 +51,22 @@ async def test_attaching_names_the_start_the_state_and_the_seq(wired: Gateway) -
     assert entry.data["state"] == {"step": 2}
     assert entry.data["seq"] == 2
     assert await attach(wired.live, context.call, "app_9") is None
+
+
+# Between call.ended and its seal the call is still served here, and nothing is left of it to move.
+@postgres
+async def test_a_call_that_ended_is_neither_handed_on_nor_parked(wired: Gateway) -> None:
+    await holding(wired.sockets, "app_1", OURS)
+    context = a_call()
+    served = served_call(wired.serving, "app_2", context, AgentConfig(slug=AGENT), OURS)
+    await served.log.append("call.started", a_start(context))
+    ended: JsonObject = {
+        "reason": "caller_hung_up",
+        "ended_by": "caller",
+        "ended_at": 10.0,
+        "duration_s": 4.0,
+    }
+    await served.log.append("call.ended", ended)
+    await wired.sockets.release("app_2")
+    assert await handed_on(wired.live, wired.sockets, [context.call]) == (0, 0)
+    assert wired.live.calls[context.call].app == "app_2"
