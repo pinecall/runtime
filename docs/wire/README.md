@@ -54,7 +54,7 @@ the call. `metrics.vad` is ephemeral by default because it is a once-a-second he
 of the detector, not a measurement of a turn: a live reader sees it, a store may drop it,
 and nothing about the turn is lost with it.
 
-## The room and the outside world
+## The room and the outside environment
 
 A phone or web call lives in a LiveKit room, and the room's facts are entries like any other:
 `room.opened`, `participant.joined` (with livekit's participant attributes verbatim, the `sip.*`
@@ -82,7 +82,7 @@ A worker writes its call's entries in batches, `POST /v1/calls/{id}/entries`, an
 
 The batch is taken whole or refused whole. Sent again with the same `after`, it is answered with
 the seqs and stamps it was given and nothing is written twice. `POST /v1/calls/{id}/events` takes one entry
-the same way and counts nothing: it is the door of a worker of an older release, which retried it
+the same way and counts nothing: it is the endpoint of a worker of an older release, which retried it
 and could write an entry twice.
 
 ## Reading a log
@@ -94,7 +94,7 @@ Six endpoints, and two of them are the same URL twice — `Accept` decides:
 | `GET /v1/calls/{id}/events?after=<seq>` | the call's entries after the cursor as `{entries, live, next}` — `next` is the last seq the page READ, and `null` when the read came back empty; with `Accept: text/event-stream`, the same entries as SSE that stays open. `Last-Event-ID` is an alias of `after`, and a cursor at the end of a sealed log is `204` in both flavours |
 | `GET /v1/calls/{id}/state` | the whole log folded: `{state, last_seq, live}`, projected by what the caller is. `last_seq` is the cursor to open the stream at |
 | `GET /v1/agents/{slug}/calls?after=<seq>` | the agent's OWN log, in the same two flavours and the same `{entries, live, next}` page: `agent.registered`, `agent.configured`, `error`. Every entry of it has `call: null` — what happens inside a call is written into that call's log, so nothing on this stream names one. `live` is always true: an agent's log never ends |
-| `GET /v1/agents/{slug}/sessions?limit=<n>` | which calls that agent handled: `{calls: [...]}`, newest first, one row per call — `call`, `live`, `last_seq`, and the fields of the call's own reduced state that a list draws (`status`, `channel`, `from`, `caller`, `started_at`, `ended_at`, `outcome`, `cost`, …), through the same projection. It is the door a list of calls is built from; the log above is not |
+| `GET /v1/agents/{slug}/sessions?limit=<n>` | which calls that agent handled: `{calls: [...]}`, newest first, one row per call — `call`, `live`, `last_seq`, and the fields of the call's own reduced state that a list draws (`status`, `channel`, `from`, `caller`, `started_at`, `ended_at`, `outcome`, `cost`, …), through the same projection. It is the endpoint a list of calls is built from; the log above is not |
 | `GET /v1/agents` | which agents this key's fleet is holding right now: `{agents: [{slug, channels}]}`, in the order their sockets claimed them. An agent no socket holds answers no call, so it is not listed; its log is still readable by slug |
 | `POST /v1/calls/{id}/verbs` | one supervise verb onto a live call, with a `supervise` token or the org key. `202`; its effect is read off the log above |
 
@@ -154,11 +154,11 @@ One page per domain. A change of the wire changes its page in the same commit, o
 | [events-call.md](events-call.md) | `call.*`, `user.*`, `agent.state`, `agent.transcript`, `turn.*`, `metrics.*`: the call and the conversation, field by field |
 | [events-app.md](events-app.md) | `tool.*`, `state.changed`, `prompt.changed`, `tools.changed`, `confirm.*`, `memory.ops`, `docs.sources`, `custom` |
 | [events-control.md](events-control.md) | `supervisor.*`, `log.gap`, `log.caught_up`, `error`, `pong`, `agent.registered`, `agent.configured` |
-| [events-room.md](events-room.md) | `room.*`, `participant.*`, `track.*`, `event.received`: the room's facts and the outside world's |
+| [events-room.md](events-room.md) | `room.*`, `participant.*`, `track.*`, `event.received`: the room's facts and the outside environment's |
 | [commands.md](commands.md) | every command with what it lands as, and the supervise verbs |
 | [metrics.md](metrics.md) | the metrics table: block · field · unit · required · measured by · meaning |
 | [state.md](state.md) | what a log reduces to |
 | [shapes.md](shapes.md) | the envelope and the shared shapes |
 | [projections.md](../protocol/projections.md) | what `public` and `tenant` keep, and the DataChannel topics |
-| [operator-api.md](../protocol/operator-api.md) | `/v1/ops/*`, the ops key, and the routes doors |
+| [operator-api.md](../protocol/operator-api.md) | `/v1/ops/*`, the ops key, and the routes endpoints |
 | [tokens.md](../protocol/tokens.md) | `POST /v1/tokens`, LiveKit's token endpoint with the org check, the contact id and single use in front of it |

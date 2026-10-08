@@ -5,7 +5,7 @@ Every event the gateway writes, one line each, with the page that holds its data
 | type | scope | ephemeral | page | what it says |
 |---|---|---|---|---|
 | `agent.configured` | agent | no | [events-control.md](events-control.md) | The gateway applied an agent.configure. |
-| `agent.detached` | agent | no | [events-control.md](events-control.md) | A socket that held the agent is gone — the process exited, the connection dropped — and the agent's doors are whoever is left holding it. |
+| `agent.detached` | agent | no | [events-control.md](events-control.md) | A socket that held the agent is gone — the process exited, the connection dropped — and the agent's endpoints are whoever is left holding it. |
 | `agent.draining` | agent | no | [events-control.md](events-control.md) | The answer to agent.drain, written to the agent's own log once the socket's live calls have moved: it takes no new call, and each call it held went to another socket holding the agent or waits, parked, for the next one that registers. |
 | `agent.registered` | agent | no | [events-control.md](events-control.md) | The gateway accepted an agent.register: this socket now speaks for the agent and answers its routes. |
 | `agent.state` | call | no | [events-call.md](events-call.md) | The agent's state changed, in the session's own words. |

@@ -99,7 +99,7 @@ per partial, ~120 for a spoken sentence.
 **No `STTMetrics` can be joined to a turn.** `AgentActivity._on_metrics_collected` stamps
 `speech_id` from the speech-handle contextvar onto `LLMMetrics` and `TTSMetrics` **only**
 (`agents/voice/agent_activity.py:1969-1972`), and `STTMetrics` declares no such field
-(`agents/metrics/base.py:49-68`). There is therefore no "the `metrics.stt` of this turn" to keep,
+(`agents/metrics/base.py:49-68`). There is therefore no "the  1  of this turn" to keep,
 and no last-one-of-the-turn to distinguish from the rest: the blocks are indistinguishable by
 construction.
 

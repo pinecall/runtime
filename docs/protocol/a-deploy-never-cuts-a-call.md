@@ -26,9 +26,9 @@ for the next socket.
 ## The gateway restarts
 
 What a call is, its context and the config it runs on, is kept in Postgres when it opens, so a
-gateway that restarted, or another gateway of the box, serves any door of it from one read the
-first time a door asks, and from memory after. A call sealed is `409` at every door. A call an
-older release opened kept nothing: its door answers `404`, and the worker says the call again,
+gateway that restarted, or another gateway of the platform, serves any endpoint of it from one read the
+first time an endpoint asks, and from memory after. A call sealed is `409` at every endpoint. A call an
+older release opened kept nothing: its endpoint answers `404`, and the worker says the call again,
 once, `POST /v1/calls/{call}/reopened {agent, context}`, and asks again: no quota asked, no token
 spent, no second `call.ringing`. While the
 gateway is away the worker retries an entry, the seal, a tool and the command stream, backing off
@@ -49,7 +49,7 @@ lost is answered with the seqs it was given and writes nothing; anything else is
 both counts. Each entry keeps the worker's `ts`, when it happened, clamped to the gateway's clock.
 The gateway's own entries take seqs and are not counted.
 
-The worker writes its call's entries through this door and no other: what is queued goes as one
+The worker writes its call's entries through this endpoint and no other: what is queued goes as one
 batch, and a batch retried goes again unchanged, after the same count, so a retry can no longer
 write an entry twice. A `409` refuses the whole batch and the call goes on with the next. The
 entries a worker writes outside its session take the same writer: a command the session refused
@@ -57,7 +57,7 @@ is an `error` on the session's own, and the `call.ended` of a leg nobody answere
 overflow's sentence and `call.ended` go through one the job opens with the call. The job sent into
 a room whose worker died writes the sentence through a writer that follows on from the dead
 worker's: the dispatch carries the count the log's head kept (`entries_written`). The one-entry
-door, `POST /v1/calls/{call}/events`, still answers for a worker of an older release, and counts
+endpoint, `POST /v1/calls/{call}/events`, still answers for a worker of an older release, and counts
 nothing. A written call's session batches too, straight to its log; taken up after a restart, it
 goes on from the count its log's head keeps.
 
@@ -65,10 +65,10 @@ goes on from the count its log's head keeps.
 
 A worker told to stop takes no new call, finishes the ones it holds (up to ten minutes) and
 leaves; nothing moves a call from one worker to another. So a release keeps a fleet open by never
-stopping its last worker: each world's workers are a Deployment that starts a new pod and waits
+stopping its last worker: each environment's workers are a Deployment that starts a new pod and waits
 for it to answer its startup probe before it tells an old one to stop (`maxUnavailable: 0`,
 `maxSurge: 1`), and Kubernetes gives the old one fifteen minutes to drain. While one drains the
-others take every new call of its world, so no caller of a deploy hears the overflow's sentence
+others take every new call of its environment, so no caller of a deploy hears the overflow's sentence
 ([scaling.md](../scaling.md), "Deploys drain, cordons shrink").
 
 ## A written call
@@ -90,7 +90,7 @@ leaves, and a call whose caller had already gone, is the reaper's.
 
 The reaper looks every minute. A call in a room with no **agent** left in it, quiet five minutes,
 is ended as `drained` and its room taken down. A written call no process serves is ended as
-`timeout` once quiet as long as its door waits: five minutes for a chat, two hours for WhatsApp.
+`timeout` once quiet as long as its endpoint waits: five minutes for a chat, two hours for WhatsApp.
 
 ## The page
 

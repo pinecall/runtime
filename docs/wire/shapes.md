@@ -30,7 +30,7 @@ One instruction from an app to the gateway over its WebSocket. The gateway answe
 
 ### `Channel`
 
-The door the public came through: a phone call over SIP, the browser widget over WebRTC, or WhatsApp text.
+The endpoint the public came through: a phone call over SIP, the browser widget over WebRTC, or WhatsApp text.
 
 One of: `phone`, `web`, `whatsapp`.
 
@@ -48,13 +48,13 @@ One of: `inbound`, `outbound`.
 
 ### `Env`
 
-Which of the two worlds a key opens, and so which world an agent is held in and a call ran in. A key is issued into one; an agent registered on it and every call it takes carry that one; a door claimed in one is refused to a key of the other. `sandbox` is where things are written and `production` is what the public reaches — and whether a sandbox agent is one PERSON's copy or the team's shared one is not this field: it is whether the key that registered it names a person. Every key issued before the field existed is production.
+Which of the two environments a key opens, and so which environment an agent is held in and a call ran in. A key is issued into one; an agent registered on it and every call it takes carry that one; an endpoint claimed in one is refused to a key of the other. `sandbox` is where things are written and `production` is what the public reaches — and whether a sandbox agent is one PERSON's copy or the team's shared one is not this field: it is whether the key that registered it names a person. Every key issued before the field existed is production.
 
 One of: `production`, `sandbox`.
 
 ### `DevVerb`
 
-What a console may ask of the process standing in the agent's directory, relayed by the gateway: a written call to the class mounted there (chat), a simulated caller put on the class it holds, its goldens and a suite of them, its knowledge folder pushed or its golden asked, its memory goldens, the panel it draws beside a conversation (view), a call promoted to a candidate file, the drift of the last two windows, and the reproductions a broken run left on that disk. Everything else a console needs is a door of the gateway.
+What a console may ask of the process standing in the agent's directory, relayed by the gateway: a written call to the class mounted there (chat), a simulated caller put on the class it holds, its goldens and a suite of them, its knowledge folder pushed or its golden asked, its memory goldens, the panel it draws beside a conversation (view), a call promoted to a candidate file, the drift of the last two windows, and the reproductions a broken run left on that disk. Everything else a console needs is an endpoint of the gateway.
 
 One of: `chat.roster`, `chat.start`, `chat.say`, `chat.end`, `view.render`, `simulate.start`, `goldens.roster`, `goldens.run`, `knowledge.roster`, `knowledge.push`, `knowledge.eval`, `memory.roster`, `memory.eval`, `memory.extraction`, `promote.roster`, `promote.write`, `drift.read`, `reproductions.roster`, `reproductions.read`.
 
@@ -173,13 +173,13 @@ Who is on the line, as far as the platform knows. Everything is optional: a web 
 
 ### `Route`
 
-One door to an agent: a channel and, for phone and WhatsApp, the number that answers. A number is a route, never an agent.
+One endpoint to an agent: a channel and, for phone and WhatsApp, the number that answers. A number is a route, never an agent.
 
 | field | type | required | meaning |
 |---|---|---|---|
-| `channel` | `Channel` | yes | The door the public came through: a phone call over SIP, the browser widget over WebRTC, or WhatsApp text. |
+| `channel` | `Channel` | yes | The endpoint the public came through: a phone call over SIP, the browser widget over WebRTC, or WhatsApp text. |
 | `number` | `string | null` | yes | The number in E.164 form for phone and WhatsApp; null for the web widget, which needs none. |
-| `label` | `string` | no | A human name for the door, for the console: 'main line', 'after hours'. |
+| `label` | `string` | no | A human name for the endpoint, for the console: 'main line', 'after hours'. |
 
 ### `Supervisor`
 
@@ -199,7 +199,7 @@ What the app declares about one tool: the contract the model sees and the rules 
 | `name` | `string` | yes | The name the model calls, unique within the agent: find_patient, book_slot. |
 | `description` | `string` | yes | What the tool does, as the model reads it. In the app this is the method's docstring. |
 | `parameters` | `object` | yes | The arguments, as a JSON Schema object the model must satisfy. |
-| `side_effect` | `"read" | "write" | "irreversible"` | no | read looks at the world; write changes it and can be undone; irreversible changes it for good, so the platform asks the caller first. Absent means read. |
+| `side_effect` | `"read" | "write" | "irreversible"` | no | read looks at the environment; write changes it and can be undone; irreversible changes it for good, so the platform asks the caller first. Absent means read. |
 | `confirm` | `string` | no | A receipt the agent reads out once the tool has run, before the model replies to the result, with {{name}} placeholders filled from the arguments and {{result.name}} from what came back: 'Reservado: {{result.when}} con {{result.professional}}.'. It does not hold the tool, so it is written as a receipt and never as a question. Absent means no read-back. |
 | `pii` | `string[]` | no | Argument names that carry personal data: the log keeps them as `***` and seals the value aside, for the app alone (docs/security/private-values.md). |
 | `timeout_s` | `number` | no | How long the platform waits for the app's result before reporting an error to the model, in seconds: 30 by default, above 0 and 300 at most. |
@@ -377,7 +377,7 @@ The knowledge base the agent answers from, and how its chunks reach the model. I
 
 ### `GreetingConfig`
 
-How the agent opens a call, before the caller has said anything. Exactly one of the two, because there are only two ways to open one: `say` are the words themselves and `reply` is what the model is told before it finds its own. They are agent.say and agent.reply declared instead of called, so a class that opens every call the same way needs no onCall hook to do it, and an operator can turn the opening at the pipeline door without a deploy. Absent: nobody speaks until the caller does.
+How the agent opens a call, before the caller has said anything. Exactly one of the two, because there are only two ways to open one: `say` are the words themselves and `reply` is what the model is told before it finds its own. They are agent.say and agent.reply declared instead of called, so a class that opens every call the same way needs no onCall hook to do it, and an operator can turn the opening at the pipeline endpoint without a deploy. Absent: nobody speaks until the caller does.
 
 | field | type | required | meaning |
 |---|---|---|---|
@@ -404,26 +404,26 @@ What memory keeps about a contact across calls, and what it must never keep. Bot
 
 ### `AgentConfig`
 
-What an app declares about its agent: the prompt's layout, the language, the tools, whether it searches its bases itself, and who may see and send what. Every field is optional so a configure can change one thing. The environment — voice, models, greeting, hangup, turn, says, hears, knowledge, docs, memory — is the world's, set in the agent's settings, and no longer read off this declaration.
+What an app declares about its agent: the prompt's layout, the language, the tools, whether it searches its bases itself, and who may see and send what. Every field is optional so a configure can change one thing. The environment — voice, models, greeting, hangup, turn, says, hears, knowledge, docs, memory — is the environment's, set in the agent's settings, and no longer read off this declaration.
 
 | field | type | required | meaning |
 |---|---|---|---|
 | `prompt` | `PromptBlockSpec[]` | no | The blocks of the prompt in the one order they are sent: every static block, then the history, then every dynamic block. Absent, the layout is the default: identity · knowledge · tools, the history, view. |
 | `language` | `string` | no | The language the agent speaks and expects, as a BCP 47 tag: es-ES, es-UY. |
-| `greeting` | `GreetingConfig` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `voice` | `VoiceConfig` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `llm` | `ModelConfig` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `stt` | `ModelConfig` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `turn` | `TurnConfig` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `says` | `Pronunciation[]` | no | Ignored: the world's, set in the agent's lexicon. Kept one release so an app on an older package still registers; removed in the next. |
-| `hears` | `string[]` | no | Ignored: the world's, set in the agent's lexicon. Kept one release so an app on an older package still registers; removed in the next. |
-| `knowledge` | `KnowledgeFile` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `docs` | `DocsConfig` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `memory` | `MemoryConfig` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `hangup` | `HangupConfig` | no | Ignored: the world's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `record` | `boolean` | no | Whether this agent's calls keep their audio. The world's, set in the agent's settings and never in the class: the box records the whole room, so what is kept is what everybody on the call heard. |
+| `greeting` | `GreetingConfig` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
+| `voice` | `VoiceConfig` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
+| `llm` | `ModelConfig` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
+| `stt` | `ModelConfig` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
+| `turn` | `TurnConfig` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
+| `says` | `Pronunciation[]` | no | Ignored: the environment's, set in the agent's lexicon. Kept one release so an app on an older package still registers; removed in the next. |
+| `hears` | `string[]` | no | Ignored: the environment's, set in the agent's lexicon. Kept one release so an app on an older package still registers; removed in the next. |
+| `knowledge` | `KnowledgeFile` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
+| `docs` | `DocsConfig` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
+| `memory` | `MemoryConfig` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
+| `hangup` | `HangupConfig` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
+| `record` | `boolean` | no | Whether this agent's calls keep their audio. The environment's, set in the agent's settings and never in the class: the platform records the whole room, so what is kept is what everybody on the call heard. |
 | `tools` | `ToolSpec[]` | no | Every tool the agent may ever see. Which ones are visible now is tools.set. |
-| `uses_knowledge` | `boolean` | no | Whether the class searches the knowledge base itself (this.knowledge.search). A world with no base attached to the agent refuses the registration, so a tool that would find nothing is refused at boot and not on a call. |
+| `uses_knowledge` | `boolean` | no | Whether the class searches the knowledge base itself (this.knowledge.search). An environment with no base attached to the agent refuses the registration, so a tool that would find nothing is refused at boot and not on a call. |
 | `state_fields` | `StateFieldSpec[]` | no | Who may see each field of the app's state. A field not listed is tenant: seen by the tenant's readers, never by the public. |
 | `view` | `ViewSpec` | no | The panel this agent draws beside a conversation, or absent when it draws none. |
 | `events` | `EventSpec[]` | no | The outside events this agent accepts and from whom. Anything else is refused before it touches the log. |

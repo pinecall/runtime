@@ -6,7 +6,7 @@ What reaches the gateway: the commands an app sends over its socket, each with t
 |---|---|---|---|
 | `agent.configure` | agent | `agent.configured` | Declare or change what the agent is: voice, models, language, greeting, the full tool list. |
 | `agent.drain` | agent | `agent.draining` | This socket is leaving: hand it no new call for the agent, move the live calls it holds to the newest other socket holding the agent, or park them until one registers. |
-| `agent.register` | agent | `agent.registered` | The app's first message: this socket speaks for this agent and answers these doors. |
+| `agent.register` | agent | `agent.registered` | The app's first message: this socket speaks for this agent and answers these endpoints. |
 | `agent.reply` | call | `turn.agent` | Make the model speak now, guided by an instruction it reads and the caller never hears: 'tell them a slot at 10:15 just opened'. |
 | `agent.say` | call | `turn.agent` | Make the agent say this text now, verbatim, outside the model's turn: a greeting, a read-back, a system notice. |
 | `call.attention` | call | `attention.requested`, `call.line`, `attention.answered` | Ask for a person without sending the caller anywhere: the call waits on hold until a supervisor takes the line, or until wait_s passes with nobody taking it. |
@@ -32,7 +32,7 @@ What reaches the gateway: the commands an app sends over its socket, each with t
 | `room.send` | call | `room.sent` | Push a payload to a browser in the room over the DataChannel: a card to render, a form to open. |
 | `session.configure` | call | `state.changed`, `agent.configured` | Set up this one call before the first turn: the app's initial state, and any config that differs from the agent's defaults for this caller. |
 | `state.set` | call | `state.changed` | The app's state changed and this is all of it. |
-| `supervisor.verb` | call | `supervisor.said`, `supervisor.whispered`, `supervisor.took_over`, `supervisor.released`, `supervisor.transferred`, `supervisor.ended` | One supervise verb, from the human the door named. |
+| `supervisor.verb` | call | `supervisor.said`, `supervisor.whispered`, `supervisor.took_over`, `supervisor.released`, `supervisor.transferred`, `supervisor.ended` | One supervise verb, from the human the endpoint named. |
 | `tool.result` | call | `tool.result` | The app ran the tool the platform asked for in tool.call and this is what came back. |
 | `tools.set` | call | `tools.changed` | The tools the model may see now. |
 
@@ -56,13 +56,13 @@ No fields.
 
 ### `agent.register`
 
-The app's first message: this socket speaks for this agent and answers these doors. The gateway answers agent.registered, or error.
+The app's first message: this socket speaks for this agent and answers these endpoints. The gateway answers agent.registered, or error.
 
 Lands in the log as: `agent.registered`.
 
 | field | type | required | meaning |
 |---|---|---|---|
-| `routes` | `Route[]` | yes | The doors this agent answers. A number may belong to one agent at a time. |
+| `routes` | `Route[]` | yes | The endpoints this agent answers. A number may belong to one agent at a time. |
 | `sdk` | `string` | no | The SDK and version the app runs: pinecall/2.0.0. |
 | `host` | `string` | no | The machine the app runs on, as it names itself: what a person reading the org's live processes reads to tell a laptop from a server. |
 | `takes_unclaimed` | `boolean` | no | Whether this socket may be handed a call that named no app — every phone call, and every web call that did not ask for one. A console holds the agent to serve the call it opens itself and says false, so a real caller is never answered from somebody's terminal. Absent means yes. |
@@ -194,7 +194,7 @@ No fields.
 
 ### `call.opt_out`
 
-The caller asked never to be called again: their number joins the org's do-not-call list. The gateway writes it, whichever process runs the call, as an opt-out of the org's world with the call's id beside it (`GET /v1/org/consents/{number}`); no call of the org reaches the number again until a consent is recorded at `POST /v1/org/consents`. Nothing lands in the log: an SDK that predates the command would refuse an entry it has no shape for. Refused with `no_session` when the call is not running here, and with `bad_shape` on a call with no phone number at its far end (the widget, a chat).
+The caller asked never to be called again: their number joins the org's do-not-call list. The gateway writes it, whichever process runs the call, as an opt-out of the org's environment with the call's id beside it (`GET /v1/org/consents/{number}`); no call of the org reaches the number again until a consent is recorded at `POST /v1/org/consents`. Nothing lands in the log: an SDK that predates the command would refuse an entry it has no shape for. Refused with `no_session` when the call is not running here, and with `bad_shape` on a call with no phone number at its far end (the widget, a chat).
 
 Lands in the log as: nothing.
 
@@ -325,7 +325,7 @@ Lands in the log as: `state.changed`.
 
 ### `supervisor.verb`
 
-One supervise verb, from the human the door named. Each verb lands in the caller's log as its own supervisor.* entry before the session acts on it.
+One supervise verb, from the human the endpoint named. Each verb lands in the caller's log as its own supervisor.* entry before the session acts on it.
 
 Lands in the log as: `supervisor.said`, `supervisor.whispered`, `supervisor.took_over`, `supervisor.released`, `supervisor.transferred`, `supervisor.ended`.
 

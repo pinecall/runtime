@@ -1,6 +1,6 @@
 # An agent's pipeline — `/v1/agents/{slug}/pipeline`
 
-The org's own key, holding `pipeline`. These doors belong to the agent: a tenant's own dashboard
+The org's own key, holding `pipeline`. These endpoints belong to the agent: a tenant's own dashboard
 opens them as readily as the console does.
 
 ## `GET /v1/agents/{slug}/pipeline`
@@ -33,20 +33,20 @@ names a stage with no key to run on, in the refusal's own words, so a screen say
 goes dead. When no app holds the agent the stages come from a bare declaration and the settings.
 
 Changing any of it is the agent's **settings** ([settings-api.md](settings-api.md)), applied on the
-next call; this door reads.
+next call; this endpoint reads.
 
 ## The hold melody — `GET` · `PUT /v1/agents/{slug}/pipeline/hold-audio`
 
-What a caller hears while a tool runs or the model has not said its first word: the box's melody,
+What a caller hears while a tool runs or the model has not said its first word: the platform's melody,
 silence, or a clip the org uploaded. It starts after 2.5 s of the agent being quiet, so a tool or a
 model that answers inside that plays nothing, and stops at the answer. One choice per agent per
-world, whoever holds it.
+environment, whoever holds it.
 
 ```json
 { "played": "custom", "name": "espera.mp3", "seconds": 41.2, "sha256": "9f2c…" }
 ```
 
-`default` is the box's own melody, `off` is silence, `custom` an uploaded clip with the name it
+`default` is the platform's own melody, `off` is silence, `custom` an uploaded clip with the name it
 arrived under, its length, and the sha256 of the **converted** bytes, which is what a worker
 recognises a clip it already fetched by.
 

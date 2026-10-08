@@ -1,9 +1,9 @@
 # People — how a person gets a key, what a key is, and the org's people
 
 A person has one key per device, minted when they sign in, and it acts as them: the scopes of
-their role, the org they signed into, and the world each request names (`pinecall-env`, the
+their role, the org they signed into, and the environment each request names (`pinecall-env`, the
 sandbox when unsaid; production only with production access, read from their row on every
-request). A server has a token of its own, made by a person for one world. The doors below mint,
+request). A server has a token of its own, made by a person for one environment. The endpoints below mint,
 list and stop both, and manage the people they belong to. Every refusal is `{"detail": "…"}` with
 its status; a key, a password or a link is in exactly one answer, the one that made it.
 
@@ -17,14 +17,14 @@ No key. What a sign-in page reads first:
 ```
 
 `signup` is `PINECALL_SIGNUP`; `min_password` is `PINECALL_MIN_PASSWORD` (0 is no rule); `mail`
-says whether the box itself can post a letter (an org's own mailbox is not counted), so the page
-knows whether "Forgot your password?" can promise one; `brand` is the box's. Box-wide "Continue
+says whether the platform itself can post a letter (an org's own mailbox is not counted), so the page
+knows whether "Forgot your password?" can promise one; `brand` is the platform's. Platform-wide "Continue
 with Google" is not in this version: `google` is always `false`, and `GET /v1/login/google` and
 its callback answer `503`.
 
 ## Who a key is — `GET /v1/whoami`
 
-Any key. The org as an id and as the slug people type, the key's id and label, the world this
+Any key. The org as an id and as the slug people type, the key's id and label, the environment this
 request acts in, its scopes, whose it is, and whether it may act in production:
 
 ```json
@@ -34,7 +34,7 @@ request acts in, its scopes, whose it is, and whether it may act in production:
 ```
 
 `email` is the one name a person carries into every org; a server's token has none. `operator`
-says the person runs the box; `visiting` that they are inside an org they are no member of.
+says the person runs the platform; `visiting` that they are inside an org they are no member of.
 Never the key nor its hash. With no key it is `401 this door takes an API key`.
 
 ## Signing in — `POST /v1/login`
@@ -48,19 +48,19 @@ No key. The body says one of two things, and a body with both or neither is `400
 
 A password gives a key of that person's in the org named, or, unnamed, the first org the password
 opens. A wrong address, a wrong password and a wrong org are one sentence, `401 nobody answers to
-that email and password`, and cost the same time. Only once the password matched does the door say
+that email and password`, and cost the same time. Only once the password matched does the endpoint say
 more: `403` a member disabled, `403` an org that signs in with its provider only (naming
 `/v1/login/sso?org=…`), `403` somebody invited who has not chosen a password. `device` labels the
 key in the org's list, so it is revoked on its own.
 
 Every address is five tries a minute from one place, whatever the password: the sixth is
 `429 too many attempts for …: try again in a minute`. The same count holds `POST /v1/login/orgs`,
-`POST /v1/login/reset` and `POST /v1/login/sso/discover`. Behind the box's own Caddy the place is
+`POST /v1/login/reset` and `POST /v1/login/sso/discover`. Behind the platform's own Caddy the place is
 the person's address.
 
-A code gives a copy of the key that minted it: the same org, world, scopes and person, dying when
+A code gives a copy of the key that minted it: the same org, environment, scopes and person, dying when
 it dies, labelled `console` unless `device` says. A code is spent once and lives five minutes;
-spent, dead or invented it is `404`. Every door that mints a key answers the same shape, the key
+spent, dead or invented it is `404`. Every endpoint that mints a key answers the same shape, the key
 this once:
 
 ```json
@@ -68,7 +68,7 @@ this once:
  "scopes": [...], "subject": "m_…", "name": "Ana García"}
 ```
 
-A person's key starts `pc_live_` and opens both worlds.
+A person's key starts `pc_live_` and opens both environments.
 
 `POST /v1/login/codes`, with any key, mints `{code, expires_at}`: a browser signs in with it, so a
 key never rides a URL. A server's key gives the browser a copy of itself, and revoking a key
@@ -78,11 +78,11 @@ revokes every copy made of it, and every copy of those. `POST /v1/login/orgs {em
 ## Another org — `GET /v1/login/orgs`, `POST /v1/login/org {org}`
 
 A person's key. The list is every org of the person, oldest first, with `role`, `status`, whether
-this key is the one opening it (`here`) and `member: true`. A person who runs the box also sees
+this key is the one opening it (`here`) and `member: true`. A person who runs the platform also sees
 every other org, `member: false` and `role: "operator"`. The switch mints the same person's key in
 another org of theirs; switching to one where they are still `invited` takes the seat (a proven
 address and a password elsewhere; an org that signs in only with its provider seats nobody this
-way). A person who runs the box enters any org as a visit, with an admin's scopes and no seat. A
+way). A person who runs the platform enters any org as a visit, with an admin's scopes and no seat. A
 server's token names nobody and is refused both.
 
 ## A terminal — `/v1/login/pairings`
@@ -99,10 +99,10 @@ lives ten minutes; one collected, dead or invented is the same `404`, and a seco
 ## A forgotten password — `POST /v1/login/reset {email}`
 
 No key. Always `202 {}`, for an address known or not. Where the person is active in an org that
-signs in with passwords, one letter goes, through the box's own mailbox and never an org's, with
+signs in with passwords, one letter goes, through the platform's own mailbox and never an org's, with
 a one-use link to `/invitations/<token>`; the link proves the address, so the password it sets is
 the person's one, in every org. A member still invited gets none, since their invitation is the
-link. A box with no mailbox mints nothing, so a link an admin handed over is never spent by a
+link. A deployment with no mailbox mints nothing, so a link an admin handed over is never spent by a
 letter that cannot go.
 
 ## An invitation — `POST /v1/invitations/{token} {password, device}`
@@ -135,10 +135,10 @@ what the key opens), and production access only by somebody who has it.
 
 `agents` is the agents the member works on; an empty list is every agent of the org, and every
 member starts with one. A person's key whose list is not empty is refused, `403` naming the list,
-at every door that names an agent outside it: in its path (`/v1/agents/{slug}/…`), as `?agent=`, in
+at every endpoint that names an agent outside it: in its path (`/v1/agents/{slug}/…`), as `?agent=`, in
 its body (a token, a code, a number routed, an eval run or voiced, a call opened, a callback), in
-`WS /v1/chat?agent=` and a socket's `agent.register`, and at a call's own doors (its events, state,
-recording, settings, seats, verbs, judging, erasure) by the agent the call was of. A door that
+`WS /v1/chat?agent=` and a socket's `agent.register`, and at a call's own endpoints (its events, state,
+recording, settings, seats, verbs, judging, erasure) by the agent the call was of. An endpoint that
 names no agent (`/v1/agents`, `/v1/sessions` without `?agent=`, `/v1/events`) is not narrowed by
 it. A server's token holds no list, and a visit to another org is not bound by the list of the
 visitor's own.
@@ -164,10 +164,10 @@ a key with `keys` sees every person's too. Never a key:
 ```
 
 `POST {label, env, scopes?, expires_at?}` with a person's key that opens `app` makes a server's
-token for one world, `pc_live_` or `pc_test_`, answered once; a production token only by somebody
+token for one environment, `pc_live_` or `pc_test_`, answered once; a production token only by somebody
 with production access. It opens `app`, `calls`, `talk`, `knowledge` and `evals`, or, with
 `scopes`, only the ones named of those (`400` for any other, or none). With `expires_at`, a moment
-to come with its offset, it opens nothing from then on and every door answers `401 this key
+to come with its offset, it opens nothing from then on and every endpoint answers `401 this key
 expired at …`; without it, it never expires. The listing carries each key's `expires_at`. `POST /v1/keys/{fingerprint}/revoke`
 stops your own key, a token you made, or any with `keys`; anything else, revoked or not the org's
 is one `404`. The row stays.
@@ -175,16 +175,16 @@ is one `404`. The row stays.
 ## Sign-up — `/v1/signup`
 
 Shut unless the operator sets `PINECALL_SIGNUP` (`404` naming it). With `PINECALL_SIGNUP_KEY` set,
-the three doors take that bearer key alone, and the address they count is the
+the three endpoints take that bearer key alone, and the address they count is the
 `X-Pinecall-Client` the page in front of them sends; without it that header is never believed.
 
 `POST {org, name, email, person, password, device}` keeps the sign-up and mails six digits:
-`202 {email, code_expires_at}`, never the code, and no org yet. A box that cannot mail takes
-none (`503`). Every address is answered alike, so the door says nobody whether one has an
+`202 {email, code_expires_at}`, never the code, and no org yet. A deployment that cannot mail takes
+none (`503`). Every address is answered alike, so the endpoint says nobody whether one has an
 account: an address with a password signs up with it, and with another is mailed that it has an
 account instead of a code; one invited somewhere is mailed to accept that first. A slug taken is
 `409`. `POST /v1/signup/verify {email, code}` makes
-the org, allowed what the box's admission gives a newborn org, its admin active, and answers
+the org, allowed what the platform's admission gives a newborn org, its admin active, and answers
 `201` with the key shape plus `slug`, `member`, and a login `code` for the console. A code lives
 15 minutes and six tries; a wrong, burned or expired code is `400` in its words, and an address
 nobody signed up with reads as a wrong code. `POST /v1/signup/resend {email}` mails a new code
@@ -221,16 +221,16 @@ exists.
 ## The org's mailbox — `/v1/org/mail`
 
 `team`. `PUT {host, port, security, username, password, from}` keeps the SMTP account the org's
-letters go out through before the box's: a server on the internet, reached over TLS (`security`
-is `starttls` or `tls`; `none` is `400`, the box's own relay alone). Every address its name
-resolves to must be public: one inside the box's network, or a name that resolves to nothing, is
+letters go out through before the platform's: a server on the internet, reached over TLS (`security`
+is `starttls` or `tls`; `none` is `400`, the platform's own relay alone). Every address its name
+resolves to must be public: one inside the platform's network, or a name that resolves to nothing, is
 never reached, and the letter's error says so. It sends nothing. `GET` answers `{configured, host, port, security, username, from, verified_at,
 last_error}`, never the password, and `DELETE` goes back to the box's. `POST /v1/org/mail/test
 {to}` sends one letter and waits: `{sent, error}` with what the server said, `409` when nothing
 can send.
 
-## The box — `GET /v1/ops/whoami`
+## The platform — `GET /v1/ops/whoami`
 
-The operator's key, or a person the box made an operator: `{operator: true, version, domain,
-name, org}`, `name` and `org` null for the box's own key. The console opens its Box screens when
+The operator's key, or a person the platform made an operator: `{operator: true, version, domain,
+name, org}`, `name` and `org` null for the platform's own key. The console opens its Platform screens when
 this answers `200`.

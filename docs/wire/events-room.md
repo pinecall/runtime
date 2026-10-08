@@ -1,6 +1,6 @@
-# Events: the room and the outside world
+# Events: the room and the outside environment
 
-The LiveKit room's facts as the room reports them (`room.opened`, `participant.*`, `track.*`), and the facts that cross its edge: what the outside world hands the agent (`event.received`, from the tenant's backend or from a participant's browser) and what the agent hands a browser (`room.sent`). The agent never touches LiveKit; it reads these. The index is `events.md`.
+The LiveKit room's facts as the room reports them (`room.opened`, `participant.*`, `track.*`), and the facts that cross its edge: what the outside environment hands the agent (`event.received`, from the tenant's backend or from a participant's browser) and what the agent hands a browser (`room.sent`). The agent never touches LiveKit; it reads these. The index is `events.md`.
 
 ### `event.received`
 
@@ -50,7 +50,7 @@ The LiveKit room exists and the call lives in it. Phone and web calls have one; 
 |---|---|---|---|
 | `name` | `string` | yes | The room's name, the one a browser or a SIP leg joins: call-CA_8f4a2c. |
 | `sid` | `string` | yes | livekit's id for the room, for tracing in its logs. |
-| `channel` | `Channel` | yes | The door the public came through: a phone call over SIP, the browser widget over WebRTC, or WhatsApp text. |
+| `channel` | `Channel` | yes | The endpoint the public came through: a phone call over SIP, the browser widget over WebRTC, or WhatsApp text. |
 
 ### `room.sent`
 

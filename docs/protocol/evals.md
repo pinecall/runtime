@@ -7,7 +7,7 @@ and **judges** each call into a matrix of models by goldens. A **persona** is a 
 plays, one improvised line at a time, written or out loud. Every call that hangs up is judged
 once more by the panel of hang-up judges, and its verdicts are the last entry of its log.
 
-Every door below takes a key with the `evals` scope and acts in the key's org and world.
+Every endpoint below takes a key with the `evals` scope and acts in the key's org and environment.
 
 ## A suite — `POST /v1/evals/run`
 
@@ -63,13 +63,13 @@ failing golden is a score, never a status.
 
 One run per agent at a time: a second is `409` naming the run in flight.
 
-`voice: true` says each golden out loud through the world's fleet: the room is dispatched, the
+`voice: true` says each golden out loud through the environment's fleet: the room is dispatched, the
 caller's lines are spoken (under `interferer_db` of a background voice and `packet_loss`, when
 set), the room is deleted, and the call is judged once its worker sealed it. The worker builds the
 session from the declaration, so a spoken run refuses `models` and a golden that pins `today`.
 The golden's `state` rides the dispatch, and the worker writes it on the call's `call.started`.
 
-`GET /v1/evals/runs?agent=&since=&limit=` lists the runs of the key's org in its world, newest
+`GET /v1/evals/runs?agent=&since=&limit=` lists the runs of the key's org in its environment, newest
 first; `GET /v1/evals/runs/{id}` is one of them, and another org's is `404`.
 
 A run may also name the org's **cases** (below): `cases: ["jueves-tarde"]` plays those by name,
@@ -85,7 +85,7 @@ and never out loud or on a phone.
 
 ## The dataset — `POST /v1/evals/cases`, `GET /v1/evals/cases?agent=`, `DELETE /v1/evals/cases/{id}`
 
-Real calls are the dataset. These doors keep a finished call as a **case** on the gateway (no
+Real calls are the dataset. These endpoints keep a finished call as a **case** on the gateway (no
 verb of the CLI calls them: `pinecall runs promote` writes the call as a golden candidate in the
 project's `test/candidates/` instead, the CLI repo's (`pinecall/cli`) `docs/the-cli.md`): its
 caller's lines, the state it opened in (the first `state.changed` before the caller spoke), the
@@ -104,7 +104,7 @@ POST /v1/evals/cases
 ```
 
 The key must read the call, as a replay's does: a production call is promoted with a key of
-production. The case is the org's, in both worlds, and played in the sandbox. A call still going is
+production. The case is the org's, in both environments, and played in the sandbox. A call still going is
 `409`, one whose caller said nothing is `409`, and a name the agent has already is `409`.
 `GET` lists the org's cases by agent and name; `DELETE` forgets one, and another org's, or one
 nobody kept, is `404`.
@@ -118,7 +118,7 @@ plays a case in are calls of the sandbox like any other, under the org's retenti
 
 A person who knows says what a judge should have answered on a finished call:
 `POST /v1/evals/calibration {call, judge, held, note?}` keeps it (a second label of the same
-call and judge replaces the first), in the call's world, by the key's person. `GET` answers each
+call and judge replaces the first), in the call's environment, by the key's person. `GET` answers each
 judge against those labels, beside the verdict the seal counted for it on the same call:
 `{judges: [{judge, labelled, compared, agreed, rate, trusted}], labels_to_judge, agrees_at_least}`.
 A judge is judged once 10 labels have its verdict beside them, and `trusted` is false while it
@@ -180,16 +180,16 @@ answer, is `skipped`. The detail names the seqs of the cut reply, the caller's w
 `POST /v1/evals/judge/{call}` runs the hang-up panel on a finished call now and writes its
 `call.score` on the sealed log: a call whose org judged nothing then, or whose judge failed. A
 call judged already is `409` unless `?again=true`; a call still going is `409`. The agent's own
-judges are the ones written when the door runs, not when the call ended.
+judges are the ones written when the endpoint runs, not when the call ended.
 
 ## At hang-up
 
 The seal judges every call when three things hold: the org judges its calls (`PUT /v1/org/judging`),
-the box's providers row names a `judge` model, and that judge's `ceiling_usd` is above zero. The
+the platform's providers row names a `judge` model, and that judge's `ceiling_usd` is above zero. The
 panel is consent, grounded, promises, the compliance judges (`identified` on an outbound call,
 `disclosed`, `honoured_stop`: settled by code, so every judged call carries them), persona when
 the caller wrote a rule, then the org's own
-judges and the agent's own (below), by name. The judge runs on the box's key, and the ceiling is
+judges and the agent's own (below), by name. The judge runs on the platform's key, and the ceiling is
 what one call may spend on it: a model judge asked once the calls before it reached the ceiling is
 `skipped`, saying so, while the code judges still answer. Without a model the code judges still answer and the ones that needed a model are
 `skipped`, saying why; a judge whose model failed is skipped too, and the call seals all the same.
@@ -202,7 +202,7 @@ judge's pass rate moved ([console-api.md](console-api.md)).
 ## An agent's own judges — `GET /v1/agents/{slug}/judges`, `PUT` · `DELETE /v1/agents/{slug}/judges/{name}`
 
 A judge of the agent's own is a question about its job that the org writes, one list per agent
-for both worlds. At hang-up the judge model reads it with the whole call, both sides' turns and
+for both environments. At hang-up the judge model reads it with the whole call, both sides' turns and
 the tool calls between them, and answers `held` or `broken`; its verdict is one more entry of
 `call.score`'s `judges`, under the judge's name, and the name is in `panel`.
 
@@ -217,21 +217,21 @@ PUT /v1/agents/recepcion/judges/offers-next-slot
 
 The name is lower-case words joined by hyphens. `runs_on` is `every-call` (the default) or
 `simulations`: a call a persona played, named on `call.started` or placed as the spoken caller of
-`/v1/evals/voice`, and no other. Writing a name again replaces it; each door answers the agent's
+`/v1/evals/voice`, and no other. Writing a name again replaces it; each endpoint answers the agent's
 list after it, and `DELETE` of a name nobody wrote is `404`. The judges run only when the seal
 judges at all (the three conditions above), and each is one more request to the judge model.
 
 ## The simulated caller
 
-Every line of the simulated caller is paid for by the box (its model and its voice), so each door
+Every line of the simulated caller is paid for by the platform (its model and its voice), so each endpoint
 has a ceiling: a suite takes 200 goldens, 200 cases and 8 models at most, a golden 40 caller lines
 (`input`), a call 40 caller turns (`turns`, `turns_left`); past them it is `422`. And a run plays
 200 calls at most in all, its goldens and the cases it joins each played under every model:
 `400` past them, with the count.
 
 `POST /v1/evals/caller` `{persona, heard, turns_left}` answers `{say, hangup}`: the persona's next
-line on the call so far, on the persona's `llm` or the box's default, on the org's own key or the
-one the box lends it. The caller never sees its own rule. A vendor this box lacks is `400`, one
+line on the call so far, on the persona's `llm` or the platform's default, on the org's own key or the
+one the platform lends it. The caller never sees its own rule. A vendor this deployment lacks is `400`, one
 nobody keyed `503`, a model that answered no line `502`. Each line is a model call, so an org says
 120 a minute at most (`429` past them), `heard` holds 80 turns, and a turn, the `goal` and the
 `style` 4000 characters each (`422` past them).
@@ -241,19 +241,19 @@ a spoken call: the agent is dispatched into the room named `call` with the perso
 `state` (the object the agent opens the call in, on its `call.started`; absent, the class's own) on
 the dispatch, the caller joins and speaks in a voice the agent does not use (the persona's own,
 else one of the operator's voices for the language), and the room is deleted at the end whatever
-happened. `call` is minted by the client as the box mints one (`call_` and a word, `422` for any
+happened. `call` is minted by the client as the platform mints one (`call_` and a word, `422` for any
 other shape) so it tails the log before the call starts, and it must name a call nobody opened:
 the head is claimed in the caller's scope before the room is offered, and an id that exists —
 anybody's — is `409`. A persona is the agent's: a name nobody wrote for that agent is `404`; one
 sent without a name is played as sent. A room nobody can hold is `503`. The answer is `{call, turns,
-line, caller_cost_usd, stopped_at_ceiling}`: what the caller's lines and voice cost by the box's
+line, caller_cost_usd, stopped_at_ceiling}`: what the caller's lines and voice cost by the platform's
 rates, and whether it hung up because the call had spent the providers row's
 `caller.ceiling_usd` ([operator-api.md](operator-api.md)); the line that crosses it is the last
 one said. A model or a voice the rates do not price costs nothing here, as on a call.
 
 ## Personas — `GET /v1/agents/{slug}/personas`, `PUT` · `DELETE /v1/agents/{slug}/personas/{name}`, `GET /v1/agents/{slug}/personas/{name}/runs`
 
-A persona belongs to one agent, in both worlds: two agents of the org may each have an `apurado`
+A persona belongs to one agent, in both environments: two agents of the org may each have an `apurado`
 of their own. `GET /v1/agents/recepcion/personas` lists that agent's callers.
 
 ```
@@ -262,8 +262,8 @@ PUT /v1/agents/recepcion/personas/apurado
  "llm": "anthropic/claude-haiku-4-5", "accepts_when": "le dan hora el martes", "was": null}
 ```
 
-The name is lower-case words joined by hyphens; `was` renames, within the agent. A vendor this box
+The name is lower-case words joined by hyphens; `was` renames, within the agent. A vendor this deployment
 lacks is refused when written, not in the middle of a run. `GET
 /v1/agents/{slug}/personas/{name}/runs` pages the calls the persona made to that agent in the
-key's world, newest first, each with its turns, how it ended, its cost in
+key's environment, newest first, each with its turns, how it ended, its cost in
 US dollars and the judges' score.

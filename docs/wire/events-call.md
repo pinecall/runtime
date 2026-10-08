@@ -18,7 +18,7 @@ One delta of the reply the agent is giving, never the reply so far: in a voice c
 |---|---|---|---|
 | `speech_id` | `string` | yes | The reply these words belong to. |
 | `text` | `string` | yes | This delta alone: a word (a token, in a written call), not the words so far. |
-| `final` | `boolean` | yes | False on every delta of a spoken or written reply, which turn.agent closes. True on an entry that carries a whole reply at once, as the box's own message to a caller nobody could take does. |
+| `final` | `boolean` | yes | False on every delta of a spoken or written reply, which turn.agent closes. True on an entry that carries a whole reply at once, as the platform's own message to a caller nobody could take does. |
 | `start` | `number` | no | When these words start, in seconds from the start of the reply's audio, as the voice aligned them. Absent when the voice returned no word timings. |
 | `end` | `number` | no | When these words end, in seconds from the start of the reply's audio, as the voice aligned them. Absent when the voice returned no word timings. |
 
@@ -49,7 +49,7 @@ The platform is placing an outbound call and the far end has not answered yet. T
 
 | field | type | required | meaning |
 |---|---|---|---|
-| `channel` | `Channel` | yes | The door the public came through: a phone call over SIP, the browser widget over WebRTC, or WhatsApp text. |
+| `channel` | `Channel` | yes | The endpoint the public came through: a phone call over SIP, the browser widget over WebRTC, or WhatsApp text. |
 | `from` | `string` | yes | The number the call shows as coming from, E.164. |
 | `to` | `string` | yes | The number being dialed, E.164. |
 | `run` | `string | null` | no | The eval run that placed this call, when one did. Absent or null for a call the platform placed for a person. |
@@ -83,10 +83,10 @@ An inbound call is offered to this agent and has not been answered yet. The firs
 
 | field | type | required | meaning |
 |---|---|---|---|
-| `channel` | `Channel` | yes | The door the public came through: a phone call over SIP, the browser widget over WebRTC, or WhatsApp text. |
+| `channel` | `Channel` | yes | The endpoint the public came through: a phone call over SIP, the browser widget over WebRTC, or WhatsApp text. |
 | `from` | `string` | yes | The calling number in E.164 form, or the web visitor id. |
 | `to` | `string` | yes | The number or route that was called. |
-| `route` | `Route` | yes | One door to an agent: a channel and, for phone and WhatsApp, the number that answers. |
+| `route` | `Route` | yes | One endpoint to an agent: a channel and, for phone and WhatsApp, the number that answers. |
 | `run` | `string | null` | no | The eval run that opened this call, when one did: such a call starts mid-conversation, in the golden's state. Absent or null for a person. |
 | `caller` | `Contact | null` | yes | Who this seems to be, from the number alone. Null when nobody is known. |
 | `external_id` | `string` | no | The carrier or SIP call id, for tracing outside Pinecall. |
@@ -98,7 +98,7 @@ The last entry of a call: what the judges said about it at hang-up, one row per 
 | field | type | required | meaning |
 |---|---|---|---|
 | `passed` | `boolean` | no | Whether no judge answered broken. A deferred or a skipped judge is an answer nobody gave, never a fault of the call. ABSENT when no judge answered at all, which is not the same as false: read not_judged for why nobody did. |
-| `not_judged` | `string` | no | Why nothing judged this call, when nothing did: the judges are not installed on this box, or the judging itself failed. Absent on every call a judge answered. |
+| `not_judged` | `string` | no | Why nothing judged this call, when nothing did: the judges are not installed on this deployment, or the judging itself failed. Absent on every call a judge answered. |
 | `judges` | `Judgment[]` | yes | One row per judge that was run over this call, in the order they were declared. |
 | `panel` | `string[]` | no | Every judge this call declared, whether or not it answered: a judge that raised is here and absent from judges. Empty when nothing was ever declared, and absent on entries written before this field existed. |
 | `judge_calls` | `integer` | yes | How many questions judging this call actually put to a model. Zero is the happy path: a policy answers by code. |
@@ -111,7 +111,7 @@ Media is up: the caller and the agent can hear each other, or the text session i
 
 | field | type | required | meaning |
 |---|---|---|---|
-| `channel` | `Channel` | yes | The door the public came through: a phone call over SIP, the browser widget over WebRTC, or WhatsApp text. |
+| `channel` | `Channel` | yes | The endpoint the public came through: a phone call over SIP, the browser widget over WebRTC, or WhatsApp text. |
 | `direction` | `Direction` | yes | Inbound: the public reached the agent. |
 | `from` | `string` | yes | The calling side, E.164 or a visitor id. |
 | `to` | `string` | yes | The called side. |
@@ -121,10 +121,10 @@ Media is up: the caller and the agent can hear each other, or the text session i
 | `declines_when` | `string | null` | no | When that caller hangs up unsatisfied, as the persona said it when the call opened. The other half of the same rule; absent or null with `accepts_when` absent is a call nobody judges for it. |
 | `caller` | `Contact | null` | yes | Who is on the line, as far as the platform knows now. |
 | `started_at` | `number` | yes | When media came up, unix seconds. |
-| `env` | `Env` | no | The world this call ran in: the one the key that holds its agent opens. Absent on entries written before keys knew where they were, which read as production. |
-| `worker` | `string | null` | no | The worker that ran the call, as its heartbeats name it (`PINECALL_WORKER_NAME`, or its machine's short hostname) within its world's fleet. Absent on a written call, which the gateway runs, and on a call a worker of an older release ran. |
+| `env` | `Env` | no | The environment this call ran in: the one the key that holds its agent opens. Absent on entries written before keys knew where they were, which read as production. |
+| `worker` | `string | null` | no | The worker that ran the call, as its heartbeats name it (`PINECALL_WORKER_NAME`, or its machine's short hostname) within its environment's fleet. Absent on a written call, which the gateway runs, and on a call a worker of an older release ran. |
 | `medium` | `Medium | null` | no | How the call is had: `voice` when it runs in a room, spoken; `text` when it is a written session. A `web` call is either. Absent from a gateway before this release, and an app reading it then falls back to its channel (`phone` spoken, `whatsapp` written). |
-| `state` | `object` | no | The state the call opens in, when whoever opened it asked for one: a golden, a persona, or `?state=` on the chat door. The app applies it after its call hook and before the first render. Absent otherwise: the call opens in the class's own state. |
+| `state` | `object` | no | The state the call opens in, when whoever opened it asked for one: a golden, a persona, or `?state=` on the chat endpoint. The app applies it after its call hook and before the first render. Absent otherwise: the call opens in the class's own state. |
 
 ### `call.summary`
 
@@ -137,7 +137,7 @@ What the call was about, how it went, what it consumed and what that cost. Writt
 | `duration_s` | `number` | yes | Seconds of conversation. |
 | `turns` | `integer` | yes | How many turns, both sides together. |
 | `usage` | `ModelUsage[]` | yes | One row per model used, as the session summed them. |
-| `cost` | `Cost` | yes | What the call cost in provider fees and, when the box priced its own compute (`pinecall-compute`), the platform's, in US dollars; informational. |
+| `cost` | `Cost` | yes | What the call cost in provider fees and, when the platform priced its own compute (`pinecall-compute`), the platform's, in US dollars; informational. |
 | `recording` | `string` | no | Where the recorder wrote the recording, when one was made; `GET /v1/calls/{call}/recording` serves it from wherever it is kept, reading only the file's name from this path: on the disk it is always `<PINECALL_RECORDINGS>/<call>/audio.ogg` or `audio.sealed`, never another file. |
 
 ### `call.transferred`

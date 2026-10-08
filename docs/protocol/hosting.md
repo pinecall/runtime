@@ -1,26 +1,26 @@
-# Hosted apps: the box runs the org's agent
+# Hosted apps: the platform runs the org's agent
 
 A tenant's agent is a process the tenant runs ([the-smallest-app.md](the-smallest-app.md)). A
-**hosted app** is the same process run by the box instead: the org uploads the project's sources,
-and the box keeps them as a **release**. Every door here takes a key that opens `app`, and acts in
-the world the request names: an app hosted in production is not hosted in the sandbox.
+**hosted app** is the same process run by the platform instead: the org uploads the project's sources,
+and the platform keeps them as a **release**. Every endpoint here takes a key that opens `app`, and acts in
+the environment the request names: an app hosted in production is not hosted in the sandbox.
 
-The box's **runner** of that world installs each release and starts it, one pod each under gVisor,
-on a cluster of its own — the hosting cluster, apart from the one the box runs on, in a network of
+The platform's **runner** of that environment installs each release and starts it, one pod each under gVisor,
+on a cluster of its own — the hosting cluster, apart from the one the platform runs on, in a network of
 its own, which a runtime may have or not (`infra/README.md`, "Hosting");
 `GET /v1/hosted` says which release serves and why the newest failed. What the process is started
-with is the org's secrets, its token and the world's address, and the command is always
+with is the org's secrets, its token and the environment's address, and the command is always
 `pinecall start` (`--prod` in production): a hosted project is a Node project with `pinecall` in
 its dependencies.
 
-From a terminal, the doors are two verbs of the `pinecall` CLI (0.9.10 and later):
+From a terminal, the endpoints are two verbs of the `pinecall` CLI (0.9.10 and later):
 `pinecall deploy` packs the folder (never `node_modules` or a `.env`), uploads it and follows it
 until it is live or failed, with `list`, `releases`, `rollback <n>` and `rm`; `pinecall secrets`
 sets, lists and drops the org's secrets. Their page is the CLI repo's (`pinecall/cli`) `docs/the-cli.md`.
 
 ## An app and its releases
 
-| door | what |
+| endpoint | what |
 |---|---|
 | `POST /v1/hosted/{name}/releases[?note=]` | the body is the project as a gzipped tarball (`application/gzip`, no multipart); answers the release: `{name, release, sha256, bytes, author, note, created_at}` |
 | `GET /v1/hosted` | `{apps: [{name, release, live_release, failed_why, stopped, created_by, created_at}]}`, by name. `release` is the newest, `null` before the first; `live_release` the one serving the app now, `null` while none is; `failed_why` why the newest did not build or start, `null` when it did or is on its way |
@@ -33,10 +33,10 @@ sets, lists and drops the org's secrets. Their page is the CLI repo's (`pinecall
 | `DELETE /v1/hosted/{name}` | `204`: the app and its releases go, and its token is revoked |
 
 `{name}` is a slug of 40 characters at most, since it is part of a host name. **The first upload makes the app**: it is counted against the org's
-`hosted_apps` quota in that world ([../limits.md](../limits.md); `429` at the limit, and a quota
-of zero hosts nothing), and a server's token is minted for it — the org's, in that world, labelled
+`hosted_apps` quota in that environment ([../limits.md](../limits.md); `429` at the limit, and a quota
+of zero hosts nothing), and a server's token is minted for it — the org's, in that environment, labelled
 `hosted app <name>`, listed in `GET /v1/keys` like any other and kept sealed under the vault key
-for the process the box will start. No door answers it. Later uploads are releases 2, 3, …: a
+for the process the platform will start. No endpoint answers it. Later uploads are releases 2, 3, …: a
 release is never edited, and its number never reused. An app keeps its newest ten releases and the
 one its runner serves while a newer one starts; an older one is let go when the next is kept, and
 a rollback to it is `404`.
@@ -44,7 +44,7 @@ a rollback to it is `404`.
 An upload is read before it is kept, and refused with a `400` that says why:
 
 - over 10 MB packed, over 100 MB unpacked, or more than 5 000 files (leave `node_modules` and
-  build output out: the box installs the dependencies itself);
+  build output out: the platform installs the dependencies itself);
 - anything but a gzipped tarball;
 - a path that leaves the project's folder (`../`, an absolute path), or a member that is a link
   or a device. A release holds files and folders only.
@@ -58,32 +58,32 @@ reads every org's with `GET /v1/ops/hosted-usage[?month=YYYY-MM]`, the same shap
 
 ## The org's secrets
 
-What the org's hosted apps are started with, as environment variables, per world.
+What the org's hosted apps are started with, as environment variables, per environment.
 
-| door | what |
+| endpoint | what |
 |---|---|
 | `GET /v1/secrets` | `{secrets: [{name, set_by, set_at}]}`, by name. Never a value |
 | `PUT /v1/secrets/{name} {value}` | keeps it sealed under the vault key, replacing the value it had; answers the list |
 | `DELETE /v1/secrets/{name}` | forgets it; answers the list, `404` for a name nobody set |
 
 A name is an environment variable's (`CRM_TOKEN`: capitals, digits, underscores), and never one
-starting with `PINECALL_`, which the box sets itself. A value is 16 KB at most. **No door reads a
+starting with `PINECALL_`, which the platform sets itself. A value is 16 KB at most. **No endpoint reads a
 value back**: a secret is set, replaced or dropped.
 
-## The runner's doors
+## The runner's endpoints
 
-The **runner** is the box's own process that runs every org's hosted apps in one world. Its key
-opens `runner`, a scope no org's key and no person's role holds: it is minted on the box
-(`pinecall-runtime keys runner production|sandbox`), in the box's own org, like a fleet's.
+The **runner** is the platform's own process that runs every org's hosted apps in one environment. Its key
+opens `runner`, a scope no org's key and no person's role holds: it is minted on the platform
+(`pinecall-runtime keys runner production|sandbox`), in the platform's own org, like a fleet's.
 
-| door | what |
+| endpoint | what |
 |---|---|
-| `POST /v1/runner/heartbeat {runner, reports: [{org, name, host, state, why}], logs: [{org, name, host, lines}]}` | keeps the reports and the logs, counts the time each serving app served, and answers the key's world and every app of it that has a release and is not stopped: `{world, apps: [{org, name, release, sha256, host, registered, failed, logs_wanted, live_host}]}`. `live_host` is the host that last went live, `null` before one did. A runner reads the answer leniently, so a gateway may add fields before its runners know them: **the runner is upgraded first** |
-| `GET /v1/runner/apps/{org}/{name}/releases/{release}/source` | the tarball, of any org in the key's world |
-| `GET /v1/runner/apps/{org}/{name}/environment` | `{environment: {…}}`: the org's secrets in that world opened, `PINECALL_KEY` (the app's token) and `PINECALL_URL` (the box's address for that world; `503` on a box with no name) |
+| `POST /v1/runner/heartbeat {runner, reports: [{org, name, host, state, why}], logs: [{org, name, host, lines}]}` | keeps the reports and the logs, counts the time each serving app served, and answers the key's environment and every app of it that has a release and is not stopped: `{world, apps: [{org, name, release, sha256, host, registered, failed, logs_wanted, live_host}]}`. `live_host` is the host that last went live, `null` before one did. A runner reads the answer leniently, so a gateway may add fields before its runners know them: **the runner is upgraded first** |
+| `GET /v1/runner/apps/{org}/{name}/releases/{release}/source` | the tarball, of any org in the key's environment |
+| `GET /v1/runner/apps/{org}/{name}/environment` | `{environment: {…}}`: the org's secrets in that environment opened, `PINECALL_KEY` (the app's token) and `PINECALL_URL` (the platform's address for that environment; `503` on a deployment with no name) |
 
 **A host is one release under one set of secrets.** `host` is the name the release's process is
-to run under, `<name>-r<release>-<eight hex>`; the hex is of the org, the world, the name, the release and the org's
+to run under, `<name>-r<release>-<eight hex>`; the hex is of the org, the environment, the name, the release and the org's
 secrets as they are, so two orgs never share a host name on a machine, and so an upload and a changed secret are both a new host. The SDK says the machine it
 runs on when it registers, so `registered` is true once an app socket of the org says it runs on
 that host: the release is serving.
@@ -100,7 +100,7 @@ reported `failed` with its last lines (`the process exited 5 times in 10 minutes
 answers nothing until the next release or secret makes a new host. A host that never went live and
 exits is failed at once: a release that does not start is not tried again.
 
-A host is one pod: its first container fetches the release's sources from the runner of its world
+A host is one pod: its first container fetches the release's sources from the runner of its environment
 by their digest (the runner checked them against the uploaded one) and installs the dependencies
 the lockfile names, its second runs `pinecall start` over them, read-only. Both run as a user that
 is not root, with no service account token, no capability, the public resolvers, and a scratch

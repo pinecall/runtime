@@ -1,4 +1,4 @@
-# The token door — `POST /v1/tokens`
+# The token endpoint — `POST /v1/tokens`
 
 Where a tenant's backend mints a browser's token. It implements LiveKit's standard token endpoint
 ([docs.livekit.io, authentication endpoint](https://docs.livekit.io/frontends/build/authentication/endpoint)),
@@ -11,20 +11,20 @@ a client may not set.
 
 ## What this runtime adds to LiveKit's mint
 
-1. **The org check.** The door takes the org's key holding `talk` (the tenant's backend holds it;
+1. **The org check.** The endpoint takes the org's key holding `talk` (the tenant's backend holds it;
    the browser never sees it) and mints only for an agent somebody holds in the key's org and
-   world. Nobody holding it is `404`, since a token for one is a browser joining a room nothing
-   answers in. The token's `room_config` is one dispatch to the fleet of the key's world, its
-   metadata naming the agent, the org, the world and the holder, so the one worker every org
-   shares asks the gateway for that org's doors, declaration and keys.
+   environment. Nobody holding it is `404`, since a token for one is a browser joining a room nothing
+   answers in. The token's `room_config` is one dispatch to the fleet of the key's environment, its
+   metadata naming the agent, the org, the environment and the holder, so the one worker every org
+   shares asks the gateway for that org's endpoints, declaration and keys.
 2. **The contact id, and nothing PII.** `participant_metadata` carries the org's opaque contact id
    (`contact` in the body) and nothing else. A name is refused: the log would carry it. What the
    backend seals in `metadata` rides the signed dispatch; the browser reads its token and changes
    none of it.
 3. **One dispatch opens one call, where the token was minted.** The call the token names is
-   written into a ledger when it is minted, with the org, the world and the agent it was minted
+   written into a ledger when it is minted, with the org, the environment and the agent it was minted
    for, and the dispatch that opens the call spends it: the gateway asks the ledger by the call's
-   id at every `POST /v1/calls`, whatever the worker says. A worker that names another org, world
+   id at every `POST /v1/calls`, whatever the worker says. A worker that names another org, environment
    or agent is answered `404`, as for a call nobody opened, and the token is left unspent. A join
    that creates the room again after the call ended is refused with `409` and `token_spent` on
    the agent's log. A
@@ -51,9 +51,9 @@ The answer is `201` with LiveKit's two fields and two more every SDK ignores:
 { "server_url": "wss://cloud.pinecall.io", "participant_token": "eyJ…", "call": "CA_5f1c…", "log_token": "eyJ…" }
 ```
 
-`server_url` is the LiveKit of the token's world: the box's name (`PINECALL_DOMAIN`) over `wss`,
+`server_url` is the LiveKit of the token's environment: the platform's name (`PINECALL_DOMAIN`) over `wss`,
 and for the sandbox `wss://<the name>/sandbox` when it has a LiveKit of its own
-(`LIVEKIT_SANDBOX_URL`); on a box with no name, `LIVEKIT_PUBLIC_URL`, else the world's LiveKit.
+(`LIVEKIT_SANDBOX_URL`); on a deployment with no name, `LIVEKIT_PUBLIC_URL`, else the environment's LiveKit.
 `call` is the room and the id
 its log will have, so the backend can watch it without decoding a JWT.
 
@@ -63,13 +63,13 @@ The participant token dies in a minute; a page shows a call longer than that and
 `log_token` opens no room (`room_join`, publish and subscribe all false), carries
 `pinecall.scope: read` and the projection asked, and lives four hours. It reads that one call's
 `GET /v1/calls/{call}/events`, `/state` and `/recording`, as `?token=` or as the bearer, before and
-after the call ends; another call, an agent's log or a supervisor verb is `403`. Those three doors
+after the call ends; another call, an agent's log or a supervisor verb is `403`. Those three endpoints
 answer any origin (`GET`, no credentials): the token the page brings is what opens them.
 `POST /v1/agents/{slug}/dial` answers one too.
 
 ## Refusals
 
-`400` a scope this door does not mint, a field that is ours, a `pinecall.` attribute, no agent
+`400` a scope this endpoint does not mint, a field that is ours, a `pinecall.` attribute, no agent
 named · `401` no key of ours · `403` a key without `talk` · `404` nobody holds that agent · `422` a
 `ttl_s` past 600 · `429` a quota, in its own sentence · `503` every worker of the fleet is full:
 `fleet.full` on the agent's log and a sentence naming `POST /v1/callbacks`.

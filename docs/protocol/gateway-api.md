@@ -1,18 +1,18 @@
 # The gateway API
 
-Every door a tenant's own code may knock at, and what comes back. The `pinecall` package speaks
-exactly these doors, so an app written against this page in any language is a first-class client.
+Every endpoint a tenant's own code may knock at, and what comes back. The `pinecall` package speaks
+exactly these endpoints, so an app written against this page in any language is a first-class client.
 The operator's half is [operator-api.md](operator-api.md); who a key is, [../multi-tenancy.md](../multi-tenancy.md);
-every door in one table, [every-door.md](every-door.md).
+every endpoint in one table, [every-door.md](every-door.md).
 
 ## The shape of it
 
-One gateway serves both worlds, production and the sandbox, at `/v1`, and beside it the console at
+One gateway serves both environments, production and the sandbox, at `/v1`, and beside it the console at
 `/` and the widget at `/widget/pinecall-widget.js`, the one answer carrying
 `Access-Control-Allow-Origin: *`. The console's page and its assets are framed by nobody
 (`frame-ancestors 'none'`, `X-Frame-Options: DENY`), kept on HTTPS (`Strict-Transport-Security`),
 read as served (`nosniff`), and tell another site its origin alone (`strict-origin-when-cross-origin`). The API's own description is public too, `GET /v1/docs` and
-`/openapi.json`: every door and every body, none of them a secret. Three kinds of connection:
+`/openapi.json`: every endpoint and every body, none of them a secret. Three kinds of connection:
 
 | | what it is | who opens it |
 |---|---|---|
@@ -21,27 +21,27 @@ read as served (`nosniff`), and tell another site its origin alone (`strict-orig
 | **`WS /v1/chat`** · a LiveKit room · a phone · WhatsApp | one caller, one call | a caller |
 
 The log is the truth: everything that happens to a call is an entry with a `seq`, written before
-control returns, and every door that shows a call shows those entries.
+control returns, and every endpoint that shows a call shows those entries.
 
 ```
 Authorization: Bearer <key>             every door, HTTP and WebSocket alike
 pinecall-env: production | sandbox      the world a person's key acts in (the sandbox when unsaid)
 ```
 
-**A key opens what its scopes say**, and every tenant door asks for exactly one:
+**A key opens what its scopes say**, and every tenant endpoint asks for exactly one:
 `403 this key does not open knowledge: it opens calls · evals`. A server's key holds `app` ·
-`calls` · `talk` · `knowledge` · `evals` and lives in the one world it was made for; a person's key
-holds their role's scopes and names the world per request, production only with production access,
+`calls` · `talk` · `knowledge` · `evals` and lives in the one environment it was made for; a person's key
+holds their role's scopes and names the environment per request, production only with production access,
 read from their row on every request ([people.md](people.md)). `pinecall-corner: <member id>` answers an
-HTTP door in a colleague's sandbox scope, for a key that opens `team` and `app`.
+HTTP endpoint in a colleague's sandbox scope, for a key that opens `team` and `app`.
 
-`fleet` is the box's own workers', one key per world, and it acts for one call at a time. A request
+`fleet` is the platform's own workers', one key per environment, and it acts for one call at a time. A request
 that names a call, in its path or as `?call=`, acts in the scope that call's head row keeps, and in
 no other: a `?org=&env=&holder=` that disagrees is `404`, and so is a call nobody opened yet. A call
 a dial placed is opened by the worker only in the scope the dial wrote. Before its call is opened, a
 worker asks in the scope its dispatch named, `?org=&env=&holder=` (the agent's routes, declaration,
 stages and hold audio, whether a ring is a developer's). It reads a call's events, state and
-recording without naming a scope, a call of its own world once opened; it reads no agent's log, no
+recording without naming a scope, a call of its own environment once opened; it reads no agent's log, no
 org's floor and no list of calls. The overflow's `POST /v1/callbacks` names the call it answered, and
 the agent must be that call's org's.
 
@@ -50,27 +50,27 @@ token of ours for one call (a page's `log_token`), never an API key, since a URL
 log.
 
 **Refusals** are `{"detail": "…"}` under the status, and the sentence names the fix: `401` no key;
-`403` a key that does not open the door, or another world's; `404` a thing that is not there, and
+`403` a key that does not open the endpoint, or another environment's; `404` a thing that is not there, and
 another org's call, whose existence is nobody else's business; `409` a request that disagrees with
 what is stored; `400` or `422` a body that is not the shape; `413` a body over 32 MiB, more than
-any door takes, refused as it streams in (a webhook, which carries no key, over 4 MiB, before its
-signature is read); `429` a quota, a door that runs a model past its minute's pace (120 caller lines, 6 memory
+any endpoint takes, refused as it streams in (a webhook, which carries no key, over 4 MiB, before its
+signature is read); `429` a quota, an endpoint that runs a model past its minute's pace (120 caller lines, 6 memory
 extraction runs of 50 cases at most, per org), or a minute's requests
 spent (below); `502` a vendor or a
-carrier that did not answer, in its own words; `503` the request was right and this box cannot
+carrier that did not answer, in its own words; `503` the request was right and this deployment cannot
 honour it, or not now: a database too busy to answer within its timeouts is a `503` to retry. A
 socket closes with **1008** and the sentence. A key past its expiry is `401` saying
 when it expired, never the silence of a key nobody made.
 
-**A minute's requests.** Every door a key opens by its scopes counts the org's requests in the
-world, per family of doors (the scopes the door asks for, `calls` for a log's readers): 6 000 a
-minute each, and the next one that minute is `429 this org sent its calls doors 6000 requests this
+**A minute's requests.** Every endpoint a key opens by its scopes counts the org's requests in the
+environment, per family of endpoints (the scopes the endpoint asks for, `calls` for a log's readers): 6 000 a
+minute each, and the next one that minute is `429 this org sent its calls endpoints 6000 requests this
 minute, in production: try again in 12 s` with `Retry-After: 12`. One org's count never slows
-another's, nor its other world, nor its other families. A call's own doors (the ones a worker
+another's, nor its other environment, nor its other families. A call's own endpoints (the ones a worker
 writes and reads a call through, which admission already bounds), the fleet's and the runner's
-keys and a person who runs the box are never counted; the doors that take no key or any key
+keys and a person who runs the platform are never counted; the endpoints that take no key or any key
 (`/v1/login…`, `/v1/whoami`, `/v1/keys`, `/v1/limits`) and the sockets are not either. The count
-is the box's, not one gateway's: each gateway counts what reaches it and says its busy names on
+is the platform's, not one gateway's: each gateway counts what reaches it and says its busy names on
 the signal every second, and the wall is the sum, so an org spread over every gateway meets it
 within a second of reaching it (a gateway with no `PINECALL_REDIS_URL` counts alone).
 
@@ -83,7 +83,7 @@ socket is outbound. Commands go up, entries come down, one JSON object each.
 | command | what it does |
 |---|---|
 | `agent.register` | this socket speaks for this agent (`routes`, `sdk`, `takes_unclaimed`); answers `agent.registered` with this socket's `app` id |
-| `agent.configure` | what the agent is: tools, language, the prompt's layout, the state fields it declares. What it runs on (vendors, voice, greeting, hang-up, memory, bases) is the world's, [settings-api.md](settings-api.md) |
+| `agent.configure` | what the agent is: tools, language, the prompt's layout, the state fields it declares. What it runs on (vendors, voice, greeting, hang-up, memory, bases) is the environment's, [settings-api.md](settings-api.md) |
 | `ping` | `pong` with the gateway's clock |
 | `agent.drain` | this process is leaving; [a-deploy-never-cuts-a-call.md](a-deploy-never-cuts-a-call.md) |
 
@@ -121,7 +121,7 @@ only the process in the agent's directory can do: [dev-verbs.md](dev-verbs.md).
 
 ## 2. Callers
 
-| door | the caller |
+| endpoint | the caller |
 |---|---|
 | `WS /v1/chat?agent=<slug>` | text: send `{"text": "…"}`, receive the call's entries; `{"hangup": true}` ends the call, then closes the socket with `the call ended: caller_hung_up`; `app=`, `contact=`, `caller=`, `persona=`, `state=` (a JSON object, 16 KB at most: the state the call opens in, carried on its `call.started`), and `call=` to take up a call whose gateway restarted |
 | `POST /v1/tokens` | web voice: [tokens.md](tokens.md) |
@@ -130,18 +130,18 @@ only the process in the agent's directory can do: [dev-verbs.md](dev-verbs.md).
 | WhatsApp | [whatsapp.md](whatsapp.md) |
 | `POST /v1/agents/{slug}/dial` | a call the agent places, past the org's dial guards: [numbers.md](numbers.md) |
 
-When every worker is full the token door answers `503` and a page offers a call back:
+When every worker is full the token endpoint answers `503` and a page offers a call back:
 `POST /v1/callbacks {agent, number, channel?, via?, call?}` writes `callback.requested` on the
-agent's log; `GET /v1/callbacks?agent=&after=` lists them for your app to dial, each in the world of
+agent's log; `GET /v1/callbacks?agent=&after=` lists them for your app to dial, each in the environment of
 the call it names: the sandbox's key lists the sandbox's, production's lists production's.
 
-The worker's doors (`POST /v1/calls`, `/events`, `/entries`, `/sealed`, `/tools`, `/lookup`,
+The worker's endpoints (`POST /v1/calls`, `/events`, `/entries`, `/sealed`, `/tools`, `/lookup`,
 `/remember`, `/recording/key`, `/commands`) belong to whoever opened the call: the fleet's key
 for a call the fleet's worker opened, an org's `app` key for one its own worker opened, nobody
 for a written call, which the gateway runs itself. Another key is answered `404`. What the
 gateway writes on a log itself — `call.ringing`, `call.dialing`, `call.attached`,
 `call.claimed`, `call.summary`, `call.score`, `memory.ops`, `docs.sources` — is refused `403` at
-every append door, the fleet's included: the summary and the score are the gateway's own words.
+every append endpoint, the fleet's included: the summary and the score are the gateway's own words.
 
 ## 3. Reading a log
 
@@ -159,7 +159,7 @@ which only its org reads it (`404` to anyone else). An agent's own log reads the
 org has registered the slug, so `pinecall logs` can wait for a first `start`; once an org holds
 it, it is that org's alone.
 
-| door | |
+| endpoint | |
 |---|---|
 | `GET /v1/agents/{slug}/calls` | an agent's own log: registrations, declarations, errors |
 | `GET /v1/calls/{call}/state` | the call reduced |
@@ -167,7 +167,7 @@ it, it is that org's alone.
 | `GET /v1/agents/{slug}/sessions` · `GET /v1/sessions` | one line per call, filtered, counted and paged, in the reader's scope |
 | `GET /v1/calls/{call}/settings` | the exact settings the call was built on |
 | `GET /v1/calls/{call}/prompt` | the exact prompt the call was told: `{call, blocks: [{seq, name, hash, chars, text}]}`, one per `prompt.changed` in order, each block's words as the org kept them under its hash the first time a gateway met them (a call's knowledge when it opened, an app's `prompt.set`), once per distinct text and never per call; `text` is null for a block nobody kept (a call from before they were kept). A key's read, never a page's token |
-| `GET /v1/events` | the org's floor as it changes, in the world the key acts in: agents registered and detached, calls ringing, starting and ending, a person asked for and taken |
+| `GET /v1/events` | the org's floor as it changes, in the environment the key acts in: agents registered and detached, calls ringing, starting and ending, a person asked for and taken |
 
 What each reader receives is its projection: [projections.md](projections.md).
 
@@ -178,7 +178,7 @@ the one path below, which sets `pinecall.erasing` in its own transaction. An era
 one transaction, the log's entries and head, the private values sealed beside its entries, the
 call's facts and tokens, the memories the call
 taught, and the call's recording (its directory on the disk, its object in the recordings
-bucket when the box has one, and the key it is sealed under); then it writes one row of the org's trail, `{id, at,
+bucket when the platform has one, and the key it is sealed under); then it writes one row of the org's trail, `{id, at,
 what, subject, env, asked_by, calls, entries, memories, recordings}`. The dial ledger stays, and a
 phone call leaves its detail record in `call_records` — the numbers, the direction, when it
 started and ended, how it ended; no name, no words, no outcome — for a carrier's traceback, until
@@ -190,10 +190,10 @@ A sealed log is the database's word too, not only the gateway's: `call_log` refu
 sealed log but its `call.score` (a judge scores a call again after its seal), and `call_log_head`
 refuses opening a sealed log again. An erasure deletes, so neither stands in its way.
 
-| door | |
+| endpoint | |
 |---|---|
 | `DELETE /v1/calls/{call}` | one ended call (`team`); `409` while it runs, `404` for a call the key does not read |
-| `DELETE /v1/contacts/{contact}` | a contact in the key's world (`team`): every call they were on (by `call_facts.contact`), every fact kept of them, what each reader had read of their thread; `409` while they are on a call |
+| `DELETE /v1/contacts/{contact}` | a contact in the key's environment (`team`): every call they were on (by `call_facts.contact`), every fact kept of them, what each reader had read of their thread; `409` while they are on a call |
 | `GET /v1/org/erasures` | the trail, newest first (`team`) |
 
 ### Who read what
@@ -202,7 +202,7 @@ Every read of what a call or a contact left writes one row of the org's access l
 at most for the same reader, subject and kind; `reader` is the person's member id, or a server's
 key id (`k_…`):
 
-| what | subject | the doors |
+| what | subject | the endpoints |
 |---|---|---|
 | `log` · `recording` | the call | `GET /v1/calls/{call}/events`, `/state`, `/prompt`, `/recording` |
 | `listen` · `supervise` | the call | a seat handed out, `POST /v1/calls/{call}/listen`, `/supervise` |
@@ -210,7 +210,7 @@ key id (`k_…`):
 | `memory` | the contact, the agent, or the org | `GET /v1/contacts/{contact}/memory`, `/v1/agents/{slug}/memory`, `/v1/memory` |
 
 A visitor's token reading its own call and the fleet reading the call it serves write none. The
-operator's reads off the box (`pinecall-runtime sessions show|tail|recording`) and its tracebacks
+operator's reads off the platform (`pinecall-runtime sessions show|tail|recording`) and its tracebacks
 (`pinecall-runtime traceback`, `GET /v1/ops/traceback`, one row in each org the lookup showed,
 `what: traceback`, the number as subject) write rows with `reader: "operator"`. A row names what
 was read, never what it said. The row is one statement the read waits on; one that cannot be
@@ -237,7 +237,7 @@ An agent's settings and its lexicon: [settings-api.md](settings-api.md). The pip
 melody: [pipeline-api.md](pipeline-api.md). The knowledge bases and a contact's memory, and when a
 call looks either up: [../retrieval/spec.md](../retrieval/spec.md). The vendors, the org's own
 keys, the voices: [provider-keys.md](provider-keys.md). The widget: [console-api.md](console-api.md).
-An agent the box runs itself, from sources the org uploads, and the org's secrets:
+An agent the platform runs itself, from sources the org uploads, and the org's secrets:
 [hosting.md](hosting.md).
 
 ## 6. Evals
@@ -267,7 +267,7 @@ neither. Both play in the sandbox too, so a test hears what a caller will. A cli
 one field reads the row and writes it back whole. The trail is `GET /v1/org/erasures`.
 
 `GET /v1/org/export` (`team`) is the org's calls, memories, settings, words, documents and consents
-in the key's world, as a download of JSON
+in the key's environment, as a download of JSON
 Lines (`application/x-ndjson`): a header `{kind: "export", org, env, exported_at}`, then one line
 per call (`{kind: "call", call, agent, holder, started_at, sealed, facts, entries}`, oldest first,
 each with its whole log), then every memory (`kind: "memory"`, without its embedding), every

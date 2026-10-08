@@ -2,7 +2,7 @@
 
 Seven commands act on a call already running, and they are how an agent hands what it is doing to
 somebody else. They travel down the app socket like every call-scoped command (`"call": "<id>"`,
-refused with `no_session` when no gateway of the box runs that call), and every one but
+refused with `no_session` when no gateway of the platform runs that call), and every one but
 `call.opt_out` answers in the call's own log: the outcome is an entry, never a return value. A
 command reaches the call whichever gateway the app is connected to: it is told on the call's own
 channel, and the gateway holding its worker's command stream, or running its written session,

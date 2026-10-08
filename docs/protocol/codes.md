@@ -19,8 +19,8 @@ memory, read back off the log when it starts.
 `ttl_s` is 60 to 1800, 600 by default; `log` is the projection the call's log token reads through.
 `201`: `{"code": "4821", "number": "+59829001199", "expires_at": 1790000000.0, "code_token": "eyJ…"}`,
 four digits no other live code of the agent holds, the first phone number the agent answers at in
-the key's world, and the token the page asks with. `409` when the agent answers at no phone number
-in that world; `429` past 50 live codes for one agent.
+the key's environment, and the token the page asks with. `409` when the agent answers at no phone number
+in that environment; `429` past 50 live codes for one agent.
 
 ## Asking after one — `GET /v1/codes/{code}`
 
@@ -47,5 +47,5 @@ expired code is closed lazily, by the next issue, ask or claim that finds it.
 ## The code token
 
 A LiveKit token that opens no room (`code:{code}`, every grant false), `pinecall.scope: read`, the
-code, agent and world as attributes, and the code's own expiry. Every call door answers it `403`;
+code, agent and environment as attributes, and the code's own expiry. Every call endpoint answers it `403`;
 it reads `GET /v1/codes/{code}` for its own code and nothing else.

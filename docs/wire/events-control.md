@@ -12,13 +12,13 @@ The gateway applied an agent.configure. Live calls keep their session; the next 
 
 ### `agent.detached`
 
-A socket that held the agent is gone — the process exited, the connection dropped — and the agent's doors are whoever is left holding it. Written to the agent's own log by the gateway, so a console reading the floor sees a process leave as it saw it arrive.
+A socket that held the agent is gone — the process exited, the connection dropped — and the agent's endpoints are whoever is left holding it. Written to the agent's own log by the gateway, so a console reading the floor sees a process leave as it saw it arrive.
 
 | field | type | required | meaning |
 |---|---|---|---|
 | `app` | `string` | yes | The socket that left, as agent.registered named it. |
-| `env` | `Env` | yes | The world it held the agent in. |
-| `left` | `boolean` | yes | True when nobody holds the agent in that world any more; false when another socket still does. |
+| `env` | `Env` | yes | The environment it held the agent in. |
+| `left` | `boolean` | yes | True when nobody holds the agent in that environment any more; false when another socket still does. |
 
 ### `agent.draining`
 
@@ -27,7 +27,7 @@ The answer to agent.drain, written to the agent's own log once the socket's live
 | field | type | required | meaning |
 |---|---|---|---|
 | `app` | `string` | yes | The socket that is leaving, as agent.registered named it. |
-| `env` | `Env` | yes | The world it held the agent in. |
+| `env` | `Env` | yes | The environment it held the agent in. |
 | `handed` | `integer` | yes | Live calls attached to another socket holding the agent. |
 | `parked` | `integer` | yes | Live calls waiting for the next socket that registers the agent. |
 
@@ -37,10 +37,10 @@ The gateway accepted an agent.register: this socket now speaks for the agent and
 
 | field | type | required | meaning |
 |---|---|---|---|
-| `routes` | `Route[]` | yes | The doors the agent now answers. |
-| `app` | `string` | yes | This socket, opaque and minted by the gateway: `?app=<id>` on the chat door asks to be served by it. |
+| `routes` | `Route[]` | yes | The endpoints the agent now answers. |
+| `app` | `string` | yes | This socket, opaque and minted by the gateway: `?app=<id>` on the chat endpoint asks to be served by it. |
 | `sdk` | `string` | no | The SDK and version the app runs, as it reported them. |
-| `env` | `Env` | no | The world the key that registered it opens: production, or sandbox. Absent on entries written before keys knew where they were, which read as production. |
+| `env` | `Env` | no | The environment the key that registered it opens: production, or sandbox. Absent on entries written before keys knew where they were, which read as production. |
 
 ### `attention.answered`
 
@@ -67,7 +67,7 @@ Somebody asked to be called back: a phone caller the overflow agent answered, a 
 
 | field | type | required | meaning |
 |---|---|---|---|
-| `channel` | `Channel` | yes | The door the public came through: a phone call over SIP, the browser widget over WebRTC, or WhatsApp text. |
+| `channel` | `Channel` | yes | The endpoint the public came through: a phone call over SIP, the browser widget over WebRTC, or WhatsApp text. |
 | `number` | `string` | yes | The number to call back, E.164. |
 | `via` | `"overflow" | "widget" | "agent"` | yes | Who took the request: the overflow agent that answered a phone call the fleet could not, the widget, before any room was made, or the agent itself, on a call. |
 | `call` | `string | null` | yes | The call the request was made on, when there was one. Null for a widget visitor who never had a room. |
@@ -91,24 +91,24 @@ A page asked for a code to show beside the agent's phone number (POST /v1/codes)
 | field | type | required | meaning |
 |---|---|---|---|
 | `code` | `string` | yes | The four digits. |
-| `env` | `Env` | yes | The world the agent answers the phone in. |
+| `env` | `Env` | yes | The environment the agent answers the phone in. |
 | `expires_at` | `number` | yes | When the code stops being one, unix seconds. |
 | `log` | `Projection` | yes | The projection the page reads the claimed call through. |
 
 ### `credits.exhausted`
 
-The gateway refused a call, a written turn or a register because one of the org's quotas ran out. Written into the agent's own log, which is the org's, before the door says no.
+The gateway refused a call, a written turn or a register because one of the org's quotas ran out. Written into the agent's own log, which is the org's, before the endpoint says no.
 
 | field | type | required | meaning |
 |---|---|---|---|
 | `org` | `string` | yes | The org whose quota ran out. |
-| `quota` | `"minutes" | "messages" | "agents" | "concurrent_calls" | "memory_facts" | "knowledge_chunks" | "numbers" | "seats" | "llm_tokens" | "hosted_apps" | "budget_usd"` | yes | Which quota: minutes of call, messages, agents held, calls at once, facts memory keeps, chunks the knowledge bases keep, numbers the box bought for the org, people it seats, tokens its models read and wrote, apps the box hosts for it, dollars its calls in both worlds cost this month. Every quota a gateway can refuse for is a word here, whether or not that refusal is one an entry is written for: a push and an invitation name no agent, so they are answered at the door and never logged. |
-| `used` | `number` | yes | How much the org had consumed when the door refused. |
+| `quota` | `"minutes" | "messages" | "agents" | "concurrent_calls" | "memory_facts" | "knowledge_chunks" | "numbers" | "seats" | "llm_tokens" | "hosted_apps" | "budget_usd"` | yes | Which quota: minutes of call, messages, agents held, calls at once, facts memory keeps, chunks the knowledge bases keep, numbers the platform bought for the org, people it seats, tokens its models read and wrote, apps the platform hosts for it, dollars its calls in both environments cost this month. Every quota a gateway can refuse for is a word here, whether or not that refusal is one an entry is written for: a push and an invitation name no agent, so they are answered at the endpoint and never logged. |
+| `used` | `number` | yes | How much the org had consumed when the endpoint refused. |
 | `limit` | `integer` | yes | The quota the operator set. |
 
 ### `dev.request`
 
-The gateway asks the app process holding the agent to do something only that process can — read a file of the agent's directory, mount its class, run its goldens — on a console's behalf. Sent down the one socket the gateway chose, never stored: a request is a fact about two processes talking, not about the world. The app answers with dev.answer naming the same id.
+The gateway asks the app process holding the agent to do something only that process can — read a file of the agent's directory, mount its class, run its goldens — on a console's behalf. Sent down the one socket the gateway chose, never stored: a request is a fact about two processes talking, not about the environment. The app answers with dev.answer naming the same id.
 
 | field | type | required | meaning |
 |---|---|---|---|
@@ -130,11 +130,11 @@ Something went wrong. Inside a call it says what failed; outside a call it says 
 
 ### `fleet.full`
 
-The gateway refused to open a call because every worker of the fleet was full. Written into the agent's own log, which is the org's, before the door says no — the caller was offered a call back instead of a room.
+The gateway refused to open a call because every worker of the fleet was full. Written into the agent's own log, which is the org's, before the endpoint says no — the caller was offered a call back instead of a room.
 
 | field | type | required | meaning |
 |---|---|---|---|
-| `channel` | `Channel` | yes | The door the public came through: a phone call over SIP, the browser widget over WebRTC, or WhatsApp text. |
+| `channel` | `Channel` | yes | The endpoint the public came through: a phone call over SIP, the browser widget over WebRTC, or WhatsApp text. |
 | `workers` | `integer` | yes | How many workers the fleet had at that moment, every one of them full. |
 | `active` | `integer` | yes | How many calls those workers were holding between them. |
 
@@ -172,7 +172,7 @@ A message reached one of the org's numbers while no app held the agent it routes
 | field | type | required | meaning |
 |---|---|---|---|
 | `channel` | `Channel` | yes | Where it was written. |
-| `env` | `Env` | yes | The world the number answers in. |
+| `env` | `Env` | yes | The environment the number answers in. |
 | `number` | `string` | yes | The org's number it was written to, E.164. |
 | `phone_number_id` | `string` | yes | The provider's id for that number: what the answer is sent from. |
 | `from` | `string` | yes | Who wrote it: the provider's id for the person. |
@@ -191,7 +191,7 @@ The answer to ping. Ephemeral: it proves the socket is alive and says nothing el
 
 ### `spend.unusual`
 
-The org's calls cost more today than its own days usually do. Written at the seal of the call that crossed the line, on that call's agent's log, once a day for the org; `/metrics` holds the same up as `pinecall_spend_unusual{org}` while it lasts, for the alert. Today is unusual once it costs three times the org's usual day, the mean of its trailing four weeks (both worlds, every holder, off the calls' summaries); a usual day under a dollar is never judged, so a new org is never flagged.
+The org's calls cost more today than its own days usually do. Written at the seal of the call that crossed the line, on that call's agent's log, once a day for the org; `/metrics` holds the same up as `pinecall_spend_unusual{org}` while it lasts, for the alert. Today is unusual once it costs three times the org's usual day, the mean of its trailing four weeks (both environments, every holder, off the calls' summaries); a usual day under a dollar is never judged, so a new org is never flagged.
 
 | field | type | required | meaning |
 |---|---|---|---|

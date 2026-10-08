@@ -12,11 +12,11 @@ Every vendor this build runs, and how **this org** may run each:
   "models": { "tts/elevenlabs": ["eleven_flash_v2_5"] } }
 ```
 
-A vendor is a livekit plugin installed on the box; nothing in code lists them. `availability` is
-`yours` (the org brought its key), `offered` (the box lends its own to this org), `bring your own`
+A vendor is a livekit plugin installed on the platform; nothing in code lists them. `availability` is
+`yours` (the org brought its key), `offered` (the platform lends its own to this org), `bring your own`
 (installed, and no key would run it for this org) or `broken` (the plugin does not import, `broken`
 says why). `ready` is the first two. `voices_listed` says whether `GET /v1/voices` lists that
-vendor's voices. `defaults` and `models` are the box's providers row.
+vendor's voices. `defaults` and `models` are the platform's providers row.
 
 ## Where the abstraction is, and where it stops
 
@@ -45,13 +45,13 @@ means. Those are measured per vendor and per day (`GET /v1/insights`, `stages`),
 | | |
 |---|---|
 | `PUT /v1/provider-keys/{vendor}` | `{"key": "…"}`, or `{"credentials": {…}}` with the object the vendor's plugin takes (`speech_key` and `speech_region`): secrets alone, eight short scalars at most, each a field a constructor of the vendor takes, none an address, a file or a session (`base_url`, `endpoint`, `*_file`, `http_session`… are the operator's, in the providers row's tuning), `400` otherwise; every call of the org runs on it from the next one |
-| `DELETE /v1/provider-keys/{vendor}` | that vendor back on the box's key; `404` when the org brought none |
+| `DELETE /v1/provider-keys/{vendor}` | that vendor back on the platform's key; `404` when the org brought none |
 | `GET /v1/provider-keys` | `{"vendors": ["elevenlabs"]}`, names only |
 
-No door a person reads answers with a key. The one door that does is the worker's,
+No endpoint a person reads answers with a key. The one endpoint that does is the worker's,
 `GET /v1/agents/{slug}/provider-keys`, which hands a call's three stages with the credentials each
-runs on, to the fleet's key or the org's own worker. The box's keys go to its own workers alone: an
-org's worker (its app key) is handed the org's own keys and lent none of the box's, a stage on a
+runs on, to the fleet's key or the org's own worker. The platform's keys go to its own workers alone: an
+org's worker (its app key) is handed the org's own keys and lent none of the platform's, a stage on a
 vendor it brought no key for refused `403` in those words. The worker names the call it is about to open
 (`?for_call=`), as it does to `GET /v1/agents/{slug}/config`, so a canary picks the call's version
 ([settings-api.md](settings-api.md)). Every row is sealed under `PINECALL_VAULT_KEY`,
@@ -66,11 +66,11 @@ is marked down, the stage's next request goes to the first one still up, and liv
 the one that failed until it answers again. A stage with no fallbacks is the vendor's own object,
 as before; an agent that names its own vendor runs that vendor alone.
 
-Each fallback runs on its own key, found as the default's is: the org's own, else the box's where
+Each fallback runs on its own key, found as the default's is: the org's own, else the platform's where
 its `lends` allow. One this org has no key for is left out, and so is, when the call is built, ears
 that do not stream or a voice of another channel count; the call runs on the rest. A fallback voice
 speaks the row's voice for its vendor and the call's language, never the agent's (a voice id is its
-own vendor's). The worker's door, `GET /v1/agents/{slug}/provider-keys`, hands each stage with its
+own vendor's). The worker's endpoint, `GET /v1/agents/{slug}/provider-keys`, hands each stage with its
 `fallbacks` beside it; a worker of an earlier release reads the stage and runs the default alone.
 
 The row's order is the operator's, and it stands but for a vendor over its error line: the
@@ -78,15 +78,15 @@ gateway keeps, for the last two minutes, how many calls it handed each vendor fi
 how many calls saw that vendor fail (an `error` whose message names its plugin, or a
 `vendor.switched` away from it, counted once per call however often it failed). A vendor handed at
 least five calls, half or more of which saw it fail, goes behind every vendor that is not, when the
-next call's stages are resolved (`providers/credentials.py` `stage`, at the worker's door); among
+next call's stages are resolved (`providers/credentials.py` `stage`, at the worker's endpoint); among
 themselves the ones over the line keep the row's order. It stays last until its failures leave the
 two minutes: then it is back in its place, and the next calls try it again. With no fallbacks, or
 no failures, the order is exactly the row's; an agent that names its own vendor runs it whatever
 its failures. Nothing is ordered by price. The window is in each gateway process's memory, counted
-from what the worker's append doors take: a restarted gateway starts it empty, and with several
+from what the worker's append endpoints take: a restarted gateway starts it empty, and with several
 gateways each orders by what it saw itself. `/metrics` says it as `pinecall_vendor_failing{vendor}`: 1 for a vendor over
 the line, 0 for every other one installed, so the family is there before anything fails. A written call, which the gateway runs itself and
-whose failures reach no append door, runs the row's order.
+whose failures reach no append endpoint, runs the row's order.
 
 Each switch is a `vendor.switched` entry on the call's log (which vendor went down or came back, and
 which serves the stage now), and every metrics block keeps the vendor that served it. Usage is
@@ -106,7 +106,7 @@ for; one this build lacks is `400`. `voices_listed` in the catalogue is true for
 
 `POST /v1/voices/sample {tts, voice, model?, language?, text?}` says a line with that voice over
 the same path a call speaks on and answers the WAV itself, `audio/wav`, with `Server-Timing:
-first-audio;dur=…, total;dur=…`. The words are read exactly as the settings door reads them, so
+first-audio;dur=…, total;dur=…`. The words are read exactly as the settings endpoint reads them, so
 what plays is what saves. No `text` is the providers row's line for the language, else one in
 English. `400` past 400 characters; `429` past thirty samples a minute on one key; a vendor that
 refuses or does not answer is `502` in its own words.

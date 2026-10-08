@@ -2,9 +2,9 @@
 
 What an agent runs on is the org's, not the class's: which vendors and models, how a call opens and
 ends, how a turn is cut, what is remembered, which knowledge bases it reads, and its lexicon,
-how the voice says a brand and what the ears must know. These doors keep all of it **per world, per
+how the voice says a brand and what the ears must know. These endpoints keep all of it **per environment, per
 scope, a version a row**, and a call's head row says which versions it ran on. The class declares
-the contract, the tools, the state, the language, the doors, and nothing of this: the world is put
+the contract, the tools, the state, the language, the endpoints, and nothing of this: the environment is put
 on the declaration at the one place every call is built, and a knob the org never set is the
 runtime's default.
 
@@ -73,7 +73,7 @@ The **whole** set for this scope. It is checked as a call would be built from it
 when an app holds the agent, a bare one otherwise, its lexicon in the scope, and the vendors on the
 org's keys, so a vendor this build has no plugin for, a blank knob, an opening with both verbs or a turn or
 voice knob the vendor takes under no name ([provider-keys.md](provider-keys.md)) is `400` in its
-own sentence, and a vendor the box does not lend this org is refused here and not on
+own sentence, and a vendor the platform does not lend this org is refused here and not on
 the next call. A `pipeline` key's set is held to the bands the ears take the thresholds in —
 `eot_threshold` 0.5 to 0.9, `eager_eot_threshold` 0.3 to 0.9, outside which they refuse the
 connection — and `400 eot_threshold 0.1 is outside 0.5 to 0.9` otherwise; a version kept before
@@ -102,7 +102,7 @@ call runs what the scope would run without that version: the newest of its other
 takes `pipeline`, as the vendors do: a canary decides what a share of the calls runs. A share of 0
 keeps the version off every call and the canary standing; `DELETE ?team=` clears it, and every call
 runs the scope's newest version again (the canary's, when it was the newest: that is promoting it).
-A version the scope never had is `404`. `GET ?team=` (`pipeline` or `words`) and every door answer
+A version the scope never had is `404`. `GET ?team=` (`pipeline` or `words`) and every endpoint answer
 `{world, holder, canary: {holder, version, share, author, note, set_at} | null}`; an older worker,
 which names no call, runs every call off the canary. The two versions are compared by
 `GET /v1/insights/drift?agent=&before=v3&after=v4` ([console-api.md](console-api.md)): the same
@@ -127,7 +127,7 @@ stood when it opened), false otherwise.
 ## The lexicon — `/v1/agents/{slug}/lexicon`
 
 The agent's words: what the voice says in place of a word (`says`) and the words the ears must
-know (`hears`). The class sets neither; each agent has a lexicon of its own, versioned per world
+know (`hears`). The class sets neither; each agent has a lexicon of its own, versioned per environment
 and scope as its settings are. `GET` answers `{world, yours, team, production}` of `{holder,
 version, author, note, set_at, lexicon: {said: [{word, spoken}], heard: [string]}}`.
 `PUT {lexicon, if_version, note, team}` is the whole lexicon, with the same `409`, and a blank

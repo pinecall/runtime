@@ -1,13 +1,13 @@
 # WhatsApp — Meta's webhook, one conversation per contact
 
 A WhatsApp number answers like a phone number: a route of channel `whatsapp` says which agent,
-and a conversation is a written call on the app that holds that agent, in the route's world.
+and a conversation is a written call on the app that holds that agent, in the route's environment.
 
-## The box's Meta app
+## The platform's Meta app
 
-One Meta app serves every org's numbers on a box. Its secret (every webhook body is signed with
+One Meta app serves every org's numbers on a deployment. Its secret (every webhook body is signed with
 it), the handshake's word and a token replies go out on when an org brought none are the sealed
-row `credentials/whatsapp` of `box_settings`: `{app_secret, verify_token, access_token?}`. A box
+row `credentials/whatsapp` of `box_settings`: `{app_secret, verify_token, access_token?}`. A deployment
 without the row answers `503` at the webhook. An org that brings its own number at Meta adds it as
 an account (`PUT /v1/carrier {"kind": "whatsapp", "phone_number_id", "access_token"}`,
 [numbers.md](numbers.md)) and replies to its contacts go out on its own token.
@@ -24,7 +24,7 @@ a system user's does not) leaves the account listed with no number, said in the 
 
 ## The webhook — `GET` · `POST /v1/whatsapp/webhook`
 
-`GET` is Meta subscribing: `hub.mode=subscribe` and `hub.verify_token` equal to the box's word
+`GET` is Meta subscribing: `hub.mode=subscribe` and `hub.verify_token` equal to the platform's word
 (compared in constant time) echo `hub.challenge` back as plain text; any other word is `403`.
 
 `POST` is a delivery. The signature (`X-Hub-Signature-256: sha256=<HMAC-SHA256 of the raw
@@ -43,7 +43,7 @@ first delivery ten minutes after it. The nightly retention run forgets the ids p
 
 ## A conversation
 
-Each message goes onto its contact's conversation, keyed by the org, the world, the number and the
+Each message goes onto its contact's conversation, keyed by the org, the environment, the number and the
 contact, and messages are answered one at a time, in order. The first opens a written call on the
 socket holding the agent; the next ones stay on it. Every durable `turn.agent` of that call — the
 model's, the agent's `say`, a supervisor's — goes to the contact through Meta's Graph API, and a

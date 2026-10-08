@@ -1,9 +1,9 @@
 # Charging for it: a billing layer on top of your runtime
 
-The runtime charges nobody. It holds no plan, no price and no card: whoever runs a box and wants to
+The runtime charges nobody. It holds no plan, no price and no card: whoever runs a deployment and wants to
 bill for it writes a **billing layer** beside it, and the runtime gives that layer mechanisms to
-steer. With nothing set, a box has no limits and runs every call on its own vendor keys, which is
-what a box run for one's own agents wants.
+steer. With nothing set, a deployment has no limits and runs every call on its own vendor keys, which is
+what a deployment run for one's own agents wants.
 
 ```
  ┌───────────────────── the runtime ─────────────────────────────────────────┐
@@ -25,18 +25,18 @@ those rows when money moves.
 
 ## 1. What a new org is given — admission
 
-The `admission` row of the box's settings, `PUT /v1/ops/admission`: `{first: {production: quotas,
-sandbox: quotas}, later: {…} | null}`. `first` is what a person's first org gets in each world;
+The `admission` row of the platform's settings, `PUT /v1/ops/admission`: `{first: {production: quotas,
+sandbox: quotas}, later: {…} | null}`. `first` is what a person's first org gets in each environment;
 `later`, when set, what any later org of the same person gets, which is how "one trial per person"
 is said. It is read at the moment an org is made, by sign-up or by the operator; an org already made
-keeps what it has. A box with no row gives a new org no limits.
+keeps what it has. A deployment with no row gives a new org no limits.
 
 ## 2. What an org may use — quotas and lends
 
-Per org and per world, set whole at `PUT /v1/ops/orgs/{org}/quotas`: minutes, messages, agents
+Per org and per environment, set whole at `PUT /v1/ops/orgs/{org}/quotas`: minutes, messages, agents
 held, calls at once, memory facts, knowledge chunks, bought numbers, seats, model tokens, and a
 monthly `budget_usd` shown beside what was spent, and a new call is refused once the month's spend reaches it. `lends` says which of the
-box's own vendor keys the org runs on: every one (null), none (`[]`), or named vendors and
+platform's own vendor keys the org runs on: every one (null), none (`[]`), or named vendors and
 `vendor/model` prefixes. An org that brought its own key for a vendor runs on it whatever `lends`
 says. What each quota counts and when it bites: [limits.md](limits.md).
 
@@ -60,12 +60,12 @@ What a call's `cost` counts, a row per unit billed:
   and counted with it;
 - **each leg on the phone network**: one row per leg, from when it joined the room until it
   left, in minutes begun billed whole, as a carrier bills. A leg is priced by the longest prefix
-  of its number, as a carrier's own table is: the box's number when the call came in
+  of its number, as a carrier's own table is: the platform's number when the call came in
   (`twilio-inbound/+1` is a local number, `twilio-inbound/+1800` a toll-free one), the dialled
   one when it went out (`twilio-outbound/+1907` is Alaska). The row names the prefix it matched,
   never the number. A transfer is a second leg, priced on its own.
 
-**The apps the box hosts** are a second meter, apart from calls: the time each app served, per
+**The apps the platform hosts** are a second meter, apart from calls: the time each app served, per
 UTC day, counted while a process of the org runs under one of its hosts
 ([protocol/hosting.md](protocol/hosting.md)). `GET /v1/ops/hosted-usage[?month=YYYY-MM]` answers
 every org's month, `{since, until, rows: [{org, env, name, day, seconds}]}`, and an org reads its
@@ -82,11 +82,11 @@ never priced at zero. The repository ships `infra/seed/prices.csv`, one row per 
 the models taken from [voice-prices](https://github.com/mahimailabs/voice-prices), Twilio's
 Elastic SIP Trunking from its US page, each checked against its source on the date its row says.
 They are list prices: a plan or a contract that pays less is an edit of the file, then
-`pinecall-runtime providers prices infra/seed/prices.csv --apply`. A trunk the box reaches only by
+`pinecall-runtime providers prices infra/seed/prices.csv --apply`. A trunk the platform reaches only by
 its address (a `sip` carrier account) is priced by rows named `sip-inbound/…` and
 `sip-outbound/…` the operator writes.
 
-The box's own compute is a row of the same file, `pinecall,pinecall-compute,minutes,<usd>`: a
+The platform's own compute is a row of the same file, `pinecall,pinecall-compute,minutes,<usd>`: a
 call's seconds on the worker, every one counted, priced beside the vendors' rows on each call
 (`provider: "pinecall"`), so a plan priced under what a call costs to run is visible. Nothing
 ships priced: the number is the operator's. Each call's facts keep its cost by stage (model,
@@ -94,7 +94,7 @@ ears, voice, phone legs, the platform), and `GET /v1/insights` says per agent wh
 stage and per minute.
 
 An org that spends strangely is said so: at each seal the org's spend today is held against its
-own usual day, the mean of its trailing four weeks in both worlds, and once it is three times
+own usual day, the mean of its trailing four weeks in both environments, and once it is three times
 that (and the usual day is at least a dollar) `spend.unusual {org, day, today_usd, usual_usd,
 multiple}` is written on the agent's log, once a day, and `pinecall_spend_unusual{org}` stands
 on `/metrics` while it lasts, for the alert.
@@ -107,5 +107,5 @@ moment the layer or the console can offer it.
 
 ## 5. What is not in the runtime
 
-A plan, a price list, a trial's end date, an invoice, a card. They are the layer's, and a box run
+A plan, a price list, a trial's end date, an invoice, a card. They are the layer's, and a deployment run
 for one's own agents needs none of them.

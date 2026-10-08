@@ -1,29 +1,29 @@
 # Limits: what an org may use, and whose keys it runs on
 
-## Quotas, per world
+## Quotas, per environment
 
 An org has one set of limits in production and another in the sandbox: minutes, messages,
 LLM tokens, calls at once, agents, remembered facts, knowledge chunks, bought numbers, seats and
-hosted apps; and a budget in dollars, which both worlds spend from.
+hosted apps; and a budget in dollars, which both environments spend from.
 A limit nobody set is no limit; zero is a limit that refuses everything, which is how a plan
 leaves a feature out. The set is replaced whole, so a limit left out stops being one.
 
-What an org used is counted from its calls' summaries in that world, every time a call or a
-turn asks to start. The database keeps the count, one row per org, world and calendar month (UTC)
+What an org used is counted from its calls' summaries in that environment, every time a call or a
+turn asks to start. The database keeps the count, one row per org, environment and calendar month (UTC)
 in `usage_totals`: a summary adds to it in the transaction that writes it, an erasure takes its
 calls out, and admission reads the month it is in, so minutes, messages and tokens start again on
 the first of each month (UTC), and a call is counted in the month its summary was written.
 Nothing is kept in memory, so a restart counts what the database holds; `pinecall-runtime usage
 rebuild` folds the table again from the summaries in the log.
 What the sandbox spent never closes production, except through the budget: dollars are the same
-in both worlds.
+in both environments.
 
 - **A call** is refused past `concurrent_calls`, `minutes`, `messages` or `llm_tokens`. The calls
-  at once are the box's: every gateway counts its own and says them each second, so two gateways
+  at once are the platform's: every gateway counts its own and says them each second, so two gateways
   opening at the same moment may go past the limit by what they opened that second. One that
   is let in is told how many seconds are left of the minutes, and ends there.
 - **A budget** (`budget_usd`, whole dollars a calendar month) refuses a new call once what the
-  org's calls in both worlds cost this month, as the summaries priced them, reaches it
+  org's calls in both environments cost this month, as the summaries priced them, reaches it
   (`the org has spent 10.5 of its 10 USD budget this month`). A call already running is never cut
   for it, and written turns are not held to it.
 - **A written turn** is held to `messages` and `llm_tokens` on every turn, with what the open
@@ -40,10 +40,10 @@ agent's log with the same numbers.
 
 ## What a new org is given
 
-What an org gets when it is made is the box's `admission` setting, edited from the console: the
-limits in each world for a person's first org, and, when the box gives one trial per person, the
-limits for any later org of the same address. A box with no such setting gives a new org no
-limits, which is what a self-hosted box runs.
+What an org gets when it is made is the platform's `admission` setting, edited from the console: the
+limits in each environment for a person's first org, and, when the platform gives one trial per person, the
+limits for any later org of the same address. A deployment with no such setting gives a new org no
+limits, which is what a self-hosted platform runs.
 
 ```json
 {
@@ -61,14 +61,14 @@ limits, which is what a self-hosted box runs.
 
 ## Whose vendor keys a call runs on
 
-An org's own key for a vendor runs any model of that vendor, whatever the box offers:
+An org's own key for a vendor runs any model of that vendor, whatever the platform offers:
 
 ```bash
 pinecall providers add deepgram        # the org's own key, sealed; every Deepgram model is theirs to run
 ```
 
-Where an org brought no key, its calls run on the box's, and only on what the org's `lends`
-says in that world: **null** lends every key the box holds, an **empty list** lends none, and
+Where an org brought no key, its calls run on the platform's, and only on what the org's `lends`
+says in that environment: **null** lends every key the platform holds, an **empty list** lends none, and
 otherwise each entry is a vendor (`deepgram`) or a vendor and a model prefix
 (`anthropic/claude-haiku-4-5`). A vendor nobody holds a key for is refused before the call
 opens.

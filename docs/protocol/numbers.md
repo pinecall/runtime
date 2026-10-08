@@ -1,9 +1,9 @@
-# Numbers — the accounts an org's numbers live in, and how a number reaches the box
+# Numbers — the accounts an org's numbers live in, and how a number reaches the platform
 
-A number reaches an agent in three writes: the carrier points it at the box, the box admits it,
-and a route says which agent answers ([telephony.md](../telephony.md) is how the three fit). The doors below do all three. Every one takes the org's
-key with the `numbers` scope and acts in the key's world: a `pc_live_` key imports into
-production, a `pc_test_` key into the sandbox, a person's key into the world the request names.
+A number reaches an agent in three writes: the carrier points it at the platform, the platform admits it,
+and a route says which agent answers ([telephony.md](../telephony.md) is how the three fit). The endpoints below do all three. Every one takes the org's
+key with the `numbers` scope and acts in the key's environment: a `pc_live_` key imports into
+production, a `pc_test_` key into the sandbox, a person's key into the environment the request names.
 
 ## The accounts — `PUT` · `GET` · `DELETE /v1/carrier`, `GET /v1/carriers`
 
@@ -25,9 +25,9 @@ is `400 Twilio refused these credentials`. A WhatsApp number is asked of Meta th
 — its number and name, with the token given — and an id or a token Meta does not open is `400 Meta
 does not open WhatsApp number <id> with this token: <Meta's words>`. A peer's `addresses` are the networks it calls from:
 each is an IPv4 address or a network no wider than a `/24`, public (a private, shared, loopback or
-documentation range is `400`), and each waits for the box's operator to approve it before 5060
+documentation range is `400`), and each waits for the operator to approve it before 5060
 opens to it or a trunk lists it ([operator-api.md](operator-api.md), "Carriers and the fence").
-Its four `outbound_*` fields say where the box dials it, and unsaid the box dials with the pair it
+Its four `outbound_*` fields say where the platform dials it, and unsaid the platform dials with the pair it
 registers with. `outbound_username` without `outbound_password` is refused.
 
 `GET /v1/carrier` answers `{kind, account, label, networks}` (a peer's networks, each
@@ -35,38 +35,38 @@ registers with. `outbound_username` without `outbound_password` is refused.
 `?account=` names; with several and none named it is `409` naming them. `GET /v1/carriers` is every
 one of them. `DELETE /v1/carrier` forgets an account; its numbers stay routed until each is let go.
 
-From a terminal the same four doors are `pinecall carriers` — `add twilio|sip|whatsapp` with each
+From a terminal the same four endpoints are `pinecall carriers` — `add twilio|sip|whatsapp` with each
 secret read on stdin, `list`, `show`, `drop` — and from the console they are **Numbers ▸ Add a
-number** and **Accounts** ([the-cli.md](https://docs.pinecall.io/cli/carriers/)).
+number** and **Accounts** ([pinecall carriers](https://docs.pinecall.io/cli/carriers/)).
 
 An agent answers at as many numbers as the org routes to it: phone numbers from any of its
-accounts, hooked by the org or bought by the box, and WhatsApp numbers, each one row. A call the
+accounts, hooked by the org or bought by the platform, and WhatsApp numbers, each one row. A call the
 agent places is shown as one of them, and dials through the account that number lives in.
 
 ## What the accounts own — `GET /v1/numbers/available`
 
 `{kind, numbers: [{number, name, imported, account}]}`: every number every Twilio account of the
-org owns, all of Twilio's pages, and whether this world imported it. A SIP peer owns what it owns
+org owns, all of Twilio's pages, and whether this environment imported it. A SIP peer owns what it owns
 and nobody here can list it: `{kind: "sip", numbers: []}`, and its import takes the number typed.
 
 ## Importing one — `POST /v1/numbers {number, agent, channel?, account?, hooked?, networks?, move?}`
 
-Two ways to hook a number, both through this door:
+Two ways to hook a number, both through this endpoint:
 
-- **We hook it** (the default): the number is one of an account of the org. On Twilio the box
+- **We hook it** (the default): the number is one of an account of the org. On Twilio the platform
   finds the account's trunk that points at it (by its origination URI,
   `sip:<the world's SIP name>:5060;transport=udp`, whatever the trunk is named), makes one if there is
   none, and attaches the number. On a SIP peer nothing outside is touched. With several accounts,
   `account` says which.
-- **You hook it** (`hooked: true`): the org points the number at the box itself, from any
+- **You hook it** (`hooked: true`): the org points the number at the platform itself, from any
   carrier or PBX: `sip:+59829000000@<the world's SIP name>:5060` (`PINECALL_SIP_DOMAIN` or
-  `PINECALL_SANDBOX_SIP_DOMAIN`, else the box's name, [the-environment.md](../the-environment.md)).
-  Nothing outside is touched. The box
+  `PINECALL_SANDBOX_SIP_DOMAIN`, else the platform's name, [the-environment.md](../the-environment.md)).
+  Nothing outside is touched. The platform
   admits the number from the networks of the carrier named in `via`, one of
   `GET /v1/carriers/catalog` (Twilio's when unsaid), or from `networks` of the org's own, which
   wait for the operator's approval like a peer's: until then the number is routed and on no
   trunk, and the import's steps say so. A number hooked this way proves nothing of whose it is:
-  on a box that sets `PINECALL_APPROVE_HOOKED`, the operator also approves the number itself
+  on a deployment that sets `PINECALL_APPROVE_HOOKED`, the operator also approves the number itself
   (`POST /v1/ops/numbers/{number}/approve`, the numbers waiting listed by `GET /v1/ops/numbers`,
   operator-api.md), and until then a call to it is refused when it opens
   and its path says `waiting` at the fence. Unset (the default), it rings at once.
@@ -75,7 +75,7 @@ One org holds a number: importing a number another org holds is `409`, and the s
 neither the org nor its trunk.
 
 `GET /v1/carriers/catalog` is `{carriers: [{kind, name, how, networks}], sells}`: the carriers this
-box's operator admits, `automatic` for one the box drives through its API (Twilio), `guided` for one
+operator admits, `automatic` for one the platform drives through its API (Twilio), `guided` for one
 whose portal the org types the address above into; `sells` says whether `POST /v1/numbers/buy`
 has an account to buy on.
 
@@ -94,57 +94,57 @@ $ curl -X POST https://cloud.pinecall.io/v1/numbers -H "authorization: Bearer $P
 
 Each step is looked up before it is written, so a second run of an interrupted import writes
 nothing twice: every step says `stands`. `?dry_run=true` answers the same steps with `to do` and
-writes nothing anywhere. A number lives on its world's LiveKit, where an org has one inbound trunk
+writes nothing anywhere. A number lives on its environment's LiveKit, where an org has one inbound trunk
 per fence (`<org>` for Twilio's networks, `<org>:<peer>` for a SIP peer, `<org>:<number>` for a
-number hooked from networks of its own) and the world's dispatch rule (`<org>:production` on
-production's, `<org>:sandbox` on the sandbox's), dispatched to that world's fleet. A number imported
-in one world that the other's own LiveKit still lists is taken off it first (`LiveKit of the
+number hooked from networks of its own) and the environment's dispatch rule (`<org>:production` on
+production's, `<org>:sandbox` on the sandbox's), dispatched to that environment's fleet. A number imported
+in one environment that the other's own LiveKit still lists is taken off it first (`LiveKit of the
 production: … off trunk …`). A trunk or a rule left listing no number is deleted, because one that
 lists none takes every number.
 
 Refusals: `404` no account, or a number the account does not own; `400` a channel with no number
 or a number that is not E.164; `409` several accounts and none named, a number another org's trunk
-on this box already lists (livekit-sip refuses an INVITE two trunks list, so nothing is written),
+on this deployment already lists (livekit-sip refuses an INVITE two trunks list, so nothing is written),
 or a number attached to another trunk of the same Twilio account — its name and where it points
 are in the sentence, and `move: true` takes it off there first; `503` no `PINECALL_DOMAIN`; `502`
 Twilio's own sentence.
 
 ## Buying one — `POST /v1/numbers/buy {country, area_code?, agent, channel?}`
 
-For an org with no account of its own: a number bought on the box's own Twilio account (the
+For an org with no account of its own: a number bought on the platform's own Twilio account (the
 sealed `credentials/twilio` row of `box_settings`; `country` is two letters and `area_code`
-digits, `422` otherwise, since both ride a path the box signs), then hooked as an import and routed with
-`managed: true`, in the key's world. The `numbers` quota of that world caps it, and is counted on
+digits, `422` otherwise, since both ride a path the platform signs), then hooked as an import and routed with
+`managed: true`, in the key's environment. The `numbers` quota of that environment caps it, and is counted on
 the managed numbers alone: `429` before Twilio is asked. `404` when Twilio has nothing for sale
-there, `503` when the box holds no Twilio account. `?dry_run=true` names the number it would buy
+there, `503` when the platform holds no Twilio account. `?dry_run=true` names the number it would buy
 and buys nothing.
 
 ## The org's numbers — `GET /v1/numbers`, `GET /v1/numbers/{number}/path`
 
-One row per number in the key's world, oldest first: `{route, origin, rings, last_call_at, via,
+One row per number in the key's environment, oldest first: `{route, origin, rings, last_call_at, via,
 account}`.
-`route` is the number, its channel, the agent and the world; `origin` is how the row was written —
-`bought` (by the box), `imported` (from one of the org's accounts), `hooked` (the org pointed the
-number at the box itself) or `typed` (by the box's operator, who can route a number into any org).
+`route` is the number, its channel, the agent and the environment; `origin` is how the row was written —
+`bought` (by the platform), `imported` (from one of the org's accounts), `hooked` (the org pointed the
+number at the platform itself) or `typed` (by the operator, who can route a number into any org).
 A row the org did not write is how it learns the operator did; importing the number again makes it
 the org's. `via` is the catalog carrier a hooked number comes through, `account` the org's account it
 lives in. `last_call_at` is when a
-call to the number last reached the box (kept at most once a minute), null when none ever did.
+call to the number last reached the platform (kept at most once a minute), null when none ever did.
 
 `rings` is what a call to it does now: `ok`, `waiting` (on its first call, or on the operator's
-approval of a network, or of a number the org hooked where the box asks for that) or `broken`
+approval of a network, or of a number the org hooked where the platform asks for that) or `broken`
 (nobody runs its agent),
 read off the tables without asking any carrier. `GET /v1/numbers/{number}/path` says why: four
 steps, each `{step, state, says, fix}` — the carrier (a Twilio number asks Twilio whether it is
-still attached to the trunk pointed here), the fence, the world's rule, the agent — with the worst
-of them as `rings` and `last_call_at`; `404` for a number the org has not in the key's world.
+still attached to the trunk pointed here), the fence, the environment's rule, the agent — with the worst
+of them as `rings` and `last_call_at`; `404` for a number the org has not in the key's environment.
 
 ## Letting one go, moving one — `DELETE /v1/numbers/{number}`, `PUT /v1/numbers/{number}/env`
 
-`DELETE` removes the route and takes the number off its trunk and its org's rules on its world's
+`DELETE` removes the route and takes the number off its trunk and its org's rules on its environment's
 LiveKit; the account keeps it, so nobody is un-bought by a typo. `PUT …/env {env}` moves a number
-into the other world: its row, and off the old world's LiveKit onto the new one's, trunk and rule;
-the carrier is not touched. Where both worlds share one LiveKit it moves between the two rules,
+into the other environment: its row, and off the old environment's LiveKit onto the new one's, trunk and rule;
+the carrier is not touched. Where both environments share one LiveKit it moves between the two rules,
 its trunk untouched. It is how a number tested in the sandbox goes live.
 
 ## Dialling out — `GET` · `POST /v1/carrier/outbound`, `POST /v1/agents/{slug}/dial`
@@ -152,10 +152,10 @@ its trunk untouched. It is how a number tested in the sandbox goes live.
 The SFU keeps no outbound trunk: every leg is dialled with its trunk inline. What an account
 needs is the other direction of its carrier. `POST /v1/carrier/outbound` (`?account=`,
 `?dry_run=true`) makes it once: on Twilio the trunk's termination host
-(`<box>-<account>.pstn.twilio.com`, one per account and box), a credential list on that trunk,
+(`<box>-<account>.pstn.twilio.com`, one per account and platform), a credential list on that trunk,
 and a credential per org on the list, its password minted here and kept sealed because Twilio
 shows it once. Two orgs that brought the same account dial through one trunk, each with its own
-credential. A credential this box made and no longer holds the password of is `409` naming it: it
+credential. A credential this deployment made and no longer holds the password of is `409` naming it: it
 is deleted in Twilio's console, then provisioned again. A SIP peer needs nothing made: it is
 dialled at its `outbound_host`.
 
@@ -164,16 +164,16 @@ can place a call, one sentence per thing still missing, and the guards it dials 
 
 `POST /v1/agents/{slug}/dial {to, from?, log?}` places a call as the agent: `202 {call, agent, to,
 from, env, log_token}` before anything rings. `from` is one of the agent's own numbers in the key's
-world, the first unsaid; the call is dialled through the account that number lives in, and a
-number the org hooked itself or the box bought dials through none (`409`). Nobody holding the
+environment, the first unsaid; the call is dialled through the account that number lives in, and a
+number the org hooked itself or the platform bought dials through none (`409`). Nobody holding the
 agent is `409`: a phone would ring with no app to serve it. Every dial asked for is one row of the
 org's `dials` ledger, taken or refused:
 
 | refused when | status | lifted by |
 |---|---|---|
 | `to` is not E.164, has no country calling code, is a satellite or global-service range (`+870`, `+878`, `+881`, `+882`, `+883`, `+888`, `+979`), or has fewer than five national digits | `400` | a number somebody could answer |
-| the number never called or wrote to this org **in this world** | `403` | an operator's `dial_anywhere` |
-| the number is on the org's **do-not-call list** in this world (`do_not_call`): its newest fact is an opt-out — the caller asked the agent (`call.opt_out`), a person put it there, or the org imported it. A consent sent with the dial never lifts it | `403` | a consent recorded at `POST /v1/org/consents` |
+| the number never called or wrote to this org **in this environment** | `403` | an operator's `dial_anywhere` |
+| the number is on the org's **do-not-call list** in this environment (`do_not_call`): its newest fact is an opt-out — the caller asked the agent (`call.opt_out`), a person put it there, or the org imported it. A consent sent with the dial never lifts it | `403` | a consent recorded at `POST /v1/org/consents` |
 | no **consent** on file for a `+1` number (`no_consent`), nor one sent with the dial as `consent: {kind: express\|written, source, text?, evidence?}`; any country when the org's policy says `consent_everywhere` | `403` | the consent, recorded or sent |
 | outside the called number's hours in **every** zone it could be in (`quiet_hours`): for a `+1` number 8:00 to 21:00 local (the Telemarketing Sales Rule), narrowed by the org's `calling_hours` and never widened, and a `+1` number with no zone (toll-free) always; elsewhere the org's `calling_hours`, when it set some | `403` | the hour |
 | more dials this minute than `per_minute` (6), refusals counted | `429` | a wait |
@@ -205,8 +205,8 @@ else: Terraform's rule, from the catalog and the approvals ([operator-api.md](op
 ## Reconcile at start
 
 LiveKit keeps its trunks and rules in Redis, which can be emptied; the tables are the truth. At
-start the gateway admits every routed phone number again on its world's LiveKit with its fence and
-its world's rule, and takes it off the other world's own LiveKit, one org's refusal logged and the
+start the gateway admits every routed phone number again on its environment's LiveKit with its fence and
+its environment's rule, and takes it off the other environment's own LiveKit, one org's refusal logged and the
 others going on; while an org is refused or a LiveKit cannot be reached (one still starting beside
 the gateway), it tries the whole again, waiting 2 s, then twice as long each time, a minute at
 most, until every number stands. It never touches the carrier, and it takes a number
@@ -225,7 +225,7 @@ stands is the newest row, so a person who opted out and later consented is calle
 history of both is kept. An erasure of the contact leaves these rows: an opt-out has to outlive the
 person's data, or the next list the org imports calls them again.
 
-| door | scope | what |
+| endpoint | scope | what |
 |---|---|---|
 | `POST /v1/org/consents {number, kind, source, text?, evidence?}` | talk | one fact written; what stands for the number after |
 | `GET /v1/org/consents/{number}` | calls | `{number, standing: consented\|opted_out\|unknown, rows}`, newest first |

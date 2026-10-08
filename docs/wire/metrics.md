@@ -185,7 +185,7 @@ yesterday" is two rows of two days, and "the ears are wrong" is the confidence f
 is `model_provider` as the plugin reports it, and absent when the report named none.
 
 They are counted once per call, when it is sealed, from the call's own log (`log/drift.py`), never
-read off the log at the door: a day holds the calls sealed in it, not those still going. Each
+read off the log at the endpoint: a day holds the calls sealed in it, not those still going. Each
 stage's seconds are kept as a fixed histogram (`log/_histogram.py`: under 10 ms, 92 buckets each
 10 % wider than the one below it up to 63 s, and one for anything slower), so the calls of a day,
 of an agent and of a version add bucket by bucket, and a median or p95 read off the buckets is

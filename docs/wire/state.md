@@ -219,7 +219,7 @@ The whole of what a log says, at the seq it was read to.
 | `agent` | `string` | yes | The agent's slug. Empty for an empty log. |
 | `call` | `string | null` | yes | The call id, or null for an agent's own log. |
 | `status` | `CallStatus` | yes | Where the call is in its life. |
-| `channel` | `Channel | null` | yes | The door, once known. |
+| `channel` | `Channel | null` | yes | The endpoint, once known. |
 | `direction` | `Direction | null` | yes | Inbound or outbound, once known. |
 | `from` | `string | null` | yes | The calling number or identity, once known. |
 | `to` | `string | null` | yes | The called number or identity, once known. |
@@ -249,7 +249,7 @@ The whole of what a log says, at the seq it was read to.
 | `attention` | `AttentionState | null` | no | The last ask for a person, once the agent made one. Absent from a state folded before it existed. |
 | `usage` | `ModelUsage[]` | yes | The usage rows from call.summary. |
 | `cost` | `Cost | null` | yes | The cost from call.summary. |
-| `routes` | `Route[]` | yes | The agent's doors, from agent.registered. |
+| `routes` | `Route[]` | yes | The agent's endpoints, from agent.registered. |
 | `gaps` | `Gap[]` | yes | Every stretch this reader missed. |
 | `errors` | `LoggedError[]` | yes | Every error entry. |
 | `custom` | `CustomNote[]` | yes | Every line the app wrote. |
