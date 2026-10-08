@@ -241,6 +241,8 @@ def test_a_models_answer_is_counted_as_the_calls_usage_counts_it(acme: str) -> N
         40,
     )
     assert counted.output_tokens == 5
+    # Sealed with exclude_unset, so the SDKs' discriminated union must still find the type.
+    assert counted.model_dump(mode="json", exclude_unset=True)["type"] == "llm_usage"
     assert completion_usage(thinking, None) is None
 
 

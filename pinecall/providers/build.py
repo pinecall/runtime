@@ -257,7 +257,9 @@ def completion_usage(
     """What one answer of a model cost in tokens, as the call's usage writes it."""
     if used is None:
         return None
+    # Frames drop unset fields, so the discriminator is set here or the SDKs reject the entry.
     return LLMModelUsage(
+        type="llm_usage",
         provider=model.provider,
         model=model.model,
         input_tokens=used.prompt_tokens,

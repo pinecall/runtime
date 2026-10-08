@@ -101,7 +101,10 @@ class Spending:
         """The line's model by its answer, its voice by the characters said."""
         characters = len(line.answer.say)
         voiced = TTSModelUsage(
-            provider=speech.provider, model=speech.model, characters_count=characters
+            type="tts_usage",
+            provider=speech.provider,
+            model=speech.model,
+            characters_count=characters,
         )
         self.used.extend([voiced] if line.usage is None else [line.usage, voiced])
 

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **A sealed call's usage entries carry their `type`**: the memory writer's and the simulated
+  caller's were built without one and frames drop unset fields, so the SDKs rejected the seal of
+  any call that wrote memory (`pinecall chat --as` ended in a ZodError).
 - **A written caller can hang up**: `{"hangup": true}` on `WS /v1/chat` ends the call, then closes
   the socket with `the call ended: caller_hung_up`, so whatever served the call stops with nothing
   live. A caller that only closes its socket still ends the call, as before.
