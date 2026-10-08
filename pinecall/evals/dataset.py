@@ -72,6 +72,12 @@ WRONG_ONLY_WHEN_DISMISSED = (
 NOT_WHAT_BROKE = "case {name} did not break on {judge}: it broke on {broke}"
 
 
+# The note is kept on the judge's calibration label: with no judge it would be dropped unsaid.
+A_NOTE_ALONE = (
+    "note is kept on the calibration label of the judge that was wrong: send judge_was_wrong"
+)
+
+
 PUT = """
 INSERT INTO eval_cases (id, org, agent, name, golden, source_call, source_env, held_out, author,
                         status, broke, source_version)
@@ -359,9 +365,11 @@ async def found(pool: Pool, org: str, case: str) -> EvalCase:
 
 
 def check_decision(case: EvalCase, decision: CaseDecision) -> None:
-    """Refuse a judge called wrong on a case not dismissed, or one the case did not break on."""
+    """Refuse a judge called wrong on a case not dismissed or not broken on, and a note alone."""
     wrong = decision.judge_was_wrong
     if wrong is None:
+        if decision.note is not None:
+            raise DeclarationRefused(A_NOTE_ALONE)
         return
     if decision.status != "dismissed":
         raise DeclarationRefused(WRONG_ONLY_WHEN_DISMISSED)

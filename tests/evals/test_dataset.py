@@ -181,7 +181,7 @@ async def test_a_person_decides_a_case_and_the_nightly_plays_only_what_was_appro
         await dataset.decided(pool, "another-org", first.id, in_the_repo, "m_ana")
 
 
-def test_a_judge_is_called_wrong_only_on_a_case_dismissed_and_only_one_that_broke() -> None:
+def test_a_judge_called_wrong_is_one_that_broke_and_a_note_needs_one() -> None:
     case = EvalCase.model_validate(
         {
             "id": "case_1",
@@ -199,6 +199,8 @@ def test_a_judge_is_called_wrong_only_on_a_case_dismissed_and_only_one_that_brok
     dataset.check_decision(case, CaseDecision(status="dismissed", judge_was_wrong="promises"))
     with pytest.raises(DeclarationRefused, match="send it with status dismissed"):
         dataset.check_decision(case, CaseDecision(status="approved", judge_was_wrong="promises"))
+    with pytest.raises(DeclarationRefused, match="send judge_was_wrong"):
+        dataset.check_decision(case, CaseDecision(status="dismissed", note="it did book"))
     with pytest.raises(DeclarationRefused, match="did not break on grounded"):
         dataset.check_decision(case, CaseDecision(status="dismissed", judge_was_wrong="grounded"))
 

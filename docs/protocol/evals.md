@@ -145,7 +145,7 @@ newest first, and says how many wait: `{cases, pending, pending_at_most}`. `PATC
 | `status` | `approved` (the nightly plays it), `dismissed`, or `pending` again; the person and the time are kept |
 | `held_out` | played only when a run names it |
 | `kept_in_repo` | written into the repository as a golden: the nightly leaves it to the file |
-| `judge_was_wrong` + `note` | with `dismissed` only: the judge that broke should have held, kept as a calibration label of the call (below), in the call's own world, so the key must read the call; a judge the case did not break on is `400` |
+| `judge_was_wrong` + `note` | with `dismissed` only: the judge that broke should have held, kept as a calibration label of the call (below), in the call's own world, so the key must read the call; a judge the case did not break on is `400`, and so is a `note` without a judge |
 
 `DELETE` forgets one, and another org's, or one nobody kept, is `404`.
 
