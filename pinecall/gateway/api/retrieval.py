@@ -74,7 +74,10 @@ NO_SUCH_FACT = "no current fact {id} in this key's org and world"
 
 
 # A 400, not an empty pass: a green run for a feature the agent lacks would mislead.
-KEEPS_NOTHING = "agent {slug} declares no extraction.remember: there is nothing to extract"
+KEEPS_NOTHING = (
+    "agent {slug} remembers nothing: its memory policy names nothing to keep"
+    " (pinecall memory policy --remember '…')"
+)
 
 
 # Each run is up to fifty model calls: a suite runs once, a loop is stopped.

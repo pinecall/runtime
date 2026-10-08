@@ -746,7 +746,10 @@ async def test_an_agent_that_keeps_nothing_has_nothing_to_hold_to_a_golden(
         refused = await http.post(EXTRACTION, json={"cases": []})
     assert (refused.status_code, refused.json()["detail"]) == (
         400,
-        f"agent {AGENT} declares no extraction.remember: there is nothing to extract",
+        (
+            f"agent {AGENT} remembers nothing: its memory policy names nothing to keep"
+            " (pinecall memory policy --remember '…')"
+        ),
     )
 
 
