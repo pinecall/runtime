@@ -11,7 +11,8 @@ its own, which a runtime may have or not (`infra/README.md`, "Hosting");
 `GET /v1/hosted` says which release serves and why the newest failed. What the process is started
 with is the org's secrets, its token and the environment's address, and the command is always
 `pinecall start` (`--prod` in production): a hosted project is a Node project with `pinecall` in
-its dependencies.
+its dependencies. A Ruby or a Python project is not hosted: it runs `pinecall start --prod` on a
+server of its own, and `pinecall deploy` says so.
 
 From a terminal, the endpoints are two verbs of the `pinecall` CLI (0.9.10 and later):
 `pinecall deploy` packs the folder (never `node_modules` or a `.env`), uploads it and follows it
