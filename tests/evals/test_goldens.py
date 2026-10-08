@@ -18,6 +18,7 @@ from pinecall.evals.goldens import (
     golden_lookup,
     settled,
 )
+from pinecall.evals.judges import hangup_judges
 from pinecall.log.logs import Fanout, Log
 from pinecall.log.store import Store
 from pinecall.wire.frames import Entry
@@ -243,6 +244,25 @@ def test_consent_leads_and_the_rest_come_in_the_order_expect_names_them() -> Non
         "says_any",
         "register",
     ]
+
+
+async def test_a_hang_up_judge_a_golden_names_is_asked_of_its_call_from_the_panel() -> None:
+    model = a_judge(("fail", "it promised a call back nobody booked"))
+    case = case_of_turns(caller_line("hola"), agent_line("Le llamaremos mañana."))
+    panel = hangup_judges(case, [])
+    golden = expecting(judges=["promises", "consent"])
+    judges = golden_judges(golden, case, panel)
+    assert [judge.name for judge in judges] == ["consent", "heard", "promises"], "consent once"
+    assert await score_of(judge_named(judges, "promises"), case, model) == 0.0
+    assert len(model.requests) == 1
+
+
+async def test_a_judge_the_panel_does_not_hold_breaks_the_golden_and_names_the_panel() -> None:
+    case = case_of_turns(caller_line("hola"))
+    golden = expecting(judges=["persona"])
+    result = await verdict(judge_named(golden_judges(golden, case, []), "persona"), case)
+    assert result.failed
+    assert "asks persona, and the panel this call meets has no such judge" in result.reasoning
 
 
 def test_a_golden_with_no_line_for_the_caller_is_not_asked_whether_it_was_heard() -> None:

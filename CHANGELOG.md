@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **A call a judge broke on waits as a case**: at hang-up, a call that did not pass is kept in the
+  org's dataset as a `pending` case, its `expect` what the broken verdicts forbid (`consent` →
+  `not_tools`, `grounded` → `grounded`, the model judges → `judges`), its golden carrying what
+  `recall` gave the call. At most 50 wait per agent. `PATCH /v1/evals/cases/{id}` approves (the
+  nightly's `dataset: true` plays only those), dismisses, holds out, or marks a case kept in the
+  repository; `judge_was_wrong` writes the calibration label. `GET /v1/evals/cases` takes
+  `status` and says how many wait. `GET /v1/calls/{call}/golden` answers the golden a call makes,
+  kept nowhere. Migration `0097_case_status.sql`.
+- **`expect.judges`**: a golden asks hang-up judges by name (`promises`, a compliance judge, the
+  org's or the agent's own) of its call; a name the panel does not hold breaks the golden.
 - **`GET /v1/callbacks` lists the key's world only**: an agent's log holds the callbacks of both
   worlds, and the list returned every one of the org's; each is now the world of the call it names.
 - **A sealed call's usage entries carry their `type`**: the memory writer's and the simulated

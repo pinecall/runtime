@@ -70,6 +70,16 @@ NO_EVENT = "this golden expects a reply to an event, and no event.received reach
 REGISTER = "The agent addressed the caller as {register} in every one of its turns."
 
 
+ON_THE_PANEL = "The hang-up judge {name} held of this call."
+
+
+# A check that could not look must not pass: a judge the panel does not hold for this call (a
+# persona's, which needs a simulated caller; a name the org never wrote) breaks the golden.
+NOT_ON_THE_PANEL = (
+    "this golden asks {name}, and the panel this call meets has no such judge: it holds {panel}"
+)
+
+
 # Unmistakable tú; `té` (tea) carries its accent, so `te` never matches it.
 TUTEO: frozenset[str] = frozenset(
     {"tú", "ti", "te", "contigo", "tu", "tus", "tuyo", "tuya", "tuyos", "tuyas"}
@@ -89,8 +99,8 @@ class Played:
     requests: tuple[JsonObject, ...]
 
 
-def golden_judges(golden: Golden, case: Case) -> list[CaseJudge]:
-    """Consent, then one judge per expectation the golden sets, in the order Expect names them."""
+def golden_judges(golden: Golden, case: Case, panel: Sequence[CaseJudge] = ()) -> list[CaseJudge]:
+    """Consent, one judge per expectation set, then the hang-up judges it names, from `panel`."""
     expect = golden.expect
     judges = [consent_judge(case)]
     # Without it an unheard caller would pass every "never did X".
@@ -112,6 +122,8 @@ def golden_judges(golden: Golden, case: Case) -> list[CaseJudge]:
         judges.append(_register_judge(case, expect.addressed_as))
     if expect.replies is not None:
         judges.append(_replies(case, replies=expect.replies))
+    present = {judge.name for judge in judges}
+    judges.extend(_on_the_panel(panel, name) for name in expect.judges if name not in present)
     return judges
 
 
@@ -175,6 +187,16 @@ async def _played(
         await text.hears(session, line)
         await settled(heard)
     return True
+
+
+def _on_the_panel(panel: Sequence[CaseJudge], name: str) -> CaseJudge:
+    """The panel's judge of that name, or one that breaks saying the panel has none."""
+    found = next((judge for judge in panel if judge.name == name), None)
+    if found is not None:
+        return found
+    names = ", ".join(judge.name for judge in panel) or "no judge at all"
+    ruling = failing(NOT_ON_THE_PANEL.format(name=name, panel=names))
+    return CaseJudge(name, ON_THE_PANEL.format(name=name), ruling)
 
 
 def _register_judge(case: Case, expected: Register) -> CaseJudge:

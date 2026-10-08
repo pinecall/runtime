@@ -14,6 +14,7 @@ from pinecall.domain.call import CallContext
 from pinecall.domain.names import JsonObject
 from pinecall.domain.org import Quotas
 from pinecall.domain.scope import Scope
+from pinecall.evals import dataset
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway.calls.serving import opened, served_call
 from pinecall.gateway.ending.seal import A_RUN_JUDGES_IT, NO_JUDGE, drifted, sealed, summed_up
@@ -254,6 +255,30 @@ async def test_a_box_that_names_a_judge_asks_it_on_its_own_key_and_prices_it(
     assert score.passed is False
     assert score.judge_calls == 1
     assert score.judge_cost_usd is not None
+
+
+@postgres
+async def test_a_call_a_judge_broke_on_waits_in_the_inbox_and_one_that_held_does_not(
+    wired: Gateway,
+) -> None:
+    pool = wired.connections.pool
+    org = await orgs.create(pool, "clinica-norte", "Clinica Norte")
+    await sealed_call(wired, a_call(Scope(org.id, "sandbox")), *PRICED)
+    assert await dataset.listed(pool, org.id, AGENT) == [], "no judge model: every judge held"
+    verdict: dict[str, object] = {
+        "name": "submit_verdict",
+        "arguments": {"verdict": "fail", "reasoning": "60 €"},
+    }
+    judged_box = configured([[verdict]]).model_copy(
+        update={"judge": Judge.model_validate({"llm": {"vendor": "acme"}, "ceiling_usd": 0.01})}
+    )
+    await catalog.configure(pool, judged_box)
+    await sealed_call(wired, a_call(Scope(org.id, "sandbox")), *PRICED)
+    (case,) = await dataset.listed(pool, org.id, AGENT, "pending")
+    assert case.golden.input == ["¿Cuánto cuesta?"]
+    assert case.golden.expect.grounded is True
+    assert [judgment.judge for judgment in case.broke] == ["grounded"]
+    assert case.name.startswith("grounded-cuanto-cuesta-")
 
 
 @postgres

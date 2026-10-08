@@ -73,24 +73,44 @@ The golden's `state` rides the dispatch, and the worker writes it on the call's 
 first; `GET /v1/evals/runs/{id}` is one of them, and another org's is `404`.
 
 A run may also name the org's **cases** (below): `cases: ["jueves-tarde"]` plays those by name,
-and `dataset: true` plays every case of the agent that is not held out, which is what a nightly
-run asks for; a case held out is played only when a run names it, which is what a release asks
-for. `version: 4` builds every call of the run on that version of the agent's settings in the
-scope of the app that holds it, instead of the one standing (a candidate, a canary's: see
-[settings-api.md](settings-api.md)); a version the scope never had is `404`. Beside `models`, it
-is how a run compares a candidate with what runs now. A run of cases is refused in production
-(`403`): a case is a real caller's words, and it is played only in the sandbox, as written calls
-through the app a developer holds there, never through production's app, whose tools act for real,
-and never out loud or on a phone.
+whatever their status, so a case still waiting for a person can be reproduced, and `dataset: true`
+plays every case of the agent a person approved, that is not held out and not kept in the
+repository, which is what a nightly run asks for; a case held out is played only when a run names
+it, which is what a release asks for. `version: 4` builds every call of the run on that version of
+the agent's settings in the scope of the app that holds it, instead of the one standing (a
+candidate, a canary's: see [settings-api.md](settings-api.md)); a version the scope never had is
+`404`. Beside `models`, it is how a run compares a candidate with what runs now. A run of cases is
+refused in production (`403`): a case is a real caller's words, and it is played only in the
+sandbox, as written calls through the app a developer holds there, never through production's
+app, whose tools act for real, and never out loud or on a phone.
 
-## The dataset — `POST /v1/evals/cases`, `GET /v1/evals/cases?agent=`, `DELETE /v1/evals/cases/{id}`
+## The dataset — `POST` · `GET /v1/evals/cases`, `PATCH` · `DELETE /v1/evals/cases/{id}`, `GET /v1/calls/{call}/golden`
 
-Real calls are the dataset. These endpoints keep a finished call as a **case** on the gateway (no
-verb of the CLI calls them: `pinecall runs promote` writes the call as a golden candidate in the
-project's `test/candidates/` instead, the CLI repo's (`pinecall/cli`) `docs/the-cli.md`): its
-caller's lines, the state it opened in (the first `state.changed` before the caller spoke), the
-facts the app injected (`event.received` from the app, after the line they followed) and the day
-it ran, as a golden the org names, with what it expects.
+Real calls are the dataset, and the loop that keeps it is: a call a judge broke on is kept at
+hang-up as a **pending** case; a person reads it, reproduces it (`cases: [name]` on a run),
+fixes the agent, and approves it into the nightly or dismisses it. A case is a golden made of the
+call: its caller's lines, the state it opened in (the first `state.changed` before the caller
+spoke), the facts the app injected (`event.received` from the app, after the line they followed),
+the facts `recall` gave it (as the golden's `memory`), and the day it ran.
+
+**Born at hang-up.** After the panel (below), a call whose score did not pass is kept as a case
+`pending`, by `the hang-up panel`, named after the first judge that broke, the caller's first
+four words and the call's last six characters (`promises-me-llaman-manana-por-29d7c7`). Its
+`expect` is what the broken verdicts say must not happen again, and never what was right:
+
+| broke | the case's `expect` |
+|---|---|
+| `consent` | `not_tools`: the tool that ran unasked, by the seqs the verdict cites |
+| `grounded` | `grounded: true` |
+| `promises`, the compliance judges, the org's and the agent's own | `judges: [name]`, asked again of the replay |
+| `persona` | nothing: its rule is a simulated caller's, and a case plays written lines |
+
+A call a simulated caller made is never kept (it is meant to break things), nor one whose caller
+said nothing, nor a call already kept. At most **50** cases wait per agent: past it a broken call
+is judged as ever and not kept, until a person decides some. A write that breaks is logged and the
+call seals all the same.
+
+**Kept by hand.**
 
 ```
 POST /v1/evals/cases
@@ -100,14 +120,33 @@ POST /v1/evals/cases
  "golden": {"name": "jueves-tarde", "state": {"stage": "book"}, "input": ["Quiero cita el jueves"],
             "today": "2026-09-29", "expect": {"says_any": ["jueves"]}, "promoted_from": "call_…"},
  "source_call": "call_…", "source_env": "production", "held_out": false,
- "author": "m_ana", "created_at": 1790000000.1}
+ "author": "m_ana", "created_at": 1790000000.1, "status": "approved", "broke": [],
+ "source_version": 4, "kept_in_repo": false}
 ```
 
-The key must read the call, as a replay's does: a production call is promoted with a key of
-production. The case is the org's, in both environments, and played in the sandbox. A call still going is
-`409`, one whose caller said nothing is `409`, and a name the agent has already is `409`.
-`GET` lists the org's cases by agent and name; `DELETE` forgets one, and another org's, or one
-nobody kept, is `404`.
+A case kept by hand is `approved`. An `expect` left out is the one the call's broken verdicts
+give, as at hang-up. The key must read the call, as a replay's does: a production call is kept
+with a key of production. The case is the org's, in both environments, and played in the sandbox.
+A call still going is `409`, one whose caller said nothing is `409`, and a name the agent has
+already is `409`.
+
+**Read as a golden, kept nowhere.** `GET /v1/calls/{call}/golden?name=` answers the golden the
+call makes, with the same derived `expect`: what `pinecall runs promote` writes to the project's
+`test/candidates/` for a case that names the code (a stage, a tool, an event) and belongs in the
+repository.
+
+**The inbox.** `GET /v1/evals/cases?agent=&status=` lists the org's cases, the pending first,
+newest first, and says how many wait: `{cases, pending, pending_at_most}`. `PATCH
+/v1/evals/cases/{id}` writes what a person decided, each field set:
+
+| field | does |
+|---|---|
+| `status` | `approved` (the nightly plays it), `dismissed`, or `pending` again; the person and the time are kept |
+| `held_out` | played only when a run names it |
+| `kept_in_repo` | written into the repository as a golden: the nightly leaves it to the file |
+| `judge_was_wrong` + `note` | with `dismissed` only: the judge that broke should have held, kept as a calibration label of the call (below), in the call's own world, so the key must read the call; a judge the case did not break on is `400` |
+
+`DELETE` forgets one, and another org's, or one nobody kept, is `404`.
 
 A case is tenant data like the call it came from, and never outlives it: erasing the call, the
 contact who made it, or the org erases the case in the same transaction (`tenancy/erasure.py`),
@@ -146,6 +185,7 @@ open. A model that is unsure scores a half and never passes.
 | `honoured_stop` | at hang-up | code: a caller who said *stop calling*, *remove me*, *no me llamen* and the like had their number put on the do-not-call list on that call (`call.opt_out`); nobody asking holds |
 | `persona` | at hang-up, when the caller wrote a rule | the model reads the caller's `accepts_when`/`declines_when` |
 | the agent's own | at hang-up, every call or only simulations | the model reads the question the org wrote for the agent |
+| any hang-up judge, by name | `expect.judges` | the panel's own judge asked of the golden's call, the one field of `expect` a model may answer; a name the panel does not hold for that call (`persona`, a judge nobody wrote) breaks the golden, naming the panel |
 
 ## A finished call
 
@@ -197,7 +237,8 @@ what one call may spend on it: a model judge asked once the calls before it reac
 org that judges nothing gets `not_judged` saying so; a call an eval run opened is judged by the run.
 Each settled verdict is counted into the day's drift, by the version of the agent's settings the
 call ran and the hash of the judge's question, which `GET /v1/insights/drift` reads to say which
-judge's pass rate moved ([console-api.md](console-api.md)).
+judge's pass rate moved ([console-api.md](console-api.md)), and a call that did not pass is kept
+as a pending case (the dataset, above).
 
 ## An agent's own judges — `GET /v1/agents/{slug}/judges`, `PUT` · `DELETE /v1/agents/{slug}/judges/{name}`
 

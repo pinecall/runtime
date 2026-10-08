@@ -8,12 +8,12 @@ import psycopg
 
 from pinecall.domain.agent import AgentConfig, Model
 from pinecall.domain.errors import NotAvailable, PinecallError, QuotaExhausted
-from pinecall.evals import judges
+from pinecall.evals import dataset, judges
 from pinecall.evals.compliance import Compliance, Panel
 from pinecall.gateway._call_setup import exhausted, keys_of
 from pinecall.gateway._served import Served, Serving
 from pinecall.gateway.calls.serving import now_of
-from pinecall.log import drift, facts
+from pinecall.log import drift, facts, queries
 from pinecall.log.logs import Log
 from pinecall.log.reduce import phone_legs, reduce
 from pinecall.log.store import Store
@@ -98,6 +98,7 @@ async def sealed(
             renewing.cancel()
             await asyncio.gather(renewing, return_exceptions=True)
         await drifted(serving.connections.pool, served.call, entries, score)
+        await _kept_as_case(serving, served, score)
         await _watched(serving, served)
         serving.logs.forget(served.call)
         serving.live.close(served.call)
@@ -268,6 +269,23 @@ async def _renewed(store: Store, call: str) -> None:
     while True:
         await asyncio.sleep(LEASED_S / 3)
         await store.renew_seal(call, LEASED_S)
+
+
+# A call a judge broke on waits in the org's inbox as a case (evals/dataset.py). Like drift, it
+# is kept after the call: a write that breaks is logged and the call seals all the same.
+async def _kept_as_case(serving: Serving, served: Served, score: CallScore) -> None:
+    """Keep the call as a pending case of the org's dataset when one of its judges broke."""
+    if score.passed is not False:
+        return
+    pool = serving.connections.pool
+    try:
+        entries = await serving.logs.store.whole(served.call)
+        kept = await queries.scope_of_call(pool, served.call)
+        version = None if kept is None else kept.versions.config
+        born = dataset.Born(served.scope.org, served.scope.env, served.agent, version)
+        await dataset.kept_at_hangup(pool, entries, score, born)
+    except psycopg.Error:
+        logger.warning("call %s was not kept as a case", served.call, exc_info=True)
 
 
 # The org's spend is watched once the summary priced the call: today against its own trailing

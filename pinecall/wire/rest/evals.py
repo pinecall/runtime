@@ -19,6 +19,11 @@ type Register = Literal["tu", "usted"]
 type RunStatus = Literal["running", "done", "failed"]
 
 
+# A call that broke is kept `pending` at hang-up; a person approves it into the nightly or
+# dismisses it. A case kept by hand is approved from the start.
+type CaseStatus = Literal["pending", "approved", "dismissed"]
+
+
 # ── a golden ──
 
 
@@ -47,6 +52,8 @@ class Expect(WireModel):
     addressed_as: Register | None = Field(default=None, alias="register")
     # With `events` only: whether the agent takes the fact up.
     replies: bool | None = None
+    # Hang-up judges asked of the golden's call by name: the one field a model may answer.
+    judges: list[str] = Field(default_factory=list[str])
 
 
 class Golden(WireModel):
@@ -175,6 +182,13 @@ class PromoteCaseRequest(WireModel):
     held_out: bool = False
 
 
+class BrokeOn(WireModel):
+    """A judge that broke on the call a case was kept from, and why."""
+
+    judge: str
+    reason: str
+
+
 class EvalCase(WireModel):
     """One case of the org's dataset: the golden a real call made, whose, from where, by whom."""
 
@@ -187,12 +201,34 @@ class EvalCase(WireModel):
     held_out: bool
     author: str
     created_at: float
+    status: CaseStatus = "approved"
+    # The judges that broke at hang-up; empty for a case a person kept from a call that held.
+    broke: list[BrokeOn] = Field(default_factory=list[BrokeOn])
+    # The settings version the call ran on, None where its corner had set nothing.
+    source_version: int | None = None
+    # Written into the repository as a golden: the nightly plays the file, not the case.
+    kept_in_repo: bool = False
+    decided_by: str | None = None
 
 
 class EvalCaseList(WireModel):
-    """GET /v1/evals/cases: the org's cases, by agent and name."""
+    """GET /v1/evals/cases: the org's cases, by agent and name; how many wait, of how many."""
 
     cases: list[EvalCase]
+    pending: int = 0
+    # Past it a broken call is judged as ever and not kept: the inbox is for reading.
+    pending_at_most: int = 0
+
+
+class CaseDecision(WireModel):
+    """PATCH /v1/evals/cases/{id}, the body: what a person decided; each field set is written."""
+
+    status: CaseStatus | None = None
+    held_out: bool | None = None
+    kept_in_repo: bool | None = None
+    # With `dismissed`: the judge that should have held, written as a calibration label.
+    judge_was_wrong: str | None = Field(default=None, min_length=1)
+    note: str | None = None
 
 
 # ── the judge judged ──

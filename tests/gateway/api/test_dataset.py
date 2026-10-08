@@ -19,8 +19,28 @@ ENDED: JsonObject = {
 }
 
 
+# What the panel said of a call that promised a call back nobody booked.
+BROKE_A_PROMISE: JsonObject = {
+    "passed": False,
+    "judges": [
+        {
+            "name": "promises",
+            "verdict": "broken",
+            "criteria": "Every commitment the agent made is recorded by a tool call.",
+            "reason": "it promised a call back and no tool booked one",
+            "evidence": {"seqs": []},
+        }
+    ],
+    "judge_calls": 1,
+}
+
+
 async def a_real_call(
-    knocking: Knocking, *lines: str, env: Env = "production", over: bool = True
+    knocking: Knocking,
+    *lines: str,
+    env: Env = "production",
+    over: bool = True,
+    score: JsonObject | None = None,
 ) -> str:
     """A call of the org's agent in the world, its caller's lines said, ended unless not."""
     call = f"CA_{env[:4]}_{len(lines)}_{knocking.org.id[-6:]}"
@@ -39,6 +59,8 @@ async def a_real_call(
         await log.append("turn.agent", reply)
     if over:
         await log.append("call.ended", ENDED)
+    if score is not None:
+        await log.append("call.score", score)
     return call
 
 
@@ -120,3 +142,63 @@ async def test_a_case_is_forgotten_once_and_another_orgs_is_nobodys(knocking: Kn
         listed = await org.get(CASES)
     assert (gone.status_code, twice.status_code) == (204, 404)
     assert listed.json() == {"cases": []}
+
+
+@postgres
+async def test_a_call_read_as_a_golden_says_what_its_broken_verdicts_forbid(
+    knocking: Knocking,
+) -> None:
+    call = await a_real_call(knocking, "¿Me llaman mañana?", score=BROKE_A_PROMISE)
+    async with knocking.http(knocking.app["production"]) as org:
+        read = await org.get(f"/v1/calls/{call}/golden", params={"name": "llamada"})
+        kept = await org.post(CASES, json={"call": call, "name": "llamada"})
+        cases = await org.get(CASES, params={"agent": AGENT})
+    assert read.status_code == 200, read.text
+    assert read.json()["expect"] == {"judges": ["promises"]}
+    assert read.json()["name"] == "llamada"
+    case = kept.json()
+    assert case["golden"]["expect"] == {"judges": ["promises"]}, "an expect left empty is derived"
+    assert case["status"] == "approved", "a case a person kept is approved from the start"
+    assert case["broke"] == [
+        {"judge": "promises", "reason": "it promised a call back and no tool booked one"}
+    ]
+    assert cases.json()["pending"] == 0
+    assert cases.json()["pending_at_most"] == 50
+
+
+@postgres
+async def test_a_judge_called_wrong_dismisses_the_case_and_labels_the_call(
+    knocking: Knocking,
+) -> None:
+    call = await a_real_call(knocking, "¿Me llaman mañana?", score=BROKE_A_PROMISE)
+    async with knocking.http(knocking.app["production"]) as org:
+        case = (await org.post(CASES, json={"call": call, "name": "llamada"})).json()
+        refused = await org.patch(
+            f"{CASES}/{case['id']}", json={"status": "dismissed", "judge_was_wrong": "grounded"}
+        )
+        dismissed = await org.patch(
+            f"{CASES}/{case['id']}",
+            json={"status": "dismissed", "judge_was_wrong": "promises", "note": "it did book"},
+        )
+        labelled = await org.get("/v1/evals/calibration", params={"agent": AGENT})
+        gone = await org.patch(f"{CASES}/case_nobody", json={"status": "approved"})
+    assert refused.status_code == 400
+    assert "did not break on grounded" in refused.json()["detail"]
+    assert dismissed.status_code == 200, dismissed.text
+    assert dismissed.json()["status"] == "dismissed"
+    judges = {row["judge"]: row["labelled"] for row in labelled.json()["judges"]}
+    assert judges == {"promises": 1}
+    assert gone.status_code == 404
+
+
+@postgres
+async def test_the_inbox_lists_one_status_and_counts_what_waits(knocking: Knocking) -> None:
+    call = await a_real_call(knocking, "Hola", score=BROKE_A_PROMISE)
+    async with knocking.http(knocking.app["production"]) as org:
+        await org.post(CASES, json={"call": call, "name": "hola"})
+        approved = await org.get(CASES, params={"status": "approved"})
+        pending = await org.get(CASES, params={"status": "pending"})
+        nonsense = await org.get(CASES, params={"status": "maybe"})
+    assert [row["name"] for row in approved.json()["cases"]] == ["hola"]
+    assert pending.json()["cases"] == []
+    assert nonsense.status_code == 422

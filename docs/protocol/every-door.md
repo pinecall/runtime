@@ -78,6 +78,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/calls/{call}/commands` | app · fleet | The app's commands for the call, in order, until it is sealed. |
 | `POST` | `/v1/calls/{call}/entries` | app · fleet | Write a worker's batch of a call this gateway serves, once and in order, each entry at the worker's `ts` clamped to the gateway's clock; a retry of the last batch answers the same seqs. |
 | `WS` | `/v1/calls/{call}/entries` | — | A worker's batches of a call, on one socket for its life, each answered with its seqs as the batch endpoint answers them; a refusal is a frame `{refused, status}` and the socket stays. |
+| `GET` | `/v1/calls/{call}/golden` | evals | The golden a finished call makes, its expect from its broken verdicts; nothing is kept. |
 | `GET` | `/v1/calls/{call}/events` | calls · fleet | A call's entries above the cursor: a page, or a stream that ends with the call. |
 | `POST` | `/v1/calls/{call}/events` | app · fleet | Write one entry of a call this gateway serves. |
 | `GET` | `/v1/calls/{call}/judging` | app · fleet | Whether the call's org judges its calls at hang-up. |
@@ -111,9 +112,10 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/evals/calibration` | evals | Each judge's agreement with the labels on the key's environment's calls, one agent's or all. |
 | `POST` | `/v1/evals/calibration` | evals | Keep what one judge should have answered on a finished call, replacing the last label. |
 | `POST` | `/v1/evals/caller` | evals | The persona's next line on the call so far, improvised by its model. |
-| `GET` | `/v1/evals/cases` | evals | The org's cases, one agent's or every one, by agent and name. |
+| `GET` | `/v1/evals/cases` | evals | The org's cases, one agent's or every one, the pending first; how many wait, of how many. |
 | `POST` | `/v1/evals/cases` | evals | A finished call's caller lines kept as a case of the org's dataset. |
 | `DELETE` | `/v1/evals/cases/{id}` | evals | Forget one of the org's cases; another org's, or nobody's, is the same 404. |
+| `PATCH` | `/v1/evals/cases/{id}` | evals | Approve, dismiss, hold out or mark a case as kept in the repository. |
 | `POST` | `/v1/evals/judge/{call}` | evals | Judge a finished call, write the verdict on its log, and answer it. |
 | `POST` | `/v1/evals/replay/{call}` | evals | The six code checks over a finished call, the barge-ins it answered among them. |
 | `POST` | `/v1/evals/run` | evals | Every golden under every model through the app that holds the agent, judged and stored. |

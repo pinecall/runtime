@@ -28,7 +28,8 @@ from pinecall.domain.names import PRODUCTION, THE_WIDGET
 from pinecall.domain.scope import Scope
 from pinecall.evals import checks, dataset, goldens, runs, spoken
 from pinecall.evals.callers import Spending, heard_in, improvise_line
-from pinecall.evals.case import case_of
+from pinecall.evals.case import Case, case_of
+from pinecall.evals.judges import CaseJudge, hangup_judges
 from pinecall.fleet import worlds
 from pinecall.gateway import _deps
 from pinecall.gateway._call_setup import exhausted, keys_of, tuned
@@ -440,11 +441,22 @@ async def _every_golden(gateway: Gateway, suite: Suite, judge: llm.LLM[Never] | 
                 return THE_APP_LEFT.format(done=len(suite.cells), total=total, slug=body.agent)
             entries = await gateway.logs.store.whole(opened.call)
             case = case_of(entries, setup.config)
-            scores = await runs.score(goldens.golden_judges(golden, case), case, judge)
+            panel = await _panel_of(gateway, suite, case, opened) if golden.expect.judges else []
+            scores = await runs.score(goldens.golden_judges(golden, case, panel), case, judge)
             requests = None if body.voice else played.requests
             suite.cells.append(runs.cell_of(opened, case, scores, requests))
             await runs.put(gateway.connections.pool, registration.scope, suite.now)
     return None
+
+
+# The panel a real call of the agent meets at hang-up: a golden's `expect.judges` picks from it.
+async def _panel_of(
+    gateway: Gateway, suite: Suite, case: Case, opened: OpenedCall
+) -> list[CaseJudge]:
+    pool, scope = gateway.connections.pool, suite.registration.scope
+    own = await judges.for_call(pool, scope.org, suite.body.agent)
+    org_facts = await compliance_of(pool, scope.org, opened.call, suite.setup.config)
+    return hangup_judges(case, [stored.judge for stored in own], org_facts)
 
 
 # A column runs the agent's own model, or the one named, on the same tuned config and keys.
