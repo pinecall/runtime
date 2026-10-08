@@ -35,8 +35,18 @@ type DocsMode = Literal["retrieved", "tool"]
 type RunsOn = Literal["every-call", "simulations"]
 
 
-# The names the hang-up panel gives its verdicts; a judge of the org's or an agent's takes another.
-PANEL_JUDGES: tuple[str, ...] = ("consent", "grounded", "promises", "persona")
+# The names the platform gives its verdicts, at hang-up and on a golden; a judge of the org's or an
+# agent's takes another, or a call would carry two verdicts under one name.
+PANEL_JUDGES: tuple[str, ...] = (
+    "consent",
+    "grounded",
+    "promises",
+    "persona",
+    "identified",
+    "disclosed",
+    "honoured_stop",
+    "heard",
+)
 
 
 # A name every model vendor accepts as a function name.

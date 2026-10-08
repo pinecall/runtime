@@ -301,7 +301,7 @@ def verbs() -> argparse.ArgumentParser:
     kept_verbs.add_parser("due", help="what the next run would erase").set_defaults(
         run=retention_due
     )
-    kept_verbs.add_parser("run", help="erase them; the box's timer runs it nightly").set_defaults(
+    kept_verbs.add_parser("run", help="erase them; a CronJob runs it nightly").set_defaults(
         run=retention_run
     )
     _sessions.sessions_group(under.add_parser("sessions", help="the log, off Postgres"))

@@ -28,7 +28,7 @@ from pinecall.tenancy.carriers import (
 )
 
 # Twilio's signalling edges, from the catalog: the fence of every Twilio number on the SFU, and the
-# set nftables.conf opens 5060 to. A test holds them equal.
+# set the cloud firewall opens 5060 to. A test holds them equal.
 TWILIO_SIGNALLING: tuple[str, ...] = known_carrier(BOX_CARRIER).networks
 
 

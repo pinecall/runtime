@@ -8,10 +8,7 @@ from pinecall.postgres.pool import Pool
 # The timer ships every 10 s: five minutes of segments waiting is a bucket that does not answer.
 SHIPPED_WITHIN_S = 300
 
-OFF = (
-    "off: no restore to a minute; PINECALL_BACKUP_BUCKET, the object store and `wal.sh apply` "
-    "turn it on"
-)
+OFF = "off: no restore to a minute; the postgres chart's backups section turns the archiver on"
 
 NOT_SPOOLED = (
     "segment {wal} could not be spooled at {at:%Y-%m-%d %H:%M:%S}Z: Postgres keeps it in pg_wal "
@@ -20,7 +17,7 @@ NOT_SPOOLED = (
 
 NOT_SHIPPED = (
     "{waiting} segments waiting since {at:%Y-%m-%d %H:%M:%S}Z: the bucket has not taken them "
-    "(journalctl -u pinecall-wal); they stay on this disk until it does"
+    "(the postgres pod's logs say why); they stay on this disk until it does"
 )
 
 ON = "on, {waiting} waiting to ship, the last spooled {ago}"

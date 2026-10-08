@@ -17,7 +17,7 @@ FILE = "carriers.csv"
 ADMITTED = "carriers/admitted"
 
 
-# The box's own carrier: always admitted, its networks are nftables.conf's own set.
+# The box's own carrier: always admitted, its networks are the cloud firewall's own set.
 BOX_CARRIER = "twilio"
 
 

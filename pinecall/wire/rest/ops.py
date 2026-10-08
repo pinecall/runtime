@@ -214,7 +214,7 @@ class BoxCarrier(WireModel):
     source: str
     read_on: str
     admitted: bool
-    # The box's own carrier: admitted always, its networks typed into nftables.conf.
+    # The platform's own carrier: admitted always, its networks in the cloud firewall.
     fixed: bool
     # The numbers of every org that reach the box through it.
     numbers: int

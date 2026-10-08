@@ -29,7 +29,7 @@ def test_a_box_without_a_bucket_is_ok_and_says_archiving_is_off() -> None:
     trouble, state = archive_finding(Archive("off", None, None, None, 0, None), NOW)
     assert trouble is None
     assert state.startswith("off")
-    assert "PINECALL_BACKUP_BUCKET" in state
+    assert "backups section" in state
 
 
 def test_an_archive_keeping_up_says_what_waits_and_when_it_last_spooled() -> None:
