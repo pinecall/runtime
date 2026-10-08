@@ -13,7 +13,7 @@ an account (`PUT /v1/carrier {"kind": "whatsapp", "phone_number_id", "access_tok
 [numbers.md](numbers.md)) and replies to its contacts go out on its own token.
 
 ```
-console → Numbers → Import
+console → Numbers → Add a number → WhatsApp
   {"number": "+59829000000", "agent": "recepcion", "channel": "whatsapp", "account": "1055…"}
 ```
 
@@ -63,7 +63,7 @@ call. A gateway that starts reads the queue back off the logs.
 
 ## The desk
 
-The inbox (`/v1/agents/{slug}/threads`) shows every contact of an agent, their calls merged into
+The console's Calls ▸ Threads (`/v1/agents/{slug}/threads`) shows every contact of an agent, their calls merged into
 one thread. A person with `talk` writes on the open conversation with
 `POST /v1/agents/{slug}/threads/{contact}/messages {text}`: `202 {contact, call}`, sent as the
 agent. `409` when the contact's newest call is not WhatsApp, when the window closed, or when the

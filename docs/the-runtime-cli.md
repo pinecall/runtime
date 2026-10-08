@@ -10,7 +10,7 @@ writes an agent, nothing there issues a key.
 | group | speaks to |
 |---|---|
 | `gateway` · `worker` · `runner` · `doctor` · `providers` | this machine: its settings, its database, its LiveKit |
-| `migrate` · `sessions` · `memory` · `retention` · `traceback` · `facts` · `vault` | Postgres, straight, over `DATABASE_URL` (`vault` with `PINECALL_VAULT_KEY` too) |
+| `migrate` · `sessions` · `memory` · `retention` · `traceback` · `facts` · `drift` · `usage` · `vault` | Postgres, straight, over `DATABASE_URL` (`vault` with `PINECALL_VAULT_KEY` too) |
 | `init` · `orgs` · `keys` · `routes` · `fleet` · `fence` · `sip` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` and `keys runner` alone are minted on the database, before any gateway answers |
 | `load` | a running gateway's sandbox, over the worker's own call doors with the sandbox fleet's key (`PINECALL_WORKER_KEY`) |
 
@@ -21,7 +21,9 @@ cluster's load balancer; elsewhere on the loopback address `PINECALL_GATEWAY_URL
 that is not loopback is refused in one sentence. `worker start` is a worker of the fleet
 `PINECALL_FLEET` names, until told to stop or cordoned; `worker overflow` the one that answers when
 the fleet is full. `runner start` keeps the hosted apps of the world its `PINECALL_RUNNER_KEY`
-opens running, one gVisor container each, on a machine of its own, outside the cluster. Every
+opens running, one gVisor pod each: the runner is itself a pod of the hosting cluster
+(`charts/hosting`), outside the runtime's own cluster ([../infra/README.md](../infra/README.md),
+"Hosting"). Every
 variable they read is
 [the-environment.md](the-environment.md).
 
@@ -62,8 +64,11 @@ keys runner production|sandbox
 ```
 
 `issue` prints the key once; the table keeps the fingerprint. `fleet` mints a world's fleet key on
-the database, printed once where the unit that seals it reads it; `runner` mints the key of the
-world's runner the same way ([protocol/hosting.md](protocol/hosting.md)).
+the database and prints it once: in a cluster nobody types it, since the chart's install Job runs
+it for both worlds into the secret `pinecall-fleet-keys`, and on a laptop `make local` writes the
+sandbox's into `.local/env`. `runner` mints the key of the world's runner the same way, put once
+in Secret Manager for the hosting cluster ([protocol/hosting.md](protocol/hosting.md),
+[../infra/README.md](../infra/README.md), "Hosting").
 
 ## `routes`
 
@@ -71,6 +76,10 @@ world's runner the same way ([protocol/hosting.md](protocol/hosting.md)).
 routes list [--org] [--env] · routes add <number> <agent> [--channel phone|whatsapp] [--org] [--env]
 routes rm <number> [--org] · routes seed [--file infra/seed/routes.json]
 ```
+
+`seed` reads a JSON list of routes, each the body `routes add` sends (`number`, `agent`,
+`channel`, `org`, `env`), and adds them one by one. Its default, `infra/seed/routes.json`, is not in
+the repository: name your own file with `--file`.
 
 ## `fence`
 
@@ -156,7 +165,7 @@ judge model. Each call at once has a client and a connection of its own, as a wo
 | `logs verified` · `logs found wrong` · `logs unread` | each sealed call's log read back: every durable entry sent, once each, in order, and seqs that rose; `unread` counts the reads refused, by status |
 | `loop lag ms` | the p99 lag of the generator's own event loop; over 50 ms a `warning:` line follows, since a saturated generator measures itself |
 
-## `sessions` · `memory` · `retention` · `traceback` · `facts` · `migrate` · `providers` · `doctor`
+## `sessions` · `memory` · `retention` · `traceback` · `facts` · `usage` · `drift` · `migrate` · `providers` · `doctor`
 
 `sessions list [--agent] [--limit]`, `sessions show <call> [--json]`, `sessions tail [<call>]`,
 `sessions recording <call>`: the log read back off Postgres, every tenant's; each read of a call is a row of its org's access log (`reader: operator`), and so is each org a `traceback` showed. `memory reembed`

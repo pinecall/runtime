@@ -9,8 +9,8 @@ for you in return. The doors themselves are [numbers.md](protocol/numbers.md); t
 ```
 caller → carrier → INVITE to <box>:5060 → livekit-sip → room call-… → worker → GET /v1/routes → agent
                           │                    │
-                    the fence (nftables,   the org's trunk (its numbers, the networks
-                    the cloud's firewall)  it admits) and its world's dispatch rule
+                    the fence (the cloud's the org's trunk (its numbers, the networks
+                    firewall, Terraform's) it admits) and its world's dispatch rule
 ```
 
 ## Three planes

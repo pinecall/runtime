@@ -33,7 +33,7 @@ made by hand and nothing is built on a laptop.
 | `values/example.yaml` · `hosting-example.yaml` | an operator's values for the charts, every one an example: copied into `OPS` (below) and filled in; CI renders and scans the charts with them |
 | `lab/` | calls with real audio and the vendors faked, against staging, measured (`terraform/modules/lab` is its generator) |
 | `local/` | the runtime on a laptop, and the Postgres image of the suites (`make local`, `make db`) |
-| `models/` | the open stack: three model servers on one GPU and the providers row that points a box at them |
+| `models/` | the open stack: three model servers on one GPU and the providers row that points the runtime at them |
 | `seed/prices.csv` | the list prices a box's rates start from (`pinecall-runtime providers prices`) |
 
 ## Your own values
@@ -170,8 +170,8 @@ Ingress had served kept.
 
 Terraform draws most of a cluster's secrets. The ones a world names in `given`
 (`terraform/modules/secrets`) are made empty, and the operator puts each once, piped, so that no
-state and no terminal holds it: `vault-key` is the key the database is sealed under (a box's,
-when its database moves here), and `s3-access-key-id` with `s3-secret-access-key` are the object
+state and no terminal holds it: `vault-key` is the key the database is sealed under (a database
+moved in from elsewhere, as production's was on 2026-10-04, keeps the key it was sealed under), and `s3-access-key-id` with `s3-secret-access-key` are the object
 store's key, made by hand. The environment's `given_secrets` lists them.
 
 ```console
@@ -204,10 +204,12 @@ $ kubectl --context <the box's> exec deploy/pinecall-gateway -- pinecall-runtime
 $ make hosting ENV=<env> TAG=<commit>       # the runners, the namespace and its fence
 ```
 
-## From a box
+## From a box (history)
 
-A box's database moves into a cluster's Postgres once, at its cutover:
-`make restore-from-box ENV=<env> BOX=<ssh alias>` empties the cluster's schema, makes its two
+Before 2026-10-04 the runtime also ran on a single machine, a "box", and production moved from one
+into this cluster that day. That install is gone: nothing here makes a box or runs on one. What is
+left is the one-time migration that moved its database, kept for an operator who still holds one:
+`make restore-from-box ENV=<env> BOX=<ssh alias>` (refused for `ENV=production`) empties the cluster's schema, makes its two
 extensions again, and restores the box's schema `public` and its rows into it as the database's
 owner, the dump streamed from the box into the Postgres pod and deleted there. The box's runtime is
 stopped first, and the runtime's chart is installed after, so its fleets' keys are minted in the

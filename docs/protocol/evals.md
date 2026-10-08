@@ -85,7 +85,9 @@ and never out loud or on a phone.
 
 ## The dataset — `POST /v1/evals/cases`, `GET /v1/evals/cases?agent=`, `DELETE /v1/evals/cases/{id}`
 
-Real calls are the dataset. `pinecall runs promote` keeps a finished call as a **case**: its
+Real calls are the dataset. These doors keep a finished call as a **case** on the gateway (no
+verb of the CLI calls them: `pinecall runs promote` writes the call as a golden candidate in the
+project's `test/candidates/` instead, the CLI repo's (`pinecall/cli`) `docs/the-cli.md`): its
 caller's lines, the state it opened in (the first `state.changed` before the caller spoke), the
 facts the app injected (`event.received` from the app, after the line they followed) and the day
 it ran, as a golden the org names, with what it expects.
@@ -130,7 +132,7 @@ open. A model that is unsure scores a half and never passes.
 
 | metric | when | settled by |
 |---|---|---|
-| `consent` | always, first | code: every irreversible tool call ran after its own `confirm.granted`, for the same audience; a call with no `confirm.*` at all holds, saying so |
+| `consent` | always, first | code: every irreversible tool call ran after its own `confirm.granted`, for the same audience; a call with no `confirm.*` at all holds, saying so; a call whose tools ran and not one of them declares a side effect breaks, since nothing says which were irreversible |
 | `heard` | a golden with lines | code: every line reached the agent |
 | `tools` · `not_tools` | `expect.tools`, `expect.not_tools` | code, the second naming the seq of the call that ran |
 | `silence` · `says` | `expect.not`, `expect.says` | code, case-blind; the turn is named |

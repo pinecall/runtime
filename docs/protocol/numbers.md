@@ -55,17 +55,20 @@ Two ways to hook a number, both through this door:
 
 - **We hook it** (the default): the number is one of an account of the org. On Twilio the box
   finds the account's trunk that points at it (by its origination URI,
-  `sip:<PINECALL_DOMAIN>:5060;transport=udp`, whatever the trunk is named), makes one if there is
+  `sip:<the world's SIP name>:5060;transport=udp`, whatever the trunk is named), makes one if there is
   none, and attaches the number. On a SIP peer nothing outside is touched. With several accounts,
   `account` says which.
 - **You hook it** (`hooked: true`): the org points the number at the box itself, from any
-  carrier or PBX: `sip:+59829000000@<PINECALL_DOMAIN>:5060`. Nothing outside is touched. The box
+  carrier or PBX: `sip:+59829000000@<the world's SIP name>:5060` (`PINECALL_SIP_DOMAIN` or
+  `PINECALL_SANDBOX_SIP_DOMAIN`, else the box's name, [the-environment.md](../the-environment.md)).
+  Nothing outside is touched. The box
   admits the number from the networks of the carrier named in `via`, one of
   `GET /v1/carriers/catalog` (Twilio's when unsaid), or from `networks` of the org's own, which
   wait for the operator's approval like a peer's: until then the number is routed and on no
   trunk, and the import's steps say so. A number hooked this way proves nothing of whose it is:
   on a box that sets `PINECALL_APPROVE_HOOKED`, the operator also approves the number itself
-  (`GET /v1/ops/numbers`, operator-api.md), and until then a call to it is refused when it opens
+  (`POST /v1/ops/numbers/{number}/approve`, the numbers waiting listed by `GET /v1/ops/numbers`,
+  operator-api.md), and until then a call to it is refused when it opens
   and its path says `waiting` at the fence. Unset (the default), it rings at once.
 
 One org holds a number: importing a number another org holds is `409`, and the sentence names

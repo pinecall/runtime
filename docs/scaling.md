@@ -1,7 +1,7 @@
 # Scaling: one box to a fleet per world
 
-The same runtime is one box that does everything, or a gateway with workers on as many machines as
-the calls need. It is configuration: a worker is `pinecall-runtime worker start` on a machine that
+The runtime is gateways on a cluster with workers on as many machines as the calls need. It is
+configuration: a worker is `pinecall-runtime worker start` on a machine that
 reaches the gateway and LiveKit, holding its world's fleet key. The operator's verbs are
 [the-runtime-cli.md](the-runtime-cli.md); the cluster it runs on, from nothing, is
 [../infra/README.md](../infra/README.md).
