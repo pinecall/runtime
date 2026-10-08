@@ -70,7 +70,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/apps` | calls | The app sockets of the org in the world this key may see, oldest first. |
 | `WS` | `/v1/apps` | — | An app holds its agents here, answers their tools, and sends their calls' commands. |
 | `POST` | `/v1/apps/{app}/stop` | app | Tell the app it was stopped, and close its socket. |
-| `GET` | `/v1/callbacks` | calls | The org's callbacks, oldest first, a page at a time. |
+| `GET` | `/v1/callbacks` | calls | The org's callbacks in the key's world, oldest first, a page at a time. |
 | `POST` | `/v1/callbacks` | app · fleet | Somebody the overflow told to wait for a call back, on the agent's log. |
 | `POST` | `/v1/calls` | app · fleet | Open a call's log, serve it to its agent's socket, say its minutes and its first words. |
 | `DELETE` | `/v1/calls/{call}` | team | Erase an ended call: its log, facts, tokens, the memories it taught, its recording; one row in the trail. |

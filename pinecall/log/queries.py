@@ -22,6 +22,12 @@ from call_log_head where log = %(call)s and call is not null
 """
 
 
+ENVS_OF = """
+select log as call, coalesce(env, 'production') as env
+from call_log_head where log = any(%(calls)s) and call is not null
+"""
+
+
 FACTS_OF = """
 select f.*, head.agent
 from call_facts f join call_log_head head on head.log = f.call
@@ -171,6 +177,13 @@ async def tool_called(pool: Pool, call: str, call_id: str) -> Entry | None:
     async with pool.connection() as connection:
         row = await (await connection.execute(TOOL_CALLED, wanted)).fetchone()
     return None if row is None else entry_of(row)
+
+
+async def envs_of_calls(pool: Pool, calls: Sequence[str]) -> dict[str, Env]:
+    """Return the world each of the calls was opened in, for the calls that have a log."""
+    async with pool.connection() as connection:
+        rows = await (await connection.execute(ENVS_OF, {"calls": list(calls)})).fetchall()
+    return {str(row["call"]): parse_env(str(row["env"])) for row in rows}
 
 
 async def facts_of_calls(pool: Pool, calls: Sequence[str]) -> dict[str, CallFacts]:

@@ -132,7 +132,8 @@ only the process in the agent's directory can do: [dev-verbs.md](dev-verbs.md).
 
 When every worker is full the token door answers `503` and a page offers a call back:
 `POST /v1/callbacks {agent, number, channel?, via?, call?}` writes `callback.requested` on the
-agent's log; `GET /v1/callbacks?agent=&after=` lists them for your app to dial.
+agent's log; `GET /v1/callbacks?agent=&after=` lists them for your app to dial, each in the world of
+the call it names: the sandbox's key lists the sandbox's, production's lists production's.
 
 The worker's doors (`POST /v1/calls`, `/events`, `/entries`, `/sealed`, `/tools`, `/lookup`,
 `/remember`, `/recording/key`, `/commands`) belong to whoever opened the call: the fleet's key

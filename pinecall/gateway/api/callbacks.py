@@ -66,12 +66,17 @@ async def request_callback(body: CallbackRequest, key: WorkerKey, gateway: Gatew
 async def list_callbacks(
     key: CallsKey, gateway: GatewayDep, query: Annotated[CallbackQuery, Query()]
 ) -> CallbackList:
-    """The org's callbacks, oldest first, a page at a time."""
+    """The org's callbacks in the key's world, oldest first, a page at a time."""
     page = await gateway.logs.store.across([CALLBACK], after=query.after, limit=A_PAGE)
+    # An agent's log holds both worlds' callbacks: each is the world of the call it names.
+    named = [str(item.entry.data["call"]) for item in page if item.entry.data.get("call")]
+    worlds = await queries.envs_of_calls(gateway.connections.pool, named)
     ours = [
         item
         for item in page
-        if item.org == key.org and (query.agent is None or item.entry.agent == query.agent)
+        if item.org == key.org
+        and worlds.get(str(item.entry.data.get("call"))) == key.env
+        and (query.agent is None or item.entry.agent == query.agent)
     ]
     return CallbackList(
         requests=[

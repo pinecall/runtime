@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **`GET /v1/callbacks` lists the key's world only**: an agent's log holds the callbacks of both
+  worlds, and the list returned every one of the org's; each is now the world of the call it names.
 - **A sealed call's usage entries carry their `type`**: the memory writer's and the simulated
   caller's were built without one and frames drop unset fields, so the SDKs rejected the seal of
   any call that wrote memory (`pinecall chat --as` ended in a ZodError).
