@@ -163,7 +163,15 @@ async def _turns(websocket: WebSocket, gateway: Gateway, session: Session) -> No
     scope = session.call.context.route
     try:
         while websocket.application_state is WebSocketState.CONNECTED:
-            data = _text_of(await websocket.receive_json())
+            frame = await websocket.receive_json()
+            if _hangs_up(frame):
+                # Ended before the socket closes, so the caller hears the call is over before
+                # it stops whatever served it.
+                await text.end(session, "caller_hung_up", "caller")
+                over = OVER.format(reason="caller_hung_up")
+                await websocket.close(reason=_deps.close_reason(over))
+                return
+            data = _text_of(frame)
             if not data:
                 continue
             try:
@@ -194,6 +202,10 @@ async def _turns(websocket: WebSocket, gateway: Gateway, session: Session) -> No
 async def _sent(websocket: WebSocket, heard: Subscription) -> None:
     async for entry in heard:
         await websocket.send_json(entry.written())
+
+
+def _hangs_up(data: Json) -> bool:
+    return isinstance(data, dict) and data.get("hangup") is True
 
 
 def _text_of(data: Json) -> str:

@@ -202,3 +202,24 @@ async def test_a_caller_who_leaves_before_the_answer_ends_the_call(knocking: Kno
     ended = [e for e in await knocking.gateway.logs.store.whole(call) if e.type == "call.ended"]
     assert ended[0].data["reason"] == "caller_hung_up"
     await app.close()
+
+
+# A caller who says it hangs up hears the call is over before the socket closes: what served the
+# call can stop with nothing left live.
+@postgres
+async def test_a_caller_who_hangs_up_ends_the_call_before_the_socket_closes(
+    knocking: Knocking,
+) -> None:
+    await catalog.configure(knocking.gateway.connections.pool, configured([["hola"]]))
+    app = await an_app(knocking)
+    chat = await knocking.socket(f"/v1/chat?agent={AGENT}", knocking.app["sandbox"])
+    started = await received_until(chat, "call.started")
+    await chat.send(json.dumps({"text": "quiero un turno"}))
+    await received_until(chat, "turn.agent")
+    await chat.send(json.dumps({"hangup": True}))
+    await chat.wait_closed()
+    assert chat.close_reason == "the call ended: caller_hung_up"
+    call = started.call or ""
+    ended = [e for e in await knocking.gateway.logs.store.whole(call) if e.type == "call.ended"]
+    assert ended[0].data["reason"] == "caller_hung_up"
+    await app.close()
