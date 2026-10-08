@@ -208,16 +208,16 @@ def golden_of(entries: Sequence[Entry], name: str, expect: Expect) -> Golden:
     if not lines:
         raise Conflict(NOTHING_SAID.format(call=call))
     started = entries[0].ts if entries else 0.0
+    # A field the call gave nothing for is left out, as a golden written by hand leaves it out.
+    given = {"state": state, "memory": recalled, "events": [event.written() for event in events]}
     return Golden.model_validate(
         {
             "name": name,
-            "state": state,
             "input": lines,
-            "memory": recalled,
-            "events": [event.written() for event in events],
             "today": dt.datetime.fromtimestamp(started, dt.UTC).date(),
             "expect": expect.written(),
             "promoted_from": call,
+            **{field: value for field, value in given.items() if value},
         }
     )
 
@@ -252,11 +252,15 @@ def expect_of(judgments: Sequence[Judgment], entries: Sequence[Entry]) -> Expect
         for judgment in broken
         if judgment.name not in BY_CODE and judgment.name not in UNPLAYABLE
     ]
-    return Expect(
-        not_tools=not_tools,
-        grounded=any(judgment.name == "grounded" for judgment in broken),
-        judges=list(dict.fromkeys(by_name)),
-    )
+    # Only what broke is set, so the golden a person reads or pulls says nothing it does not mean.
+    fields: dict[str, object] = {}
+    if not_tools:
+        fields["not_tools"] = not_tools
+    if any(judgment.name == "grounded" for judgment in broken):
+        fields["grounded"] = True
+    if by_name:
+        fields["judges"] = list(dict.fromkeys(by_name))
+    return Expect.model_validate(fields)
 
 
 def broke_of(score: CallScore) -> list[BrokeOn]:

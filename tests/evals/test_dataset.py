@@ -29,6 +29,10 @@ def test_a_golden_is_the_callers_lines_the_state_it_opened_in_and_the_apps_facts
         caller("   "),
     )
     golden = golden_of(log, "jueves", Expect(says=["10:15"]))
+    bare = golden_of(a_log(caller("Hola")), "hola", Expect()).written()
+    assert set(bare) == {"name", "input", "today", "expect", "promoted_from"}, (
+        "nothing empty is written"
+    )
     assert golden.input == ["Quiero el jueves", "Vale"]
     assert golden.state == {"stage": "book"}
     assert [(event.after_turn, event.name) for event in golden.events] == [(1, "slot_freed")]
@@ -63,6 +67,10 @@ def test_a_broken_verdict_says_what_must_not_happen_again_and_a_model_judge_is_n
         holding("disclosed"),
     )
     expect = expect_of(score.judges, log)
+    assert expect.written() == {"not_tools": [BOOK.name], "grounded": True, "judges": ["promises"]}
+    assert expect_of(a_score(breaking("promises")).judges, log).written() == {
+        "judges": ["promises"]
+    }
     assert expect.not_tools == [BOOK.name]
     assert expect.grounded is True
     assert expect.judges == ["promises"], "persona needs a simulated caller; a case has none"
