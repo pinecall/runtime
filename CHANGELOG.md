@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.6 — PyPI `pinecall-runtime`, and a call a judge broke on kept as a case (2026-10-09)
+
 - **The runtime is PyPI `pinecall-runtime`**: `pip install "pinecall-runtime[voice]"`, `uvx
   pinecall-runtime …`. The import is still `pinecall`, and the command still `pinecall-runtime`.
   PyPI `pinecall` is now the Python SDK, from 0.1.6 on; 0.1.0–0.1.5 there are this runtime, so a
