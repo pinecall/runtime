@@ -71,7 +71,7 @@ in whichever is younger.
 
 Every livekit plugin installed that exports an LLM, an STT or a TTS is a vendor, under the name of
 its module (`livekit.plugins.cartesia` is `cartesia`), and LiveKit Inference is `livekit`. The
-runtime keeps no list of them: `pip install "pinecall[voice]"` installs all but four,
+runtime keeps no list of them: `pip install "pinecall-runtime[voice]"` installs all but four,
 `pinecall[voice-big]` adds the four whose SDKs weigh hundreds of megabytes (aws, azure, google,
 speechmatics), and a plugin livekit ships tomorrow is a vendor on the next install.
 `GET /v1/providers` lists what this deployment has and, for the org asking, whose key runs each vendor:

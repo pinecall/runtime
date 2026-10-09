@@ -108,7 +108,7 @@ image:            ## the runtime's container image, TAG=<commit>, built and chec
 	scripts/console
 	rm -rf dist && uv build --wheel --quiet
 	rm -rf .image && mkdir .image
-	cp infra/images/pinecall/Containerfile dist/pinecall-*.whl .image/
+	cp infra/images/pinecall/Containerfile dist/pinecall_runtime-*.whl .image/
 	uv export --locked --extra voice --no-dev --no-emit-project --quiet -o .image/requirements.txt
 	gcloud builds submit .image --config infra/images/pinecall/cloudbuild.yaml \
 	  --service-account $(BUILDER) --substitutions _IMAGE=$(REGISTRY)/runtime:$(TAG) \

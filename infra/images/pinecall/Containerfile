@@ -14,10 +14,10 @@ COPY --from=uv /uv /usr/local/bin/uv
 # The two files taken from the build context: uv.lock's voice dependencies exported with their
 # hashes, and the wheel `make image` built. Every dependency is the locked version, refused unless
 # its hash matches, so two builds of one commit install the same bytes; the wheel adds none.
-COPY requirements.txt pinecall-*.whl /tmp/
+COPY requirements.txt pinecall_runtime-*.whl /tmp/
 RUN uv pip install --system --no-cache --require-hashes -r /tmp/requirements.txt \
- && uv pip install --system --no-cache --no-deps /tmp/pinecall-*.whl \
- && rm -f /tmp/pinecall-*.whl /tmp/requirements.txt
+ && uv pip install --system --no-cache --no-deps /tmp/pinecall_runtime-*.whl \
+ && rm -f /tmp/pinecall_runtime-*.whl /tmp/requirements.txt
 # Smart Turn v3, the second end-of-turn model, is fetched from Hugging Face on first use; here it
 # is fetched once, at build, and the pod runs offline. livekit's own (v1-mini) is in its library.
 # Pinned to the repository's commit and checked by its hash: two builds of one commit carry the

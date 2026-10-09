@@ -1,8 +1,8 @@
-# One package, one distribution: the wheel the box installs is this file's `pinecall`, and the
+# One package, one distribution: the wheel is `pinecall-runtime`, its import `pinecall`, and the
 # tools that keep it honest (tests/rules/) are configured here, once.
 
 [project]
-name = "pinecall"
+name = "pinecall-runtime"
 version = "0.1.5"
 description = "The Pinecall voice-AI runtime: gateway and worker, on LiveKit"
 readme = "README.md"
@@ -80,7 +80,7 @@ Repository = "https://github.com/pinecall/runtime"
 dev = [
   "deptry>=0.25,<1",
   # The suites build the real plugins with fake keys; no request leaves the laptop.
-  "pinecall[voice]",
+  "pinecall-runtime[voice]",
   "pylint>=4,<5",
   "pyright>=1.1.414,<2",
   "pytest>=9,<10",

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **The runtime is PyPI `pinecall-runtime`**: `pip install "pinecall-runtime[voice]"`, `uvx
+  pinecall-runtime …`. The import is still `pinecall`, and the command still `pinecall-runtime`.
+  PyPI `pinecall` is now the Python SDK, from 0.1.6 on; 0.1.0–0.1.5 there are this runtime, so a
+  `--from pinecall` without a version pin no longer finds the command.
 - **A call a judge broke on waits as a case**: at hang-up, a call that did not pass is kept in the
   org's dataset as a `pending` case, its `expect` what the broken verdicts forbid (`consent` →
   `not_tools`, `grounded` → `grounded`, the model judges → `judges`), its golden carrying what

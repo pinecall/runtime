@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Path, Request
 
 from pinecall.channels import routes
 from pinecall.domain.errors import Conflict, NotFound
-from pinecall.domain.names import ENVS, Env, parse_slug
+from pinecall.domain.names import DISTRIBUTION, ENVS, Env, parse_slug
 from pinecall.domain.org import Org, Quotas
 from pinecall.domain.person import KEY_SCOPES, key_scopes, parse_role
 from pinecall.gateway._deps import GatewayDep, bearer_of, operator, public_url
@@ -110,7 +110,7 @@ async def box_identity(request: Request, gateway: GatewayDep) -> BoxIdentityResp
     person = None if found is None else found.member
     return BoxIdentityResponse(
         operator=True,
-        version=version("pinecall"),
+        version=version(DISTRIBUTION),
         domain=gateway.connections.settings.domain,
         name=None if person is None else person.name,
         org=None if person is None else person.org,

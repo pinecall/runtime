@@ -3145,7 +3145,7 @@ wheels = [
 ]
 
 [[package]]
-name = "pinecall"
+name = "pinecall-runtime"
 version = "0.1.5"
 source = { editable = "." }
 dependencies = [
@@ -3188,7 +3188,7 @@ voice-big = [
 [package.dev-dependencies]
 dev = [
     { name = "deptry" },
-    { name = "pinecall", extra = ["voice"] },
+    { name = "pinecall-runtime", extra = ["voice"] },
     { name = "pylint" },
     { name = "pyright" },
     { name = "pytest" },
@@ -3234,7 +3234,7 @@ provides-extras = ["voice", "voice-big"]
 [package.metadata.requires-dev]
 dev = [
     { name = "deptry", specifier = ">=0.25,<1" },
-    { name = "pinecall", extras = ["voice"] },
+    { name = "pinecall-runtime", extras = ["voice"] },
     { name = "pylint", specifier = ">=4,<5" },
     { name = "pyright", specifier = ">=1.1.414,<2" },
     { name = "pytest", specifier = ">=9,<10" },

@@ -5,7 +5,7 @@ from importlib.metadata import version
 from fastapi import APIRouter, Request, Response
 
 from pinecall.domain.errors import Conflict, DeclarationRefused, NotAllowed, NotFound, NotSignedIn
-from pinecall.domain.names import PRODUCTION
+from pinecall.domain.names import DISTRIBUTION, PRODUCTION
 from pinecall.domain.person import Member
 from pinecall.gateway._deps import (
     ActingDep,
@@ -83,7 +83,7 @@ async def gateway_info(gateway: GatewayDep) -> GatewayInfoResponse:
     )
     brand = await letters.brand_of(connections.pool)
     return GatewayInfoResponse(
-        version=version("pinecall"),
+        version=version(DISTRIBUTION),
         signup=connections.settings.signup,
         min_password=connections.settings.min_password,
         mail=box_mail is not None,

@@ -11,7 +11,7 @@ from livekit.agents import llm, metrics, stt, tts
 
 from pinecall.domain.agent import Tuning, Turn
 from pinecall.domain.errors import DeclarationRefused, NotAvailable
-from pinecall.domain.names import JsonObject
+from pinecall.domain.names import DISTRIBUTION, JsonObject
 from pinecall.providers.build import (
     INFERENCE,
     LLMWithRequest,
@@ -49,7 +49,7 @@ NOT_A_VENDOR = frozenset(
 
 
 def _extras_we_install() -> set[str]:
-    required = importlib.metadata.metadata("pinecall").get_all("Requires-Dist") or []
+    required = importlib.metadata.metadata(DISTRIBUTION).get_all("Requires-Dist") or []
     return {
         extra
         for line in required

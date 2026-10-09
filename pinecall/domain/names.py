@@ -5,6 +5,9 @@ from typing import Literal
 
 from pinecall.domain.errors import DeclarationRefused
 
+# The distribution on PyPI; the import stays `pinecall`. PyPI `pinecall` is the Python SDK.
+DISTRIBUTION = "pinecall-runtime"
+
 type Json = str | int | float | bool | list[Json] | dict[str, Json] | None
 
 

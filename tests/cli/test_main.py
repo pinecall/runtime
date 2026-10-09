@@ -27,6 +27,7 @@ from pinecall.cli.main import (
     vault_rotate,
 )
 from pinecall.domain.errors import Conflict, PinecallError
+from pinecall.domain.names import DISTRIBUTION
 from pinecall.log.store import Store
 from pinecall.postgres.pool import open_pool
 from pinecall.process.connections import vault_of
@@ -49,7 +50,7 @@ def test_the_version_is_the_installed_packages(
     with pytest.raises(SystemExit) as printed:
         main(["--version"])
     assert printed.value.code == 0
-    assert capsys.readouterr().out.strip() == importlib.metadata.version("pinecall")
+    assert capsys.readouterr().out.strip() == importlib.metadata.version(DISTRIBUTION)
 
 
 def test_the_gateway_refuses_to_bind_anything_but_loopback() -> None:

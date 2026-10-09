@@ -29,6 +29,7 @@ from pinecall.cli import (
     _usage,
 )
 from pinecall.domain.errors import NotAvailable, PinecallError
+from pinecall.domain.names import DISTRIBUTION
 from pinecall.gateway.app import announce_closing, app, embedder_of
 from pinecall.log import days
 from pinecall.postgres.migrate import (
@@ -253,7 +254,7 @@ def doctor(settings: Settings, _args: argparse.Namespace) -> int:
 def verbs() -> argparse.ArgumentParser:
     """The parser of every group and verb, each bound to the function that runs it."""
     verbs = argparse.ArgumentParser(prog="pinecall-runtime")
-    verbs.add_argument("--version", action="version", version=version("pinecall"))
+    verbs.add_argument("--version", action="version", version=version(DISTRIBUTION))
     under = verbs.add_subparsers(required=True)
     under.add_parser("gateway", help="the gateway, both worlds").set_defaults(run=gateway)
     worker_verbs = under.add_parser("worker", help="a worker of the fleet PINECALL_FLEET names")
