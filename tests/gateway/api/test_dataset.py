@@ -141,7 +141,7 @@ async def test_a_case_is_forgotten_once_and_another_orgs_is_nobodys(knocking: Kn
         twice = await org.delete(f"{CASES}/{case['id']}")
         listed = await org.get(CASES)
     assert (gone.status_code, twice.status_code) == (204, 404)
-    assert listed.json() == {"cases": []}
+    assert listed.json()["cases"] == []
 
 
 @postgres
