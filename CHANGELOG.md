@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.1.18 — Observability, the axes right (2026-10-09)
+
+- A judge's share tops out at 100%, and a day with calls shows its tool count, zero included.
+
 ## 0.1.17 — Observability, in the console (2026-10-09)
 
 - **Observability, in the console**: `GET /v1/insights/series` answers the window day by day —

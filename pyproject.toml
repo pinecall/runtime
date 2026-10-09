@@ -3,7 +3,7 @@
 
 [project]
 name = "pinecall-runtime"
-version = "0.1.17"
+version = "0.1.18"
 description = "The Pinecall voice-AI runtime: gateway and worker, on LiveKit"
 readme = "README.md"
 license = "Apache-2.0"
