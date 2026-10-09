@@ -93,9 +93,9 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --locked
-      - name: the Postgres of infra/local/postgres, on tmpfs
+      - name: the Postgres of pinecall/cli/local/postgres, on tmpfs
         run: |
-          docker build -t pinecall/postgres infra/local/postgres
+          docker build -t pinecall/postgres pinecall/cli/local/postgres
           docker run -d --name postgres -p 127.0.0.1:5432:5432 --tmpfs /var/lib/postgresql/data \
             -e POSTGRES_USER=pinecall -e POSTGRES_PASSWORD=pinecall -e POSTGRES_DB=pinecall \
             pinecall/postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off
