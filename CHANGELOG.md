@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.1.35 — A number's account id keeps to its column (2026-10-09)
+
+- Console 32491ba: on Numbers, a long account id under Comes through is cut at its column
+  instead of running over If it rings now; the whole value is in the title.
+
 ## 0.1.34 — The org's whole harness: every caller and every simulated call (2026-10-09)
 
 - `GET /v1/personas`: every agent's callers, by agent and then by name; a persona row now says
