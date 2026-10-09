@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.1.21 — Observability's cards, one word each (2026-10-09)
+
+- A card's seconds read as one word (`1.46s`), and its delta names the window short.
+
 ## 0.1.20 — org_telemetry under row-level security (2026-10-09)
 
 - **`org_telemetry` gets the row-level security every org table has**: a tenant's connection
