@@ -139,8 +139,8 @@ What a supervisor sends to `POST /v1/calls/{id}/verbs`, one per request. Each la
 ## State
 
 `State` is what a log reduces to: fold every entry in `seq` order and that is what you hold. The
-runtime's reducer (`pinecall/log/reduce.py`) and the SDKs' (TypeScript and Ruby) are written by
-hand and must agree, field for field, on the runtime's golden call log
+runtime's reducer (`pinecall/log/reduce.py`) and the SDKs' must agree: TypeScript's and Ruby's are
+written by hand, Python's is a copy of this one. All of them agree, field for field, on the runtime's golden call log
 (`tests/wire/golden/call-log.json`) and the state it folds to (`call-log.state.json`); each SDK
 keeps a copy of both and a test that folds one into the other. The shape is in `state.md`.
 
