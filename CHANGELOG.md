@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.20 — org_telemetry under row-level security (2026-10-09)
+
+- **`org_telemetry` gets the row-level security every org table has**: a tenant's connection
+  sees its own telemetry row alone. CI had refused 0.1.14 to 0.1.19 for it, so none of them
+  reached PyPI; production ran them from the image, where every door checks the org itself.
+
 ## 0.1.19 — Observability, the way a dashboard reads (2026-10-09)
 
 - **The series say each day's mean call length** (`mean_length_s`), and the console's
