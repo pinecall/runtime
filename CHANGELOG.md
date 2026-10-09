@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.1.33 — The console's sidebar keeps the person in sight (2026-10-09)
+
+- Console 64a494d: the person and their bell stay at the sidebar's foot while the rows scroll,
+  and Viewing is one compact row.
+
 ## 0.1.32 — The console's Settings is what is set once (2026-10-09)
 
 - Console fae4edd: Apps and Secrets are tabs of Agents, Docs and Memory the org's Knowledge row,
