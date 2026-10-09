@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.1.26 — The console's Alerts tab and the widget's kept conversations (2026-10-09)
+
+- Console dc0403f: Settings ▸ **Alerts** sets the org's webhook, proves it with a test post
+  and says what is posted; Notifications gains "a monitor fires"; Monitors says who set each
+  one by name.
+- Widget a5aacad: the visitor's last conversations kept in the browser and read again from the
+  menu (`history="off"` keeps none); the panel redrawn.
+
 ## 0.1.25 — A webhook for the org's alerts (2026-10-09)
 
 - **Webhook**: `PUT /v1/webhook` names a URL of the org's own; every alert — `monitor.fired`,
