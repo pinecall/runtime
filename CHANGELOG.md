@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.27 — The webhook's secret is resealed with the rest (2026-10-09)
+
+- `org_webhooks.ciphertext` joins the columns a vault key rotation walks; 0.1.25 and 0.1.26
+  sealed it under the current key and would have left it behind on a rotation.
+- Console 5dcd629: the Alerts tab's event labels get their width.
+
 ## 0.1.26 — The console's Alerts tab and the widget's kept conversations (2026-10-09)
 
 - Console dc0403f: Settings ▸ **Alerts** sets the org's webhook, proves it with a test post

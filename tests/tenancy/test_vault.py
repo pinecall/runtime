@@ -8,12 +8,22 @@ from psycopg import sql
 
 from pinecall.domain.names import JsonObject
 from pinecall.domain.telemetry import Telemetry
+from pinecall.domain.webhook import Webhook
 from pinecall.fleet.worlds import FLEETS, Fleets, set_fleets
 from pinecall.log import private
 from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.process.connections import keyring_of, vault_of
-from pinecall.tenancy import carriers, hosting, mail, org_secrets, recording_keys, sso, telemetry
+from pinecall.tenancy import (
+    carriers,
+    hosting,
+    mail,
+    org_secrets,
+    recording_keys,
+    sso,
+    telemetry,
+    webhooks,
+)
 from pinecall.tenancy.carriers import SipPeer
 from pinecall.tenancy.orgs import create, remove
 from pinecall.tenancy.signin import SignIns
@@ -63,6 +73,7 @@ async def everything_sealed(pool: Pool, vault: MultiFernet) -> None:
     await telemetry.put_telemetry(
         pool, vault, org.id, Telemetry("https://otel.test/v1/traces", {"x-api-key": "made-up"})
     )
+    await webhooks.put_webhook(pool, vault, org.id, Webhook("https://hooks.example.test", "shh"))
     await put_box_credentials(pool, vault, "cartesia", "box-made-up")
     peer = SipPeer.model_validate({"username": "pbx", "password": "p", "addresses": ["10.0.0.0/8"]})
     await carriers.put_carrier(pool, vault, org.id, peer)

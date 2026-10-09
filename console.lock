@@ -2,5 +2,5 @@
 # a tag publishes the same pages however far either repository moved after it. Bumped by hand
 # before a release, from the checkouts beside this one:
 #   for r in console widget; do echo "$r $(git -C ../$r rev-parse origin/main)"; done
-console dc0403ffc57b53023d24a3ffe42908b44c867616
+console 5dcd629e0854e597e8a319f02cd1afec145a6080
 widget a5aacadf0b261ffbd06b35881c99463c6cc7edf8
