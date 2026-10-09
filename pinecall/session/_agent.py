@@ -65,6 +65,8 @@ class CallAgent(Agent):
         self.blocks = blocks
         self.lookups = lookups
         self.waiting = waiting
+        # Whether the generation running said words of its own: then no tool it calls is announced.
+        self.said_this_turn = False
 
     # Runs before the request and livekit times it, so the lookups here are the ones already
     # running (started on an interim) or quick ones. No speech handle exists yet.
@@ -84,6 +86,7 @@ class CallAgent(Agent):
         self, chat_ctx: llm.ChatContext, tools: list[llm.Tool], model_settings: ModelSettings
     ) -> Thought:
         """The model run on the history, this turn's lookups, and the dynamic blocks."""
+        self.said_this_turn = False
         params = _prompt.request(chat_ctx, self.blocks, self.lookups.items)
         if self.call.context.run is not None:
             self.call.requests.append(_prompt.as_asked(params, tools))
@@ -105,9 +108,11 @@ class CallAgent(Agent):
                 yield _late_in(self.call.config.language)
                 return
             if isinstance(first, llm.ChatChunk | str):
+                self.said_this_turn |= _has_words(first)
                 yield first
             async for chunk in thought:
                 if isinstance(chunk, llm.ChatChunk | str):
+                    self.said_this_turn |= _has_words(chunk)
                     yield chunk
 
     # Runs on what was played, so an interrupted reply's transcript stops where its audio did; a
@@ -139,3 +144,8 @@ class CallAgent(Agent):
 
 def _late_in(language: str | None) -> str:
     return MODEL_LATE.get((language or "en")[:2].lower(), MODEL_LATE["en"])
+
+
+def _has_words(chunk: llm.ChatChunk | str) -> bool:
+    text = chunk if isinstance(chunk, str) else (chunk.delta.content if chunk.delta else None)
+    return bool(text and text.strip())

@@ -201,6 +201,7 @@ What the app declares about one tool: the contract the model sees and the rules 
 | `parameters` | `object` | yes | The arguments, as a JSON Schema object the model must satisfy. |
 | `side_effect` | `"read" | "write" | "irreversible"` | no | read looks at the environment; write changes it and can be undone; irreversible changes it for good, so the platform asks the caller first. Absent means read. |
 | `confirm` | `string` | no | A receipt the agent reads out once the tool has run, before the model replies to the result, with {{name}} placeholders filled from the arguments and {{result.name}} from what came back: 'Reservado: {{result.when}} con {{result.professional}}.'. It does not hold the tool, so it is written as a receipt and never as a question. Absent means no read-back. |
+| `announce` | `string` | no | What the agent says as the tool starts — 'Let me check the agenda.' — when the model's turn said nothing itself; a turn that spoke and then called the tool is not announced twice. Absent means silence, or the hold melody, while the tool runs. |
 | `pii` | `string[]` | no | Argument names that carry personal data: the log keeps them as `***` and seals the value aside, for the app alone (docs/security/private-values.md). |
 | `timeout_s` | `number` | no | How long the platform waits for the app's result before reporting an error to the model, in seconds: 30 by default, above 0 and 300 at most. |
 

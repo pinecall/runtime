@@ -599,6 +599,9 @@ class Session:
         spec = self.call.config.tools_by_name[use.name]
         await tools.admitted(self.call, use.name)
         await context.wait_for_playout()
+        # Said while the tool runs, not awaited; a turn that spoke has announced the tool itself.
+        if spec.announce and not self.agent.said_this_turn:
+            self.live.say(spec.announce)
         # The gateway writes the tool's round trip: the turn that called it is in the log first.
         await self.call.writing.flushed(SEAL_S)
         self.call.cause = wire.StateCauseTool(kind="tool", tool=use.name, call_id=use.call_id)

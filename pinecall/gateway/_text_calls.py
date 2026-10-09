@@ -147,7 +147,9 @@ def _session(
     async def seal(usage: list[ModelUsage], outcome: str) -> None:
         await sealed(serving, served, SealCallRequest(usage=usage, outcome=outcome))
 
-    looking = lookup if recalled is None else goldens.golden_lookup(recalled, lookup)
+    looking = (
+        lookup if recalled is None else goldens.golden_lookup(recalled, lookup, served.log.append)
+    )
     platform = Platform(
         append_many=served.log.append_many, tool=served.tools.ran, lookup=looking, seal=seal
     )

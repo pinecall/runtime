@@ -60,6 +60,11 @@ class Index:
     def __init__(self) -> None:
         """Asked nothing yet."""
         self.asked_for: list[PlatformTool] = []
+        self.written: list[tuple[str, JsonObject]] = []
+
+    async def wrote(self, kind: str, data: JsonObject) -> None:
+        """What the lookup wrote on the call's log."""
+        self.written.append((kind, data))
 
     async def lookup(
         self, tool: PlatformTool, _arguments: JsonObject, _speech: str | None
@@ -87,19 +92,29 @@ def test_the_facts_injected_after_a_turn_come_in_the_order_the_golden_lists_them
 
 async def test_a_recall_is_answered_with_the_goldens_own_facts() -> None:
     index = Index()
-    found = await golden_lookup([A_FACT], index.lookup)("recall", {}, None)
+    found = await golden_lookup([A_FACT], index.lookup, index.wrote)("recall", {}, None)
     assert found == {"facts": [{"text": A_FACT, "source": A_GOLDEN}]}
+
+
+async def test_a_goldens_recall_is_written_as_a_real_one_so_the_app_learns_the_facts() -> None:
+    index = Index()
+    await golden_lookup([A_FACT], index.lookup, index.wrote)("recall", {"query": "martes"}, "s1")
+    assert [kind for kind, _ in index.written] == ["memory.ops"]
+    ops = index.written[0][1]["ops"]
+    facts = [{"text": A_FACT, "source": A_GOLDEN}]
+    assert ops == [{"op": "recall", "query": "martes", "facts": facts, "took_ms": 0.0}]
+    assert index.written[0][1]["speech_id"] == "s1"
 
 
 async def test_the_gateway_is_never_asked_to_recall_for_a_golden() -> None:
     index = Index()
-    await golden_lookup([A_FACT], index.lookup)("recall", {}, None)
+    await golden_lookup([A_FACT], index.lookup, index.wrote)("recall", {}, None)
     assert index.asked_for == []
 
 
 async def test_a_search_is_the_real_index_because_that_is_what_a_golden_is_asking() -> None:
     index = Index()
-    found = await golden_lookup([A_FACT], index.lookup)("search", {"query": "x"}, None)
+    found = await golden_lookup([A_FACT], index.lookup, index.wrote)("search", {"query": "x"}, None)
     assert found == {"chunks": []}
     assert index.asked_for == ["search"]
 

@@ -106,6 +106,13 @@ BOOKING = AgentConfig(
     tools=(BOOK, CANCEL),
     events={"paid": frozenset({"app"}), "clicked": frozenset({"participant"})},
 )
+LOOK = ToolSpec(
+    "look",
+    "Look at the agenda for a day.",
+    {"type": "object", "properties": {"day": {"type": "string"}}},
+    announce="Un momento, miro la agenda.",
+)
+LOOKING = AgentConfig(slug="clinica-norte", tools=(LOOK,))
 
 
 def supervised(
@@ -384,6 +391,43 @@ async def test_a_confirm_tool_reads_back_what_was_done_before_the_model_answers(
     assert agent[0] == "Reservado para el lunes, mesa 4 {{result.missing}}."
     history = [getattr(item, "text_content", "") for item in model_of(session).requests[1].items]
     assert agent[0] in history
+
+
+@postgres
+async def test_a_tool_is_announced_as_it_starts_when_the_model_called_it_in_silence(
+    box: Box, store: Store, call: str
+) -> None:
+    session = a_session(
+        box,
+        LOOKING,
+        [{"name": "look", "arguments": {"day": "lunes"}, "call_id": "t1"}],
+        ["El lunes hay hueco a las nueve."],
+    )
+    await session.start()
+    await text.hears(session, "¿qué hay el lunes?")
+    await text.end(session, "caller_hung_up", "caller")
+    agent = [entry.data["text"] for entry in await store.whole(call) if entry.type == "turn.agent"]
+    assert agent == ["Un momento, miro la agenda.", "El lunes hay hueco a las nueve."]
+
+
+@postgres
+async def test_a_turn_that_spoke_before_calling_the_tool_is_not_announced_twice(
+    box: Box, store: Store, call: str
+) -> None:
+    session = a_session(
+        box,
+        LOOKING,
+        [
+            "Voy a mirar la agenda.",
+            {"name": "look", "arguments": {"day": "lunes"}, "call_id": "t1"},
+        ],
+        ["El lunes hay hueco a las nueve."],
+    )
+    await session.start()
+    await text.hears(session, "¿qué hay el lunes?")
+    await text.end(session, "caller_hung_up", "caller")
+    agent = [entry.data["text"] for entry in await store.whole(call) if entry.type == "turn.agent"]
+    assert agent == ["Voy a mirar la agenda.", "El lunes hay hueco a las nueve."]
 
 
 @postgres

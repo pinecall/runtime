@@ -192,6 +192,13 @@ def test_no_deadline_for_the_model_is_the_default_and_a_deadline_is_positive_sec
             Tuning(llm_timeout_s=seconds)
 
 
+def test_an_announcement_is_words_the_caller_hears_or_none() -> None:
+    announced = ToolSpec("free_slots", "Free slots.", A_DAY_AND_A_TIME, announce="Let me look.")
+    assert announced.announce == "Let me look."
+    with pytest.raises(DeclarationRefused, match="words the caller hears"):
+        ToolSpec("free_slots", "Free slots.", A_DAY_AND_A_TIME, announce="  ")
+
+
 def test_an_irreversible_tool_needs_a_confirm_template() -> None:
     with pytest.raises(DeclarationRefused, match="confirm template"):
         ToolSpec("book_slot", "Books a slot.", A_DAY_AND_A_TIME, side_effect="irreversible")

@@ -1,7 +1,7 @@
 """A golden played on a written call, and the judges its expectations set."""
 
 import asyncio
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 
 from pinecall.domain.errors import PinecallError
@@ -13,7 +13,8 @@ from pinecall.session import text
 from pinecall.session.call import Lookup
 from pinecall.session.session import Session
 from pinecall.wire.commands import CallEvent
-from pinecall.wire.parts import EndedBy, EndReason, PlatformTool
+from pinecall.wire.events import MemoryOps
+from pinecall.wire.parts import EndedBy, EndReason, MemoryFact, MemoryOp, PlatformTool
 from pinecall.wire.rest.evals import EventStep, Golden, Register
 
 # The wire has no "the app is done reacting": the log going quiet is the sign. Long enough for a
@@ -27,6 +28,9 @@ AT_MOST_S = 2.0
 
 # The source of a golden's facts, so the log never passes them off as real memory.
 A_GOLDEN = "golden"
+
+# What a lookup writes on the call's log: the entry's type and its data.
+type Writes = Callable[[str, JsonObject], Awaitable[object]]
 
 
 APP_DETACHED: tuple[EndReason, EndedBy] = ("app_detached", "platform")
@@ -133,13 +137,17 @@ def events_after(golden: Golden, turn: int) -> tuple[EventStep, ...]:
 
 
 # recall reads the golden's facts and nothing else; search is the real index, since that is what
-# the golden is asking about.
-def golden_lookup(facts: Sequence[str], search: Lookup) -> Lookup:
+# the golden is asking about. The recall is written as a real one is, so the app learns the facts.
+def golden_lookup(facts: Sequence[str], search: Lookup, wrote: Writes) -> Lookup:
     """The lookup a golden's call runs: recall answered by its facts, search by the index."""
 
     async def lookup(tool: PlatformTool, arguments: JsonObject, speech: str | None) -> JsonObject:
         if tool != "recall":
             return await search(tool, arguments, speech)
+        recalled = [MemoryFact(text=fact, source=A_GOLDEN) for fact in facts]
+        query = arguments.get("query")
+        op = MemoryOp(op="recall", query=str(query) if query else None, facts=recalled, took_ms=0.0)
+        await wrote("memory.ops", MemoryOps(ops=[op], speech_id=speech).written())
         return {"facts": [{"text": fact, "source": A_GOLDEN} for fact in facts]}
 
     return lookup

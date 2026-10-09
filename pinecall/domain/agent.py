@@ -169,6 +169,8 @@ class ToolSpec:
     side_effect: SideEffect = "read"
     pii: frozenset[str] = frozenset()
     confirm: str | None = None
+    # What the agent says as the tool starts, when the model's turn said nothing itself.
+    announce: str | None = None
     preview: int | None = None
     timeout_s: float = 30.0
 
@@ -186,6 +188,10 @@ class ToolSpec:
         if self.side_effect == "irreversible" and not self.confirm:
             raise DeclarationRefused(
                 f"tool {self.name}: an irreversible tool needs a confirm template to read back"
+            )
+        if self.announce is not None and not self.announce.strip():
+            raise DeclarationRefused(
+                f"tool {self.name}: an announcement is words the caller hears, or none"
             )
         if unknown := self.pii - self.parameter_names:
             raise DeclarationRefused(

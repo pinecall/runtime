@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.1.11 — A tool announces itself (2026-10-09)
+
+- **A tool announces itself**: a tool declared with `announce` ("Let me check the agenda.") is
+  said as it starts, while it runs, when the model's turn said nothing itself; a turn that spoke
+  and then called the tool is not announced twice. `@pinecall/agents` 0.9.24, `pinecall` 0.1.8 on
+  PyPI and the gem 0.0.4 declare it.
+- **A golden's recall reaches the agent**: the facts a golden gives are written on the call as a
+  real recall is (`memory.ops`), so the agent's `remembers(…)` reads them; before, only the model
+  saw them and the view went on as if nothing were remembered.
+
 ## 0.1.10 — A golden's day reaches the agent (2026-10-09)
 
 - **`call.started` says the day a golden pinned** (`today`, `YYYY-MM-DD`), so an agent resolves

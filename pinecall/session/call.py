@@ -340,6 +340,7 @@ def with_app_fields(current: AgentConfig, declared: Declared) -> AgentConfig:
                 side_effect=tool.side_effect,
                 pii=frozenset(tool.pii or ()),
                 confirm=tool.confirm,
+                announce=tool.announce,
                 timeout_s=ToolSpec.timeout_s if tool.timeout_s is None else tool.timeout_s,
             )
             for tool in declared.tools or ()

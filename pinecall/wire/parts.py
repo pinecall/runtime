@@ -118,6 +118,7 @@ class ToolSpec(WireModel):
     parameters: JsonObject
     side_effect: Literal["read", "write", "irreversible"] = "read"
     confirm: str | None = None
+    announce: str | None = None
     pii: list[str] | None = None
     timeout_s: float | None = None
 
