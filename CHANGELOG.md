@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.10 — A golden's day reaches the agent (2026-10-09)
+
 - **`call.started` says the day a golden pinned** (`today`, `YYYY-MM-DD`), so an agent resolves
   "on Monday" against the golden's day, as the model does, and not the clock's. Absent on every
   other call. An SDK before this field refuses the entry: `@pinecall/agents` 0.9.23, `pinecall`
