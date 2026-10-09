@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.32 — The console's Settings is what is set once (2026-10-09)
+
+- Console fae4edd: Apps and Secrets are tabs of Agents, Docs and Memory the org's Knowledge row,
+  Data & privacy the workspace's Privacy row, and Notifications the person's own, opened from
+  their name. Settings keeps Tokens, Providers, Telemetry, Alerts and Phone testing.
+
 ## 0.1.31 — The console's Harness: simulations, personas, judges and monitors in one section (2026-10-09)
 
 - Console 83b945e: the sidebar has a Harness section — Simulations, Personas, Judges, Monitors —
