@@ -90,16 +90,13 @@ REFUSED = "the cluster {verb}: {status} {detail}"
 NO_ANSWER = "the cluster {verb}: no answer in {seconds:.0f}s"
 
 
-# The release's sources, fetched from this world's runner by their digest, then its dependencies
-# installed the way its lockfile says; npm resolves what package.json names when there is none.
-INSTALL = (
-    "node -e 'fetch(process.argv[1]).then(async (r) => { if (!r.ok) throw new Error(r.status);"
-    ' process.stdout.write(Buffer.from(await r.arrayBuffer())); })\' "$PINECALL_SOURCE"'
-    " | tar -xz -C /app && cd /app && "
-    "if [ -f pnpm-lock.yaml ]; then corepack pnpm install --frozen-lockfile --prod; "
-    "elif [ -f package-lock.json ]; then npm ci --omit=dev --no-audit --no-fund; "
-    "else npm install --omit=dev --no-audit --no-fund; fi"
-)
+# The `pinecall` a hosted project is started with: the platform's own, never a dependency of the
+# project, at the version this runtime was released with. Bumped here, with the runtime.
+CLI_VERSION = "0.9.40"
+
+
+# Where that CLI is installed, on a volume of its own: the project's folder holds the project.
+CLI_HOME = "/opt/pinecall"
 
 
 # Where a pod's service account finds what it knocks the cluster's API with.
@@ -276,6 +273,20 @@ class Cluster:
         return f"/api/v1/namespaces/{self.engine.namespace}/{kind}"
 
 
+# The release's sources, fetched from this world's runner by their digest, then its dependencies
+# installed the way its lockfile says (npm resolves what package.json names when there is none),
+# then the platform's own CLI beside them.
+INSTALL = (
+    "node -e 'fetch(process.argv[1]).then(async (r) => { if (!r.ok) throw new Error(r.status);"
+    ' process.stdout.write(Buffer.from(await r.arrayBuffer())); })\' "$PINECALL_SOURCE"'
+    " | tar -xz -C /app && cd /app && "
+    "if [ -f pnpm-lock.yaml ]; then corepack pnpm install --frozen-lockfile --prod; "
+    "elif [ -f package-lock.json ]; then npm ci --omit=dev --no-audit --no-fund; "
+    "else npm install --omit=dev --no-audit --no-fund; fi"
+    f" && npm install -g --prefix {CLI_HOME} --no-audit --no-fund pinecall@{CLI_VERSION}"
+)
+
+
 # The process's own shell reads its environment, then becomes the command.
 READ_THEN_RUN = f'. {ENVIRONMENT}/env && exec "$@"'
 
@@ -348,6 +359,7 @@ def pod(engine: Engine, launch: Launch) -> JsonObject:
             },
             "volumes": [
                 {"name": "app", "emptyDir": {"sizeLimit": "1Gi"}},
+                {"name": "cli", "emptyDir": {"sizeLimit": "256Mi"}},
                 {"name": "home", "emptyDir": {"sizeLimit": "1Gi"}},
                 {"name": "scratch", "emptyDir": {"medium": "Memory", "sizeLimit": SCRATCH_SIZE}},
                 {
@@ -369,6 +381,7 @@ def pod(engine: Engine, launch: Launch) -> JsonObject:
                     "resources": _capped(INSTALL_MEMORY),
                     "volumeMounts": [
                         {"name": "app", "mountPath": "/app"},
+                        {"name": "cli", "mountPath": CLI_HOME},
                         {"name": "home", "mountPath": "/home/app"},
                         {"name": "scratch", "mountPath": SCRATCH},
                     ],
@@ -389,6 +402,7 @@ def pod(engine: Engine, launch: Launch) -> JsonObject:
                     "resources": _capped(MEMORY),
                     "volumeMounts": [
                         {"name": "app", "mountPath": "/app", "readOnly": True},
+                        {"name": "cli", "mountPath": CLI_HOME, "readOnly": True},
                         {"name": "scratch", "mountPath": SCRATCH},
                         {"name": "environment", "mountPath": ENVIRONMENT, "readOnly": True},
                     ],

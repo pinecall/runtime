@@ -19,7 +19,7 @@ from starlette.routing import Route
 from pinecall.domain.errors import GatewayRefused, SettingsRefused, UpstreamFailed
 from pinecall.domain.names import PRODUCTION, Env
 from pinecall.process.settings import Settings
-from pinecall.runner._kube import Cluster, Container, Engine, Launch, in_cluster
+from pinecall.runner._kube import CLI_HOME, Cluster, Container, Engine, Launch, in_cluster
 from pinecall.runner._plan import (
     Failed,
     Revive,
@@ -57,7 +57,7 @@ SENT_LINES = 300
 LONGEST_WHY = 2000
 
 
-START = ("./node_modules/.bin/pinecall", "start")
+START = (f"{CLI_HOME}/bin/pinecall", "start")
 
 
 NO_KEY = "PINECALL_RUNNER_KEY: a runner knocks its gateway with its world's runner key"

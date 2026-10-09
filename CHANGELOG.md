@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.7 — A hosted project is started by the platform's own pinecall (2026-10-09)
+
+- **A hosted project is started by the platform's own `pinecall`**, installed in the pod beside
+  the project's dependencies at the version the runtime names (`CLI_VERSION`, 0.9.40), never from
+  the project's `node_modules`: a project lists `@pinecall/agents` and nothing of the CLI.
+
 ## 0.1.6 — PyPI `pinecall-runtime`, and a call a judge broke on kept as a case (2026-10-09)
 
 - **The runtime is PyPI `pinecall-runtime`**: `pip install "pinecall-runtime[voice]"`, `uvx

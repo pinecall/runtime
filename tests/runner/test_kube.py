@@ -35,7 +35,7 @@ LAUNCH = Launch(
     host="support-r1-abcdef12",
     release=1,
     sha256="ab" * 32,
-    command=["./node_modules/.bin/pinecall", "start", "--prod"],
+    command=["/opt/pinecall/bin/pinecall", "start", "--prod"],
 )
 
 SOURCE = "http://runner-production.pinecall-runner.svc:8080/sources/" + "ab" * 32
@@ -85,7 +85,7 @@ def test_the_install_fetches_the_release_by_its_digest_and_the_app_runs_it_read_
         "-c",
         '. /run/pinecall/env && exec "$@"',
         "sh",
-        "./node_modules/.bin/pinecall",
+        "/opt/pinecall/bin/pinecall",
         "start",
         "--prod",
     ]

@@ -174,7 +174,7 @@ async def test_a_release_is_started_in_production_with_its_environment_and_its_s
     [host] = world.api.pods
     assert host.startswith("support-r1-")
     pod = json.dumps(pod_named(world, host))
-    assert '"./node_modules/.bin/pinecall", "start", "--prod"' in pod
+    assert '"/opt/pinecall/bin/pinecall", "start", "--prod"' in pod
     assert f'"{APP_ANNOTATION}": "{world.knocking.org.id}/support"' in pod
     assert "PINECALL_KEY" not in pod
     environment = world.api.environment_of(host)
