@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.13 — The console gets Settings ▸ Telemetry (2026-10-09)
+
+- **Settings ▸ Telemetry** in the console: the org's collector set with its headers (sent once,
+  read back by name alone) and whether a span may carry what was said, and stopped from the same
+  card — the console's `screens/telemetry`, over `/v1/telemetry`.
+
 ## 0.1.12 — An org's traces reach its own collector (2026-10-09)
 
 - **An org sends its calls' traces to its own collector**: `PUT /v1/telemetry` names an OTLP
