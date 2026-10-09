@@ -25,6 +25,7 @@ from pinecall.providers import catalog
 from pinecall.providers.credentials import Pipeline, pipeline
 from pinecall.tenancy import agents, keys
 from pinecall.tenancy.scopes import Picked
+from pinecall.tenancy.telemetry import telemetry_of
 from pinecall.wire.rest.agents import (
     AgentList,
     AgentRow,
@@ -75,7 +76,7 @@ async def agent_credentials(
     gateway: GatewayDep,
     for_call: Annotated[str | None, Query()] = None,
 ) -> Pipeline:
-    """The three stages a call of the agent runs, each on the key it runs on."""
+    """The three stages a call of the agent runs, each on its key, and the org's collector."""
     found = _registration_of(gateway, where, slug)
     configured = await catalog.providers(gateway.connections.pool)
     tuned_config, _ = await tuned(
@@ -87,7 +88,8 @@ async def agent_credentials(
     now = time.monotonic()
     stages = pipeline(tuned_config, configured, keys).demoting(gateway.counters.failing(now))
     gateway.counters.handed_out((stages.llm.vendor, stages.stt.vendor, stages.tts.vendor), now)
-    return stages
+    traced = await telemetry_of(gateway.connections.pool, gateway.connections.vault, where.org)
+    return dataclasses.replace(stages, telemetry=traced)
 
 
 @router.get("/v1/agents/{slug}/hold-audio")

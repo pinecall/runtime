@@ -3146,7 +3146,7 @@ wheels = [
 
 [[package]]
 name = "pinecall-runtime"
-version = "0.1.11"
+version = "0.1.12"
 source = { editable = "." }
 dependencies = [
     { name = "argon2-cffi" },

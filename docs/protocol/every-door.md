@@ -50,7 +50,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `PUT` | `/v1/agents/{slug}/pipeline/hold-audio` | pipeline | A file of the org's as the agent's melody, from the next call on. |
 | `GET` | `/v1/agents/{slug}/pipeline/hold-audio/audio` | pipeline | The agent's own clip, Ogg Opus, to hear before a caller does. |
 | `PUT` | `/v1/agents/{slug}/pipeline/hold-audio/played` | pipeline | The platform's melody back, or silence; an uploaded clip is forgotten either way. |
-| `GET` | `/v1/agents/{slug}/provider-keys` | app · fleet | The three stages a call of the agent runs, each on the key it runs on. |
+| `GET` | `/v1/agents/{slug}/provider-keys` | app · fleet | The three stages a call of the agent runs, each on the key it runs on, and the org's collector for its traces. |
 | `GET` | `/v1/agents/{slug}/rings-for` | fleet | Where a production ring from this phone goes: a developer's scope and fleet, or nowhere. |
 | `GET` | `/v1/agents/{slug}/sessions` | calls | The agent's newest calls, one row each. |
 | `GET` | `/v1/agents/{slug}/settings` | pipeline · words | The agent's settings as this key sees them: yours, the team's and production's. |
@@ -263,6 +263,9 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/provider-keys` | providers | The vendors the org brought its own credentials for. |
 | `DELETE` | `/v1/provider-keys/{vendor}` | providers | Forget the org's credentials for a vendor; its calls run on the platform's from the next one. |
 | `PUT` | `/v1/provider-keys/{vendor}` | providers | Keep the org's own credentials for a vendor; its calls run on them from the next one. |
+| `GET` | `/v1/telemetry` | providers | The org's collector and which headers are set, never their values; null when none. |
+| `DELETE` | `/v1/telemetry` | providers | Forget the org's collector; its calls' traces stay on the platform from the next one. |
+| `PUT` | `/v1/telemetry` | providers | Keep the org's collector; its calls' traces go there from the next one. |
 | `GET` | `/v1/providers` | providers | Every vendor this build runs and how this org may run it, the defaults, the models named. |
 | `GET` | `/v1/routes` | app · fleet | The routes of a scope; for the fleet's key and a number, the route that number rings. |
 | `GET` | `/v1/runner/apps/{org}/{name}/environment` | runner | What the app's process is started with: the org's secrets, its token, the gateway. |

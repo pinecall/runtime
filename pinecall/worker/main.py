@@ -102,7 +102,7 @@ def prewarm(proc: JobProcess) -> None:
     """Ready a process for its jobs."""
     settings = load()
     proc.userdata["gateway"] = gateway_at(settings.gateway_url, settings.worker_key)
-    traced_to(settings)
+    proc.userdata["spans"] = traced_to(settings)
 
 
 def server_of(settings: Settings) -> AgentServer:

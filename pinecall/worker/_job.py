@@ -12,7 +12,7 @@ from functools import partial
 from pathlib import Path
 
 from livekit import api, rtc
-from livekit.agents import JobContext
+from livekit.agents import JobContext, JobProcess
 from livekit.protocol.sip import CreateSIPParticipantRequest
 from pydantic import TypeAdapter
 
@@ -32,6 +32,7 @@ from pinecall.domain.names import (
     JsonObject,
 )
 from pinecall.domain.scope import SCOPE_ATTRIBUTE, Scope
+from pinecall.domain.telemetry import Telemetry
 from pinecall.fleet.client import GatewayClient, again
 from pinecall.fleet.heartbeat import worker_name_of
 from pinecall.fleet.measures import measures_path, reported
@@ -60,6 +61,7 @@ from pinecall.wire.rest.calls import (
 from pinecall.wire.rest.numbers import LegTrunk
 from pinecall.wire.state import State
 from pinecall.worker._recorder import stored, written
+from pinecall.worker._traces import OrgSpans
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +165,7 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
     typed = dispatch.scope == WRITTEN_SCOPE
     audio = _recorded(config, settings, context.call, typed=typed)
     pipeline = _STAGES.validate_python(stages)
+    spans = _routed(ctx.proc, pipeline.telemetry, context)
 
     # The session closed its recorder before it seals: the summary points at a whole file.
     async def ended(usage: list[ModelUsage], outcome: str) -> None:
@@ -177,7 +180,7 @@ async def answer(ctx: JobContext, gateway: GatewayClient, settings: Settings) ->
     # Registered before anything else can fail: a call that dies in its setup still seals.
     # livekit reads a shutdown callback's `__code__`, which a `partial` has not.
     async def closed(_reason: str) -> None:
-        await session.close()
+        await _let_go(session, spans)
 
     ctx.add_shutdown_callback(closed)
     where = room.CallRoom(
@@ -653,3 +656,26 @@ def _letting_go(
         await room_over(ctx.api, ctx.room.name, session.ended)
 
     return let_go
+
+
+async def _let_go(session: Session, spans: OrgSpans) -> None:
+    await session.close()
+    spans.done()
+
+
+# The process's router of spans, warmed with it (worker/main.py); a process warmed by nobody
+# routes into the void. Every span of the job names the call, whoever reads it.
+def _routed(proc: JobProcess, telemetry: Telemetry | None, context: CallContext) -> OrgSpans:
+    found = proc.userdata.get("spans")
+    spans = found if isinstance(found, OrgSpans) else OrgSpans()
+    spans.route_to(
+        telemetry,
+        {
+            "pinecall.org": context.route.org,
+            "pinecall.env": context.route.env or "",
+            "pinecall.agent": context.route.agent,
+            "pinecall.call": context.call,
+            "pinecall.holder": context.holder or "",
+        },
+    )
+    return spans

@@ -48,21 +48,21 @@ core under `_` names.
 | folder | files | lines | imports of ours |
 |---|---|---|---|
 | `channels/` | 15 | 3584 | `domain`, `fleet`, `log`, `postgres`, `process`, `tenancy`, `wire` |
-| `cli/` | 10 | 2325 | `channels`, `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `runner`, `session`, `tenancy`, `wire`, `worker` |
-| `domain/` | 8 | 1245 | — |
-| `evals/` | 11 | 3306 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
+| `cli/` | 10 | 2362 | `channels`, `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `runner`, `session`, `tenancy`, `wire`, `worker` |
+| `domain/` | 9 | 1278 | — |
+| `evals/` | 11 | 3314 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
 | `fleet/` | 6 | 1247 | `domain`, `postgres`, `process`, `wire` |
-| `gateway/` | 60 | 12845 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
-| `log/` | 17 | 4884 | `domain`, `postgres`, `process`, `wire` |
+| `gateway/` | 61 | 12908 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `log/` | 17 | 4887 | `domain`, `postgres`, `process`, `wire` |
 | `postgres/` | 2 | 392 | `domain` |
 | `process/` | 10 | 2016 | `domain`, `postgres` |
-| `providers/` | 7 | 1653 | `domain`, `postgres`, `process`, `wire` |
+| `providers/` | 7 | 1657 | `domain`, `postgres`, `process`, `wire` |
 | `retrieval/` | 7 | 2453 | `domain`, `log`, `postgres`, `providers`, `wire` |
 | `runner/` | 3 | 937 | `domain`, `process`, `wire` |
-| `session/` | 14 | 3729 | `domain`, `log`, `providers`, `wire` |
-| `tenancy/` | 39 | 8257 | `domain`, `log`, `postgres`, `process`, `wire` |
-| `wire/` | 20 | 5242 | `domain` |
-| `worker/` | 4 | 1092 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
+| `session/` | 14 | 3743 | `domain`, `log`, `providers`, `wire` |
+| `tenancy/` | 40 | 8329 | `domain`, `log`, `postgres`, `process`, `wire` |
+| `wire/` | 21 | 5265 | `domain` |
+| `worker/` | 4 | 1164 | `channels`, `domain`, `fleet`, `process`, `providers`, `session`, `wire` |
 
 ## The path of a call
 

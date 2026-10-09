@@ -10,6 +10,7 @@ from typing import Literal
 from pinecall.domain.agent import AgentConfig, Model, Voice
 from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotAvailable
 from pinecall.domain.names import Credentials
+from pinecall.domain.telemetry import Telemetry
 from pinecall.providers.build import Modality, Running, Vendor, installed, primary
 from pinecall.providers.catalog import Providers, tuning_of
 from pinecall.providers.declared import SEPARATOR
@@ -37,11 +38,13 @@ class Keyring:
 
 @dataclass(frozen=True)
 class Pipeline:
-    """The three stages of a voice call, each on the key it runs on."""
+    """The three stages of a voice call, each on the key it runs on, and where its traces go."""
 
     llm: Running
     stt: Running
     tts: Running
+    # The org's own collector, headers opened, for the worker to export the call's spans to.
+    telemetry: Telemetry | None = None
 
     # The gateway keeps these with the call's facts: their usage is the operator's to bill.
     @property
@@ -59,6 +62,7 @@ class Pipeline:
             llm=_behind(self.llm, failing),
             stt=_behind(self.stt, failing),
             tts=_behind(self.tts, failing),
+            telemetry=self.telemetry,
         )
 
 

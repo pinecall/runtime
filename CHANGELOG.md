@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.1.12 — An org's traces reach its own collector (2026-10-09)
+
+- **An org sends its calls' traces to its own collector**: `PUT /v1/telemetry` names an OTLP
+  endpoint, the headers every export carries (sealed in the vault, never read back) and whether
+  a span may carry what was said; the worker exports each call's spans there beside the box's
+  collector, every span carrying `pinecall.org`, `pinecall.env`, `pinecall.agent`,
+  `pinecall.call` and `pinecall.holder`. `pinecall telemetry` sets it from the CLI.
+
 ## 0.1.11 — A tool announces itself (2026-10-09)
 
 - **A tool announces itself**: a tool declared with `announce` ("Let me check the agenda.") is
