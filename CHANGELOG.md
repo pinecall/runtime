@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.16 — The transcript says the word written, not how it is pronounced (2026-10-09)
+
+- **The lexicon is read back in the transcript**: a word the voice was told to say another way
+  (`Pinecall` → "pain-col") reached the log, the console and the judges as the spoken form.
+  The transcript now carries the word written, with the spoken form's timing.
+
 ## 0.1.15 — Settings ▸ Telemetry, padded (2026-10-09)
 
 - The console's Telemetry card reads like the form beside it.

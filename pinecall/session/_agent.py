@@ -17,6 +17,7 @@ from livekit.agents.voice import Agent, AgentSession, ModelSettings
 from pinecall.session import _prompt, tools
 from pinecall.session._livekit import transcript_of
 from pinecall.session._prompt import Blocks
+from pinecall.session._unsaid import unsaid
 from pinecall.wire.events import ErrorEvent
 
 type Heard = AsyncIterator[stt.SpeechEvent]
@@ -116,13 +117,15 @@ class CallAgent(Agent):
                     yield chunk
 
     # Runs on what was played, so an interrupted reply's transcript stops where its audio did; a
-    # written call plays everything. Aligned speech yields one timed string per word.
+    # written call plays everything. Aligned speech yields one timed string per word, and the
+    # voice's words are the lexicon's spoken forms: they are read back as the words written.
     @override
     async def transcription_node(
         self, text: AsyncIterable[str | TimedString], model_settings: ModelSettings
     ) -> Words:
         """Each played piece of the reply, written as it plays, then passed on."""
-        async for delta in Agent.default.transcription_node(self, text, model_settings):
+        written = unsaid(text, self.call.config.says)
+        async for delta in Agent.default.transcription_node(self, written, model_settings):
             if str(delta):
                 self.call.writing.write("agent.transcript", transcript_of(self.live, delta))
             yield delta
