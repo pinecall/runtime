@@ -59,6 +59,8 @@ async def test_a_day_says_its_calls_latencies_judges_tools_and_how_they_ended(
 
     assert (day.day, day.calls, day.finished, day.escalated, day.spent) == (DAY, 2, 2, 1, 0.75)
     assert day.e2e_median == 1.5
+    assert day.mean_length is not None
+    assert day.mean_length > 0
     assert day.endings == [("caller_hung_up", 2)]
     assert [(stage.stage, stage.turns) for stage in day.stages] == [("llm", 3), ("tts", 3)]
     llm = next(stage for stage in day.stages if stage.stage == "llm")

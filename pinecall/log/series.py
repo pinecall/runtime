@@ -16,7 +16,8 @@ DAY_CALLS = (
 select floor(head.started_at / %(a_day)s)::bigint as epoch_day, count(*) as calls,
        count(*) filter (where f.ended_at is not null) as finished,
        count(*) filter (where f.escalated) as escalated,
-       coalesce(sum(f.cost_usd), 0) as spent
+       coalesce(sum(f.cost_usd), 0) as spent,
+       avg(f.ended_at - head.started_at) filter (where f.ended_at is not null) as mean_length
 """)
     + THE_WINDOWS_CALLS
     + sql.SQL("""
@@ -104,6 +105,7 @@ class SeriesDay:
     finished: int = 0
     escalated: int = 0
     spent: float = 0.0
+    mean_length: float | None = None
     e2e_median: float | None = None
     e2e_p95: float | None = None
     endings: list[tuple[str, int]] = field(default_factory=list[tuple[str, int]])
@@ -163,6 +165,9 @@ def _day(day: date, counted: Counted) -> SeriesDay:
         finished=0 if calls is None else int(calls["finished"]),
         escalated=0 if calls is None else int(calls["escalated"]),
         spent=0.0 if calls is None else float(calls["spent"]),
+        mean_length=None
+        if calls is None or calls["mean_length"] is None
+        else float(calls["mean_length"]),
         e2e_median=None if e2e is None else e2e["e2e_median"],
         e2e_p95=None if e2e is None else e2e["e2e_p95"],
         endings=[

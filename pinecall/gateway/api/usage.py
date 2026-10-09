@@ -178,6 +178,7 @@ async def insights_series(
                 finished=counted_day.finished,
                 escalated=counted_day.escalated,
                 spend_usd=counted_day.spent,
+                mean_length_s=counted_day.mean_length,
                 e2e_median_s=counted_day.e2e_median,
                 e2e_p95_s=counted_day.e2e_p95,
                 endings=[

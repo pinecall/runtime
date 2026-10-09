@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.1.19 — Observability, the way a dashboard reads (2026-10-09)
+
+- **The series say each day's mean call length** (`mean_length_s`), and the console's
+  Observability screen opens on five cards — calls, success rate, time to first token, mean
+  length, spend, each against the window before — then endings as stacked bars by day, the
+  duration, the failure modes (the judges that said no, most often first), and a by-agent table.
+
 ## 0.1.18 — Observability, the axes right (2026-10-09)
 
 - A judge's share tops out at 100%, and a day with calls shows its tool count, zero included.

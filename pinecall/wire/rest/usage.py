@@ -153,6 +153,7 @@ class SeriesDay(WireModel):
     finished: int
     escalated: int
     spend_usd: float
+    mean_length_s: float | None
     e2e_median_s: float | None
     e2e_p95_s: float | None
     endings: list[InsightsEnding]
