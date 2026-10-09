@@ -677,5 +677,6 @@ def _routed(proc: JobProcess, telemetry: Telemetry | None, context: CallContext)
             "pinecall.call": context.call,
             "pinecall.holder": context.holder or "",
         },
+        context.call,
     )
     return spans

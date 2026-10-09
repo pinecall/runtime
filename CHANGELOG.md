@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.1.14 — A call's trace id is the call's (2026-10-09)
+
+- **A call's spans share a trace id a reader can compute**: the call id's 32 hex digits, or the
+  first 32 of the SHA-256 of a carrier's call id — so a call found in the console is found in the
+  org's own tracing tool by the same id. The console's call page names it, with a copy, when the
+  org exports (console `screens/call/trace-id.tsx`).
+
 ## 0.1.13 — The console gets Settings ▸ Telemetry (2026-10-09)
 
 - **Settings ▸ Telemetry** in the console: the org's collector set with its headers (sent once,
