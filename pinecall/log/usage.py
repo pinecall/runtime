@@ -96,7 +96,7 @@ select
     count(*) filter (where {window} and f.judged > 0) as judged,
     count(*) filter (where {window} and f.judged > 0 and f.passed is not false) as passed,
     count(*) filter (where {window} and f.escalated) as escalated,
-    avg(f.ended_at - head.started_at) filter (where {window} and f.ended_at is not null)
+    avg(f.ended_at - head.started_at) filter (where {window} and f.ended_at > head.started_at)
         as mean_length,
     coalesce(sum(f.cost_usd) filter (where {window}), 0) as spent,
     count(*) filter (where {window} and f.channel = 'phone') as phone,
@@ -127,7 +127,8 @@ select head.agent as slug, count(*) as calls,
        coalesce(sum(f.cost_llm_usd), 0) as llm, coalesce(sum(f.cost_stt_usd), 0) as stt,
        coalesce(sum(f.cost_tts_usd), 0) as tts, coalesce(sum(f.cost_phone_usd), 0) as phone,
        coalesce(sum(f.cost_platform_usd), 0) as platform,
-       coalesce(sum(f.ended_at - head.started_at) filter (where f.ended_at is not null), 0) / 60
+       coalesce(sum(f.ended_at - head.started_at) filter (where f.ended_at > head.started_at), 0)
+           / 60
            as minutes
 """)
     + THE_WINDOWS_CALLS

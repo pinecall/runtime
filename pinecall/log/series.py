@@ -17,7 +17,8 @@ select floor(head.started_at / %(a_day)s)::bigint as epoch_day, count(*) as call
        count(*) filter (where f.ended_at is not null) as finished,
        count(*) filter (where f.escalated) as escalated,
        coalesce(sum(f.cost_usd), 0) as spent,
-       avg(f.ended_at - head.started_at) filter (where f.ended_at is not null) as mean_length
+       avg(f.ended_at - head.started_at) filter (where f.ended_at > head.started_at)
+           as mean_length
 """)
     + THE_WINDOWS_CALLS
     + sql.SQL("""

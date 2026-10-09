@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.22 — A call's length counts only when it ended after it started (2026-10-09)
+
+- **A mean length, and an agent's minutes, count only calls that ended after they started**: one
+  production call sealed with an `ended_at` before its start threw a day's mean to minus fifty
+  million seconds on the Observability screen and the Overview.
+
 ## 0.1.21 — Observability's cards, one word each (2026-10-09)
 
 - A card's seconds read as one word (`1.46s`), and its delta names the window short.
