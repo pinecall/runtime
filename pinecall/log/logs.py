@@ -552,6 +552,8 @@ def started_entry(
     from_, to = _two_ends(context, door)
     ran_by: JsonObject = {} if worker is None else {"worker": worker}
     opened_in: JsonObject = {"state": dict(context.state)} if context.state else {}
+    # The app cannot read a day a golden pinned off the clock, so the entry says it.
+    pinned: JsonObject = {"today": context.pinned_day.isoformat()} if context.pinned_day else {}
     started = CallStarted.read(
         {
             "channel": context.channel,
@@ -569,6 +571,7 @@ def started_entry(
             "medium": medium,
             **ran_by,
             **opened_in,
+            **pinned,
         },
         "call.started",
     )

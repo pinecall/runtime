@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **`call.started` says the day a golden pinned** (`today`, `YYYY-MM-DD`), so an agent resolves
+  "on Monday" against the golden's day, as the model does, and not the clock's. Absent on every
+  other call. An SDK before this field refuses the entry: `@pinecall/agents` 0.9.23, `pinecall`
+  0.1.7 on PyPI and the gem 0.0.3 read it.
+- **A golden that gives `memory` to an agent whose policy keeps nothing is refused** by name,
+  before the run opens a call: recall runs only on an agent with a policy, so the facts would
+  never have been recalled and the golden would have tested a memory the agent does not have.
+
 ## 0.1.9 — The runtime whole on one machine: `pinecall-runtime local up` (2026-10-09)
 
 - **`pinecall-runtime local up`**: the runtime whole on one machine from the package alone — the

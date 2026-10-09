@@ -82,6 +82,8 @@ class CallContext:
     caller: str
     route: Route
     today: date
+    # The day a golden pinned, when one did: `today` is then that day, and the app is told it.
+    pinned_day: date | None = None
     contact: Contact | None = None
     metadata: Mapping[str, Json] = field(default_factory=dict[str, Json])
     # Eval run that opened the call; None for a real caller.

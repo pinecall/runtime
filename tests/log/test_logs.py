@@ -551,6 +551,13 @@ def test_the_start_carries_the_state_asked_for_and_a_call_nobody_seeded_carries_
     assert "state" not in started_entry(context("in"), "+34955111222", 1.0, medium="voice")
 
 
+def test_the_start_says_the_day_a_golden_pinned_and_nothing_on_a_call_on_the_clocks_day() -> None:
+    day = date(2026, 9, 17)
+    pinned = dataclasses.replace(context("in"), run="run_1", today=day, pinned_day=day)
+    assert started_entry(pinned, "+34955111222", 1.0, medium="text")["today"] == "2026-09-17"
+    assert "today" not in started_entry(context("in"), "+34955111222", 1.0, medium="voice")
+
+
 def test_the_start_carries_the_persona_and_its_rules_for_the_judges() -> None:
     started = started_entry(context("in"), "+34955111222", at=12.5, medium="voice")
     assert (started["started_at"], started["persona"], started["accepts_when"], started["env"]) == (

@@ -125,6 +125,7 @@ Media is up: the caller and the agent can hear each other, or the text session i
 | `worker` | `string | null` | no | The worker that ran the call, as its heartbeats name it (`PINECALL_WORKER_NAME`, or its machine's short hostname) within its environment's fleet. Absent on a written call, which the gateway runs, and on a call a worker of an older release ran. |
 | `medium` | `Medium | null` | no | How the call is had: `voice` when it runs in a room, spoken; `text` when it is a written session. A `web` call is either. Absent from a gateway before this release, and an app reading it then falls back to its channel (`phone` spoken, `whatsapp` written). |
 | `state` | `object` | no | The state the call opens in, when whoever opened it asked for one: a golden, a persona, or `?state=` on the chat endpoint. The app applies it after its call hook and before the first render. Absent otherwise: the call opens in the class's own state. |
+| `today` | `string | null` | no | The day the call runs in, `YYYY-MM-DD`, when a golden pinned one (`today` in the golden): the model is told that day, and the app reads it here rather than off `started_at`. Absent on every other call, which runs on the day `started_at` falls on. |
 
 ### `call.summary`
 

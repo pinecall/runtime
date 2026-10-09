@@ -172,6 +172,22 @@ async def test_a_golden_whose_event_the_agent_never_declared_is_refused_by_name(
     await app.close()
 
 
+# The agent's policy is what makes recall run; a golden's facts on an agent without one would be
+# silently never recalled, and the golden would test a memory the agent does not have.
+@postgres
+async def test_a_golden_that_gives_memory_to_an_agent_that_keeps_none_is_refused(
+    knocking: Knocking,
+) -> None:
+    await scripted(knocking, ["hola"])
+    app = await an_app(knocking)
+    regular = golden("a regular", "hola", memory=["Prefers the morning"])
+    refused = await a_suite(knocking, {"agent": AGENT, "goldens": [regular]})
+    assert refused.status_code == 400
+    assert "a regular" in refused.json()["detail"]
+    assert "keeps none" in refused.json()["detail"]
+    await app.close()
+
+
 @postgres
 async def test_a_run_against_an_agent_nobody_is_holding_is_a_404(knocking: Knocking) -> None:
     refused = await a_suite(knocking, {"agent": "tienda-sur", "goldens": []})

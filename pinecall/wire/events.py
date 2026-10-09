@@ -179,6 +179,7 @@ class CallStarted(WireModel):
     worker: str | None = None
     medium: Medium | None = None
     state: JsonObject | None = None
+    today: str | None = None
 
 
 class CallAttached(WireModel):

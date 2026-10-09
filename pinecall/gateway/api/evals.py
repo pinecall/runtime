@@ -104,6 +104,13 @@ NO_PINNED_DAY_OUT_LOUD = (
 )
 
 
+# A golden's facts are answered to recall, which runs only on an agent that keeps memory.
+NOT_REMEMBERED = (
+    "golden {name} gives memory, and agent {slug} keeps none: its memory policy names nothing to "
+    "keep (pinecall memory policy --remember '…')"
+)
+
+
 NO_LINE = "the simulated call could not be held: {broke}"
 
 
@@ -206,6 +213,7 @@ async def run_suite(
         body = await _with_cases(gateway, body, scope)
     _refuse_past_the_ceiling(body)
     suite = await _suite_of(gateway, body, registration)
+    _refuse_unremembered(body, suite.setup.config)
     pool, where = gateway.connections.pool, registration.scope
     async with gateway.evals.alone(suite.run.id, body.agent):
         await runs.put(pool, where, suite.run)
@@ -482,6 +490,7 @@ async def _written(
         caller=f"web_{new_call_id()[5:17]}",
         route=Route(org=scope.org, agent=registration.slug, channel=THE_WIDGET, env=scope.env),
         today=golden.today or today_in(gateway.connections.settings.timezone),
+        pinned_day=golden.today,
         run=suite.run.id,
         holder=scope.holder or None,
         state=dict(golden.state),
@@ -640,6 +649,14 @@ def _refuse_out_loud(body: RunSuiteRequest) -> None:
             raise DeclarationRefused(
                 NO_PINNED_DAY_OUT_LOUD.format(name=golden.name, day=golden.today)
             )
+
+
+def _refuse_unremembered(body: RunSuiteRequest, config: AgentConfig) -> None:
+    if config.memory is not None:
+        return
+    for golden in body.goldens:
+        if golden.memory:
+            raise DeclarationRefused(NOT_REMEMBERED.format(name=golden.name, slug=body.agent))
 
 
 def _holds(gateway: Gateway, registration: Registration) -> bool:
