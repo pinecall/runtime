@@ -227,7 +227,7 @@ def fleet_key(settings: Settings, args: argparse.Namespace) -> int:
     issued = key_table.Issued(
         org=DEFAULT_ORG, env=env, scopes=frozenset({THE_FLEET}), label=A_FLEET_KEY.format(env=env)
     )
-    sys.stdout.write(asyncio.run(_minted(settings, issued)))
+    sys.stdout.write(asyncio.run(minted(settings, issued)))
     return 0
 
 
@@ -241,7 +241,7 @@ def runner_key(settings: Settings, args: argparse.Namespace) -> int:
         scopes=frozenset({THE_RUNNER}),
         label=A_RUNNER_KEY.format(env=env),
     )
-    sys.stdout.write(asyncio.run(_minted(settings, issued)))
+    sys.stdout.write(asyncio.run(minted(settings, issued)))
     return 0
 
 
@@ -511,6 +511,15 @@ def fleet_uncordon(client: httpx.Client, args: argparse.Namespace) -> int:
     return 0
 
 
+async def minted(settings: Settings, issued: key_table.Issued) -> str:
+    pool = await open_pool(settings.database_url)
+    try:
+        _, secret = await key_table.issue(pool, issued)
+    finally:
+        await pool.close()
+    return secret
+
+
 def _knocking(verb: Verb) -> Callable[[Settings, argparse.Namespace], int]:
     def run(settings: Settings, args: argparse.Namespace) -> int:
         if not settings.ops_key:
@@ -575,15 +584,6 @@ def _cordon(client: httpx.Client, worker: str, *, on: bool) -> None:
 
 def _state_of(seat: WorkerStatus, workers: list[WorkerStatus], now: float) -> str:
     return roster.worker_state(seat, [other for other in workers if other.fleet == seat.fleet], now)
-
-
-async def _minted(settings: Settings, issued: key_table.Issued) -> str:
-    pool = await open_pool(settings.database_url)
-    try:
-        _, secret = await key_table.issue(pool, issued)
-    finally:
-        await pool.close()
-    return secret
 
 
 def _line_out(text: str) -> None:

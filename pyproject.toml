@@ -3,7 +3,7 @@
 
 [project]
 name = "pinecall-runtime"
-version = "0.1.8"
+version = "0.1.9"
 description = "The Pinecall voice-AI runtime: gateway and worker, on LiveKit"
 readme = "README.md"
 license = "Apache-2.0"
@@ -158,6 +158,7 @@ convention = "google"
 "tests/**" = ["D103", "INP001", "PLR2004", "S101"]
 "**/__init__.py" = ["D104"]  # rule 1: every __init__.py is empty
 "tests/rules/**" = ["S603", "S607"]  # the rules run the checkers as subprocesses
+"pinecall/cli/_local.py" = ["S603", "S607"]  # docker compose, and this package's own gateway and worker
 "pinecall/process/recordings.py" = ["ARG002"]  # the disk answers the bucket's calls, and its paths name no org
 "scripts/**" = ["INP001"]  # the build's tools, loaded by path: no package
 "infra/lab/**" = ["INP001"]  # the voice lab's tools, run by path: no package

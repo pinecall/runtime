@@ -9,7 +9,7 @@ writes an agent, nothing there issues a key.
 
 | group | speaks to |
 |---|---|
-| `gateway` · `worker` · `runner` · `doctor` · `providers` | this machine: its settings, its database, its LiveKit |
+| `gateway` · `worker` · `runner` · `doctor` · `providers` · `local` | this machine: its settings, its database, its LiveKit; `local` brings all three up in Docker |
 | `migrate` · `sessions` · `memory` · `retention` · `traceback` · `facts` · `drift` · `usage` · `vault` | Postgres, straight, over `DATABASE_URL` (`vault` with `PINECALL_VAULT_KEY` too) |
 | `init` · `orgs` · `keys` · `routes` · `fleet` · `fence` · `sip` | a running gateway, over `/v1/ops/*` with `PINECALL_OPS_KEY` ([protocol/operator-api.md](protocol/operator-api.md)); `keys fleet` and `keys runner` alone are minted on the database, before any gateway answers |
 | `load` | a running gateway's sandbox, over the worker's own call endpoints with the sandbox fleet's key (`PINECALL_WORKER_KEY`) |
@@ -26,6 +26,33 @@ opens running, one gVisor pod each: the runner is itself a pod of the hosting cl
 "Hosting"). Every
 variable they read is
 [the-environment.md](the-environment.md).
+
+## `local`
+
+```
+pinecall-runtime local [--dir <path>] up [--services-only]
+pinecall-runtime local [--dir <path>] down [--volumes]
+pinecall-runtime local [--dir <path>] init --email <address> --person "<name>" [--org <slug>] [--name "…"]
+pinecall-runtime local [--dir <path>] env
+```
+
+The runtime whole on one machine, for developing an agent against it: no cloud account, no key
+from anywhere. `up` writes the Docker Compose files the package ships into `--dir`
+(`~/.pinecall-runtime/local` unless named), brings up Postgres (17, with pgvector and
+pg_textsearch, built once), Redis and LiveKit on loopback ports of their own, migrates the schema,
+draws the machine's secrets once into `<dir>/env` (0600: the vault key, the ops key, the token
+key, the sandbox fleet's key), then runs the gateway on `http://127.0.0.1:8080` — the console
+included, the sandbox at `/sandbox/` — and a worker of the sandbox fleet, their lines prefixed
+`gateway |` and `worker  |`. Ctrl-C stops the two; the services stay. `--services-only` stops after
+the schema, for a checkout that runs the two from its sources (`make local-gateway`,
+`make local-worker`). Run `up` again any time: it keeps the secrets and the database.
+
+`down` stops the services and keeps the database; `--volumes` deletes it. `init` is `init` below,
+run on the local settings, so the first org and person need no shell line. `env` prints that
+line, `set -a; . <dir>/env; set +a`, for any other verb against the local runtime. It needs Docker
+with the compose plugin: Docker Desktop on macOS and Windows, Docker Engine on Linux; without it
+`up` says so in one sentence. A phone call needs the SIP bridge on the host's network, which Docker
+on macOS does not have: `docker compose -f <dir>/compose.yaml --profile phone up -d sip`, on Linux.
 
 ## `init`
 

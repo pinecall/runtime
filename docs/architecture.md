@@ -27,7 +27,7 @@ surface is the URL.
 | `gateway/` | the FastAPI app; private, each named for what it holds and none the logic of an endpoint of the same name: the process's state (`_gateway.py`, the `Gateway`), each request's dependencies (`_deps.py`), what a call of an agent is set up with (`_call_setup.py`), written calls opened and taken up (`_text_calls.py`), SSE streams, the app sockets registered on every gateway of the platform, this one's and the others' as they say them (`_sockets.py`); and `calls/`, what a call is to a gateway that did not open it (`known.py`: served from what was kept when it opened) and the pump that sends a bound call's entries down its socket, whichever gateway wrote them, the socket's gateway told on the signal when another binds a call to it (`pump.py`), the WhatsApp threads kept open (`threads.py`: they need the sockets and the session, so they are the gateway's; `api/threads.py` holds their endpoints), what one gateway sends an app socket another holds (`inbox.py`: a call bound to it, a console's `dev.request`, a stop, the answer back, and the sockets each gateway holds, for the org's list), and who runs each written call and holds each thread across the gateways of the platform (`owners.py`: a message that lands on another gateway is handed to the holder; a call it runs is not taken up or reaped elsewhere while it says so), the calls served (`_served.py`) and a call served as an endpoint reaches it (`calls/serving.py`: its socket, set up, first seen, looked up, claimed); `ending/`: how a call ends (`seal.py`: memory, the bill, the judges, the seal) the calls nobody ends (`reaper.py`), and a call whose worker died (`stranded.py`: LiveKit's word that its agent was lost, the caller told once); `dispatching/`: who takes a call, the gateway's choice and not LiveKit's draw (`arrivals.py`: LiveKit's word that a person is alone in a room, its newest dispatch to a fleet offered, and a room an agent joined or that ended let go; `sweep.py`: the rooms nobody opened, offered again every few seconds); `api/`: one module per topic of endpoints, the account endpoints among them (`accounts.py`: sign-in, whoami, codes, pairing, invitations; `members.py`, `keys.py`, `signup.py`, `sso_login.py`, `org.py`'s provider and mailbox, `ops.py`) | everything above |
 | `runner/` | the runner: an environment's hosted apps kept running as the gateway wants them (`main.py`), what each beat does to each app decided from numbers alone (`_plan.py`), one gVisor pod each on the hosting cluster, driven through the Kubernetes API (`_kube.py`), the releases' sources served to its own pods; no database, no vault | `domain` `wire` `process` |
 | `worker/` | the LiveKit worker: the entrypoint and, private, one job per call, the recorder, the traces | `session` `providers` `fleet` `channels` `log` `process` and the leaves |
-| `cli/` | `pinecall-runtime`: migrate, doctor, fleet, vault, and `load` (`_load.py`: synthetic calls held against a sandbox through the worker's client, and measured), `facts rebuild` (`_facts.py`), `drift rebuild` (`_drift.py`) | anything |
+| `cli/` | `pinecall-runtime`: migrate, doctor, fleet, vault, `local` (`_local.py`: the runtime whole on one machine — the compose files of `local/` written to a directory of the machine's, the services up, the schema, the secrets drawn once, then the gateway and a worker as two child processes), and `load` (`_load.py`: synthetic calls held against a sandbox through the worker's client, and measured), `facts rebuild` (`_facts.py`), `drift rebuild` (`_drift.py`) | anything |
 
 Three edges are forbidden outright: `gateway` never imports `worker`, `worker` never imports
 `gateway`, and nothing imports `gateway/api/`. The leaves hold data and no framework: `domain`
@@ -48,17 +48,17 @@ core under `_` names.
 | folder | files | lines | imports of ours |
 |---|---|---|---|
 | `channels/` | 15 | 3584 | `domain`, `fleet`, `log`, `postgres`, `process`, `tenancy`, `wire` |
-| `cli/` | 9 | 2062 | `channels`, `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `runner`, `session`, `tenancy`, `wire`, `worker` |
-| `domain/` | 8 | 1242 | — |
-| `evals/` | 11 | 3285 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
+| `cli/` | 10 | 2325 | `channels`, `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `runner`, `session`, `tenancy`, `wire`, `worker` |
+| `domain/` | 8 | 1245 | — |
+| `evals/` | 11 | 3306 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
 | `fleet/` | 6 | 1247 | `domain`, `postgres`, `process`, `wire` |
-| `gateway/` | 60 | 12836 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `gateway/` | 60 | 12845 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
 | `log/` | 17 | 4884 | `domain`, `postgres`, `process`, `wire` |
 | `postgres/` | 2 | 392 | `domain` |
 | `process/` | 10 | 2016 | `domain`, `postgres` |
 | `providers/` | 7 | 1653 | `domain`, `postgres`, `process`, `wire` |
 | `retrieval/` | 7 | 2453 | `domain`, `log`, `postgres`, `providers`, `wire` |
-| `runner/` | 3 | 922 | `domain`, `process`, `wire` |
+| `runner/` | 3 | 937 | `domain`, `process`, `wire` |
 | `session/` | 14 | 3729 | `domain`, `log`, `providers`, `wire` |
 | `tenancy/` | 39 | 8257 | `domain`, `log`, `postgres`, `process`, `wire` |
 | `wire/` | 20 | 5242 | `domain` |

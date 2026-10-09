@@ -109,18 +109,18 @@ of it is read from code.
 
 A checkout and `uv sync` is the whole of it for writing the runtime: `make check` runs the rules and
 every suite that needs no database; `make test` starts a Postgres of its own in colima (`make db`:
-the image of `infra/local/postgres/`, Postgres 17 with pgvector and pg_textsearch, on tmpfs,
+the image of `pinecall/cli/local/postgres/`, Postgres 17 with pgvector and pg_textsearch, on tmpfs,
 durability off) and a Redis beside it (nothing kept), and gives every test a schema of its own and
 a prefix of its own on the Redis. `make suite` runs the same suites inside a cluster, against its
 Postgres under CloudNativePG.
 
 The runtime whole runs on a laptop too, with no cloud account: `make local` starts the platform's
-Postgres, Redis and LiveKit in docker (`infra/local/compose.yaml`, ports 55433, 56380, 7880),
+Postgres, Redis and LiveKit in docker (`pinecall-runtime local up`, ports 55433, 56380, 7880),
 migrates the schema and writes `.local/env` once (a vault key, an ops key and the sandbox fleet's
 key drawn there, 0600); `make local-gateway` and `make local-worker` run both from the checkout on
 those settings, and `make local-down` stops the compose. LiveKit's pair there is a laptop-only
-dev pair (`infra/local/livekit.yaml`). A phone needs the SIP bridge (`--profile phone`, Linux
-only) and a carrier that reaches the laptop: [../infra/local/README.md](../infra/local/README.md).
+dev pair (the package's `cli/local/livekit.yaml`). A phone needs the SIP bridge (`--profile phone`, Linux
+only) and a carrier that reaches the laptop: `the-runtime-cli.md`, "local".
 
 ## A cluster
 

@@ -51,11 +51,11 @@ tf-plan:          ## ENV=…: what an apply would change, saved as its plan; "No
 tf-apply:         ## ENV=…: the saved plan applied, after it was read
 	$(TF_AUTH) $(TF) apply -input=false plan
 
-# The runtime whole on this laptop (infra/local): Postgres, Redis and LiveKit in docker, the
+# The runtime whole on this laptop (`pinecall-runtime local`): Postgres, Redis and LiveKit in docker, the
 # gateway and a worker from the checkout, on the settings `make local` wrote to .local/env.
 LOCAL_RUN = set -a; . ./.local/env; set +a; uv run pinecall-runtime
 local:            ## Postgres, Redis and LiveKit in docker, the schema migrated, .local/env written once
-	infra/local/up.sh
+	uv run pinecall-runtime local --dir .local up --services-only
 
 local-gateway:    ## the gateway from the checkout on 127.0.0.1:8080, against `make local`
 	$(LOCAL_RUN) gateway
@@ -64,7 +64,7 @@ local-worker:     ## a worker of the sandbox fleet from the checkout, against `m
 	$(LOCAL_RUN) worker start
 
 local-down:       ## the compose stopped; its Postgres volume and .local/env kept
-	docker compose -f infra/local/compose.yaml down
+	uv run pinecall-runtime local --dir .local down
 
 test: db          ## every suite (or T=tests/log), on the local Postgres and Redis, on every core
 	DATABASE_URL=$(LOCAL_DSN) PINECALL_REDIS_URL=$(LOCAL_REDIS) uv run pytest -q -n auto $(T)
@@ -72,7 +72,7 @@ test: db          ## every suite (or T=tests/log), on the local Postgres and Red
 # Durability is off: a test database that loses its last second on a crash loses nothing.
 db:               ## the local Postgres and Redis: colima up, the image built once, both running
 	@colima status >/dev/null 2>&1 || colima start
-	@docker image inspect $(DB_IMAGE) >/dev/null 2>&1 || docker build -t $(DB_IMAGE) infra/local/postgres
+	@docker image inspect $(DB_IMAGE) >/dev/null 2>&1 || docker build -t $(DB_IMAGE) pinecall/cli/local/postgres
 	@docker inspect -f '{{.State.Running}}' $(DB_NAME) 2>/dev/null | grep -q true || { \
 	  docker rm -f $(DB_NAME) >/dev/null 2>&1; \
 	  docker run -d --name $(DB_NAME) -p 127.0.0.1:$(DB_PORT):5432 --tmpfs /var/lib/postgresql/data \

@@ -1,6 +1,6 @@
-# What a box runs beside the runtime, on a laptop: Postgres (`postgres/`), Redis, LiveKit in
-# dev mode and, on Linux, LiveKit's SIP. The gateway and a worker run from the checkout
-# (`make local-gateway`, `make local-worker`). `make local` brings this up; infra/local/README.md.
+# What runs beside the runtime on one machine: Postgres (`postgres/`), Redis, LiveKit in dev mode
+# and, on Linux, LiveKit's SIP. `pinecall-runtime local up` writes this file where it keeps the
+# machine's settings and brings it up; the gateway and a worker run on the host.
 name: pinecall-local
 
 services:

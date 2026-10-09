@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.1.9 — The runtime whole on one machine: `pinecall-runtime local up` (2026-10-09)
+
+- **`pinecall-runtime local up`**: the runtime whole on one machine from the package alone — the
+  compose files it ships written to `~/.pinecall-runtime/local`, Postgres, Redis and LiveKit up,
+  the schema migrated, the secrets drawn once, then the gateway with the console and a sandbox
+  worker in the foreground. `local down`, `local init`, `local env`. `make local` runs it.
+
 ## 0.1.8 — A hosted project starts on the newest CLI of its minor (2026-10-09)
 
 - **A hosted project starts on the newest CLI of its minor**: the runner installs `pinecall@^0.9.40`

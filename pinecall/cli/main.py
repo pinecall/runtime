@@ -23,6 +23,7 @@ from pinecall.cli import (
     _drift,
     _facts,
     _load,
+    _local,
     _operator,
     _sessions,
     _traceback,
@@ -86,6 +87,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     logging.basicConfig(
         level=settings.log_level.upper(), format="%(levelname)s %(name)s: %(message)s"
     )
+    # A verb's own lines say what it did; httpx's line per request says nothing an operator needs.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     try:
         sys.exit(data.run(settings, data))
     except PinecallError as refused:
@@ -321,6 +324,9 @@ def verbs() -> argparse.ArgumentParser:
     _load.load_verb(
         under.add_parser("load", help="synthetic calls held against a sandbox, and measured")
     )
+    _local.local_group(
+        under.add_parser("local", help="the runtime whole on this machine, for developing an agent")
+    )
     return verbs
 
 
@@ -519,3 +525,7 @@ async def _gateway(settings: Settings) -> str | None:
     return (
         None if answer.status_code < httpx.codes.BAD_REQUEST else f"answered {answer.status_code}"
     )
+
+
+if __name__ == "__main__":
+    main()
