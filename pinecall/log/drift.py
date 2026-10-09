@@ -57,8 +57,10 @@ A_PAGE = 500
 
 # Taken once per call: a second fold of the same call finds its row and changes only what differs.
 CLAIMED = """
-insert into drift_calls (call, org, env, holder, agent, day, config_version, verdicts)
-values (%(call)s, %(org)s, %(env)s, %(holder)s, %(agent)s, %(day)s, %(version)s, %(verdicts)s)
+insert into drift_calls (call, org, env, holder, agent, day, config_version, verdicts,
+                         tools_ran, tools_failed)
+values (%(call)s, %(org)s, %(env)s, %(holder)s, %(agent)s, %(day)s, %(version)s, %(verdicts)s,
+        %(tools_ran)s, %(tools_failed)s)
 on conflict (call) do nothing
 returning call
 """
@@ -223,10 +225,17 @@ async def fold(pool: Pool, call: str, entries: Sequence[Entry], score: CallScore
         return False
     where = _where(corner.scope, corner.agent, _day_of(corner.started_at), corner.versions.config)
     verdicts = _verdicts_of(score)
+    ran, failed = _tools_of(entries)
     async with pool.connection() as connection, connection.transaction():
         claimed = await connection.execute(
             CLAIMED,
-            {**where, "call": call, "verdicts": Jsonb(VERDICTS.dump_python(verdicts, mode="json"))},
+            {
+                **where,
+                "call": call,
+                "verdicts": Jsonb(VERDICTS.dump_python(verdicts, mode="json")),
+                "tools_ran": ran,
+                "tools_failed": failed,
+            },
         )
         if await claimed.fetchone() is not None:
             await _stages_added(connection, where, _samples_of(entries))
@@ -353,6 +362,12 @@ def _samples_of(entries: Iterable[Entry]) -> dict[StageKey, StageSample]:
         )
         for key, count in turns.items()
     }
+
+
+def _tools_of(entries: Iterable[Entry]) -> tuple[int, int]:
+    """How many tools the call ran, and how many answered an error."""
+    results = [entry for entry in entries if entry.type == "tool.result"]
+    return len(results), sum(1 for entry in results if entry.data.get("error") is not None)
 
 
 def _verdicts_of(score: CallScore) -> list[Verdict]:

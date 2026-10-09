@@ -1,6 +1,7 @@
 """The org's meters: the usage feed, a window's insights, an agent's drift, what the org may use."""
 
 import re
+from dataclasses import asdict
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
@@ -11,7 +12,7 @@ from pinecall.channels import routes
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.org import Quotas
 from pinecall.gateway._deps import ActingDep, CallsKey, GatewayDep, ScopeDep, UsageKey
-from pinecall.log import drift
+from pinecall.log import drift, series
 from pinecall.log.drift import Side, Tally
 from pinecall.log.reduce import Usage, UsageRow, totals_by_org
 from pinecall.log.store import DEFAULT_LIMIT
@@ -32,6 +33,10 @@ from pinecall.wire.rest.usage import (
     InsightsSpend,
     Limit,
     Limits,
+    Series,
+    SeriesDay,
+    SeriesJudge,
+    SeriesStage,
     UsagePage,
     UsageTotals,
 )
@@ -141,6 +146,51 @@ async def insights(
         ],
         stages=await drift.stages_of_window(pool, scope, first, last, query.agent),
         budget=InsightsBudget(limit_usd=quotas.budget_usd, spent_usd_month=spent),
+    )
+
+
+# What the Observability screen draws: the window's days, each in numbers, off the call index
+# and the fold (log/drift.py). The same query as /v1/insights.
+@router.get("/v1/insights/series")
+async def insights_series(
+    key: CallsKey,
+    scope: ScopeDep,
+    gateway: GatewayDep,
+    query: Annotated[InsightsQuery, Query()],
+) -> Series:
+    """Every UTC day of the window: calls, endings, cost, latencies, judges and tools."""
+    if query.days not in WINDOW_DAYS:
+        raise DeclarationRefused(NOT_A_WINDOW.format(days=query.days))
+    if query.agent is not None:
+        check_agent(key.bearer, query.agent)
+    last = query.day or datetime.now(UTC).date()
+    first = last - timedelta(days=query.days - 1)
+    days = await series.series_window(gateway.connections.pool, scope, first, last, query.agent)
+    return Series(
+        day=last.isoformat(),
+        days=query.days,
+        agent=query.agent,
+        timezone=TIMEZONE,
+        series=[
+            SeriesDay(
+                day=counted_day.day.isoformat(),
+                calls=counted_day.calls,
+                finished=counted_day.finished,
+                escalated=counted_day.escalated,
+                spend_usd=counted_day.spent,
+                e2e_median_s=counted_day.e2e_median,
+                e2e_p95_s=counted_day.e2e_p95,
+                endings=[
+                    InsightsEnding(reason=reason, count=count)
+                    for reason, count in counted_day.endings
+                ],
+                stages=[SeriesStage(**asdict(stage)) for stage in counted_day.stages],
+                judges=[SeriesJudge(**asdict(judge)) for judge in counted_day.judges],
+                tools_ran=counted_day.tools_ran,
+                tools_failed=counted_day.tools_failed,
+            )
+            for counted_day in days
+        ],
     )
 
 

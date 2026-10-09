@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.1.17 — Observability, in the console (2026-10-09)
+
+- **Observability, in the console**: `GET /v1/insights/series` answers the window day by day —
+  calls, how they ended, cost, end-to-end and per-stage latency at the median and p95, each
+  judge's held rate, tools run and failed — and the console's new Observability screen draws it,
+  for every agent or the one in view, over 24 h, 7 d or 30 d. A call's tools are counted at its
+  seal (`drift_calls.tools_ran`, `tools_failed`).
+
 ## 0.1.16 — The transcript says the word written, not how it is pronounced (2026-10-09)
 
 - **The lexicon is read back in the transcript**: a word the voice was told to say another way

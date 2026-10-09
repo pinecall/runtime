@@ -9,6 +9,7 @@ from tests.gateway.api.conftest import a_call, an_app
 
 USAGE = "/v1/usage"
 INSIGHTS = "/v1/insights"
+SERIES = "/v1/insights/series"
 LIMITS = "/v1/limits"
 
 
@@ -99,6 +100,25 @@ async def test_the_feed_of_an_org_with_nothing_metered_is_empty_and_points_nowhe
     async with knocking.http(knocking.app["sandbox"]) as org:
         page = await org.get(USAGE)
     assert page.json() == {"rows": [], "totals": None, "next": None}
+
+
+@postgres
+async def test_a_days_series_is_the_window_day_by_day(knocking: Knocking) -> None:
+    app = await an_app(knocking)
+    await a_sealed_call(knocking)
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        week = await org.get(SERIES, params={"day": "1970-01-01", "days": 7})
+        wrong = await org.get(SERIES, params={"days": 3})
+    assert week.status_code == 200
+    body = week.json()
+    assert (body["day"], body["days"], body["agent"]) == ("1970-01-01", 7, None)
+    assert [day["day"] for day in body["series"]][-1] == "1970-01-01"
+    assert [day["calls"] for day in body["series"]] == [0, 0, 0, 0, 0, 0, 1]
+    today = body["series"][-1]
+    assert today["endings"] == [{"reason": "caller_hung_up", "count": 1}]
+    assert {stage["stage"] for stage in today["stages"]} <= {"stt", "llm", "tts"}
+    assert wrong.status_code == 400
+    await app.close()
 
 
 @postgres

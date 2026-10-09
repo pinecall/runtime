@@ -18,11 +18,11 @@ from pinecall.postgres.pool import Pool
 A_DAY_S = 24 * 60 * 60
 
 
-_IN_THE_WINDOW = sql.SQL("head.started_at >= %(start)s and head.started_at < %(end)s")
+IN_THE_WINDOW = sql.SQL("head.started_at >= %(start)s and head.started_at < %(end)s")
 
 
 # A window's rows: the scope's calls, or one agent's when the window names one.
-_THE_WINDOWS_CALLS = sql.SQL("""
+THE_WINDOWS_CALLS = sql.SQL("""
 from call_log_head head left join call_facts f on f.call = head.log
 where head.org = %(org)s and head.env = %(env)s and head.holder = %(holder)s
   and head.call is not null and (%(agent)s::text is null or head.agent = %(agent)s)
@@ -104,8 +104,8 @@ select
     count(*) filter (where {window} and f.channel = 'whatsapp') as whatsapp,
     count(*) as total,
     count(*) filter (where not head.sealed) as live
-""").format(window=_IN_THE_WINDOW)
-    + _THE_WINDOWS_CALLS
+""").format(window=IN_THE_WINDOW)
+    + THE_WINDOWS_CALLS
 )
 
 
@@ -117,7 +117,7 @@ cross join lateral unnest(f.e2e) as turn(seconds)
 where head.org = %(org)s and head.env = %(env)s and head.holder = %(holder)s
   and head.call is not null and (%(agent)s::text is null or head.agent = %(agent)s)
   and {window}
-""").format(window=_IN_THE_WINDOW)
+""").format(window=IN_THE_WINDOW)
 
 
 WINDOW_BY_AGENT = (
@@ -130,23 +130,23 @@ select head.agent as slug, count(*) as calls,
        coalesce(sum(f.ended_at - head.started_at) filter (where f.ended_at is not null), 0) / 60
            as minutes
 """)
-    + _THE_WINDOWS_CALLS
+    + THE_WINDOWS_CALLS
     + sql.SQL("""
   and {window}
 group by head.agent
 order by calls desc, slug
-""").format(window=_IN_THE_WINDOW)
+""").format(window=IN_THE_WINDOW)
 )
 
 
 WINDOW_ENDINGS = (
     sql.SQL("select f.end_reason as reason, count(*) as count ")
-    + _THE_WINDOWS_CALLS
+    + THE_WINDOWS_CALLS
     + sql.SQL("""
   and {window} and f.end_reason is not null
 group by f.end_reason
 order by count desc, reason
-""").format(window=_IN_THE_WINDOW)
+""").format(window=IN_THE_WINDOW)
 )
 
 
@@ -161,11 +161,11 @@ select floor(head.started_at / %(a_day)s)::bigint as epoch_day,
        count(*) filter (where f.judged > 0) as judged,
        count(*) filter (where f.judged > 0 and f.passed is not false) as passed
 """)
-    + _THE_WINDOWS_CALLS
+    + THE_WINDOWS_CALLS
     + sql.SQL("""
   and {window}
 group by epoch_day
-""").format(window=_IN_THE_WINDOW)
+""").format(window=IN_THE_WINDOW)
 )
 
 

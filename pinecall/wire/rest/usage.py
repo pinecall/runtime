@@ -128,6 +128,50 @@ class InsightsDay(WireModel):
     passed: int
 
 
+class SeriesStage(WireModel):
+    """One stage over one day's turns: how many, and how slow at the median and the tail."""
+
+    stage: Literal["stt", "llm", "tts"]
+    turns: int
+    median_s: float | None
+    p95_s: float | None
+
+
+class SeriesJudge(WireModel):
+    """One judge over one day: the verdicts that held, and those settled."""
+
+    name: str
+    held: int
+    judged: int
+
+
+class SeriesDay(WireModel):
+    """One UTC day of the window, every number the Observability screen draws."""
+
+    day: str
+    calls: int
+    finished: int
+    escalated: int
+    spend_usd: float
+    e2e_median_s: float | None
+    e2e_p95_s: float | None
+    endings: list[InsightsEnding]
+    stages: list[SeriesStage]
+    judges: list[SeriesJudge]
+    tools_ran: int
+    tools_failed: int
+
+
+class Series(WireModel):
+    """GET /v1/insights/series: the window day by day, every number a chart draws."""
+
+    day: str
+    days: int
+    agent: str | None
+    timezone: str
+    series: list[SeriesDay]
+
+
 class Insights(WireModel):
     """GET /v1/insights: whole UTC days of the key's world and scope, counted off the call index."""
 
