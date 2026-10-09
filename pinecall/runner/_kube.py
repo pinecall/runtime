@@ -91,8 +91,9 @@ NO_ANSWER = "the cluster {verb}: no answer in {seconds:.0f}s"
 
 
 # The `pinecall` a hosted project is started with: the platform's own, never a dependency of the
-# project, at the version this runtime was released with. Bumped here, with the runtime.
-CLI_VERSION = "0.9.40"
+# project. A range, so a CLI release reaches hosted projects on their next start with no runtime
+# release; a CLI that breaks its contract bumps the minor, and this line with it.
+CLI_VERSION = "^0.9.40"
 
 
 # Where that CLI is installed, on a volume of its own: the project's folder holds the project.

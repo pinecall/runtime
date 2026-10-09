@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.8 — A hosted project starts on the newest CLI of its minor (2026-10-09)
+
+- **A hosted project starts on the newest CLI of its minor**: the runner installs `pinecall@^0.9.40`
+  when a pod starts, so a CLI release reaches hosted projects on their next start and no runtime
+  release carries it. A CLI that breaks its contract bumps the minor, and the runner with it.
+
 ## 0.1.7 — A hosted project is started by the platform's own pinecall (2026-10-09)
 
 - **A hosted project is started by the platform's own `pinecall`**, installed in the pod beside
