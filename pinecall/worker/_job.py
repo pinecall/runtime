@@ -61,7 +61,7 @@ from pinecall.wire.rest.calls import (
 from pinecall.wire.rest.numbers import LegTrunk
 from pinecall.wire.state import State
 from pinecall.worker._recorder import stored, written
-from pinecall.worker._traces import OrgSpans
+from pinecall.worker._traces import OrgSpans, attributes_of
 
 logger = logging.getLogger(__name__)
 
@@ -668,15 +668,5 @@ async def _let_go(session: Session, spans: OrgSpans) -> None:
 def _routed(proc: JobProcess, telemetry: Telemetry | None, context: CallContext) -> OrgSpans:
     found = proc.userdata.get("spans")
     spans = found if isinstance(found, OrgSpans) else OrgSpans()
-    spans.route_to(
-        telemetry,
-        {
-            "pinecall.org": context.route.org,
-            "pinecall.env": context.route.env or "",
-            "pinecall.agent": context.route.agent,
-            "pinecall.call": context.call,
-            "pinecall.holder": context.holder or "",
-        },
-        context.call,
-    )
+    spans.route_to(telemetry, attributes_of(context), context.call)
     return spans

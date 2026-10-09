@@ -1,12 +1,16 @@
 """Tests for a call's traces over OTLP: the box's collector, and each org's."""
 
+import dataclasses
+from datetime import date
+
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from pinecall.domain.call import CallContext, Contact, Route
 from pinecall.domain.telemetry import Telemetry
 from pinecall.process.settings import Settings
-from pinecall.worker._traces import OrgSpans, trace_id_of, traced_to
+from pinecall.worker._traces import OrgSpans, attributes_of, trace_id_of, traced_to
 
 A_COLLECTOR = Telemetry("https://otel.example.test/v1/traces", {"x-api-key": "made-up"})
 
@@ -65,3 +69,27 @@ def trace_of(span: ReadableSpan) -> int:
     context = span.get_span_context()
     assert context is not None
     return context.trace_id
+
+
+def test_a_calls_spans_say_its_world_session_and_contact_as_any_backend_reads_them() -> None:
+    route = Route(
+        org="org_1", agent="front-desk", channel="phone", number="+59829001199", env="sandbox"
+    )
+    known = CallContext(
+        call="CA_1",
+        channel="phone",
+        direction="inbound",
+        caller="+59899123456",
+        route=route,
+        contact=Contact(id="ct_ana", phone="+59899123456"),
+        today=date(2026, 10, 9),
+    )
+    carried = attributes_of(known)
+    assert (carried["deployment.environment.name"], carried["session.id"], carried["user.id"]) == (
+        "sandbox",
+        "CA_1",
+        "ct_ana",
+    )
+    assert "+59899123456" not in carried.values(), "the number is never an attribute"
+    anonymous = attributes_of(dataclasses.replace(known, contact=None))
+    assert "user.id" not in anonymous

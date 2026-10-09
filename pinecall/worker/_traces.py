@@ -13,6 +13,7 @@ from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor, TracerPro
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.trace.id_generator import RandomIdGenerator
 
+from pinecall.domain.call import CallContext
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.telemetry import Telemetry
 from pinecall.process.settings import Settings
@@ -116,6 +117,26 @@ def traced_to(settings: Settings) -> OrgSpans:
         provider, metadata={FLEET_ATTRIBUTE: settings.fleet}, allow_pii=settings.otlp_pii
     )
     return spans
+
+
+# Ours, and the OpenTelemetry conventions any backend reads — the world as the deployment's
+# environment, the call as the session, the contact's id (never the number) as the user — so a
+# tool sorts a call into its world, its session and its person without knowing what pinecall.*
+# means. Langfuse, Datadog, Honeycomb and Grafana each read these three as such.
+def attributes_of(context: CallContext) -> dict[str, str]:
+    """What every span of the call carries."""
+    env = context.route.env or ""
+    contact = context.contact.id if context.contact is not None else None
+    return {
+        "pinecall.org": context.route.org,
+        "pinecall.env": env,
+        "pinecall.agent": context.route.agent,
+        "pinecall.call": context.call,
+        "pinecall.holder": context.holder or "",
+        "deployment.environment.name": env,
+        "session.id": context.call,
+        **({} if contact is None else {"user.id": contact}),
+    }
 
 
 def otlp_headers(text: str | None) -> dict[str, str]:

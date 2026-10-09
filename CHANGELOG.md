@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.1.29 — A call's trace says its world, its session and its contact as any tool reads them (2026-10-09)
+
+- Every span of a call also carries the OpenTelemetry conventions `deployment.environment.name`
+  (the world), `session.id` (the call) and `user.id` (the contact's id, never the number), so
+  Langfuse, Datadog, Honeycomb and Grafana sort a trace into its environment, session and user
+  without knowing what `pinecall.*` means (`worker/_traces.py attributes_of`).
+- Console a6263fc: Settings ▸ Telemetry offers Langfuse by its region and two keys, beside any
+  OpenTelemetry collector; the Erasures card names who asked.
+
 ## 0.1.28 — The charts in both themes, and the access log whole (2026-10-09)
 
 - Console f4448e2: the charts' six tones are a palette the console has (four series drew in
