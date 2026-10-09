@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.1.24 — The console's Quality is a harness: judges and monitors as its tabs, Test opens on an overview (2026-10-09)
+
+- Console 63bf329: Quality's judges table is a tab of its own beside **Monitors** — the
+  world's monitors, set and dropped there, each with the last day it fired; an agent's Test opens
+  on an overview of the harness: personas, simulations, judges, goldens, cases and monitors, each
+  with its number, and the latest runs.
+
 ## 0.1.23 — Monitors: a number of the series watched, fired once a day (2026-10-09)
 
 - **Monitors**: `POST /v1/monitors` watches one number of the series — end-to-end or first-token
