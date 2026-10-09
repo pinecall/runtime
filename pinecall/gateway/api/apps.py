@@ -206,7 +206,7 @@ class AppSocket:
                 self.gateway.connections.pool, scope.org, scope.env, holding=len(others)
             )
         except QuotaExhausted as refused:
-            await exhausted(self.gateway.logs, scope.org, slug, refused)
+            await exhausted(self.gateway.connections, self.gateway.logs, scope, slug, refused)
             raise
         entry = await self.gateway.sockets.register(self.id, scope, slug, wanted)
         await self.send(entry)

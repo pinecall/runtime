@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.1.25 — A webhook for the org's alerts (2026-10-09)
+
+- **Webhook**: `PUT /v1/webhook` names a URL of the org's own; every alert — `monitor.fired`,
+  `spend.unusual`, `credits.exhausted` — is posted there as it is written on the agent's log,
+  `{type, org, env, agent, at, data}`, signed with `x-pinecall-signature: sha256=<hmac>` when the
+  org set a secret, tried twice within five seconds. `POST /v1/webhook/test` proves the URL.
+  `monitor.fired` says its `env`.
+
 ## 0.1.24 — The console's Quality is a harness: judges and monitors as its tabs, Test opens on an overview (2026-10-09)
 
 - Console 63bf329: Quality's judges table is a tab of its own beside **Monitors** — the

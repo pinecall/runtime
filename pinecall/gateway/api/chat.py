@@ -183,7 +183,13 @@ async def _turns(websocket: WebSocket, gateway: Gateway, session: Session) -> No
                     at=gateway.logs.store.clock(),
                 )
             except QuotaExhausted as refused:
-                await exhausted(gateway.logs, scope.org, session.call.config.slug, refused)
+                await exhausted(
+                    gateway.connections,
+                    gateway.logs,
+                    Scope(scope.org, scope.env),
+                    session.call.config.slug,
+                    refused,
+                )
                 await text.end(session, "timeout", "platform")
                 await websocket.close(
                     code=_deps.POLICY_VIOLATION, reason=_deps.close_reason(str(refused))

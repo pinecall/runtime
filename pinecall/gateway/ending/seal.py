@@ -12,6 +12,7 @@ from pinecall.domain.agent import AgentConfig, Model
 from pinecall.domain.errors import NotAvailable, PinecallError, QuotaExhausted
 from pinecall.evals import dataset, judges
 from pinecall.evals.compliance import Compliance, Panel
+from pinecall.gateway import _alerts
 from pinecall.gateway._call_setup import exhausted, keys_of
 from pinecall.gateway._served import Served, Serving
 from pinecall.gateway.calls.serving import now_of
@@ -131,7 +132,7 @@ async def remembered(serving: Serving, served: Served) -> MemoryWrite | None:
             kept=await memory.kept(pool, served.scope.org, served.scope.env),
         )
     except QuotaExhausted as refused:
-        await exhausted(serving.logs, served.scope.org, served.agent, refused)
+        await exhausted(serving.connections, serving.logs, served.scope, served.agent, refused)
         op = MemoryOp(op="remember", contact=heard.contact, facts=[], took_ms=0.0)
         await served.log.append("memory.ops", MemoryOps(ops=[op]).written())
         return MemoryWrite(op=op, usage=None)
@@ -324,9 +325,12 @@ async def _monitored(serving: Serving, served: Served) -> None:
                 value=value,
                 window_days=monitor.window_days,
                 agent=monitor.agent,
+                env=served.scope.env,
                 day=day.isoformat(),
             )
-            await serving.logs.agent(served.agent).append("monitor.fired", fired.written())
+            await _alerts.raised(
+                serving.connections, serving.logs, served.scope, served.agent, fired
+            )
     except psycopg.Error:
         logger.warning("call %s: the monitors were not read", served.call, exc_info=True)
 
@@ -350,6 +354,6 @@ async def _watched(serving: Serving, served: Served) -> None:
             usual_usd=found.usual_usd,
             multiple=found.multiple,
         )
-        await serving.logs.agent(served.agent).append("spend.unusual", text.written())
+        await _alerts.raised(serving.connections, serving.logs, served.scope, served.agent, text)
     except psycopg.Error:
         logger.warning("call %s: the org's spend was not looked at", served.call, exc_info=True)

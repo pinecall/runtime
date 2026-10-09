@@ -238,7 +238,7 @@ async def admit_call(gateway: Gateway, scope: Scope, agent: str) -> admission.Ce
             at=gateway.logs.store.clock(),
         )
     except QuotaExhausted as refused:
-        await exhausted(gateway.logs, scope.org, agent, refused)
+        await exhausted(gateway.connections, gateway.logs, scope, agent, refused)
         raise
 
 

@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from tests.fakes.twilio import Twilio
+from tests.fakes.webhooks import HOST, Receiver
 
 
 @dataclass
@@ -38,12 +39,14 @@ class Graph:
         return httpx.Response(200, json={"messages": [{"id": f"wamid.{len(self.sent)}"}]})
 
 
-def outside(twilio: Twilio, graph: Graph) -> httpx.MockTransport:
-    """One transport for everything outside the box: Meta's Graph, and Twilio for the rest."""
+def outside(twilio: Twilio, graph: Graph, receiver: Receiver) -> httpx.MockTransport:
+    """One transport for everything outside the box: Graph, a webhook, Twilio for the rest."""
 
     def answer(request: httpx.Request) -> httpx.Response:
         if request.url.host == "graph.facebook.com":
             return graph.answer(request)
+        if request.url.host == HOST:
+            return receiver.answer(request)
         return twilio.transport().handle_request(request)
 
     return httpx.MockTransport(answer)

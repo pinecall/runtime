@@ -21,6 +21,7 @@ from tests.conftest import settings_of
 from tests.fakes.livekit import Server, per_world
 from tests.fakes.meta import Graph, outside
 from tests.fakes.twilio import Twilio
+from tests.fakes.webhooks import Receiver
 
 DOMAIN = "box.test"
 HERE = "sip:box.test:5060;transport=udp"
@@ -78,7 +79,7 @@ async def line(pool: Pool, graph: Graph) -> AsyncIterator[Line]:
     org = await orgs.create(pool, "clinica", "Clinica")
     twilio = Twilio()
     servers = per_world()
-    async with httpx.AsyncClient(transport=outside(twilio, graph)) as http:
+    async with httpx.AsyncClient(transport=outside(twilio, graph, Receiver())) as http:
         sealed = vault_of(Fernet.generate_key().decode())
         yield Line(
             Connections(

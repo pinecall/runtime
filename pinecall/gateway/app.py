@@ -71,6 +71,7 @@ from pinecall.gateway.api import (
     threads,
     usage,
     visitors,
+    webhooks,
     whatsapp,
     widget,
 )
@@ -224,6 +225,7 @@ ROUTERS = (
     threads,
     usage,
     visitors,
+    webhooks,
     whatsapp,
     widget,
 )

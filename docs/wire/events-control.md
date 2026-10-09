@@ -203,6 +203,7 @@ A monitor's number crossed its line over its window (`pinecall monitors`, the co
 | `value` | `number` | yes | The metric over the window, which crossed it. |
 | `window_days` | `integer` | yes | The window: 1, 7 or 30 whole UTC days ending today. |
 | `agent` | `string | null` | yes | The agent watched, or null for every agent of the world. |
+| `env` | `Env` | yes | The world whose calls crossed it, `sandbox` or `production`: an agent's log is both worlds', so the alert says which. |
 | `day` | `string` | yes | The UTC day it fired, `YYYY-MM-DD`. |
 
 ### `spend.unusual`

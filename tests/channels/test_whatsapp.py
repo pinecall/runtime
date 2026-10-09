@@ -28,6 +28,7 @@ from tests.channels.conftest import Line
 from tests.conftest import DSN, postgres
 from tests.fakes.meta import Graph, outside
 from tests.fakes.twilio import Twilio
+from tests.fakes.webhooks import Receiver
 
 SIGNING = "the app's own secret"
 OUR_NUMBER = "+59829001199"
@@ -160,7 +161,7 @@ def test_a_body_that_is_not_a_message_envelope_at_all_yields_none(body: bytes) -
 
 async def test_a_reply_goes_from_the_number_written_to_with_no_preview_on_the_token() -> None:
     graph = Graph()
-    async with httpx.AsyncClient(transport=outside(Twilio(), graph)) as http:
+    async with httpx.AsyncClient(transport=outside(Twilio(), graph, Receiver())) as http:
         (message,) = whatsapp.messages_in(a_body(a_text("hola")))
         await whatsapp.send_text(http, "a token", message, "¡Hola Ana!")
     (sent,) = graph.sent
@@ -174,7 +175,7 @@ async def test_a_reply_goes_from_the_number_written_to_with_no_preview_on_the_to
 
 async def test_a_reply_meta_refuses_is_refused_in_metas_own_words() -> None:
     graph = Graph(refusal=(400, "Message failed to send because more than 24 hours have passed"))
-    async with httpx.AsyncClient(transport=outside(Twilio(), graph)) as http:
+    async with httpx.AsyncClient(transport=outside(Twilio(), graph, Receiver())) as http:
         (message,) = whatsapp.messages_in(a_body(a_text("hola")))
         with pytest.raises(UpstreamFailed, match="more than 24 hours"):
             await whatsapp.send_text(http, "a token", message, "hola")
@@ -185,7 +186,7 @@ async def test_a_reply_meta_refuses_is_refused_in_metas_own_words() -> None:
 
 async def test_the_number_an_account_answers_at_is_asked_of_meta_in_e164() -> None:
     graph = Graph(number="+1 555-010-0000", name="Clinica Norte")
-    async with httpx.AsyncClient(transport=outside(Twilio(), graph)) as http:
+    async with httpx.AsyncClient(transport=outside(Twilio(), graph, Receiver())) as http:
         assert await whatsapp.display_number(http, "a token", "1055") == (
             "+15550100000",
             "Clinica Norte",

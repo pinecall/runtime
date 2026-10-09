@@ -139,6 +139,10 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/monitors` | evals | The world's monitors — a number of the series watched over a window — each with the last day it fired. |
 | `POST` | `/v1/monitors` | evals | Watch a number: it fires, once a day on the agent's log, when it crosses the line over its window. |
 | `DELETE` | `/v1/monitors/{monitor_id}` | evals | Stop watching. |
+| `GET` | `/v1/webhook` | providers | Where the org's alerts are posted — a monitor fired, the spend unusual, a quota out — and whether the posts are signed; null when nowhere. |
+| `PUT` | `/v1/webhook` | providers | Keep the org's webhook: the URL, and the secret every post is signed with. |
+| `DELETE` | `/v1/webhook` | providers | Forget the org's webhook. |
+| `POST` | `/v1/webhook/test` | providers | One test post to the org's webhook, signed as every alert is, waited for: whether a 2xx came back, else why not. |
 | `GET` | `/v1/insights/series` | calls | Every UTC day of the window — calls, endings, cost, latencies by stage, judges, tools — as the Observability screen draws it. |
 | `GET` | `/v1/insights/drift` | calls | What moved between two days or versions of an agent, and the versions run or set. |
 | `POST` | `/v1/invitations/{token}` | — | Choose a password: the member is active, and here is their first key. |

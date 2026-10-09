@@ -339,7 +339,13 @@ class Threads:
                         at=self.serving.logs.store.clock(),
                     )
                 except QuotaExhausted as refused:
-                    await exhausted(self.serving.logs, scope.org, session.call.config.slug, refused)
+                    await exhausted(
+                        self.serving.connections,
+                        self.serving.logs,
+                        Scope(scope.org, scope.env),
+                        session.call.config.slug,
+                        refused,
+                    )
                     await text.end(session, "timeout", "platform")
                     return
                 try:

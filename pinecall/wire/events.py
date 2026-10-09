@@ -339,6 +339,7 @@ class MonitorFired(WireModel):
     value: float
     window_days: int
     agent: str | None
+    env: Env
     day: str
 
 

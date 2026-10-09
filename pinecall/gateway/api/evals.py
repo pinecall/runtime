@@ -217,7 +217,7 @@ async def run_suite(
     pool, where = gateway.connections.pool, registration.scope
     async with gateway.evals.alone(suite.run.id, body.agent):
         await runs.put(pool, where, suite.run)
-        why = await _judged_suite(gateway, suite, key.org)
+        why = await _judged_suite(gateway, suite, registration.scope)
         done = runs.finished(suite.now) if why is None else runs.stopped(suite.now, why)
         await runs.put(pool, where, done)
     return done
@@ -411,14 +411,14 @@ async def _with_cases(gateway: Gateway, body: RunSuiteRequest, scope: Scope) -> 
     return body.model_copy(update={"goldens": [*body.goldens, *played]})
 
 
-async def _judged_suite(gateway: Gateway, suite: Suite, org: str) -> str | None:
+async def _judged_suite(gateway: Gateway, suite: Suite, scope: Scope) -> str | None:
     judge = (await judge_of(gateway.connections, suite.configured)).running
     model = None if judge is None else llm_of(judge)
     try:
         async with asyncio.timeout(runs.A_RUN_MAY_TAKE_S):
             return await _every_golden(gateway, suite, model)
     except QuotaExhausted as refused:
-        await exhausted(gateway.logs, org, suite.body.agent, refused)
+        await exhausted(gateway.connections, gateway.logs, scope, suite.body.agent, refused)
         return str(refused)
     except TimeoutError:
         return runs.TOOK_TOO_LONG.format(minutes=runs.A_RUN_MAY_TAKE_S // 60)

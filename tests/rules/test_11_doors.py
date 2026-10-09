@@ -46,6 +46,7 @@ from pinecall.gateway.api import (
     threads,
     usage,
     visitors,
+    webhooks,
     whatsapp,
     widget,
 )
@@ -99,6 +100,7 @@ def routes_of_the_gateway() -> frozenset[tuple[str, str]]:
         threads,
         usage,
         visitors,
+        webhooks,
         whatsapp,
         widget,
     )

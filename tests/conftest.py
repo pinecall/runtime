@@ -63,6 +63,7 @@ from tests.fakes.acme import ACME
 from tests.fakes.livekit import A_SECRET, OUR_KEY, acme_plugin, per_world
 from tests.fakes.meta import Graph, outside
 from tests.fakes.twilio import Twilio
+from tests.fakes.webhooks import Receiver
 
 DSN = os.environ.get("DATABASE_URL", "")
 
@@ -356,6 +357,12 @@ def twilio() -> Twilio:
 
 
 @pytest.fixture
+def receiver() -> Receiver:
+    """The URL an org posts its alerts to, answering 200 unless told otherwise."""
+    return Receiver()
+
+
+@pytest.fixture
 def graph() -> Graph:
     """Meta's Graph API as the box's HTTP reaches it."""
     return Graph()
@@ -405,12 +412,12 @@ class Shared:
 
 
 @pytest.fixture
-def shared(twilio: Twilio, graph: Graph) -> Shared:
+def shared(twilio: Twilio, graph: Graph, receiver: Receiver) -> Shared:
     """The box's vault, an in-process signal, and Twilio and Meta answering from fakes."""
     return Shared(
         vault=vault_of(Fernet.generate_key().decode()),
         signal=LocalSignal(),
-        outside=outside(twilio, graph),
+        outside=outside(twilio, graph, receiver),
     )
 
 

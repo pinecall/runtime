@@ -2,6 +2,7 @@
 
 import asyncio
 import dataclasses
+import json
 import logging
 from collections.abc import AsyncIterator
 from dataclasses import replace
@@ -15,6 +16,7 @@ from pinecall.domain.monitor import Monitor
 from pinecall.domain.names import JsonObject
 from pinecall.domain.org import Quotas
 from pinecall.domain.scope import Scope
+from pinecall.domain.webhook import Webhook
 from pinecall.evals import dataset
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway.calls.serving import opened, served_call
@@ -25,7 +27,7 @@ from pinecall.providers import catalog
 from pinecall.providers.catalog import Embedding, Judge, Rate
 from pinecall.retrieval import memory
 from pinecall.retrieval.embed import Embedder
-from pinecall.tenancy import admission, consents, judges, monitors, orgs
+from pinecall.tenancy import admission, consents, judges, monitors, orgs, webhooks
 from pinecall.tenancy.consents import Given
 from pinecall.wire.frames import Entry
 from pinecall.wire.metrics import LLMModelUsage
@@ -33,6 +35,7 @@ from pinecall.wire.rest.calls import SealCallRequest
 from pinecall.wire.scores import CallScore
 from tests.conftest import configured, postgres
 from tests.fakes.embeddings import Embeddings
+from tests.fakes.webhooks import Receiver
 from tests.gateway.conftest import AGENT, OURS, a_call, a_start
 
 COUNTED = "select held, broken, config_version from judge_days where org = %(org)s"
@@ -124,10 +127,13 @@ async def test_the_seal_counts_the_calls_verdicts_into_its_days_drift_once(wired
 
 
 @postgres
-async def test_the_seal_fires_a_monitor_that_crossed_its_line_once_a_day(wired: Gateway) -> None:
+async def test_the_seal_fires_a_monitor_that_crossed_its_line_once_a_day(
+    wired: Gateway, receiver: Receiver
+) -> None:
     pool = wired.connections.pool
     org = await orgs.create(pool, "clinica-norte", "Clinica Norte")
     scope = Scope(org.id, "sandbox")
+    await webhooks.put_webhook(pool, wired.connections.vault, org.id, Webhook(receiver.url))
     busy = Monitor("", "any call at all", "calls", above=True, threshold=0, window_days=1)
     kept = await monitors.put_monitor(pool, scope, busy, "m_ana")
     for _ in range(2):
@@ -145,6 +151,9 @@ async def test_the_seal_fires_a_monitor_that_crossed_its_line_once_a_day(wired: 
     assert (fired[0].data["monitor"], fired[0].data["value"]) == (kept.id, 1.0)
     [read] = await monitors.monitors_of(pool, scope)
     assert read.fired_value == 1.0
+    [post] = receiver.heard
+    assert post.headers["x-pinecall-event"] == "monitor.fired"
+    assert (fired[0].data["env"], json.loads(post.content)["env"]) == ("sandbox", "sandbox")
 
 
 @postgres

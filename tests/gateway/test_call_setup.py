@@ -6,6 +6,7 @@ from pinecall.gateway._call_setup import exhausted, keys_of
 from pinecall.gateway._gateway import Gateway
 from pinecall.log.logs import Logs
 from pinecall.log.store import Store
+from pinecall.process.connections import Connections
 from pinecall.tenancy import vault
 from pinecall.tenancy.orgs import create
 from tests.conftest import postgres
@@ -14,10 +15,12 @@ AGENT = "front-desk"
 
 
 @postgres
-async def test_a_refusal_that_names_its_quota_is_written_on_the_agents_log(store: Store) -> None:
+async def test_a_refusal_that_names_its_quota_is_written_on_the_agents_log(
+    store: Store, connections: Connections
+) -> None:
     logs = Logs(store)
     refused = QuotaExhausted("out of minutes", quota="minutes", used=30, limit=30)
-    await exhausted(logs, "org_1", AGENT, refused)
+    await exhausted(connections, logs, Scope("org_1", "sandbox"), AGENT, refused)
     written = await store.whole(f"@{AGENT}")
     assert [(entry.type, entry.data["quota"]) for entry in written] == [
         ("credits.exhausted", "minutes")
@@ -25,8 +28,12 @@ async def test_a_refusal_that_names_its_quota_is_written_on_the_agents_log(store
 
 
 @postgres
-async def test_a_refusal_with_no_quota_writes_nothing(store: Store) -> None:
-    await exhausted(Logs(store), "org_1", AGENT, QuotaExhausted("no"))
+async def test_a_refusal_with_no_quota_writes_nothing(
+    store: Store, connections: Connections
+) -> None:
+    await exhausted(
+        connections, Logs(store), Scope("org_1", "sandbox"), AGENT, QuotaExhausted("no")
+    )
     assert await store.whole(f"@{AGENT}") == []
 
 

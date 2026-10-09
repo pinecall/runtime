@@ -5,8 +5,10 @@ from cryptography.fernet import MultiFernet
 from pinecall.domain.agent import AgentConfig, Versions
 from pinecall.domain.errors import QuotaExhausted
 from pinecall.domain.scope import Scope
+from pinecall.gateway import _alerts
 from pinecall.log.logs import Logs
 from pinecall.postgres.pool import Pool
+from pinecall.process.connections import Connections
 from pinecall.providers.catalog import Providers
 from pinecall.providers.credentials import Keyring
 from pinecall.providers.declared import apply_tuning
@@ -42,12 +44,16 @@ async def keys_of(pool: Pool, sealed: MultiFernet, scope: Scope) -> Keyring:
     )
 
 
-# The refusal is written on the agent's log as the numbers the quota ran out at.
-async def exhausted(logs: Logs, org: str, agent: str, refused: QuotaExhausted) -> None:
+# The refusal is written on the agent's log as the numbers the quota ran out at, and posted to
+# the org's webhook when it has one.
+async def exhausted(
+    connections: Connections, logs: Logs, scope: Scope, agent: str, refused: QuotaExhausted
+) -> None:
     """credits.exhausted on the agent's log, for a refusal that names its quota."""
     if refused.quota is None:
         return
+    org = scope.org
     text = CreditsExhausted.model_validate(
         {"org": org, "quota": refused.quota, "used": refused.used, "limit": refused.limit}
     )
-    await logs.agent(agent).append("credits.exhausted", text.written())
+    await _alerts.raised(connections, logs, scope, agent, text)
