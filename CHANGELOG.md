@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.1.30 — Settings ▸ Telemetry says what the export is (2026-10-09)
+
+- Console 3cc98c9: the Telemetry screen's lede said every call was already traced, which read as
+  if a chat were traced and as if the console depended on the export. It now says the export is a
+  copy of every spoken call's trace, a chat has none, and it is off until set; the rest of the
+  console reads the call's log either way.
+
 ## 0.1.29 — A call's trace says its world, its session and its contact as any tool reads them (2026-10-09)
 
 - Every span of a call also carries the OpenTelemetry conventions `deployment.environment.name`
