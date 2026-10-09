@@ -1,8 +1,10 @@
 """How a call ends: what it taught memory, what it cost, how it was judged, and its log sealed."""
 
 import asyncio
+import dataclasses
 import logging
 from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
 
 import psycopg
 
@@ -13,7 +15,7 @@ from pinecall.evals.compliance import Compliance, Panel
 from pinecall.gateway._call_setup import exhausted, keys_of
 from pinecall.gateway._served import Served, Serving
 from pinecall.gateway.calls.serving import now_of
-from pinecall.log import drift, facts, queries
+from pinecall.log import drift, facts, queries, series
 from pinecall.log.logs import Log
 from pinecall.log.reduce import phone_legs, reduce
 from pinecall.log.store import Store
@@ -24,9 +26,16 @@ from pinecall.providers.catalog import Providers
 from pinecall.providers.credentials import Keyring, thinking
 from pinecall.retrieval import extraction, lookups, memory
 from pinecall.retrieval.extraction import MemoryWrite
-from pinecall.tenancy import admission, consents, disclosure, orgs, policy, spend, vault
+from pinecall.tenancy import admission, consents, disclosure, monitors, orgs, policy, spend, vault
 from pinecall.tenancy.judges import StoredJudge, for_call
-from pinecall.wire.events import CallEnded, CallSummary, ErrorEvent, MemoryOps, SpendUnusual
+from pinecall.wire.events import (
+    CallEnded,
+    CallSummary,
+    ErrorEvent,
+    MemoryOps,
+    MonitorFired,
+    SpendUnusual,
+)
 from pinecall.wire.frames import Entry
 from pinecall.wire.parts import MemoryOp
 from pinecall.wire.rest.calls import SealCallRequest
@@ -100,6 +109,7 @@ async def sealed(
         await drifted(serving.connections.pool, served.call, entries, score)
         await _kept_as_case(serving, served, score)
         await _watched(serving, served)
+        await _monitored(serving, served)
         serving.logs.forget(served.call)
         serving.live.close(served.call)
 
@@ -286,6 +296,39 @@ async def _kept_as_case(serving: Serving, served: Served, score: CallScore) -> N
         await dataset.kept_at_hangup(pool, entries, score, born)
     except psycopg.Error:
         logger.warning("call %s was not kept as a case", served.call, exc_info=True)
+
+
+# The world's monitors read the series over each one's window once the call is folded (the
+# fold above is what the series count). Each fires once a day, on the sealed call's agent's
+# log, with the value that crossed; a read that breaks is logged and the call seals all the same.
+async def _monitored(serving: Serving, served: Served) -> None:
+    """Say, once a day per monitor, that a number of the world crossed its line."""
+    pool = serving.connections.pool
+    world = dataclasses.replace(served.scope, holder="")
+    day = datetime.fromtimestamp(serving.logs.store.clock(), UTC).date()
+    try:
+        for monitor in await monitors.monitors_of(pool, world):
+            first = day - timedelta(days=monitor.window_days - 1)
+            days = await series.series_window(pool, world, first, day, monitor.agent)
+            value = monitors.measured(days, monitor.metric)
+            if value is None or not monitor.crossed(value):
+                continue
+            if not await monitors.fired_today(pool, monitor, day, value):
+                continue
+            fired = MonitorFired(
+                monitor=monitor.id,
+                name=monitor.name,
+                metric=monitor.metric,
+                above=monitor.above,
+                threshold=monitor.threshold,
+                value=value,
+                window_days=monitor.window_days,
+                agent=monitor.agent,
+                day=day.isoformat(),
+            )
+            await serving.logs.agent(served.agent).append("monitor.fired", fired.written())
+    except psycopg.Error:
+        logger.warning("call %s: the monitors were not read", served.call, exc_info=True)
 
 
 # The org's spend is watched once the summary priced the call: today against its own trailing

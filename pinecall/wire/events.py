@@ -328,6 +328,20 @@ class CreditsExhausted(WireModel):
     limit: int
 
 
+class MonitorFired(WireModel):
+    """A monitor's number crossed its line over its window: said once a day, on the agent's log."""
+
+    monitor: str
+    name: str
+    metric: str
+    above: bool
+    threshold: float
+    value: float
+    window_days: int
+    agent: str | None
+    day: str
+
+
 class SpendUnusual(WireModel):
     """The org's calls cost more today than its own days usually do: said once a day."""
 
@@ -628,6 +642,7 @@ EVENTS: dict[str, type[WireModel]] = {
     "room.opened": RoomOpened,
     "room.sent": RoomSent,
     "state.changed": StateChanged,
+    "monitor.fired": MonitorFired,
     "spend.unusual": SpendUnusual,
     "supervisor.ended": SupervisorEnded,
     "supervisor.released": SupervisorReleased,

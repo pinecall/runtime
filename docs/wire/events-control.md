@@ -189,6 +189,22 @@ The answer to ping. Ephemeral: it proves the socket is alive and says nothing el
 |---|---|---|---|
 | `ts` | `number` | yes | The gateway's clock when it answered, unix seconds. |
 
+### `monitor.fired`
+
+A monitor's number crossed its line over its window (`pinecall monitors`, the console's Monitors). Written at the seal of the call that crossed it, on that call's agent's log, once a day per monitor; the monitor keeps the day and the value, so the screen says when it last fired.
+
+| field | type | required | meaning |
+|---|---|---|---|
+| `monitor` | `string` | yes | The monitor's id. |
+| `name` | `string` | yes | The monitor's name, as the org wrote it. |
+| `metric` | `string` | yes | What it watches: `e2e_median_s`, `llm_median_s`, `held_rate`, `escalated_rate`, `tool_failure_rate`, `spend_usd` or `calls`. |
+| `above` | `boolean` | yes | Whether the line is a ceiling (true) or a floor (false). |
+| `threshold` | `number` | yes | The line. |
+| `value` | `number` | yes | The metric over the window, which crossed it. |
+| `window_days` | `integer` | yes | The window: 1, 7 or 30 whole UTC days ending today. |
+| `agent` | `string | null` | yes | The agent watched, or null for every agent of the world. |
+| `day` | `string` | yes | The UTC day it fired, `YYYY-MM-DD`. |
+
 ### `spend.unusual`
 
 The org's calls cost more today than its own days usually do. Written at the seal of the call that crossed the line, on that call's agent's log, once a day for the org; `/metrics` holds the same up as `pinecall_spend_unusual{org}` while it lasts, for the alert. Today is unusual once it costs three times the org's usual day, the mean of its trailing four weeks (both environments, every holder, off the calls' summaries); a usual day under a dollar is never judged, so a new org is never flagged.

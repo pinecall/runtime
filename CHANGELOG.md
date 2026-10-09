@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.1.23 — Monitors: a number of the series watched, fired once a day (2026-10-09)
+
+- **Monitors**: `POST /v1/monitors` watches one number of the series — end-to-end or first-token
+  latency, the judges' held rate, the share a person took over, the share of tools that failed,
+  spend or calls — over 1, 7 or 30 days, above or below a line, for every agent or one. At each
+  call's seal the world's monitors are read; one that crossed fires once a day as
+  `monitor.fired` on the agent's log and keeps the day and the value. `pinecall monitors` and the
+  console's Monitors screen set them.
+- The console's charts bridge a day with nothing by a dotted stroke, and every day with data
+  gets a dot (console d491bcb).
+
 ## 0.1.22 — A call's length counts only when it ended after it started (2026-10-09)
 
 - **A mean length, and an agent's minutes, count only calls that ended after they started**: one

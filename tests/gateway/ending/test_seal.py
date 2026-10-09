@@ -11,6 +11,7 @@ import pytest
 
 from pinecall.domain.agent import AgentConfig, AgentJudge, MemoryPolicy, Versions
 from pinecall.domain.call import CallContext
+from pinecall.domain.monitor import Monitor
 from pinecall.domain.names import JsonObject
 from pinecall.domain.org import Quotas
 from pinecall.domain.scope import Scope
@@ -24,7 +25,7 @@ from pinecall.providers import catalog
 from pinecall.providers.catalog import Embedding, Judge, Rate
 from pinecall.retrieval import memory
 from pinecall.retrieval.embed import Embedder
-from pinecall.tenancy import admission, consents, judges, orgs
+from pinecall.tenancy import admission, consents, judges, monitors, orgs
 from pinecall.tenancy.consents import Given
 from pinecall.wire.frames import Entry
 from pinecall.wire.metrics import LLMModelUsage
@@ -120,6 +121,30 @@ async def test_the_seal_counts_the_calls_verdicts_into_its_days_drift_once(wired
     assert settled, "the code judges settle every call"
     assert sum(row["held"] + row["broken"] for row in rows) == len(settled)
     assert {row["config_version"] for row in rows} == {2}
+
+
+@postgres
+async def test_the_seal_fires_a_monitor_that_crossed_its_line_once_a_day(wired: Gateway) -> None:
+    pool = wired.connections.pool
+    org = await orgs.create(pool, "clinica-norte", "Clinica Norte")
+    scope = Scope(org.id, "sandbox")
+    busy = Monitor("", "any call at all", "calls", above=True, threshold=0, window_days=1)
+    kept = await monitors.put_monitor(pool, scope, busy, "m_ana")
+    for _ in range(2):
+        context = a_call(scope)
+        await wired.logs.store.claim(context.call, AGENT, org.id, Claim(scope, Versions()))
+        served = served_call(wired.serving, None, context, AgentConfig(slug=AGENT), scope)
+        await opened(served.log, context, AGENT)
+        await sealed(wired.serving, served, SealCallRequest(usage=[], outcome="booked"))
+    fired = [
+        entry
+        for entry in await wired.logs.store.whole(log_name(None, AGENT))
+        if entry.type == "monitor.fired"
+    ]
+    assert len(fired) == 1, "the second seal finds it fired today"
+    assert (fired[0].data["monitor"], fired[0].data["value"]) == (kept.id, 1.0)
+    [read] = await monitors.monitors_of(pool, scope)
+    assert read.fired_value == 1.0
 
 
 @postgres
