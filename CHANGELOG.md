@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.1.15 — Settings ▸ Telemetry, padded (2026-10-09)
+
+- The console's Telemetry card reads like the form beside it.
+
 ## 0.1.14 — A call's trace id is the call's (2026-10-09)
 
 - **A call's spans share a trace id a reader can compute**: the call id's 32 hex digits, or the
