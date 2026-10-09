@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.31 — The console's Harness: simulations, personas, judges and monitors in one section (2026-10-09)
+
+- Console 83b945e: the sidebar has a Harness section — Simulations, Personas, Judges, Monitors —
+  for every agent or the one in view; they were tabs of Test and of Quality. With every agent in
+  view, Simulations and Personas list the org's agents and ask whose.
+
 ## 0.1.30 — Settings ▸ Telemetry says what the export is (2026-10-09)
 
 - Console 3cc98c9: the Telemetry screen's lede said every call was already traced, which read as
