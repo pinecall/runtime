@@ -382,8 +382,9 @@ class PersonaRequest(WireModel):
 
 
 class PersonaRow(WireModel):
-    """One caller of the agent as the list shows it."""
+    """One caller of the agent as the list shows it, and whose it is."""
 
+    agent: str
     name: str
     about: str
     goal: str
@@ -400,16 +401,18 @@ class PersonaRow(WireModel):
 
 
 class PersonaList(WireModel):
-    """GET /v1/agents/{slug}/personas: the agent's callers, by name."""
+    """GET /v1/agents/{slug}/personas: the agent's callers by name; /v1/personas, every agent's."""
 
     personas: list[PersonaRow]
 
 
 class PersonaRunRow(WireModel):
-    """One call a persona made: when, how long, how it ended, what it cost, the judges' score."""
+    """One call a persona made: who played it, to whom, when, how it ended, what it cost."""
 
     call: str
     agent: str
+    # Every simulated call names its persona; the facts' column is empty only for a person's call.
+    persona: str | None
     started_at: float
     ended_at: float | None
     turns: int
@@ -420,7 +423,7 @@ class PersonaRunRow(WireModel):
 
 
 class PersonaRunList(WireModel):
-    """GET /v1/agents/{slug}/personas/{name}/runs: a page of the persona's calls, newest first."""
+    """A page of simulated calls, newest first: one persona's, or the world's (/v1/simulations)."""
 
     runs: list[PersonaRunRow]
     total: int

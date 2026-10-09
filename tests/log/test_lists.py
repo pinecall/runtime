@@ -69,3 +69,14 @@ async def test_a_personas_runs_are_the_agents_it_called_and_no_other_agents(
         wanted = PersonaRunFilters(agent=agent, persona="homeowner")
         found = await runs_of_persona(store.pool, scope, wanted, limit=10)
         assert ([run.facts.call for run in found.runs], found.total) == ([call], 1)
+
+
+@postgres
+async def test_no_agent_and_no_persona_named_is_every_simulated_call_and_no_persons(
+    store: Store, org: str
+) -> None:
+    ours = await logged_call(store, org, ACall(persona="homeowner"))
+    theirs = await logged_call(store, org, ACall(agent="another-agent", persona="painter"))
+    await logged_call(store, org, ACall())
+    found = await runs_of_persona(store.pool, Scope(org), PersonaRunFilters(), limit=10)
+    assert ([run.facts.call for run in found.runs], found.total) == ([theirs, ours], 2)

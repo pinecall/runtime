@@ -17,16 +17,25 @@ TAKEN = "{agent} has a persona called {name} already"
 
 
 PERSONAS = """
-SELECT name, about, goal, style, facts, state, llm, tts, voice, accepts_when, declines_when,
-       author, set_at
+SELECT agent, name, about, goal, style, facts, state, llm, tts, voice, accepts_when,
+       declines_when, author, set_at
 FROM agent_personas WHERE org = %(org)s AND agent = %(agent)s
 ORDER BY name
 """
 
 
+# Every agent's callers, the org's whole roster: by agent, then by name.
+EVERY_PERSONA = """
+SELECT agent, name, about, goal, style, facts, state, llm, tts, voice, accepts_when,
+       declines_when, author, set_at
+FROM agent_personas WHERE org = %(org)s
+ORDER BY agent, name
+"""
+
+
 PERSONA = """
-SELECT name, about, goal, style, facts, state, llm, tts, voice, accepts_when, declines_when,
-       author, set_at
+SELECT agent, name, about, goal, style, facts, state, llm, tts, voice, accepts_when,
+       declines_when, author, set_at
 FROM agent_personas WHERE org = %(org)s AND agent = %(agent)s AND name = %(name)s
 """
 
@@ -77,8 +86,9 @@ class Persona:
 
 @dataclass(frozen=True)
 class StoredPersona:
-    """A persona as the agent keeps it: who wrote it last, and when."""
+    """A persona as the agent keeps it: whose it is, who wrote it last, and when."""
 
+    agent: str
     persona: Persona
     author: str
     set_at: datetime
@@ -139,7 +149,15 @@ async def personas_of(pool: Pool, org: str, agent: str) -> list[StoredPersona]:
     return [_persona(row) for row in rows]
 
 
+async def every_persona(pool: Pool, org: str) -> list[StoredPersona]:
+    """Every agent's callers, by agent and then by name."""
+    async with pool.connection() as connection:
+        rows = await (await connection.execute(EVERY_PERSONA, {"org": org})).fetchall()
+    return [_persona(row) for row in rows]
+
+
 def _persona(row: DictRow) -> StoredPersona:
+    agent = row.pop("agent")
     author = row.pop("author")
     set_at = row.pop("set_at")
-    return StoredPersona(persona=Persona(**row), author=author, set_at=set_at)
+    return StoredPersona(agent=agent, persona=Persona(**row), author=author, set_at=set_at)

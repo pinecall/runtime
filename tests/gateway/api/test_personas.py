@@ -178,10 +178,17 @@ async def test_two_agents_may_each_have_a_caller_of_the_same_name(knocking: Knoc
 
 
 @postgres
-async def test_the_old_org_wide_door_is_gone(knocking: Knocking) -> None:
+async def test_the_org_lists_every_agents_callers_each_saying_whose(knocking: Knocking) -> None:
+    await written(knocking, "homeowner")
     async with knocking.http(knocking.app["sandbox"]) as http:
-        gone = await http.get("/v1/personas")
-    assert gone.status_code == 404
+        await http.put(f"{THEIRS}/painter", json={**DANA, "goal": "buy paint"})
+        every = await http.get("/v1/personas")
+    assert every.status_code == 200
+    rows = every.json()["personas"]
+    assert [(row["agent"], row["name"]) for row in rows] == [
+        ("clinica-norte", "homeowner"),
+        ("tienda-sur", "painter"),
+    ]
 
 
 @postgres
@@ -320,3 +327,21 @@ async def test_a_caller_nobody_wrote_for_this_agent_is_a_404_and_not_an_empty_pa
     answer = await runs_of(knocking)
     assert answer.status_code == 404
     assert answer.json()["detail"] == "no persona called homeowner for clinica-norte"
+
+
+@postgres
+async def test_every_simulated_call_of_the_world_is_listed_whoever_played_it(
+    knocking: Knocking,
+) -> None:
+    await a_run(knocking, ARun("CA_ours"))
+    await a_run(knocking, ARun("CA_theirs", persona="painter", agent="tienda-sur"))
+    await a_run(knocking, ARun("CA_a_person", persona=None))
+    async with knocking.http(knocking.app["sandbox"]) as http:
+        answer = await http.get("/v1/simulations?limit=1")
+        rest = await http.get(f"/v1/simulations?before={answer.json()['next']}")
+    body = answer.json()
+    assert [(row["call"], row["agent"], row["persona"]) for row in body["runs"]] == [
+        ("CA_theirs", "tienda-sur", "painter")
+    ]
+    assert body["total"] == 2
+    assert [row["call"] for row in rest.json()["runs"]] == ["CA_ours"]

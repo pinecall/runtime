@@ -1,4 +1,4 @@
-"""The persona doors: an agent's synthetic callers, and what each ran."""
+"""The persona doors: an agent's synthetic callers and what each ran, and the org's at once."""
 
 import re
 from typing import Annotated
@@ -11,7 +11,7 @@ from pinecall.gateway import _deps
 from pinecall.gateway._deps import EvalsKey, GatewayDep, ScopeDep
 from pinecall.gateway._gateway import Gateway
 from pinecall.log import lists
-from pinecall.log.lists import PersonaRunFilters
+from pinecall.log.lists import PersonaRun, PersonaRunFilters
 from pinecall.providers import catalog
 from pinecall.providers.declared import model_of
 from pinecall.tenancy import personas
@@ -44,6 +44,29 @@ class PersonaRunQuery(BaseModel):
 
     limit: int = Field(A_SCREENFUL, ge=1, le=_deps.LONGEST_LIST)
     before: str | None = None
+
+
+# Every agent's callers, the org's roster at once: one list for both worlds, as an agent's is.
+@router.get("/v1/personas")
+async def list_every_persona(key: EvalsKey, gateway: GatewayDep) -> PersonaList:
+    """Every agent's callers, by agent and then by name."""
+    kept = await personas.every_persona(gateway.connections.pool, key.org)
+    return PersonaList(personas=[_row_of(stored) for stored in kept])
+
+
+# Every simulated call of the key's world and scope, whichever agent and persona: the harness's
+# list of runs with every agent in view.
+@router.get("/v1/simulations", dependencies=[Depends(_deps.opening("evals"))])
+async def list_simulations(
+    scope: ScopeDep, gateway: GatewayDep, query: Annotated[PersonaRunQuery, Query()]
+) -> PersonaRunList:
+    """Every simulated call in the key's world and scope, newest first."""
+    found = await lists.runs_of_persona(
+        gateway.connections.pool, scope, PersonaRunFilters(before=query.before), limit=query.limit
+    )
+    return PersonaRunList(
+        runs=[_run_row(run) for run in found.runs], total=found.total, next=found.next
+    )
 
 
 # One list for both worlds: a persona is test data, never heard by a customer.
@@ -114,28 +137,32 @@ async def list_persona_runs(
         PersonaRunFilters(agent=slug, persona=name, before=query.before),
         limit=query.limit,
     )
-    rows = [
-        PersonaRunRow.model_validate(
-            {
-                "call": run.facts.call,
-                "agent": run.facts.agent,
-                "started_at": run.started_at,
-                "ended_at": run.facts.ended_at,
-                "turns": run.turns,
-                "end_reason": run.facts.end_reason,
-                "outcome": run.facts.outcome,
-                "cost_usd": run.facts.cost_usd,
-                "score": run.facts.score,
-            }
-        )
-        for run in found.runs
-    ]
-    return PersonaRunList(runs=rows, total=found.total, next=found.next)
+    return PersonaRunList(
+        runs=[_run_row(run) for run in found.runs], total=found.total, next=found.next
+    )
+
+
+def _run_row(run: PersonaRun) -> PersonaRunRow:
+    return PersonaRunRow.model_validate(
+        {
+            "call": run.facts.call,
+            "agent": run.facts.agent,
+            "persona": run.facts.persona,
+            "started_at": run.started_at,
+            "ended_at": run.facts.ended_at,
+            "turns": run.turns,
+            "end_reason": run.facts.end_reason,
+            "outcome": run.facts.outcome,
+            "cost_usd": run.facts.cost_usd,
+            "score": run.facts.score,
+        }
+    )
 
 
 def _row_of(stored: StoredPersona) -> PersonaRow:
     persona = stored.persona
     return PersonaRow(
+        agent=stored.agent,
         name=persona.name,
         about=persona.about,
         goal=persona.goal,

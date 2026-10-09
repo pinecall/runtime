@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.1.34 — The org's whole harness: every caller and every simulated call (2026-10-09)
+
+- `GET /v1/personas`: every agent's callers, by agent and then by name; a persona row now says
+  `agent`, whichever door lists it.
+- `GET /v1/simulations`: every simulated call of the key's world and scope, newest first, paged as
+  a persona's runs are; a run row now says its `persona`.
+- Console a5b5fbe: the Harness lists every agent's simulations, personas and cases with every
+  agent in view, and Cases is a row of it.
+
 ## 0.1.33 — The console's sidebar keeps the person in sight (2026-10-09)
 
 - Console 64a494d: the person and their bell stay at the sidebar's foot while the rows scroll,
