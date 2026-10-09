@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.1.28 — The charts in both themes, and the access log whole (2026-10-09)
+
+- Console f4448e2: the charts' six tones are a palette the console has (four series drew in
+  no colour, and on dark two were one violet); the tooltip, ticks and crosshair on real tokens.
+- Data & privacy reads every kind of read the runtime records (listen, supervise, export, memory):
+  one such row had refused the whole list.
+
 ## 0.1.27 — The webhook's secret is resealed with the rest (2026-10-09)
 
 - `org_webhooks.ciphertext` joins the columns a vault key rotation walks; 0.1.25 and 0.1.26
