@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from pinecall.domain.agent import AgentConfig, ToolSpec
+from pinecall.domain.agent import AgentConfig, ToolSpec, Voice
 from pinecall.domain.errors import Conflict, NotAvailable
 from pinecall.domain.names import JsonObject
 from pinecall.log.logs import Log
@@ -276,10 +276,12 @@ def test_a_declaration_changes_only_the_fields_the_app_sent() -> None:
     assert patched.tools[0].timeout_s == A_TOOL.timeout_s
 
 
-def test_what_the_org_sets_per_world_is_never_taken_from_a_declaration() -> None:
+def test_what_the_class_declares_of_its_environment_is_taken_and_fixed() -> None:
     current = AgentConfig(slug="a")
-    patched = with_app_fields(current, Declared(voice=VoiceConfig(provider="acme", voice_id="v")))
-    assert patched == current
+    voice = VoiceConfig(provider="cartesia", voice_id="v")
+    patched = with_app_fields(current, Declared(voice=voice))
+    assert patched.voice == Voice("cartesia", None, "v")
+    assert patched.fixed == frozenset({"voice"})
 
 
 def test_the_fields_a_declaration_changed_are_named_sorted() -> None:

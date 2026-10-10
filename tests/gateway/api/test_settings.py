@@ -1,11 +1,20 @@
 """Tests for the settings doors: an agent's tuning and lexicon per scope, and a call's own."""
 
 from pinecall.domain.agent import Tuning, Turn
+from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
-from pinecall.tenancy import scopes
+from pinecall.tenancy import scopes, vault
 from pinecall.tenancy.scopes import Written
 from pinecall.wire.rest.calls import OpenCallRequest
-from tests.conftest import AGENT, Knocking, a_developer, issued, postgres
+from tests.conftest import (
+    AGENT,
+    Knocking,
+    a_developer,
+    issued,
+    postgres,
+    received_until,
+    sent,
+)
 from tests.fakes.acme import ACME, UNKNOWN
 from tests.gateway.api.conftest import a_call, an_app
 
@@ -341,3 +350,66 @@ async def test_a_words_key_writes_the_agents_lexicon(knocking: Knocking) -> None
         written = await supervisor.put(LEXICON, json={"lexicon": {"said": [], "heard": ["GSA"]}})
     assert written.status_code == 200
     assert written.json()["team"]["lexicon"]["heard"] == ["GSA"]
+
+
+@postgres
+async def test_what_the_class_declares_is_named_fixed_and_a_set_of_it_is_refused(
+    knocking: Knocking,
+) -> None:
+    app = await an_app(knocking)
+    declared: JsonObject = {
+        "voice": {"provider": ACME, "voice_id": "class-voice"},
+        "hears": ["GSA"],
+    }
+    await sent(app, "agent.configure", {"config": declared})
+    await received_until(app, "agent.configured")
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        read = await org.get(SETTINGS)
+        voiced = await org.put(SETTINGS, json={"config": {"voice": "org-voice"}})
+        moved = await org.put(SETTINGS, json={"config": {"tts": f"{ACME}/acme-tts"}})
+        greeted = await org.put(SETTINGS, json={"config": {"greeting": {"say": "Hola"}}})
+        heard = await org.put(LEXICON, json={"lexicon": {"said": [], "heard": ["Vidal"]}})
+        spelled = await org.put(
+            LEXICON, json={"lexicon": {"said": [{"word": "GSA", "spoken": "G S A"}], "heard": []}}
+        )
+        words = await org.get(LEXICON)
+    await app.close()
+    assert read.json()["fixed"] == ["hears", "voice"]
+    assert (voiced.status_code, moved.status_code, heard.status_code) == (409, 409, 409)
+    assert voiced.json()["detail"].startswith(f"voice set by the class of {AGENT}")
+    assert "hears set by the class" in heard.json()["detail"]
+    assert (greeted.status_code, spelled.status_code) == (200, 200)
+    assert words.json()["fixed"] == ["hears"]
+
+
+@postgres
+async def test_a_plugins_own_options_are_set_on_the_orgs_key_and_refused_on_the_boxs(
+    knocking: Knocking,
+) -> None:
+    pool, sealed = knocking.gateway.connections.pool, knocking.gateway.connections.vault
+    warmer: JsonObject = {"config": {"llm": "acme/acme-1", "llm_options": {"temperature": 0.5}}}
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        lent = await org.put(SETTINGS, json=warmer)
+        await vault.put_credentials(pool, sealed, knocking.org.id, ACME, "the org's own key")
+        own = await org.put(SETTINGS, json=warmer)
+        cooler = await org.put(SETTINGS, json={"config": {"temperature": 0.1}, "if_version": 1})
+    assert lent.status_code == 409
+    assert "llm options and builds run on the org's own acme key" in lent.json()["detail"]
+    assert own.json()["team"]["config"]["llm_options"] == {"temperature": 0.5}
+    assert cooler.json()["team"]["config"] == {"temperature": 0.1}
+
+
+@postgres
+async def test_a_model_the_class_declares_takes_its_temperature_and_options_with_it(
+    knocking: Knocking,
+) -> None:
+    app = await an_app(knocking)
+    declared: JsonObject = {"llm": {"provider": ACME, "model": "acme-1"}}
+    await sent(app, "agent.configure", {"config": declared})
+    await received_until(app, "agent.configured")
+    async with knocking.http(knocking.app["sandbox"]) as org:
+        warmer = await org.put(SETTINGS, json={"config": {"temperature": 0.9}})
+        plugged = await org.put(SETTINGS, json={"config": {"llm_builds": "OtherLLM"}})
+    await app.close()
+    assert (warmer.status_code, plugged.status_code) == (409, 409)
+    assert warmer.json()["detail"].startswith(f"llm set by the class of {AGENT}")

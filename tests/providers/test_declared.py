@@ -153,3 +153,63 @@ def test_the_models_deadline_is_the_worlds_and_unset_it_is_none(configured: Prov
 
     assert deadline(Tuning()) is None
     assert deadline(Tuning(llm_timeout_s=6.0)) == 6.0
+
+
+def test_what_the_class_fixes_wins_over_the_settings_and_the_rest_is_still_theirs(
+    configured: Providers,
+) -> None:
+    declared = AgentConfig(
+        slug="clinica-norte",
+        language="es",
+        voice=Voice("cartesia", "sonic-2", "class-voice"),
+        llm=Model("openai", "gpt-5.4-mini", builds="responses.LLM"),
+        greeting=Greeting(say="De la clase."),
+        says={"GSA": "G S A"},
+        fixed=frozenset({"language", "voice", "llm", "greeting", "says"}),
+    )
+    tuning = Tuning(
+        language="en",
+        voice="org-voice",
+        llm="anthropic/claude-sonnet-5",
+        stt="deepgram/nova-3",
+        greeting=Greeting(say="Del org."),
+        hangup=Hangup(when="the caller says bye"),
+    )
+    words = Lexicon(said={"Vidal": "vidál"}, heard=("Vidal",))
+    config = apply_tuning(declared, tuning, words, defaults=configured.defaults)
+    assert (config.language, config.voice, config.llm) == ("es", declared.voice, declared.llm)
+    assert (config.greeting, config.says) == (Greeting(say="De la clase."), {"GSA": "G S A"})
+    assert config.stt == Model("deepgram", "nova-3")
+    assert config.hangup == Hangup(when="the caller says bye")
+    assert config.hears == ("Vidal",)
+
+
+def test_a_temperature_and_a_plugins_own_name_the_vendor_in_use_when_none_is_set(
+    configured: Providers,
+) -> None:
+    tuning = Tuning(
+        temperature=0.2,
+        llm_builds="responses.LLM",
+        llm_options={"use_websocket": True},
+        stt_options={"eot_timeout_ms": 900},
+        tts="cartesia",
+        tts_options={"speed": 1.1},
+    )
+    config = apply_tuning(DECLARED, tuning, NOTHING, defaults=configured.defaults)
+    assert config.llm == Model(
+        "anthropic", "", 0.2, builds="responses.LLM", options={"use_websocket": True}
+    )
+    assert config.stt == Model("deepgram", "", options={"eot_timeout_ms": 900})
+    assert config.voice == Voice("cartesia", None, None, options={"speed": 1.1})
+    named = apply_tuning(
+        DECLARED,
+        Tuning(llm="openai/gpt-5.4-mini", temperature=0.5),
+        NOTHING,
+        defaults=configured.defaults,
+    )
+    assert named.llm == Model("openai", "gpt-5.4-mini", 0.5)
+
+
+def test_a_temperature_below_zero_is_refused() -> None:
+    with pytest.raises(DeclarationRefused, match="temperature is a number from 0"):
+        Tuning(temperature=-0.1)

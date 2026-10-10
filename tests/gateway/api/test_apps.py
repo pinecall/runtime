@@ -89,6 +89,19 @@ async def test_a_class_that_searches_with_nothing_attached_is_refused_naming_the
 
 
 @postgres
+async def test_a_class_that_gives_a_plugin_options_on_a_lent_key_is_refused_when_declared(
+    knocking: Knocking,
+) -> None:
+    socket = await an_app(knocking)
+    plugged: JsonObject = {"provider": "acme", "model": "acme-1", "options": {"temperature": 0.5}}
+    await sent(socket, "agent.configure", {"config": {"llm": plugged}})
+    refused = await received(socket)
+    assert refused.type == "error"
+    assert "pinecall providers add acme" in str(refused.data["message"])
+    await socket.close()
+
+
+@postgres
 async def test_a_command_the_protocol_never_heard_of_is_named(knocking: Knocking) -> None:
     socket = await an_app(knocking)
     await sent(socket, "agent.dance", {})

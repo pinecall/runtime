@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+## 0.1.42 — What the class declares wins over the settings (2026-10-10)
+
+- An agent's class may declare its environment again — language, voice, llm, stt, greeting,
+  hangup, turn, says, hears, knowledge, docs, memory, record — and **what it declares wins** over
+  the org's settings for that agent (`providers/declared.py`). The declaration remembers which it
+  fixed (`AgentConfig.fixed`); a field sent as null is the settings' again.
+- A declared voice names its vendor and its voice, and a declared model a vendor that is installed
+  and does the stage, or the configure is refused (`session/_environment.py`).
+- `VoiceConfig` and `ModelConfig` carry `builds` and `options`: a class of the vendor's plugin,
+  dotted names allowed (`responses.LLM`), and its keyword arguments, each over the operator's. An
+  OpenAI model declared with `{builds: "responses.LLM", options: {use_websocket: true}}` runs on
+  the Responses API's WebSocket.
+- The settings and lexicon doors list the fields the class fixes (`fixed`), and a set that changes
+  one is `409` naming it and the class.
+- The settings gain `temperature`, `llm_builds`, `llm_options`, `stt_builds`, `stt_options`,
+  `tts_builds` and `tts_options`: everything a class can declare of a stage, the settings can set.
+- The console's Configure shows a field the class fixes read-only, "set by the class", and gains the
+  model's temperature and each stage's plugin class and options (console 69ab3ca).
+- A plugin class or options of the agent's own (class or settings) run only on the org's own key
+  for the vendor: on a lent key they are `409` at `agent.configure`, at a settings `PUT` and when the
+  call's stages are handed out (`providers/credentials.py`), since an option can point a plugin at
+  another server.
+
 ## 0.1.41 — The written caller's tests run on a real written call (2026-10-10)
 
 - `tests/evals/test_simulated.py` drives a real text session against the org's app instead of a

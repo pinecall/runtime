@@ -72,3 +72,10 @@ says in that environment: **null** lends every key the platform holds, an **empt
 otherwise each entry is a vendor (`deepgram`) or a vendor and a model prefix
 (`anthropic/claude-haiku-5-5`). A vendor nobody holds a key for is refused before the call
 opens.
+
+A stage on a lent key runs as the operator configured it: the plugin's class and options are the
+providers row's alone. An agent that names its own (`builds`, `options`, from its class or its
+settings) runs that stage only on the org's own key, and is refused on a lent one — when the class
+registers, when the settings are set, and when a call's stages are handed out — naming the vendor
+and `pinecall providers add`. An option can point a plugin at another server; the platform's key
+goes to the vendor and nowhere else.

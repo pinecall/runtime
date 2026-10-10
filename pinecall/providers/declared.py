@@ -1,4 +1,4 @@
-"""What an agent runs as its org set it: the declaration, its tuning and its lexicon."""
+"""What an agent runs: its declaration, the org's settings over it, the class's own over those."""
 
 import dataclasses
 from collections.abc import Mapping
@@ -15,27 +15,37 @@ SEPARATOR = "/"
 def apply_tuning(
     declared: AgentConfig, tuning: Tuning, lexicon: Lexicon, *, defaults: Mapping[Modality, Stage]
 ) -> AgentConfig:
-    """The declaration with the org's settings over it: what the world set is what runs."""
+    """The declaration with the org's settings over it, and the class's own over those."""
+    fixed = declared.fixed
+
+    def kept[T](name: str, declared_value: T, set_value: T) -> T:
+        return declared_value if name in fixed else set_value
+
     return dataclasses.replace(
         declared,
-        greeting=tuning.greeting,
-        # An app on an SDK before 0.9.19 still declares one; the world's wins.
-        language=declared.language if tuning.language is None else tuning.language,
-        voice=_voice(declared, tuning, defaults),
-        stt=model_of(tuning.stt, "stt", in_use=_in_use(declared.stt, defaults["stt"])),
-        llm=model_of(tuning.llm, "llm", in_use=_in_use(declared.llm, defaults["llm"])),
-        hangup=tuning.hangup,
-        turn=tuning.turn,
-        memory=tuning.memory,
-        record=declared.record if tuning.record is None else tuning.record,
+        greeting=kept("greeting", declared.greeting, tuning.greeting),
+        language=kept(
+            "language",
+            declared.language,
+            declared.language if tuning.language is None else tuning.language,
+        ),
+        voice=kept("voice", declared.voice, _voice(declared, tuning, defaults)),
+        stt=kept("stt", declared.stt, _ears(declared, tuning, defaults)),
+        llm=kept("llm", declared.llm, _thinking(declared, tuning, defaults)),
+        hangup=kept("hangup", declared.hangup, tuning.hangup),
+        turn=kept("turn", declared.turn, tuning.turn),
+        memory=kept("memory", declared.memory, tuning.memory),
+        record=kept(
+            "record", declared.record, declared.record if tuning.record is None else tuning.record
+        ),
         max_duration_s=(
             declared.max_duration_s if tuning.max_duration_s is None else tuning.max_duration_s
         ),
         llm_timeout_s=tuning.llm_timeout_s,
-        knowledge=tuning.knowledge,
-        bases=tuning.bases or (),
-        says=dict(lexicon.said),
-        hears=lexicon.heard,
+        knowledge=kept("knowledge", declared.knowledge, tuning.knowledge),
+        bases=kept("docs", declared.bases, tuning.bases or ()),
+        says=kept("says", declared.says, dict(lexicon.said)),
+        hears=kept("hears", declared.hears, lexicon.heard),
     )
 
 
@@ -56,13 +66,52 @@ def model_of(text: str | None, modality: Modality, *, in_use: str) -> Model | No
 def _voice(
     declared: AgentConfig, tuning: Tuning, defaults: Mapping[Modality, Stage]
 ) -> Voice | None:
-    if tuning.tts is None and tuning.voice is None and tuning.tts_model is None:
+    knobs = (tuning.tts, tuning.voice, tuning.tts_model, tuning.tts_builds, tuning.tts_options)
+    if all(knob is None for knob in knobs):
         return None
     in_use = _in_use(declared.voice, defaults["tts"])
     named = model_of(tuning.tts, "tts", in_use=in_use)
     provider = in_use if named is None else named.provider
     model = tuning.tts_model or (None if named is None else named.model or None)
-    return Voice(provider=provider, model=model, voice_id=tuning.voice)
+    return Voice(
+        provider=provider,
+        model=model,
+        voice_id=tuning.voice,
+        builds=tuning.tts_builds,
+        options=dict(tuning.tts_options or {}),
+    )
+
+
+# A plugin's class or options, or a temperature, belong to one vendor: set on an agent that names
+# none, they name the one in use, which runs then without the default's fallbacks.
+def _thinking(
+    declared: AgentConfig, tuning: Tuning, defaults: Mapping[Modality, Stage]
+) -> Model | None:
+    in_use = _in_use(declared.llm, defaults["llm"])
+    named = model_of(tuning.llm, "llm", in_use=in_use)
+    knobs = (tuning.temperature, tuning.llm_builds, tuning.llm_options)
+    if all(knob is None for knob in knobs):
+        return named
+    return dataclasses.replace(
+        named or Model(provider=in_use, model=""),
+        temperature=tuning.temperature,
+        builds=tuning.llm_builds,
+        options=dict(tuning.llm_options or {}),
+    )
+
+
+def _ears(
+    declared: AgentConfig, tuning: Tuning, defaults: Mapping[Modality, Stage]
+) -> Model | None:
+    in_use = _in_use(declared.stt, defaults["stt"])
+    named = model_of(tuning.stt, "stt", in_use=in_use)
+    if tuning.stt_builds is None and tuning.stt_options is None:
+        return named
+    return dataclasses.replace(
+        named or Model(provider=in_use, model=""),
+        builds=tuning.stt_builds,
+        options=dict(tuning.stt_options or {}),
+    )
 
 
 def _in_use(declared: Model | Voice | None, default: Stage) -> str:

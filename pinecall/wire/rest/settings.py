@@ -2,7 +2,7 @@
 
 from pydantic import Field
 
-from pinecall.domain.names import Env
+from pinecall.domain.names import Env, JsonObject
 from pinecall.wire.frames import WireModel
 from pinecall.wire.parts import (
     DocsConfig,
@@ -31,6 +31,14 @@ class SettingsBody(WireModel):
     record: bool | None = None
     max_duration_s: int | None = None
     llm_timeout_s: float | None = None
+    temperature: float | None = None
+    # Each stage's plugin class and its keyword arguments, the org's own key alone running them.
+    tts_builds: str | None = None
+    tts_options: JsonObject | None = None
+    stt_builds: str | None = None
+    stt_options: JsonObject | None = None
+    llm_builds: str | None = None
+    llm_options: JsonObject | None = None
     knowledge: str | None = None
     bases: list[DocsConfig] | None = None
 
@@ -53,6 +61,9 @@ class SettingsResponse(WireModel):
     yours: SettingsRow | None
     team: SettingsRow | None
     production: SettingsRow | None
+    # The settings the class holding the agent declares itself, by the declaration's names
+    # (`voice`, `llm`, `docs`…): each wins over these, which may not change it while it does.
+    fixed: list[str] = Field(default_factory=list[str])
 
 
 class PutSettingsRequest(WireModel):
@@ -154,6 +165,8 @@ class LexiconResponse(WireModel):
     yours: LexiconRow | None
     team: LexiconRow | None
     production: LexiconRow | None
+    # Which of `says` and `hears` the class holding the agent declares itself: it wins over these.
+    fixed: list[str] = Field(default_factory=list[str])
 
 
 class PutLexiconRequest(WireModel):

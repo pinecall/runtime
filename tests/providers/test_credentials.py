@@ -3,7 +3,7 @@
 import pytest
 
 from pinecall.domain.agent import AgentConfig, Model, Voice
-from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotAvailable
+from pinecall.domain.errors import Conflict, DeclarationRefused, NotAllowed, NotAvailable
 from pinecall.domain.names import JsonObject
 from pinecall.providers.build import Running, Vendor
 from pinecall.providers.catalog import Providers, Stage, StageOptions
@@ -15,6 +15,7 @@ from pinecall.providers.credentials import (
     pipeline,
     readiness,
     refusal,
+    refuse_lent_plugins,
     running,
     thinking,
 )
@@ -172,6 +173,36 @@ def test_a_models_own_tuning_replaces_its_vendors_and_its_request_reaches_the_st
     on_sonnet = AgentConfig(slug="a", llm=Model(provider="anthropic", model="claude-sonnet-5-5"))
     other = pipeline(on_sonnet, tuned, keys).llm
     assert (other.options, other.request) == ({"caching": "ephemeral"}, {})
+
+
+def test_the_plugin_an_agent_names_wins_over_the_operators_and_keeps_the_rest(
+    configured: Providers,
+) -> None:
+    own = Keyring(own={"anthropic": "org-a", "cartesia": "org-c"}, box=THE_BOX)
+    llm = Model("anthropic", "claude-sonnet-5-5", builds="Other", options={"caching": None})
+    voice = Voice("cartesia", "sonic-2", "v-1", options={"speed": 1.1})
+    stages = pipeline(AgentConfig(slug="a", llm=llm, voice=voice), configured, own)
+    assert (stages.llm.builds, stages.llm.options) == ("Other", {"caching": None})
+    assert (stages.tts.builds, stages.tts.options, stages.tts.voice) == (
+        None,
+        {"speed": 1.1},
+        "v-1",
+    )
+    declared_bare = AgentConfig(slug="a", stt=Model("deepgram", "flux-general-multi"))
+    assert pipeline(declared_bare, configured, own).stt.builds == "STTv2"
+
+
+def test_a_plugin_of_the_agents_own_runs_on_the_orgs_key_and_is_refused_on_a_lent_one(
+    configured: Providers,
+) -> None:
+    websocket = Model("openai", "gpt-5.4-mini", builds="responses.LLM")
+    on_the_box = AgentConfig(slug="a", llm=websocket)
+    with pytest.raises(Conflict, match="llm options and builds run on the org's own openai key"):
+        refuse_lent_plugins(on_the_box, configured, Keyring(box={**THE_BOX, "openai": "box-o"}))
+    refuse_lent_plugins(on_the_box, configured, Keyring(own={"openai": "org-o"}, box=THE_BOX))
+    warmer = AgentConfig(slug="a", llm=Model("anthropic", "claude-haiku-5-5", temperature=0.9))
+    refuse_lent_plugins(warmer, configured, Keyring(box=THE_BOX))
+    assert pipeline(warmer, configured, Keyring(box=THE_BOX)).llm.options["temperature"] == 0.9
 
 
 def test_the_model_judged_for_lending_is_the_one_that_runs(configured: Providers) -> None:

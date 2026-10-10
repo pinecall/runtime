@@ -91,6 +91,9 @@ class Voice:
     provider: str
     model: str | None = None
     voice_id: str | None = None
+    # The plugin's class and keyword arguments a class declared, over the operator's.
+    builds: str | None = None
+    options: Mapping[str, Json] = field(default_factory=dict[str, Json])
 
 
 @dataclass(frozen=True)
@@ -100,6 +103,9 @@ class Model:
     provider: str
     model: str
     temperature: float | None = None
+    # The plugin's class and keyword arguments a class declared, over the operator's.
+    builds: str | None = None
+    options: Mapping[str, Json] = field(default_factory=dict[str, Json])
 
 
 @dataclass(frozen=True)
@@ -272,6 +278,16 @@ class Tuning:
     tts_model: str | None = None
     stt: str | None = None
     llm: str | None = None
+    # The model's, in its vendor's range; None is the vendor's default.
+    temperature: float | None = None
+    # A class of the stage's plugin other than its default, and its keyword arguments as the plugin
+    # names them, each over the operator's; the org's own key alone runs them.
+    llm_builds: str | None = None
+    llm_options: Mapping[str, Json] | None = None
+    stt_builds: str | None = None
+    stt_options: Mapping[str, Json] | None = None
+    tts_builds: str | None = None
+    tts_options: Mapping[str, Json] | None = None
     # A tag (`en`, `pt-BR`); None leaves each vendor its own default.
     language: str | None = None
     greeting: Greeting | None = None
@@ -296,6 +312,9 @@ class Tuning:
             ("tts_model", self.tts_model),
             ("stt", self.stt),
             ("llm", self.llm),
+            ("llm_builds", self.llm_builds),
+            ("stt_builds", self.stt_builds),
+            ("tts_builds", self.tts_builds),
             ("language", self.language),
             ("knowledge", self.knowledge),
         )
@@ -306,6 +325,8 @@ class Tuning:
             _check_call_limit(self.max_duration_s)
         if self.llm_timeout_s is not None and self.llm_timeout_s <= 0:
             raise DeclarationRefused("llm_timeout_s is a positive number of seconds")
+        if self.temperature is not None and self.temperature < 0:
+            raise DeclarationRefused("temperature is a number from 0, in the model vendor's range")
 
 
 @dataclass(frozen=True)
@@ -395,6 +416,9 @@ class AgentConfig:
     events: Mapping[str, frozenset[EventSource]] = field(
         default_factory=dict[str, frozenset[EventSource]]
     )
+    # The settings the class itself declares, by their wire names: each wins over the org's
+    # settings for this agent, which may not set it while the class does.
+    fixed: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         parse_slug(self.slug)

@@ -1,12 +1,13 @@
 # An agent's settings — `/v1/agents/{slug}/settings` and `/v1/agents/{slug}/lexicon`
 
-What an agent runs on is the org's, not the class's: which vendors and models, how a call opens and
-ends, how a turn is cut, what is remembered, which knowledge bases it reads, and its lexicon,
-how the voice says a brand and what the ears must know. These endpoints keep all of it **per environment, per
-scope, a version a row**, and a call's head row says which versions it ran on. The class declares
-the contract, the tools, the state, the language, the endpoints, and nothing of this: the environment is put
-on the declaration at the one place every call is built, and a knob the org never set is the
-runtime's default.
+What an agent runs on — which vendors and models, how a call opens and ends, how a turn is cut,
+what is remembered, which knowledge bases it reads, and its lexicon, how the voice says a brand and
+what the ears must know — is the org's to set here, **per environment, per scope, a version a row**,
+and a call's head row says which versions it ran on. The class declares the contract, the tools,
+the state, the endpoints, and may declare any of this too: **what the class declares wins** over
+these settings for its agent (the wire's `AgentConfig`), so a setting it declares is listed under
+`fixed` and refused here with `409`. The environment is put on the declaration at the one place
+every call is built, and a knob nobody set is the runtime's default.
 
 **Two kinds of key open them.** A key that opens `pipeline` (a developer's, an admin's) may set
 everything. A key that opens `words` alone (a supervisor's, a manager's) may set the opening's
@@ -45,15 +46,24 @@ A rollback is a new version equal to an old one, and the history says so.
 { "world": "sandbox",
   "yours":      { "holder": "m_ana", "version": 4, "author": "m_ana", "note": "flat", "set_at": 1758300000, "config": { "voice": "amelia" } },
   "team":       { "holder": "", "version": 11, "author": "m_bruno", "note": null, "set_at": 1758200000, "config": { "llm": "anthropic/claude-haiku-5-5", "greeting": { "say": "Buenas…" } } },
-  "production": null }
+  "production": null,
+  "fixed": ["voice"] }
 ```
 
-Each scope's **own** newest, or null when that scope set nothing; never the fallthrough, because
+`fixed` names the settings the class holding the agent declares itself, by the declaration's names
+(`language`, `voice`, `llm`, `stt`, `greeting`, `hangup`, `turn`, `knowledge`, `docs`, `memory`,
+`record`): these run as the class says whatever the rows below hold. Empty when no app holds the
+agent here, or its class declares none. Each scope's **own** newest, or null when that scope set nothing; never the fallthrough, because
 `if_version` is about the scope being written. `config` carries only the knobs the row set: `voice`,
 `tts`, `tts_model`, `stt`, `llm` (the three model knobs take `vendor/model`, a vendor alone to keep
-its own default model, or a model alone on whichever vendor is in use), `language` (a tag, `en` or
-`pt-BR`, given to the ears and the voice; unset, each vendor's own default, or the language an app on
-an SDK before 0.9.19 still declares), `greeting` (`{say}` or
+its own default model, or a model alone on whichever vendor is in use), `temperature` (the
+model's, in its vendor's range; unset, the vendor's default), `llm_builds`, `stt_builds`,
+`tts_builds` (a class of the stage's plugin other than its default, dots reaching into a module of
+it: `responses.LLM`) and `llm_options`, `stt_options`, `tts_options` (that class's keyword arguments
+as the plugin names them, each replacing the providers row's of the same name; both only on the
+org's own key for the vendor, `409` on a lent one; set on an agent whose row names no vendor for
+the stage, these name the one in use, which then runs without the default's fallbacks), `language` (a tag, `en` or
+`pt-BR`, given to the ears and the voice; unset, each vendor's own default), `greeting` (`{say}` or
 `{reply}`), `hangup {when}`, `turn {min_interruption_words, endpointing_ms, eot_threshold,
 eager_eot_threshold, min_interruption_ms}` (the last is how long the caller must speak over the
 agent before it stops; unset, livekit's own half second), `memory {remember, forget}`, `record`, `max_duration_s` (voice calls; `0` is
@@ -82,7 +92,13 @@ ears — is tried once before anything is kept, on the key a call would use: a l
 answered, half a second of silence heard (ears that take only a whole utterance are tried by their
 first call). The vendor's no is `400 acme refused the voice this sets: no such voice`, in its words;
 a vendor that does not answer is `502 … nothing was kept, try again`. A save that changes no stage
-asks no vendor anything. `409` when the scope is not at `if_version`. Answers the `GET` shape.
+asks no vendor anything. `409` when the scope is not at `if_version`, and `409 voice set by the
+class of clinica-norte: …` when the set changes a knob the class declares (`tts`, `tts_model`,
+`tts_builds` and `tts_options` are the class's `voice`; `temperature`, `llm_builds` and
+`llm_options` its `llm`; `stt_builds` and `stt_options` its `stt`; `bases` its `docs`), before
+anything is tried or kept. A set whose plugin class or options would run on a key the platform
+lends is `409 llm options and builds run on the org's own openai key, and this agent's llm would run
+on the platform's: …`, nothing kept. Answers the `GET` shape.
 
 ## `GET …/settings/history?team=&limit=` · `GET …/settings/diff?against=team|production` · `POST …/settings/rollback {version, team}`
 
@@ -127,9 +143,11 @@ stood when it opened), false otherwise.
 ## The lexicon — `/v1/agents/{slug}/lexicon`
 
 The agent's words: what the voice says in place of a word (`says`) and the words the ears must
-know (`hears`). The class sets neither; each agent has a lexicon of its own, versioned per environment
-and scope as its settings are. `GET` answers `{world, yours, team, production}` of `{holder,
-version, author, note, set_at, lexicon: {said: [{word, spoken}], heard: [string]}}`.
-`PUT {lexicon, if_version, note, team}` is the whole lexicon, with the same `409`, and a blank
-word refused. `GET /v1/agents/{slug}/lexicon/history?team=&limit=`. All three open to `pipeline`
+know (`hears`). Each agent has a lexicon of its own, versioned per environment and scope as its
+settings are, and a class that declares `says` or `hears` wins over it for that half. `GET`
+answers `{world, yours, team, production, fixed}`, each scope `{holder, version, author, note,
+set_at, lexicon: {said: [{word, spoken}], heard: [string]}}` and `fixed` the halves the class
+declares. `PUT {lexicon, if_version, note, team}` is the whole lexicon, with the same `409`, a
+`409 hears set by the class of …` when it changes a half the class declares, and a blank word
+refused. `GET /v1/agents/{slug}/lexicon/history?team=&limit=`. All three open to `pipeline`
 or `words`.

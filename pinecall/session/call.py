@@ -14,6 +14,7 @@ from pinecall.domain.agent import DEFAULT_LAYOUT, AgentConfig, EventSource, Prom
 from pinecall.domain.call import CallContext
 from pinecall.domain.errors import DeclarationRefused, NotAvailable
 from pinecall.domain.names import JsonObject
+from pinecall.session._environment import environment_of
 from pinecall.session._hearing import policy_for
 from pinecall.wire.commands import CallCallback, CallLog, SessionConfigure, StateSet, ToolsSet
 from pinecall.wire.events import (
@@ -315,20 +316,19 @@ class Call:
         await self.writing.write("tools.changed", ToolsChanged(visible=sorted(self.open_tools)))
 
 
-# A declaration is a patch: only the fields sent change. What the org sets per world (the
-# voice, the models, memory, the greeting) comes from its settings and is not taken from here.
+# A declaration is a patch: only the fields sent change. What the class declares of its
+# environment (the voice, the models, memory, the greeting) is taken too, and wins over the org's
+# settings for it (session/_environment.py).
 def with_app_fields(current: AgentConfig, declared: Declared) -> AgentConfig:
     """The agent's declaration with the fields the app sent in place."""
     sent = declared.model_fields_set
-    changed: dict[str, object] = {}
+    changed: dict[str, object] = environment_of(current, declared)
     if "prompt" in sent:
         changed["prompt"] = (
             tuple(PromptBlock(block.name, block.region) for block in declared.prompt)
             if declared.prompt
             else DEFAULT_LAYOUT
         )
-    if "language" in sent:
-        changed["language"] = declared.language
     if "uses_knowledge" in sent:
         changed["uses_knowledge"] = declared.uses_knowledge
     if "tools" in sent:

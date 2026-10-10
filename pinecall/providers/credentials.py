@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from pinecall.domain.agent import AgentConfig, Model, Voice
-from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotAvailable
+from pinecall.domain.errors import Conflict, DeclarationRefused, NotAllowed, NotAvailable
 from pinecall.domain.names import Credentials
 from pinecall.domain.telemetry import Telemetry
 from pinecall.providers.build import Modality, Running, Vendor, installed, primary
@@ -20,6 +20,13 @@ from pinecall.providers.declared import SEPARATOR
 type Availability = Literal["yours", "offered", "bring your own", "broken"]
 
 logger = logging.getLogger(__name__)
+
+
+# An option can point a plugin at another server (`base_url`); a lent key goes to its vendor alone.
+ONLY_ON_ITS_OWN_KEY = (
+    "{stage} options and builds run on the org's own {vendor} key, and this agent's {stage} would "
+    "run on the platform's: add yours with pinecall providers add {vendor}, or take them out"
+)
 
 
 # What a dated snapshot adds to a model's name: `-20251001`, `-2025-08-07`, `@20240229`.
@@ -179,7 +186,8 @@ def stage(
 ) -> Running:
     """One stage on its key: the vendor declared or the default, with the operator's options."""
     if declared is not None:
-        return _on_its_key(modality, declared.provider, declared.model or None, configured, keys)
+        chosen = _on_its_key(modality, declared.provider, declared.model or None, configured, keys)
+        return _as_declared(modality, chosen, declared)
     default = configured.defaults[modality]
     chosen = _on_its_key(modality, default.vendor, default.model, configured, keys)
     backups: list[Running] = []
@@ -191,6 +199,33 @@ def stage(
                 "%s fallback %s has no key this org may run it on", modality, fallback.vendor
             )
     return _over(chosen, *backups)
+
+
+# Checked where an agent declares itself and where its settings are set, not first on a call.
+def refuse_lent_plugins(config: AgentConfig, configured: Providers, keys: Keyring) -> None:
+    """Refuse a stage the agent gives a plugin class or options of its own, on a lent key."""
+    stages: tuple[tuple[Modality, Model | Voice | None], ...] = (
+        ("llm", config.llm),
+        ("stt", config.stt),
+        ("tts", config.voice),
+    )
+    for modality, declared in stages:
+        if declared is not None and (declared.builds is not None or declared.options):
+            stage(modality, declared, configured, keys)
+
+
+# What an agent names of the plugin wins over the operator's options for the vendor: its class,
+# and each keyword argument it names; on the org's own key alone.
+def _as_declared(modality: Modality, chosen: Running, declared: Model | Voice) -> Running:
+    if declared.builds is None and not declared.options:
+        return chosen
+    if chosen.lent:
+        raise Conflict(ONLY_ON_ITS_OWN_KEY.format(stage=modality, vendor=chosen.vendor))
+    return dataclasses.replace(
+        chosen,
+        builds=declared.builds or chosen.builds,
+        options={**chosen.options, **declared.options},
+    )
 
 
 def _a_snapshot_of(entry: str, model: str) -> bool:

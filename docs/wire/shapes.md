@@ -298,6 +298,8 @@ Which voice speaks for the agent: the name it was asked for, or the id the provi
 | `provider` | `string` | no | The TTS provider: elevenlabs, cartesia, rime, hume, or any other vendor LiveKit reaches. Absent when the curated name decides it. Naming it changes what voice_id means: the runtime passes the id through as that vendor's own, because only ElevenLabs' shape is known here. |
 | `model` | `string` | no | The provider's model, when the default is not wanted. |
 | `voice_id` | `string` | no | The provider's id for the voice, in that provider's own shape — a 20-character ElevenLabs id, a Cartesia uuid, a Rime speaker name. |
+| `builds` | `string` | no | A class of the vendor's LiveKit plugin other than its TTS, by its name there; a dotted name reaches into a module of the plugin. Absent, the operator's for the vendor, or the plugin's TTS. |
+| `options` | `object` | no | Keyword arguments for the plugin's class, as the plugin names them, passed as given: each wins over the operator's option of the same name for the vendor. |
 
 ### `ModelConfig`
 
@@ -308,6 +310,8 @@ Which model does a job (the LLM, or the STT), and the one or two knobs worth tur
 | `provider` | `string` | yes | The provider, by its own name or any of the words it answers to: anthropic (claude), openai (gpt), cartesia, deepgram, soniox, groq, google (gemini) — every vendor LiveKit ships a plugin for — or livekit, which is LiveKit Inference and carries the vendor inside the model name (openai/gpt-5-mini). The runtime answers the whole list at GET /v1/providers. |
 | `model` | `string` | yes | The provider's model name. |
 | `temperature` | `number` | no | Sampling temperature, for an LLM. Absent means the provider's default. |
+| `builds` | `string` | no | A class of the vendor's LiveKit plugin other than its LLM or STT, by its name there; a dotted name reaches into a module of the plugin (`responses.LLM`). Absent, the operator's for the vendor, or the plugin's LLM or STT. |
+| `options` | `object` | no | Keyword arguments for the plugin's class, as the plugin names them, passed as given (`{"use_websocket": true}`): each wins over the operator's option of the same name for the vendor. |
 
 ### `TurnConfig`
 
@@ -405,24 +409,24 @@ What memory keeps about a contact across calls, and what it must never keep. Bot
 
 ### `AgentConfig`
 
-What an app declares about its agent: the prompt's layout, the language, the tools, whether it searches its bases itself, and who may see and send what. Every field is optional so a configure can change one thing. The environment — voice, models, greeting, hangup, turn, says, hears, knowledge, docs, memory — is the environment's, set in the agent's settings, and no longer read off this declaration.
+What an app declares about its agent: the prompt's layout, the language, the tools, whether it searches its bases itself, and who may see and send what. Every field is optional so a configure can change one thing. The environment — language, voice, models, greeting, hangup, turn, says, hears, knowledge, docs, memory, record — is the agent's settings' unless the class declares it: **what the class declares wins** over the settings for that agent, which may not set it while the class does (`409`, and the settings doors list it under `fixed`). Sent as null, a field is the settings' again; left out of a configure, it stays as the class last declared it.
 
 | field | type | required | meaning |
 |---|---|---|---|
 | `prompt` | `PromptBlockSpec[]` | no | The blocks of the prompt in the one order they are sent: every static block, then the history, then every dynamic block. Absent, the layout is the default: identity · knowledge · tools, the history, view. |
-| `language` | `string` | no | The language the agent speaks and expects, as a BCP 47 tag: es-ES, es-UY. |
-| `greeting` | `GreetingConfig` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `voice` | `VoiceConfig` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `llm` | `ModelConfig` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `stt` | `ModelConfig` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `turn` | `TurnConfig` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `says` | `Pronunciation[]` | no | Ignored: the environment's, set in the agent's lexicon. Kept one release so an app on an older package still registers; removed in the next. |
-| `hears` | `string[]` | no | Ignored: the environment's, set in the agent's lexicon. Kept one release so an app on an older package still registers; removed in the next. |
-| `knowledge` | `KnowledgeFile` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `docs` | `DocsConfig` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `memory` | `MemoryConfig` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `hangup` | `HangupConfig` | no | Ignored: the environment's, set in the agent's settings. Kept one release so an app on an older package still registers; removed in the next. |
-| `record` | `boolean` | no | Whether this agent's calls keep their audio. The environment's, set in the agent's settings and never in the class: the platform records the whole room, so what is kept is what everybody on the call heard. |
+| `language` | `string` | no | The language the agent speaks and expects, as a BCP 47 tag: es-ES, es-UY. Declared, it wins over the settings' language. |
+| `greeting` | `GreetingConfig` | no | The opening: words said, or a reply the model writes first. Declared, it wins over the settings'. |
+| `voice` | `VoiceConfig` | no | The voice: its vendor and the vendor's own id for it are both required, and may name the plugin's class and options. Declared, it wins over the settings' voice and TTS. |
+| `llm` | `ModelConfig` | no | The model that answers, and may name the plugin's class and options (the OpenAI Responses WebSocket: `builds` `responses.LLM`, `options` `{"use_websocket": true}`). Declared, it wins over the settings'. |
+| `stt` | `ModelConfig` | no | The ears, as llm. Declared, it wins over the settings'. |
+| `turn` | `TurnConfig` | no | When the caller has finished and may interrupt. Declared, it wins over the settings'. |
+| `says` | `Pronunciation[]` | no | How the voice pronounces words. Declared, it wins over the agent's lexicon's. |
+| `hears` | `string[]` | no | Words the ears listen for. Declared, it wins over the agent's lexicon's. |
+| `knowledge` | `KnowledgeFile` | no | The knowledge entry of the prompt. Declared, it wins over the settings'. |
+| `docs` | `DocsConfig` | no | The base the agent searches. Declared, it wins over the settings' bases. |
+| `memory` | `MemoryConfig` | no | What the agent remembers of a caller and forgets. Declared, it wins over the settings'. |
+| `hangup` | `HangupConfig` | no | When the agent hangs up by itself. Declared, it wins over the settings'. |
+| `record` | `boolean` | no | Whether this agent's calls keep their audio; the platform records the whole room, so what is kept is what everybody on the call heard. Declared, it wins over the settings'. |
 | `tools` | `ToolSpec[]` | no | Every tool the agent may ever see. Which ones are visible now is tools.set. |
 | `uses_knowledge` | `boolean` | no | Whether the class searches the knowledge base itself (this.knowledge.search). An environment with no base attached to the agent refuses the registration, so a tool that would find nothing is refused at boot and not on a call. |
 | `state_fields` | `StateFieldSpec[]` | no | Who may see each field of the app's state. A field not listed is tenant: seen by the tenant's readers, never by the public. |

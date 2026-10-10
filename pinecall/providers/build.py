@@ -470,9 +470,12 @@ def _refuse_untaken(modality: Modality, running: Running, knobs: list[str]) -> N
         )
 
 
+# A class may sit in a module of the plugin: `responses.LLM` is its `responses` module's LLM.
 def _class_of(modality: Modality, running: Running) -> type:
     name = running.builds or CLASS_OF[modality]
-    made: object = getattr(plugin(running.vendor), name, None)
+    made: object = plugin(running.vendor)
+    for part in name.split("."):
+        made = getattr(made, part, None)
     if not isinstance(made, type):
         raise DeclarationRefused(
             _NO_SUCH_CLASS.format(vendor=running.vendor, stage=CLASS_OF[modality], name=name)

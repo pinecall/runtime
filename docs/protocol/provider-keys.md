@@ -25,7 +25,14 @@ data.** A vendor is its plugin's class built with the org's key; what it takes i
 parameters, read when it is built (the key, the voice and the language each land under whichever
 name the plugin gave them); what it can do is the class's capabilities (streaming, interim
 results, keyterms, an aligned transcript); whether its ears end the turn themselves
-(`ends_the_turn`), which of its classes runs (`builds`) and its options are the providers row's.
+(`ends_the_turn`), which of its classes runs (`builds`) and its options are the providers row's,
+under what an agent declares or sets for the stage: a class's `@llm(…, {builds, options})` or the
+settings' `llm_builds`/`llm_options` (and the `stt` and `tts` twins) name the class instead and
+replace each option they name, the row's other options kept. Those two are the tenant's own and run
+only on the org's own key for the vendor: on a lent stage they are refused, at `agent.configure`,
+at a settings `PUT` and when the call's stages are handed out, because an option can point the
+plugin at another server (`base_url`) and a lent key goes to the vendor alone. A temperature is not
+an option of this kind and runs on any key.
 Nothing in code names a vendor, so a fifth vendor is `pip install "livekit-agents[<vendor>]"` and a
 row, and the suite proves it before a call does: every installed vendor is built offline with a key
 alone, and either reports the model and the provider the usage reads and the capabilities the

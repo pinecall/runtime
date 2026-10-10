@@ -212,6 +212,10 @@ class VoiceConfig(WireModel):
     provider: str | None = None
     model: str | None = None
     voice_id: str | None = None
+    # A class of the vendor's livekit plugin other than its TTS, and its keyword arguments as
+    # the plugin names them: what a class declares, over the operator's options for the vendor.
+    builds: str | None = None
+    options: JsonObject | None = None
 
 
 class ModelConfig(WireModel):
@@ -220,6 +224,10 @@ class ModelConfig(WireModel):
     provider: str
     model: str
     temperature: float | None = None
+    # A class of the vendor's livekit plugin other than its LLM or STT (`responses.LLM`), and its
+    # keyword arguments as the plugin names them: what a class declares, over the operator's.
+    builds: str | None = None
+    options: JsonObject | None = None
 
 
 class TurnConfig(WireModel):

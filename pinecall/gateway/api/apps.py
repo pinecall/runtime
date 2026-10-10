@@ -18,7 +18,7 @@ from pinecall.domain.errors import (
 from pinecall.domain.names import Json
 from pinecall.domain.person import HOLDING
 from pinecall.gateway import _deps
-from pinecall.gateway._call_setup import exhausted, tuned
+from pinecall.gateway._call_setup import exhausted, keys_of, tuned
 from pinecall.gateway._deps import Acting, AppKey, CallsKey, GatewayDep, ScopeDep
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._served import Served, declared_for_the_call
@@ -35,6 +35,7 @@ from pinecall.gateway.calls.inbox import APP_CHANNEL, Bound, ForApp
 from pinecall.gateway.calls.known import known_here
 from pinecall.gateway.calls.serving import claim_code
 from pinecall.providers import catalog
+from pinecall.providers.credentials import refuse_lent_plugins
 from pinecall.session.call import changed_by, with_app_fields
 from pinecall.session.tools import unanswered
 from pinecall.tenancy import admission, consents, keys
@@ -214,14 +215,18 @@ class AppSocket:
         if wanted.takes_unclaimed:
             await parked_calls_of(self.gateway.live, scope, slug, self.id)
 
-    # A class that searches with no base attached is refused when declared, not mid-call.
+    # A class that searches with no base attached, or gives a plugin options on a key the box
+    # lends, is refused when declared, not mid-call.
     async def _configure(self, slug: str, wanted: AgentConfigure) -> None:
         found = self._holds(slug)
         config = with_app_fields(found.config, wanted.config)
-        configured = await catalog.providers(self.gateway.connections.pool)
-        running, _ = await tuned(self.gateway.connections.pool, config, self.scope, configured)
+        connections = self.gateway.connections
+        configured = await catalog.providers(connections.pool)
+        running, _ = await tuned(connections.pool, config, self.scope, configured)
         if config.uses_knowledge and not running.bases:
             raise DeclarationRefused(SEARCHES_WITH_NOTHING.format(slug=slug, world=self.scope.env))
+        keyring = await keys_of(connections.pool, connections.vault, self.scope)
+        refuse_lent_plugins(running, configured, keyring)
         entry = await self.gateway.sockets.configure(
             self.id, self.scope.env, slug, config, changed_by(wanted.config)
         )

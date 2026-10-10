@@ -210,6 +210,16 @@ def test_a_real_plugin_is_built_by_the_same_path_with_the_class_the_row_names() 
     assert ears.model == "flux-general-multi"
 
 
+def test_a_class_in_a_module_of_the_plugin_is_built_with_the_options_named() -> None:
+    options: JsonObject = {"use_websocket": True}
+    running = Running("openai", "k", model="gpt-5.4-mini", builds="responses.LLM", options=options)
+    thinking = llm_of(running)
+    assert type(thinking).__module__ == "livekit.plugins.openai.responses.llm"
+    assert vars(thinking)["_opts"].use_websocket is True
+    with pytest.raises(DeclarationRefused, match=r"exports no LLM named 'responses\.Nothing'"):
+        llm_of(Running("openai", "k", builds="responses.Nothing"))
+
+
 def test_livekit_inference_is_built_on_the_boxs_pair_with_a_model_that_names_its_vendor() -> None:
     pair: JsonObject = {"api_key": "a-key", "api_secret": "a secret of thirty-two bytes or more"}
     thinking = llm_of(Running(INFERENCE, pair, model="openai/gpt-5-mini"))

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Query
 from pydantic import ValidationError
 
 from pinecall.domain.agent import AgentConfig, Lexicon, Tuning, Turn, Version
-from pinecall.domain.errors import DeclarationRefused, NotAllowed, NotFound
+from pinecall.domain.errors import Conflict, DeclarationRefused, NotAllowed, NotFound
 from pinecall.domain.names import Env
 from pinecall.domain.scope import THE_ORGS_OWN, Scope
 from pinecall.gateway._call_setup import keys_of
@@ -56,6 +56,13 @@ PIPELINE_ONLY = (
     "tts_model",
     "stt",
     "llm",
+    "temperature",
+    "llm_builds",
+    "llm_options",
+    "stt_builds",
+    "stt_options",
+    "tts_builds",
+    "tts_options",
     "language",
     "hangup",
     "turn",
@@ -80,12 +87,36 @@ BANDS = {"eot_threshold": (0.5, 0.9), "eager_eot_threshold": (0.3, 0.9)}
 OUT_OF_BAND = "{knob} {value} is outside {low} to {high}, the band the ears take it in"
 
 
+SET_BY_THE_CLASS = (
+    "{fields} set by the class of {slug}: the class's declaration wins over these settings, so "
+    "change it there, or take it out of the class to set it here"
+)
+
+
+# Every knob of the settings, and the declaration's name for the ones it names otherwise.
+TUNING_KNOBS = tuple(field.name for field in dataclasses.fields(Tuning))
+
+
+DECLARED_AS = {
+    "tts": "voice",
+    "tts_model": "voice",
+    "tts_builds": "voice",
+    "tts_options": "voice",
+    "temperature": "llm",
+    "llm_builds": "llm",
+    "llm_options": "llm",
+    "stt_builds": "stt",
+    "stt_options": "stt",
+    "bases": "docs",
+}
+
+
 # The knobs of each stage: a set that changes one has the stage tried before it is kept, and a
 # save that changes none asks no vendor anything.
 STAGE_KNOBS: dict[Modality, tuple[str, ...]] = {
-    "tts": ("voice", "tts", "tts_model", "language"),
-    "llm": ("llm",),
-    "stt": ("stt", "turn", "language"),
+    "tts": ("voice", "tts", "tts_model", "tts_builds", "tts_options", "language"),
+    "llm": ("llm", "temperature", "llm_builds", "llm_options"),
+    "stt": ("stt", "stt_builds", "stt_options", "turn", "language"),
 }
 
 
@@ -112,6 +143,9 @@ async def put_settings(
     written_to = _written_to(scope, team=body.team)
     wanted = _tuning_of(body.config)
     newest = await _newest(pool, written_to, slug)
+    _refuse_what_the_class_sets(
+        gateway, scope, slug, [knob for knob in TUNING_KNOBS if _changes(wanted, newest, knob)]
+    )
     if "pipeline" not in key.bearer.key.scopes:
         wanted = _words_only(wanted, newest)
     stages = await _checked(gateway, written_to, slug, wanted)
@@ -276,6 +310,13 @@ async def put_lexicon(
     wanted = Lexicon(
         said={item.word: item.spoken for item in body.lexicon.said}, heard=tuple(body.lexicon.heard)
     )
+    kept = await scopes.lexicon_side_by_side(gateway.connections.pool, written_to, slug)
+    newest = kept.team if written_to.holder == THE_ORGS_OWN else kept.yours
+    before = Lexicon() if newest is None else newest.value
+    changed = {"says": wanted.said != before.said, "hears": wanted.heard != before.heard}
+    _refuse_what_the_class_sets(
+        gateway, scope, slug, [name for name, is_new in changed.items() if is_new]
+    )
     written = Written(author=_author(key), note=body.note, if_version=body.if_version)
     await scopes.put_lexicon(gateway.connections.pool, written_to, slug, wanted, written)
     return await _lexicon_side_by_side(gateway, scope, slug, world=key.env)
@@ -368,6 +409,22 @@ async def _tried_where_changed(stages: Pipeline, wanted: Tuning, newest: Tuning)
             await tried.tried(stage, running[stage], wanted.turn)
 
 
+# The class's declaration wins over the settings, so a setting it declares is refused here
+# rather than written to no effect. Its names are the declaration's; a knob is one of them.
+def _refuse_what_the_class_sets(
+    gateway: Gateway, scope: Scope, slug: str, knobs: list[str]
+) -> None:
+    fixed = _fixed_by_the_class(gateway, scope, slug)
+    taken = sorted({DECLARED_AS.get(knob, knob) for knob in knobs} & fixed)
+    if taken:
+        raise Conflict(SET_BY_THE_CLASS.format(fields=", ".join(taken), slug=slug))
+
+
+def _fixed_by_the_class(gateway: Gateway, scope: Scope, slug: str) -> frozenset[str]:
+    registration = gateway.sockets.of(scope, slug)
+    return frozenset() if registration is None else registration.config.fixed
+
+
 def _changes(wanted: Tuning, newest: Tuning, knob: str) -> bool:
     value: object = getattr(wanted, knob)
     return value is not None and value != getattr(newest, knob)
@@ -416,6 +473,7 @@ async def _side_by_side(
         yours=None if kept.yours is None else _settings_row(kept.yours),
         team=None if kept.team is None else _settings_row(kept.team),
         production=None if kept.production is None else _settings_row(kept.production),
+        fixed=sorted(_fixed_by_the_class(gateway, scope, slug)),
     )
 
 
@@ -428,6 +486,7 @@ async def _lexicon_side_by_side(
         yours=None if kept.yours is None else _lexicon_row(kept.yours),
         team=None if kept.team is None else _lexicon_row(kept.team),
         production=None if kept.production is None else _lexicon_row(kept.production),
+        fixed=sorted(_fixed_by_the_class(gateway, scope, slug) & {"says", "hears"}),
     )
 
 
