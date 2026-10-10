@@ -159,8 +159,9 @@ class Running:
     hints: tuple[str, ...] = ()
     # The ears end the turn themselves, so the session stacks no detector on top.
     ends_the_turn: bool = False
-    # Which local model reads the end of the turn off the audio, where the ears do not.
-    turn_model: TurnModel = "v1-mini"
+    # Which local model reads the end of the turn off the audio, where the ears do not: Smart
+    # Turn v3 unless the operator's row or the agent names another.
+    turn_model: TurnModel = "smart-turn-v3"
     # What every request of an llm stage carries beside the conversation, in the vendor's names.
     request: JsonObject = field(default_factory=dict[str, Json])
     # On the box's key rather than the org's own.

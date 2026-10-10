@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.1.44 — Smart Turn v3 ends the turn wherever the ears do not (2026-10-10)
+
+- Ears that do not end the turn themselves (everything but Deepgram Flux) run Smart Turn v3 by
+  default, not livekit's v1-mini: the providers row's `turn_model` left out is Smart Turn now, and
+  an agent's `end_of_turn` still wins. Migration 0104 takes `v1-mini` out of the row where the
+  console had written it only as the default, so production's ears move to Smart Turn too.
+
 ## 0.1.43 — Who ends the turn is the agent's to say, and an opening is not cut short (2026-10-10)
 
 - `end_of_turn` on the ears (`ModelConfig.end_of_turn`, a class's `@stt(…, { endOfTurn })`, the

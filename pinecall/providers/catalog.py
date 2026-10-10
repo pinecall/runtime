@@ -79,8 +79,9 @@ class StageOptions(BaseModel):
     options: JsonObject = Field(default_factory=dict[str, Json])
     # The ears end the turn themselves, so the session stacks no detector on top.
     ends_the_turn: bool = False
-    # Where they do not, which local model reads the end of the turn off the audio.
-    turn_model: TurnModel = "v1-mini"
+    # Where they do not, which local model reads the end of the turn off the audio; None is the
+    # platform's, Smart Turn v3 (`Running`'s own).
+    turn_model: TurnModel | None = None
     # What every request of an llm stage carries beside the conversation, in the vendor's own
     # field names (`{"thinking": {"type": "disabled"}}`): livekit's extra_kwargs, each request.
     request: JsonObject = Field(default_factory=dict[str, Json])

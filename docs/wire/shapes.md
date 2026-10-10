@@ -318,7 +318,7 @@ Which model does a job (the LLM, or the STT), and the one or two knobs worth tur
 | `temperature` | `number` | no | Sampling temperature, for an LLM. Absent means the provider's default. |
 | `builds` | `string` | no | A class of the vendor's LiveKit plugin other than its LLM or STT, by its name there; a dotted name reaches into a module of the plugin (`responses.LLM`). Absent, the operator's for the vendor, or the plugin's LLM or STT. |
 | `options` | `object` | no | Keyword arguments for the plugin's class, as the plugin names them, passed as given (`{"use_websocket": true}`): each wins over the operator's option of the same name for the vendor. |
-| `end_of_turn` | `EndOfTurn` | no | The ears' alone, refused on a model: who says the caller's turn is over — `stt`, the ears themselves (only where the operator's row says this vendor's class ends the turn, as Deepgram Flux does; refused otherwise), `livekit`, livekit's detector (v1-mini), or `smart-turn`, Daily's Smart Turn v3, both read off the audio on the worker and run on any key. Absent, the operator's choice for the vendor. |
+| `end_of_turn` | `EndOfTurn` | no | The ears' alone, refused on a model: who says the caller's turn is over — `stt`, the ears themselves (only where the operator's row says this vendor's class ends the turn, as Deepgram Flux does; refused otherwise), `livekit`, livekit's detector (v1-mini), or `smart-turn`, Daily's Smart Turn v3, both read off the audio on the worker and run on any key. Absent, the operator's choice for the vendor: the ears where the row says they end the turn, Smart Turn v3 otherwise unless the row names livekit's. |
 
 ### `TurnConfig`
 

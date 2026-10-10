@@ -268,7 +268,7 @@ def _on_its_key(
         builds=options.builds,
         options=dict(options.options),
         ends_the_turn=options.ends_the_turn,
-        turn_model=options.turn_model,
+        turn_model=options.turn_model or chosen.turn_model,
         request=dict(options.request),
     )
 

@@ -433,3 +433,17 @@ def test_who_ends_the_turn_is_the_ears_only_where_they_can_or_a_model_on_the_wor
     on_its_own = AgentConfig(slug="a", stt=Model("cartesia", "", end_of_turn="stt"))
     with pytest.raises(DeclarationRefused, match="cartesia does not end the turn itself"):
         refuse_what_cannot_run(on_its_own, configured, keys)
+
+
+def test_ears_that_do_not_end_the_turn_run_smart_turn_unless_someone_names_another(
+    configured: Providers,
+) -> None:
+    keys = Keyring(box=THE_BOX)
+    plain = pipeline(AgentConfig(slug="a", stt=Model("cartesia", "")), configured, keys).stt
+    assert (plain.ends_the_turn, plain.turn_model) == (False, "smart-turn-v3")
+    named = StageOptions(turn_model="v1-mini")
+    tuned = configured.model_copy(update={"tuning": {**configured.tuning, "stt/cartesia": named}})
+    assert (
+        pipeline(AgentConfig(slug="a", stt=Model("cartesia", "")), tuned, keys).stt.turn_model
+        == "v1-mini"
+    )

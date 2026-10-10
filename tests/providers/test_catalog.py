@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from pinecall.domain.errors import Conflict, DeclarationRefused, NotAvailable
+from pinecall.postgres.migrate import migration_files
 from pinecall.postgres.pool import Pool
 from pinecall.providers.catalog import (
     Embedding,
@@ -191,3 +192,19 @@ def test_ears_that_take_over_end_the_turn_as_the_default_does(configured: Provid
         }
     )
     assert checked(alike) == alike
+
+
+@postgres
+async def test_v1_mini_written_only_as_the_default_gives_way_to_smart_turn(
+    pool: Pool, configured: Providers
+) -> None:
+    spelled = StageOptions(turn_model="v1-mini")
+    flux = StageOptions(builds="STTv2", ends_the_turn=True, turn_model="v1-mini")
+    tuning = {**configured.tuning, "stt/cartesia": spelled, "stt/deepgram": flux}
+    await seed(pool, configured.model_copy(update={"tuning": tuning}))
+    migration = next(path for path in migration_files() if "smart_turn" in path.name)
+    async with pool.connection() as connection:
+        await connection.execute(migration.read_bytes())
+    after = (await providers(pool)).tuning
+    assert (after["stt/cartesia"].turn_model, after["stt/deepgram"].turn_model) == (None, None)
+    assert after["stt/deepgram"].ends_the_turn
