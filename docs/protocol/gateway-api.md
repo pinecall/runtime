@@ -135,10 +135,13 @@ When every worker is full the token endpoint answers `503` and a page offers a c
 agent's log; `GET /v1/callbacks?agent=&after=` lists them for your app to dial, each in the environment of
 the call it names: the sandbox's key lists the sandbox's, production's lists production's.
 
-The worker's endpoints (`POST /v1/calls`, `/events`, `/entries`, `/sealed`, `/tools`, `/lookup`,
+The worker's endpoints (`POST /v1/calls`, `/events`, `/entries`, `/sealed`, `/tools`,
 `/remember`, `/recording/key`, `/commands`) belong to whoever opened the call: the fleet's key
 for a call the fleet's worker opened, an org's `app` key for one its own worker opened, nobody
-for a written call, which the gateway runs itself. Another key is answered `404`. What the
+for a written call, which the gateway runs itself. Another key is answered `404`. `/lookup` is
+the one exception: the agent's own process searches its knowledge on a call it serves (the
+framework's `knowledge.search`), whoever opened the call, so it takes the org's `app` key in the
+call's environment, and the fleet's. What the
 gateway writes on a log itself — `call.ringing`, `call.dialing`, `call.attached`,
 `call.claimed`, `call.summary`, `call.score`, `memory.ops`, `docs.sources` — is refused `403` at
 every append endpoint, the fleet's included: the summary and the score are the gateway's own words.

@@ -1020,3 +1020,32 @@ async def test_a_fleet_opened_call_takes_no_worker_knock_from_the_orgs_own_key(
     async with knocking.http(knocking.app["sandbox"]) as own:
         again = await own.post(f"/v1/calls/{context.call}/events", json=entry)
     assert again.status_code == 404
+
+
+# The regression of 0.1.10: an app's search on a call it served was answered 404 once the fleet
+# or the gateway, not the app, had opened the call — every phone, voice and written call.
+@postgres
+async def test_an_apps_search_is_answered_on_a_call_it_serves_whoever_opened_it(
+    knocking: Knocking,
+) -> None:
+    app = await an_app(knocking)
+    by_the_fleet = await a_logged_call(knocking, "one")
+    chat = await knocking.socket(f"/v1/chat?agent={AGENT}", knocking.app["sandbox"])
+    by_the_gateway = (await received_until(chat, "call.started")).call or ""
+    search: JsonObject = {"tool": "search", "input": {"query": "horarios"}}
+    async with knocking.http(knocking.app["sandbox"]) as own:
+        on_the_fleets = await own.post(f"/v1/calls/{by_the_fleet.call}/lookup", json=search)
+        on_the_gateways = await own.post(f"/v1/calls/{by_the_gateway}/lookup", json=search)
+    other = await issued(
+        knocking.gateway.connections.pool, knocking.org.id, "production", frozenset({"app"})
+    )
+    async with knocking.http(other) as elsewhere:
+        other_world = await elsewhere.post(f"/v1/calls/{by_the_fleet.call}/lookup", json=search)
+    assert (on_the_fleets.status_code, on_the_gateways.status_code) == (200, 200), (
+        on_the_fleets.text,
+        on_the_gateways.text,
+    )
+    assert on_the_fleets.json()["output"] == {"chunks": []}
+    assert other_world.status_code == 404
+    await chat.close()
+    await app.close()

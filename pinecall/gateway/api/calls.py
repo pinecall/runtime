@@ -323,12 +323,16 @@ async def call_judging(call: str, key: WorkerKey, gateway: GatewayDep) -> Judgin
 
 
 # The gateway writes memory.ops and docs.sources on the log itself: the worker has no database.
+# The lookup is the app's as much as the worker's: the agent's process searches its knowledge on
+# a call it serves (the framework's `knowledge.search`), whoever opened the call — the fleet's
+# worker, its own, or the gateway for a written one — so this door takes the org's key in the
+# call's world, and the fleet's, and not the opener's alone.
 @router.post("/v1/calls/{call}/lookup")
 async def lookup(
     call: str, body: LookupRequest, key: WorkerKey, gateway: GatewayDep
 ) -> LookupResponse:
     """Recall or search for a call served here, answered as the model reads it."""
-    served = await known(gateway, key, call)
+    served = await known(gateway, key, call, openers=False)
     started = time.perf_counter()
     output = await looked_up(gateway.serving, served, body)
     return LookupResponse(output=output, took_ms=(time.perf_counter() - started) * 1000)
@@ -451,20 +455,21 @@ async def stream_org_events(reading: ReaderDep, gateway: GatewayDep) -> Streamin
 # A call this gateway serves, or one another gateway opened, served here from what was kept when
 # it opened: one read, the first time a door here asks. A call opened by a release that kept
 # nothing is the 404 a worker answers by saying the call again (`/reopened`).
-# What a door of a call this gateway serves starts from; the socket door starts from it too.
-async def known(gateway: Gateway, key: Acting, call: str) -> Served:
+# What a door of a call this gateway serves starts from; the socket door starts from it too. A
+# worker's door is the opener's (`openers`); the lookup is any key's of the call's org and world.
+async def known(gateway: Gateway, key: Acting, call: str, *, openers: bool = True) -> Served:
     """The call as this gateway serves it, first seen here if need be; a refusal names why."""
     now = time.monotonic()
     served = gateway.live.calls.get(call)
     if served is not None:
-        _yours(key, served.scope, served.opened_by, call)
+        _yours(key, served.scope, served.opened_by if openers else None, call)
         gateway.live.in_use(call, now)
         return served
     pool = gateway.connections.pool
     kept = await queries.scope_of_call(pool, call)
     if kept is None or kept.scope is None:
         raise NotFound(NOT_OPEN.format(call=call))
-    _yours(key, kept.scope, kept.opened_by, call)
+    _yours(key, kept.scope, kept.opened_by if openers else None, call)
     if kept.sealed:
         raise Conflict(SEALED.format(call=call))
     opening = await openings.opening_of(pool, call)

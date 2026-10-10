@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.1.39 — An agent's search answers on every call it serves again (2026-10-10)
+
+- `POST /v1/calls/{call}/lookup` takes the org's key on a call its process serves, whoever opened
+  it. Since 0.1.10 the worker doors belonged to the call's opener alone, and the lookup was one of
+  them: an app's `knowledge.search` was answered 404 on every call the fleet's worker or the
+  gateway opened — phone, voice and written — so an agent's lookUp tool failed on them. The other
+  worker doors stay the opener's. A test pins the app's search on a fleet's and a written call.
+
 ## 0.1.38 — A simulation calls whatever holds the agent, deployed too (2026-10-10)
 
 - `POST /v1/simulations {agent, persona, voice?, turns?, interferer_db?, packet_loss?}`: the
