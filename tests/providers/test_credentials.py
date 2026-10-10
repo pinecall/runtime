@@ -1,5 +1,7 @@
 """The org's own key runs anything, the box's what it lends; neither is refused mid-call."""
 
+import dataclasses
+
 import pytest
 
 from pinecall.domain.agent import AgentConfig, Model, Voice
@@ -15,7 +17,7 @@ from pinecall.providers.credentials import (
     pipeline,
     readiness,
     refusal,
-    refuse_lent_plugins,
+    refuse_what_cannot_run,
     running,
     thinking,
 )
@@ -198,10 +200,10 @@ def test_a_plugin_of_the_agents_own_runs_on_the_orgs_key_and_is_refused_on_a_len
     websocket = Model("openai", "gpt-5.4-mini", builds="responses.LLM")
     on_the_box = AgentConfig(slug="a", llm=websocket)
     with pytest.raises(Conflict, match="llm options and builds run on the org's own openai key"):
-        refuse_lent_plugins(on_the_box, configured, Keyring(box={**THE_BOX, "openai": "box-o"}))
-    refuse_lent_plugins(on_the_box, configured, Keyring(own={"openai": "org-o"}, box=THE_BOX))
+        refuse_what_cannot_run(on_the_box, configured, Keyring(box={**THE_BOX, "openai": "box-o"}))
+    refuse_what_cannot_run(on_the_box, configured, Keyring(own={"openai": "org-o"}, box=THE_BOX))
     warmer = AgentConfig(slug="a", llm=Model("anthropic", "claude-haiku-5-5", temperature=0.9))
-    refuse_lent_plugins(warmer, configured, Keyring(box=THE_BOX))
+    refuse_what_cannot_run(warmer, configured, Keyring(box=THE_BOX))
     assert pipeline(warmer, configured, Keyring(box=THE_BOX)).llm.options["temperature"] == 0.9
 
 
@@ -413,3 +415,21 @@ def test_with_nothing_failing_or_nothing_to_step_to_the_order_is_the_rows(
         frozenset({"groq"})
     )
     assert (named.llm.vendor, named.llm.fallbacks) == ("groq", ())
+
+
+def test_who_ends_the_turn_is_the_ears_only_where_they_can_or_a_model_on_the_worker(
+    configured: Providers,
+) -> None:
+    keys = Keyring(box=THE_BOX)
+
+    def ears(model: Model) -> Running:
+        return pipeline(AgentConfig(slug="a", stt=model), configured, keys).stt
+
+    flux = Model("deepgram", "flux-general-multi")
+    smart = ears(dataclasses.replace(flux, end_of_turn="smart-turn"))
+    assert (smart.ends_the_turn, smart.turn_model) == (False, "smart-turn-v3")
+    assert ears(dataclasses.replace(flux, end_of_turn="livekit")).turn_model == "v1-mini"
+    assert ears(dataclasses.replace(flux, end_of_turn="stt")).ends_the_turn
+    on_its_own = AgentConfig(slug="a", stt=Model("cartesia", "", end_of_turn="stt"))
+    with pytest.raises(DeclarationRefused, match="cartesia does not end the turn itself"):
+        refuse_what_cannot_run(on_its_own, configured, keys)

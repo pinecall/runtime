@@ -96,6 +96,12 @@ How the knowledge base reaches the model: retrieved, the platform runs search it
 
 One of: `retrieved`, `tool`.
 
+### `EndOfTurn`
+
+Who says the caller's turn is over: the ears themselves (Deepgram Flux), livekit's detector (v1-mini), or Daily's Smart Turn v3, both read off the audio by the worker.
+
+One of: `stt`, `livekit`, `smart-turn`.
+
 ### `PlatformTool`
 
 The two tools the platform runs on the app's behalf: recall reads the contact's facts out of memory, search reads chunks out of the knowledge base. The app declares memory and docs and writes neither method; the platform runs the lookup, and the answer reaches the model as a tool result rather than as part of the prompt.
@@ -312,6 +318,7 @@ Which model does a job (the LLM, or the STT), and the one or two knobs worth tur
 | `temperature` | `number` | no | Sampling temperature, for an LLM. Absent means the provider's default. |
 | `builds` | `string` | no | A class of the vendor's LiveKit plugin other than its LLM or STT, by its name there; a dotted name reaches into a module of the plugin (`responses.LLM`). Absent, the operator's for the vendor, or the plugin's LLM or STT. |
 | `options` | `object` | no | Keyword arguments for the plugin's class, as the plugin names them, passed as given (`{"use_websocket": true}`): each wins over the operator's option of the same name for the vendor. |
+| `end_of_turn` | `EndOfTurn` | no | The ears' alone, refused on a model: who says the caller's turn is over — `stt`, the ears themselves (only where the operator's row says this vendor's class ends the turn, as Deepgram Flux does; refused otherwise), `livekit`, livekit's detector (v1-mini), or `smart-turn`, Daily's Smart Turn v3, both read off the audio on the worker and run on any key. Absent, the operator's choice for the vendor. |
 
 ### `TurnConfig`
 
@@ -387,8 +394,8 @@ How the agent opens a call, before the caller has said anything. Exactly one of 
 | field | type | required | meaning |
 |---|---|---|---|
 | `say` | `string` | no | The opening words, read out as written: 'Clínica Norte, buenos días.' No model runs. |
-| `reply` | `string` | no | What the model reads before it speaks its own opening — 'saluda, di que eres la recepción y pregunta en qué puedes ayudar' — and the caller never hears. Not what it says. |
-| `allow_interruptions` | `boolean` | no | Whether the caller may cut the opening short. Default true; a legal notice sets false. |
+| `reply` | `string` | no | What the model reads before it speaks its own opening — 'saluda, di que eres la recepción y pregunta en qué puedes ayudar' — and the caller never hears. Not what it says. Empty, the model opens on its prompt alone (an SDK's `improvise`). |
+| `allow_interruptions` | `boolean` | no | Whether the caller may cut the opening short. Default false: a caller's "hello?" over the opening is the norm, and only true lets it stop the agent. |
 
 ### `HangupConfig`
 
@@ -396,7 +403,7 @@ Whether the model may end the call itself. Declaring this is what puts livekit's
 
 | field | type | required | meaning |
 |---|---|---|---|
-| `when` | `string` | no | When the agent should end the call, in the tenant's own words and their own language. It is appended to the tool's description, which already says to end it when the caller is clearly done and never when the intent is unclear. |
+| `when` | `string` | no | When the agent should end the call, in the tenant's own words and their own language. It is appended to the tool's description, which already says to end it when the caller is clearly done and never when the intent is unclear. Empty, the model hangs up whenever it judges the call done (an SDK's `hangup = true`). |
 
 ### `MemoryConfig`
 

@@ -57,6 +57,7 @@ PIPELINE_ONLY = (
     "stt",
     "llm",
     "temperature",
+    "end_of_turn",
     "llm_builds",
     "llm_options",
     "stt_builds",
@@ -106,6 +107,7 @@ DECLARED_AS = {
     "llm_builds": "llm",
     "llm_options": "llm",
     "stt_builds": "stt",
+    "end_of_turn": "stt",
     "stt_options": "stt",
     "bases": "docs",
 }
@@ -116,7 +118,7 @@ DECLARED_AS = {
 STAGE_KNOBS: dict[Modality, tuple[str, ...]] = {
     "tts": ("voice", "tts", "tts_model", "tts_builds", "tts_options", "language"),
     "llm": ("llm", "temperature", "llm_builds", "llm_options"),
-    "stt": ("stt", "stt_builds", "stt_options", "turn", "language"),
+    "stt": ("stt", "stt_builds", "stt_options", "end_of_turn", "turn", "language"),
 }
 
 

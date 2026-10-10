@@ -126,6 +126,12 @@ def greeting_for(greeting: Greeting | None, run: str | None) -> Greeting | None:
     return None if run is not None else greeting
 
 
+# A caller's "hello?" over the opening is the norm: it is not cut short unless it says so.
+def interruptible(greeting: Greeting) -> bool:
+    """Whether the caller may cut the opening short."""
+    return greeting.allow_interruptions is True
+
+
 # The app never sends prompt.set for this block, so without this entry the log would not show
 # that the file reached the model.
 def knowledge_changed(blocks: Blocks) -> PromptChanged | None:

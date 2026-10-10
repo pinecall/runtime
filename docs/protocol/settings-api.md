@@ -57,14 +57,17 @@ agent here, or its class declares none. Each scope's **own** newest, or null whe
 `if_version` is about the scope being written. `config` carries only the knobs the row set: `voice`,
 `tts`, `tts_model`, `stt`, `llm` (the three model knobs take `vendor/model`, a vendor alone to keep
 its own default model, or a model alone on whichever vendor is in use), `temperature` (the
-model's, in its vendor's range; unset, the vendor's default), `llm_builds`, `stt_builds`,
+model's, in its vendor's range; unset, the vendor's default), `end_of_turn` (who ends the
+caller's turn: `stt`, the ears themselves where the row says they can, `livekit` or `smart-turn`, a
+model on the worker; unset, the row's choice for the vendor), `llm_builds`, `stt_builds`,
 `tts_builds` (a class of the stage's plugin other than its default, dots reaching into a module of
 it: `responses.LLM`) and `llm_options`, `stt_options`, `tts_options` (that class's keyword arguments
 as the plugin names them, each replacing the providers row's of the same name; both only on the
 org's own key for the vendor, `409` on a lent one; set on an agent whose row names no vendor for
 the stage, these name the one in use, which then runs without the default's fallbacks), `language` (a tag, `en` or
 `pt-BR`, given to the ears and the voice; unset, each vendor's own default), `greeting` (`{say}` or
-`{reply}`), `hangup {when}`, `turn {min_interruption_words, endpointing_ms, eot_threshold,
+`{reply}`, an empty reply the model opening on its prompt alone, and `allow_interruptions`, false
+unless set), `hangup {when}`, `turn {min_interruption_words, endpointing_ms, eot_threshold,
 eager_eot_threshold, min_interruption_ms}` (the last is how long the caller must speak over the
 agent before it stops; unset, livekit's own half second), `memory {remember, forget}`, `record`, `max_duration_s` (voice calls; `0` is
 no limit), `llm_timeout_s` (how long a turn waits for the model's first word, livekit's retries
@@ -95,7 +98,7 @@ a vendor that does not answer is `502 … nothing was kept, try again`. A save t
 asks no vendor anything. `409` when the scope is not at `if_version`, and `409 voice set by the
 class of clinica-norte: …` when the set changes a knob the class declares (`tts`, `tts_model`,
 `tts_builds` and `tts_options` are the class's `voice`; `temperature`, `llm_builds` and
-`llm_options` its `llm`; `stt_builds` and `stt_options` its `stt`; `bases` its `docs`), before
+`llm_options` its `llm`; `stt_builds`, `stt_options` and `end_of_turn` its `stt`; `bases` its `docs`), before
 anything is tried or kept. A set whose plugin class or options would run on a key the platform
 lends is `409 llm options and builds run on the org's own openai key, and this agent's llm would run
 on the platform's: …`, nothing kept. Answers the `GET` shape.

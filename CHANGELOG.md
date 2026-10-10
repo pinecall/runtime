@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.1.43 — Who ends the turn is the agent's to say, and an opening is not cut short (2026-10-10)
+
+- `end_of_turn` on the ears (`ModelConfig.end_of_turn`, a class's `@stt(…, { endOfTurn })`, the
+  settings' `end_of_turn`): `stt`, the ears themselves where the operator's row says their class
+  ends the turn (Deepgram Flux), refused otherwise; `livekit` (v1-mini) or `smart-turn` (Smart
+  Turn v3), a model on the worker, on any key. Soniox with Smart Turn is one line of the class now,
+  not an operator's row. Refused on a model, and checked at `agent.configure`
+  (`refuse_what_cannot_run`).
+- An opening is not interrupted unless it says so (`allow_interruptions: true`): a caller's
+  "hello?" over it no longer stops the agent mid-sentence.
+- An empty `reply` lets the model open on its prompt alone: the SDKs' `improvise`.
+
 ## 0.1.42 — What the class declares wins over the settings (2026-10-10)
 
 - An agent's class may declare its environment again — language, voice, llm, stt, greeting,

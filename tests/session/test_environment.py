@@ -67,3 +67,13 @@ def test_a_vendor_not_installed_or_not_doing_the_stage_is_refused_when_declared(
         )
     with pytest.raises(DeclarationRefused, match="anthropic has no stt"):
         environment_of(NOTHING, Declared(stt=ModelConfig(provider="anthropic", model="x")))
+
+
+def test_who_ends_the_turn_is_the_ears_and_refused_on_the_model() -> None:
+    ears = ModelConfig(provider="deepgram", model="flux-general-multi", end_of_turn="smart-turn")
+    assert environment_of(NOTHING, Declared(stt=ears))["stt"] == Model(
+        "deepgram", "flux-general-multi", end_of_turn="smart-turn"
+    )
+    thinking = ModelConfig(provider="openai", model="gpt-5.4-mini", end_of_turn="stt")
+    with pytest.raises(DeclarationRefused, match="end_of_turn is the ears'"):
+        environment_of(NOTHING, Declared(llm=thinking))

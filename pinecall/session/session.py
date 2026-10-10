@@ -217,12 +217,12 @@ class Session:
             self.live.say(opening, allow_interruptions=False)
         greeting = _prompt.greeting_for(self.call.config.greeting, context.run)
         if greeting is not None and greeting.say is not None:
-            self.live.say(
-                greeting.say, allow_interruptions=given_or_unset(greeting.allow_interruptions)
-            )
+            self.live.say(greeting.say, allow_interruptions=_prompt.interruptible(greeting))
         elif greeting is not None and greeting.reply is not None:
-            interruptible = given_or_unset(greeting.allow_interruptions)
-            self.live.generate_reply(instructions=greeting.reply, allow_interruptions=interruptible)
+            # An empty instruction leaves the model to open on its prompt alone.
+            instructions = given_or_unset(greeting.reply or None)
+            interruptible = _prompt.interruptible(greeting)
+            self.live.generate_reply(instructions=instructions, allow_interruptions=interruptible)
 
     # The caller is in the middle of the conversation: no call.started, no greeting.
     async def resume(self, history: llm.ChatContext) -> None:

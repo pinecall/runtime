@@ -196,6 +196,23 @@ async def test_an_instruction_runs_the_model_and_never_the_verbatim_verb(
 
 
 @postgres
+async def test_an_empty_instruction_has_the_model_open_on_its_prompt_alone(
+    box: Box, store: Store, call: str
+) -> None:
+    session = a_session(
+        box,
+        AgentConfig(slug="clinica-norte", greeting=Greeting(reply="")),
+        ["Clínica Norte, ¿en qué le ayudo?"],
+    )
+    await session.start()
+    await settled()
+    await text.end(session, "caller_hung_up", "caller")
+    assert len(model_of(session).requests) == 1
+    agent = [entry.data["text"] for entry in await store.whole(call) if entry.type == "turn.agent"]
+    assert agent == ["Clínica Norte, ¿en qué le ayudo?"]
+
+
+@postgres
 async def test_the_opening_is_said_before_the_greeting_and_logged_as_the_agents_turn(
     box: Box, store: Store, call: str
 ) -> None:

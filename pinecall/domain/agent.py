@@ -31,6 +31,11 @@ type PromptRegion = Literal["static", "dynamic"]
 type DocsMode = Literal["retrieved", "tool"]
 
 
+# Who says the caller's turn is over: the ears themselves (Deepgram Flux), livekit's detector
+# (v1-mini), or Daily's Smart Turn v3, both read off the audio by the worker.
+type EndOfTurn = Literal["stt", "livekit", "smart-turn"]
+
+
 # every-call: at every hang-up the org judges. simulations: only a call a persona played.
 type RunsOn = Literal["every-call", "simulations"]
 
@@ -106,6 +111,8 @@ class Model:
     # The plugin's class and keyword arguments a class declared, over the operator's.
     builds: str | None = None
     options: Mapping[str, Json] = field(default_factory=dict[str, Json])
+    # The ears' alone: who ends the caller's turn, over the operator's choice for the vendor.
+    end_of_turn: EndOfTurn | None = None
 
 
 @dataclass(frozen=True)
@@ -280,6 +287,8 @@ class Tuning:
     llm: str | None = None
     # The model's, in its vendor's range; None is the vendor's default.
     temperature: float | None = None
+    # Who ends the caller's turn; None is the operator's choice for the ears' vendor.
+    end_of_turn: EndOfTurn | None = None
     # A class of the stage's plugin other than its default, and its keyword arguments as the plugin
     # names them, each over the operator's; the org's own key alone runs them.
     llm_builds: str | None = None

@@ -213,3 +213,10 @@ def test_a_temperature_and_a_plugins_own_name_the_vendor_in_use_when_none_is_set
 def test_a_temperature_below_zero_is_refused() -> None:
     with pytest.raises(DeclarationRefused, match="temperature is a number from 0"):
         Tuning(temperature=-0.1)
+
+
+def test_who_ends_the_turn_is_set_on_the_ears_in_use(configured: Providers) -> None:
+    config = apply_tuning(
+        DECLARED, Tuning(end_of_turn="smart-turn"), NOTHING, defaults=configured.defaults
+    )
+    assert config.stt == Model("deepgram", "", end_of_turn="smart-turn")

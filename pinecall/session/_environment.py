@@ -18,6 +18,9 @@ from pinecall.providers.build import Modality, doing
 from pinecall.wire.parts import AgentConfig as Declared
 from pinecall.wire.parts import GreetingConfig, ModelConfig, VoiceConfig
 
+NOT_THE_EARS = "end_of_turn is the ears': @stt('<vendor>', {{ endOfTurn: '{said}' }})"
+
+
 NO_VENDOR = (
     "a voice the class declares names its vendor and the voice: @voice('<vendor>', '<voice>')"
 )
@@ -88,12 +91,15 @@ def _voice_of(wanted: VoiceConfig | None) -> Voice | None:
 def _model_of(wanted: ModelConfig | None, modality: Modality) -> Model | None:
     if wanted is None:
         return None
+    if wanted.end_of_turn is not None and modality != "stt":
+        raise DeclarationRefused(NOT_THE_EARS.format(said=wanted.end_of_turn))
     return Model(
         provider=doing(wanted.provider.lower(), modality),
         model=wanted.model,
         temperature=wanted.temperature,
         builds=wanted.builds,
         options=_options(wanted.options),
+        end_of_turn=wanted.end_of_turn,
     )
 
 

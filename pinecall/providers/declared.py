@@ -105,12 +105,13 @@ def _ears(
 ) -> Model | None:
     in_use = _in_use(declared.stt, defaults["stt"])
     named = model_of(tuning.stt, "stt", in_use=in_use)
-    if tuning.stt_builds is None and tuning.stt_options is None:
+    if all(knob is None for knob in (tuning.stt_builds, tuning.stt_options, tuning.end_of_turn)):
         return named
     return dataclasses.replace(
         named or Model(provider=in_use, model=""),
         builds=tuning.stt_builds,
         options=dict(tuning.stt_options or {}),
+        end_of_turn=tuning.end_of_turn,
     )
 
 

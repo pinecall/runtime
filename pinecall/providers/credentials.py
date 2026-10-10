@@ -7,11 +7,11 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Literal
 
-from pinecall.domain.agent import AgentConfig, Model, Voice
+from pinecall.domain.agent import AgentConfig, EndOfTurn, Model, Voice
 from pinecall.domain.errors import Conflict, DeclarationRefused, NotAllowed, NotAvailable
 from pinecall.domain.names import Credentials
 from pinecall.domain.telemetry import Telemetry
-from pinecall.providers.build import Modality, Running, Vendor, installed, primary
+from pinecall.providers.build import Modality, Running, TurnModel, Vendor, installed, primary
 from pinecall.providers.catalog import Providers, tuning_of
 from pinecall.providers.declared import SEPARATOR
 
@@ -26,6 +26,12 @@ logger = logging.getLogger(__name__)
 ONLY_ON_ITS_OWN_KEY = (
     "{stage} options and builds run on the org's own {vendor} key, and this agent's {stage} would "
     "run on the platform's: add yours with pinecall providers add {vendor}, or take them out"
+)
+
+
+NO_END_OF_ITS_OWN = (
+    "{vendor} does not end the turn itself here: end of turn livekit or smart-turn reads it off "
+    "the audio instead"
 )
 
 
@@ -202,30 +208,47 @@ def stage(
 
 
 # Checked where an agent declares itself and where its settings are set, not first on a call.
-def refuse_lent_plugins(config: AgentConfig, configured: Providers, keys: Keyring) -> None:
-    """Refuse a stage the agent gives a plugin class or options of its own, on a lent key."""
+def refuse_what_cannot_run(config: AgentConfig, configured: Providers, keys: Keyring) -> None:
+    """Refuse a stage given a plugin of its own on a lent key, or an end of turn it cannot have."""
     stages: tuple[tuple[Modality, Model | Voice | None], ...] = (
         ("llm", config.llm),
         ("stt", config.stt),
         ("tts", config.voice),
     )
     for modality, declared in stages:
-        if declared is not None and (declared.builds is not None or declared.options):
+        if declared is not None and _names_its_own(declared):
             stage(modality, declared, configured, keys)
 
 
 # What an agent names of the plugin wins over the operator's options for the vendor: its class,
-# and each keyword argument it names; on the org's own key alone.
+# and each keyword argument it names, on the org's own key alone; and who ends the turn.
 def _as_declared(modality: Modality, chosen: Running, declared: Model | Voice) -> Running:
-    if declared.builds is None and not declared.options:
+    if declared.builds is not None or declared.options:
+        if chosen.lent:
+            raise Conflict(ONLY_ON_ITS_OWN_KEY.format(stage=modality, vendor=chosen.vendor))
+        chosen = dataclasses.replace(
+            chosen,
+            builds=declared.builds or chosen.builds,
+            options={**chosen.options, **declared.options},
+        )
+    if isinstance(declared, Model) and declared.end_of_turn is not None:
+        return _ended_by(chosen, declared.end_of_turn)
+    return chosen
+
+
+# The ears end the turn only where the operator's row says this vendor's class does (Flux).
+def _ended_by(chosen: Running, end_of_turn: EndOfTurn) -> Running:
+    if end_of_turn == "stt":
+        if not chosen.ends_the_turn:
+            raise DeclarationRefused(NO_END_OF_ITS_OWN.format(vendor=chosen.vendor))
         return chosen
-    if chosen.lent:
-        raise Conflict(ONLY_ON_ITS_OWN_KEY.format(stage=modality, vendor=chosen.vendor))
-    return dataclasses.replace(
-        chosen,
-        builds=declared.builds or chosen.builds,
-        options={**chosen.options, **declared.options},
-    )
+    model: TurnModel = "smart-turn-v3" if end_of_turn == "smart-turn" else "v1-mini"
+    return dataclasses.replace(chosen, ends_the_turn=False, turn_model=model)
+
+
+def _names_its_own(declared: Model | Voice) -> bool:
+    ends = isinstance(declared, Model) and declared.end_of_turn is not None
+    return ends or declared.builds is not None or bool(declared.options)
 
 
 def _a_snapshot_of(entry: str, model: str) -> bool:

@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import AliasChoices, Field
 
-from pinecall.domain.agent import EventSource
+from pinecall.domain.agent import EndOfTurn, EventSource
 from pinecall.domain.names import Channel, Json, JsonObject
 from pinecall.wire.frames import WireModel
 
@@ -228,6 +228,8 @@ class ModelConfig(WireModel):
     # keyword arguments as the plugin names them: what a class declares, over the operator's.
     builds: str | None = None
     options: JsonObject | None = None
+    # The ears' alone: who ends the caller's turn, over the operator's choice for the vendor.
+    end_of_turn: EndOfTurn | None = None
 
 
 class TurnConfig(WireModel):

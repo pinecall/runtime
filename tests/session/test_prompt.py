@@ -12,6 +12,7 @@ from pinecall.session._prompt import (
     Blocks,
     Request,
     greeting_for,
+    interruptible,
     knowledge_changed,
     request,
 )
@@ -244,3 +245,9 @@ def test_the_knowledge_the_platform_wrote_reaches_the_model_as_its_own_system_bl
         "Sos la recepción.",
         "# Precios: consulta 30 EUR",
     ]
+
+
+def test_an_opening_is_not_cut_short_unless_it_says_so() -> None:
+    assert not interruptible(Greeting(say="Buenas."))
+    assert not interruptible(Greeting(reply="", allow_interruptions=False))
+    assert interruptible(Greeting(say="Buenas.", allow_interruptions=True))

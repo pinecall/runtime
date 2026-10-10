@@ -2,6 +2,7 @@
 
 from pydantic import Field
 
+from pinecall.domain.agent import EndOfTurn
 from pinecall.domain.names import Env, JsonObject
 from pinecall.wire.frames import WireModel
 from pinecall.wire.parts import (
@@ -32,6 +33,7 @@ class SettingsBody(WireModel):
     max_duration_s: int | None = None
     llm_timeout_s: float | None = None
     temperature: float | None = None
+    end_of_turn: EndOfTurn | None = None
     # Each stage's plugin class and its keyword arguments, the org's own key alone running them.
     tts_builds: str | None = None
     tts_options: JsonObject | None = None
