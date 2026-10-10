@@ -2,10 +2,7 @@
 
 import pytest
 
-import pytest
-
 from pinecall.domain.errors import UpstreamFailed
-from pinecall.domain.scope import Scope
 from pinecall.domain.scope import Scope
 from pinecall.evals import simulated
 from pinecall.gateway._text_calls import open_text

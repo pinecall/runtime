@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.1.41 — The written caller's tests run on a real written call (2026-10-10)
+
+- `tests/evals/test_simulated.py` drives a real text session against the org's app instead of a
+  stand-in, as the rules ask; 0.1.40's release was refused on that file. No code changed.
+
 ## 0.1.40 — A simulated caller waits for the agent's whole answer (2026-10-10)
 
 - The caller of a simulation, spoken or written, speaks again only once the agent has spoken after
