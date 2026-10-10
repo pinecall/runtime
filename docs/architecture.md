@@ -50,9 +50,9 @@ core under `_` names.
 | `channels/` | 15 | 3584 | `domain`, `fleet`, `log`, `postgres`, `process`, `tenancy`, `wire` |
 | `cli/` | 10 | 2362 | `channels`, `domain`, `fleet`, `gateway`, `log`, `postgres`, `process`, `providers`, `retrieval`, `runner`, `session`, `tenancy`, `wire`, `worker` |
 | `domain/` | 11 | 1364 | — |
-| `evals/` | 12 | 3378 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
+| `evals/` | 13 | 3391 | `domain`, `log`, `postgres`, `providers`, `session`, `wire` |
 | `fleet/` | 6 | 1247 | `domain`, `postgres`, `process`, `wire` |
-| `gateway/` | 67 | 13537 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
+| `gateway/` | 67 | 13539 | `channels`, `domain`, `evals`, `fleet`, `log`, `postgres`, `process`, `providers`, `retrieval`, `session`, `tenancy`, `wire` |
 | `log/` | 18 | 5129 | `domain`, `postgres`, `process`, `wire` |
 | `postgres/` | 2 | 392 | `domain` |
 | `process/` | 10 | 2016 | `domain`, `postgres` |

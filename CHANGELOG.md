@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.1.40 — A simulated caller waits for the agent's whole answer (2026-10-10)
+
+- The caller of a simulation, spoken or written, speaks again only once the agent has spoken after
+  its line, listens with no tool running, and a second of quiet has passed (`evals/turns.py`).
+  livekit publishes `listening` while a tool runs and between one tool and the next, and the
+  caller took that for an answer: it talked over an agent that looked something up twice. A long
+  answer is waited for whatever it takes; only thirty seconds of silence on the line give up.
+- The written caller takes its turns by the same rule as the spoken one.
+
 ## 0.1.39 — An agent's search answers on every call it serves again (2026-10-10)
 
 - `POST /v1/calls/{call}/lookup` takes the org's key on a call its process serves, whoever opened

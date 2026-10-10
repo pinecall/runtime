@@ -18,6 +18,7 @@ from pinecall.domain.names import THE_WIDGET, Json, JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.evals import simulated, spoken
 from pinecall.evals.callers import Spending, heard_in, improvise_line
+from pinecall.evals.turns import NextLine, is_call_over
 from pinecall.fleet import worlds
 from pinecall.gateway._call_setup import keys_of, tuned
 from pinecall.gateway._gateway import Gateway
@@ -127,7 +128,7 @@ async def on_the_line(
     dispatch: rooms.Dispatch,
     speech: tts.TTS[Never],
     line: spoken.SpokenLine,
-    next_line: spoken.NextLine,
+    next_line: NextLine,
 ) -> int:
     """Offer the agent the room, put the caller on it, and play its lines; the lines said."""
     connections = gateway.connections
@@ -149,12 +150,12 @@ async def on_the_line(
 
 # Asked before each line: the line that crosses the ceiling is the last one said, and a call the
 # agent or a person already ended asks for none. Spoken, the voice is counted with the line.
-def improvising(gateway: Gateway, call: str, caller: Caller) -> spoken.NextLine:
+def improvising(gateway: Gateway, call: str, caller: Caller) -> NextLine:
     """The caller's next line on the call so far, and whether it hangs up after it."""
 
     async def improvised(turns_left: int) -> tuple[str, bool]:
         entries = await gateway.logs.store.whole(call)
-        if spoken.is_call_over(entries) or caller.spending.is_over:
+        if is_call_over(entries) or caller.spending.is_over:
             return "", True
         request = NextLineRequest(
             persona=caller.persona, heard=heard_in(entries), turns_left=turns_left
@@ -228,13 +229,9 @@ async def written_turns(gateway: Gateway, session: Session, placed: Placed) -> t
     """The persona's lines said on the written call, until it hangs up; and what they cost."""
     scope = session.call.context.route
     spending = Spending(await catalog.providers(gateway.connections.pool))
-    heard = await gateway.logs.writing(placed.call, placed.agent).followed()
-    try:
-        async with caller_model(gateway, Scope(scope.org, scope.env), placed.persona) as model:
-            caller = Caller(placed.persona, model, spending)
-            lines = await simulated.converse(
-                session, heard, improvising(gateway, placed.call, caller), placed.turns
-            )
-    finally:
-        heard.close()
+    async with caller_model(gateway, Scope(scope.org, scope.env), placed.persona) as model:
+        caller = Caller(placed.persona, model, spending)
+        lines = await simulated.converse(
+            session, gateway.logs, improvising(gateway, placed.call, caller), placed.turns
+        )
     return lines, spending

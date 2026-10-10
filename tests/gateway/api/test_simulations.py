@@ -44,8 +44,10 @@ async def written_for(knocking: Knocking, agent: str = AGENT) -> None:
     )
 
 
+# A simulation takes its time as a caller does: the quiet after the agent's opening and after
+# each answer, so a call of two lines is a few seconds before the caller hangs up and it seals.
 async def sealed(knocking: Knocking, call: str) -> list[str]:
-    for _ in range(80):
+    for _ in range(300):
         if await knocking.gateway.logs.store.sealed(call):
             break
         await asyncio.sleep(0.1)
@@ -70,7 +72,7 @@ async def test_a_written_simulation_is_answered_by_whoever_holds_the_agent_and_s
     assert started.status_code == 200, started.text
     call = started.json()["call"]
     kinds = await sealed(knocking, call)
-    assert kinds[-3:] == ["call.ended", "call.summary", "call.score"]
+    assert kinds[-3:] == ["call.ended", "call.summary", "call.score"], kinds
     entries = await knocking.gateway.logs.store.whole(call)
     opened = next(entry for entry in entries if entry.type == "call.started")
     assert (opened.data["persona"], opened.data["accepts_when"]) == ("apurado", "a Tuesday slot")
