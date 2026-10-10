@@ -345,3 +345,6 @@ async def test_every_simulated_call_of_the_world_is_listed_whoever_played_it(
     ]
     assert body["total"] == 2
     assert [row["call"] for row in rest.json()["runs"]] == ["CA_ours"]
+    async with knocking.http(knocking.app["sandbox"]) as http:
+        one_agents = await http.get("/v1/simulations?agent=clinica-norte")
+    assert [row["call"] for row in one_agents.json()["runs"]] == ["CA_ours"]

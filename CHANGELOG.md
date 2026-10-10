@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.1.36 — One harness screen whoever is in view (2026-10-10)
+
+- `GET /v1/simulations?agent=`: one agent's simulated calls, from the same door as every agent's.
+- Console d79c0e7: Simulations, Personas and Cases are one screen each, the same with every
+  agent in view or one; a simulation opens inside Simulations, never as a bare call. Personas and
+  Judges are list rows with a face.
+
 ## 0.1.35 — A number's account id keeps to its column (2026-10-09)
 
 - Console 32491ba: on Numbers, a long account id under Comes through is cut at its column

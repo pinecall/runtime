@@ -46,6 +46,12 @@ class PersonaRunQuery(BaseModel):
     before: str | None = None
 
 
+class SimulationQuery(PersonaRunQuery):
+    """Every simulated call, or one agent's: where the page continues, and how many."""
+
+    agent: str | None = None
+
+
 # Every agent's callers, the org's roster at once: one list for both worlds, as an agent's is.
 @router.get("/v1/personas")
 async def list_every_persona(key: EvalsKey, gateway: GatewayDep) -> PersonaList:
@@ -54,16 +60,15 @@ async def list_every_persona(key: EvalsKey, gateway: GatewayDep) -> PersonaList:
     return PersonaList(personas=[_row_of(stored) for stored in kept])
 
 
-# Every simulated call of the key's world and scope, whichever agent and persona: the harness's
-# list of runs with every agent in view.
+# Every simulated call of the key's world and scope, whichever persona: one agent's, or — none
+# named — every agent's. The harness's one list of runs, whoever is in view.
 @router.get("/v1/simulations", dependencies=[Depends(_deps.opening("evals"))])
 async def list_simulations(
-    scope: ScopeDep, gateway: GatewayDep, query: Annotated[PersonaRunQuery, Query()]
+    scope: ScopeDep, gateway: GatewayDep, query: Annotated[SimulationQuery, Query()]
 ) -> PersonaRunList:
-    """Every simulated call in the key's world and scope, newest first."""
-    found = await lists.runs_of_persona(
-        gateway.connections.pool, scope, PersonaRunFilters(before=query.before), limit=query.limit
-    )
+    """Every simulated call in the key's world and scope, or one agent's, newest first."""
+    wanted = PersonaRunFilters(agent=query.agent, before=query.before)
+    found = await lists.runs_of_persona(gateway.connections.pool, scope, wanted, limit=query.limit)
     return PersonaRunList(
         runs=[_run_row(run) for run in found.runs], total=found.total, next=found.next
     )
