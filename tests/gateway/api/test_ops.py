@@ -150,6 +150,21 @@ async def test_an_agent_registered_in_the_wrong_org_moves_with_its_logs_and_numb
 
 
 @postgres
+async def test_an_agent_that_is_not_the_orgs_is_erased_with_its_numbers_and_a_trail_row(
+    knocking: Knocking,
+) -> None:
+    with_an_ops_key(knocking)
+    pool = knocking.gateway.connections.pool
+    number = Route(org=knocking.org.id, agent="intruso", channel="phone", number="+59829001199")
+    await routes.put(pool, number, RouteWrite("typed"))
+    async with knocking.http(THE_OPS_KEY) as operator:
+        erased = await operator.delete(f"{ORGS}/{knocking.org.slug}/agents/intruso")
+    assert erased.status_code == 200
+    assert (erased.json()["what"], erased.json()["subject"]) == ("agent", "intruso")
+    assert await routes.of_org(pool, knocking.org.id, "production") == []
+
+
+@postgres
 async def test_the_operator_seats_an_orgs_first_admin_and_makes_or_unmakes_an_operator(
     knocking: Knocking,
 ) -> None:

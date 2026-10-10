@@ -37,12 +37,14 @@ limit %(limit)s
 """)
 
 
-# A persona's runs to one agent, or — neither named — every simulated call of the scope.
+# A persona's runs to one agent, the runs to the agents named, or — none named — every simulated
+# call of the scope.
 _THE_PERSONAS_RUNS = sql.SQL("""
 from call_log_head head join call_facts f on f.call = head.log
 where head.org = %(org)s and head.env = %(env)s and head.holder = %(holder)s
   and head.call is not null and f.persona is not null
   and (%(agent)s::text is null or head.agent = %(agent)s)
+  and (cardinality(%(agents)s::text[]) = 0 or head.agent = any(%(agents)s::text[]))
   and (%(persona)s::text is null or f.persona = %(persona)s)
 """)
 
@@ -70,11 +72,12 @@ class Found:
 
 @dataclass(frozen=True, slots=True)
 class PersonaRunFilters:
-    """Whose runs a list asks for: an agent, a persona, the page before; neither is every run."""
+    """Whose runs a list asks for: agents, a persona, the page before; none named is every run."""
 
     agent: str | None = None
     persona: str | None = None
     before: str | None = None
+    agents: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,7 +143,12 @@ async def runs_of_persona(
     pool: Pool, scope: Scope, wanted: PersonaRunFilters, *, limit: int
 ) -> PersonaRuns:
     """Return a page of the simulated calls the filter names, newest first, and a total."""
-    params = {**asdict(scope), "agent": wanted.agent, "persona": wanted.persona}
+    params = {
+        **asdict(scope),
+        "agent": wanted.agent,
+        "agents": list(wanted.agents),
+        "persona": wanted.persona,
+    }
     # independent: the total and the page are read apart, as a list always was
     async with pool.connection() as connection:
         total = await (await connection.execute(PERSONA_RUNS_COUNT, params)).fetchone()

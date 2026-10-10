@@ -46,7 +46,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `PUT` | `/v1/agents/{slug}/personas/{name}` | evals | Write one of the agent's callers whole, or rename one from `was`; its list after it. |
 | `GET` | `/v1/agents/{slug}/personas/{name}/runs` | evals | The calls the persona made to the agent in the key's environment and scope, newest first. |
 | `GET` | `/v1/personas` | evals | Every agent's callers, by agent and then by name; each row says whose. |
-| `GET` | `/v1/simulations` | evals | Every simulated call in the key's environment and scope, or one agent's (`?agent=`), whichever persona, newest first. |
+| `GET` | `/v1/simulations` | evals | Every simulated call in the key's environment and scope, or the agents named's (`?agent=`, once or more), whichever persona, newest first. |
 | `GET` | `/v1/agents/{slug}/pipeline` | pipeline | The agent's three stages, the catalogue, and the latencies of its last calls. |
 | `GET` | `/v1/agents/{slug}/pipeline/hold-audio` | pipeline | What the agent plays while a tool runs: the platform's melody, silence, or a clip of its own. |
 | `PUT` | `/v1/agents/{slug}/pipeline/hold-audio` | pipeline | A file of the org's as the agent's melody, from the next call on. |
@@ -223,6 +223,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `DELETE` | `/v1/ops/orgs/{named}` | operator | Erase the org whole, its calls and recordings too; refused while a live key or a route still names it. |
 | `GET` | `/v1/ops/orgs/{named}` | operator | One org as it stands: its quotas per environment, its dial guards, and what it holds. |
 | `PUT` | `/v1/ops/orgs/{named}/agents` | operator | An agent's logs and numbers moved into this org; refused while somebody holds it. |
+| `DELETE` | `/v1/ops/orgs/{named}/agents/{agent}` | operator | Erase one agent of the org, its logs, recordings and every row it owns; the trail row. |
 | `PUT` | `/v1/ops/orgs/{named}/dialling` | operator | The org's dial guards, replaced whole; one left out is the default. |
 | `GET` | `/v1/ops/orgs/{named}/keys` | operator | Every key of the org, oldest first, the revoked ones named as revoked; never a key. |
 | `POST` | `/v1/ops/orgs/{named}/keys` | operator | A key of the org in the environment named, answered this once. |

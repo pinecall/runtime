@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.1.37 — An agent that is not the org's is erased whole (2026-10-10)
+
+- `DELETE /v1/ops/orgs/{named}/agents/{agent}`: the operator erases one agent of an org, both
+  worlds — its logs, recordings and memories, its settings, callers, judges, monitors, routes, eval
+  runs and cases, its days of drift — with one trail row (`what: agent`, migration 0103). Refused
+  while a process of the org holds it or a call of it is live; another org's agent of the same slug
+  is never touched (`tenancy/erasure.py agent`).
+- `GET /v1/simulations` takes `?agent=` once or more: the console asks for the agents the org holds.
+- Console 1529df9: the harness lists the org's agents alone; Routes reads the runtime's row
+  again; Box usage pages its rows; Privacy is four tabs; a log in euros is read as dollars.
+
 ## 0.1.36 — One harness screen whoever is in view (2026-10-10)
 
 - `GET /v1/simulations?agent=`: one agent's simulated calls, from the same door as every agent's.

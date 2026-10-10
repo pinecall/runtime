@@ -197,6 +197,13 @@ class Sockets:
         )
 
     # A log reader knows the slug alone: production's declaration, else any world's.
+    def held_in(self, org: str, slug: str) -> bool:
+        """Whether a process holds the agent in the org now, in either world."""
+        return any(
+            scope.org == org and name == slug and kept
+            for (scope, name), kept in self.holders.items()
+        )
+
     def declared(self, slug: str) -> AgentConfig | None:
         """The agent's declared config, production's first."""
         found = sorted(

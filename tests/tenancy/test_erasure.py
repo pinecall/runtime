@@ -7,7 +7,7 @@ import pytest
 from cryptography.fernet import Fernet
 from psycopg import errors
 
-from pinecall.domain.errors import UpstreamFailed
+from pinecall.domain.errors import Conflict, UpstreamFailed
 from pinecall.domain.names import JsonObject
 from pinecall.domain.person import KEY_SCOPES
 from pinecall.domain.scope import Scope
@@ -18,8 +18,9 @@ from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.process.connections import vault_of
 from pinecall.process.recordings import Bucket, Disk
-from pinecall.tenancy import canary, erasure, recording_keys
+from pinecall.tenancy import canary, erasure, personas, recording_keys
 from pinecall.tenancy.canary import Canary, CanarySet
+from pinecall.tenancy.personas import Persona, PersonaEdit
 from pinecall.tenancy.prompts import Prompts
 from pinecall.wire.rest.evals import Expect
 from pinecall.wire.scores import CallScore
@@ -356,3 +357,39 @@ async def test_an_org_erased_takes_its_own_runs_and_no_other_orgs(
     async with pool.connection() as connection:
         rows = await (await connection.execute("SELECT id FROM eval_runs")).fetchall()
     assert [row["id"] for row in rows] == ["run_theirs"]
+
+
+@postgres
+async def test_an_agent_erased_takes_its_calls_and_callers_and_leaves_every_other_agent(
+    pool: Pool, store: Store, tmp_path: Path
+) -> None:
+    org = await an_org(pool)
+    other = await an_org(pool, "otra")
+    gone = await logged_call(store, org.id, ACall(agent="intruso"))
+    ours = await logged_call(store, org.id)
+    theirs = await logged_call(store, other.id, ACall(agent="intruso"))
+    caller = Persona(name="apurado", goal="a quote", style="rushed")
+    for owner, agent in ((org.id, "intruso"), (org.id, AGENT), (other.id, "intruso")):
+        await personas.put_persona(pool, owner, agent, caller, PersonaEdit(author="m_1"))
+
+    erased = await erasure.agent(pool, Disk(tmp_path), org.id, "intruso", by="operator")
+
+    assert erased.calls == (gone,)
+    assert await left_of(pool, gone) == NOTHING_LEFT
+    assert await left_of(pool, ours) != NOTHING_LEFT
+    assert await left_of(pool, theirs) != NOTHING_LEFT
+    assert await personas.personas_of(pool, org.id, "intruso") == []
+    assert len(await personas.personas_of(pool, org.id, AGENT)) == 1
+    assert len(await personas.personas_of(pool, other.id, "intruso")) == 1
+    [row] = await erasure.trail(pool, org.id)
+    assert (row.what, row.subject, row.calls) == ("agent", "intruso", 1)
+
+
+@postgres
+async def test_an_agent_on_a_call_is_not_erased_until_the_call_ends(
+    pool: Pool, store: Store
+) -> None:
+    org = await an_org(pool)
+    live = await logged_call(store, org.id, ACall(agent="intruso", ended=False))
+    with pytest.raises(Conflict, match=live):
+        await erasure.agent(pool, Disk(Path("/nowhere")), org.id, "intruso", by="operator")

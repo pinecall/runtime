@@ -69,6 +69,12 @@ Four rows of `box_settings`, each read and written whole, the console's platform
   into this one, its logs and its numbers with it: `{agent, org, logs, numbers, stayed}`. `409`
   while somebody holds it, `404` for a slug that never wrote a log; a number the org already
   answers at stays where it was and is named.
+- `DELETE /v1/ops/orgs/{named}/agents/{agent}`: an agent that is not the org's — run once under
+  its key, a test, a copy — erased whole, both worlds: its logs and recordings, the memories its
+  calls taught, its settings and their versions, its callers, judges, monitors, the numbers routed
+  to it, its eval runs and cases, its days of drift; a person held to it loses it from their list.
+  The dial ledger stays. Answers the erasure's trail row (`what: agent`); `409` while a process of
+  the org holds it or one of its calls is live. Another org's agent of the same slug is never touched.
 
 ## Quotas and dial guards
 

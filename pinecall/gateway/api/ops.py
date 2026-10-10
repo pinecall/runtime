@@ -46,6 +46,7 @@ from pinecall.wire.rest.accounts import (
     OrgSsoResponse,
     RevokeKeyResponse,
 )
+from pinecall.wire.rest.calls import Erasure
 from pinecall.wire.rest.numbers import DialGuards
 from pinecall.wire.rest.ops import (
     AgentMovedResponse,
@@ -166,6 +167,24 @@ async def remove_org(named: str, gateway: GatewayDep) -> None:
     erased = await erasure.org(pool, recordings, org.id, by=reads.OPERATOR)
     for call in erased.calls:
         gateway.logs.forget(call)
+
+
+# An agent that is not the org's — run once under its key, a test, a copy — taken out whole, both
+# worlds: the operator's, since its calls and recordings go with it. Refused while a process of the
+# org holds it, which would only register it again; another org's agent of the same slug is not
+# this one and is never looked at.
+@router.delete("/v1/ops/orgs/{named}/agents/{agent}")
+async def erase_agent(named: str, agent: str, gateway: GatewayDep) -> Erasure:
+    """Erase one agent of the org, its logs, recordings and every row it owns; the trail row."""
+    pool = gateway.connections.pool
+    org = await _org(gateway, named)
+    if gateway.sockets.held_in(org.id, agent):
+        raise Conflict(NOT_HELD.format(slug=agent))
+    recordings = recordings_of(gateway.connections.settings, gateway.connections.http)
+    erased = await erasure.agent(pool, recordings, org.id, agent, by=reads.OPERATOR)
+    for call in erased.calls:
+        gateway.logs.forget(call)
+    return erased.trail
 
 
 # The way back from an agent registered with the wrong org's key: its logs and its numbers move.

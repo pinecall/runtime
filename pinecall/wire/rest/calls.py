@@ -20,7 +20,7 @@ from pinecall.wire.parts import (
 )
 from pinecall.wire.state import AttentionState
 
-type ErasureSubject = Literal["call", "contact", "org"]
+type ErasureSubject = Literal["call", "contact", "org", "agent"]
 
 type ReadKind = Literal["log", "recording", "traceback", "listen", "supervise", "export", "memory"]
 

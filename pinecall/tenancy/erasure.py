@@ -1,4 +1,4 @@
-"""An erasure: a call's, a contact's or an org's rows and recordings gone, and its trail row."""
+"""An erasure: a call's, a contact's, an agent's or an org's rows and recordings, and its trail."""
 
 from dataclasses import asdict, dataclass
 
@@ -25,6 +25,11 @@ WHERE head.org = %(org)s AND head.env = %(env)s AND facts.contact = %(contact)s
 
 # Every log of the org: its calls, and its agents' own logs ("@<agent>"), which carry no call.
 LOGS_OF_ORG = "SELECT log, call, agent FROM call_log_head WHERE org = %(org)s"
+
+# Every log of one agent of the org, in both worlds and every corner: its calls and its own log.
+LOGS_OF_AGENT = (
+    "SELECT log, call, sealed FROM call_log_head WHERE org = %(org)s AND agent = %(agent)s"
+)
 
 # What a call left besides its entries: the private values sealed beside them, its head, facts,
 # tokens, the memories it taught, its recording's key, the verdicts its day's drift counted (the
@@ -87,6 +92,35 @@ WITH runs AS (
      keys AS (DELETE FROM api_keys WHERE org = %(org)s)
 DELETE FROM orgs WHERE id = %(org)s
 """
+
+# What the org keeps of one agent besides its logs, in both worlds: its settings and their
+# versions, its canary, widget, hold melody and words, its callers, judges and monitors, the
+# numbers that route to it, its eval runs and cases, its days of drift and stages, what each
+# reader read of its threads, and its tokens. A person held to a list of agents loses this one
+# from it. The dial ledger stays, as a call's erasure leaves it.
+ERASE_AGENT = """
+WITH settings AS (DELETE FROM agent_config WHERE org = %(org)s AND agent = %(agent)s),
+     canaries AS (DELETE FROM agent_canaries WHERE org = %(org)s AND agent = %(agent)s),
+     widgets AS (DELETE FROM agent_widgets WHERE org = %(org)s AND agent = %(agent)s),
+     melodies AS (DELETE FROM hold_audio WHERE org = %(org)s AND agent = %(agent)s),
+     words AS (DELETE FROM lexicon WHERE org = %(org)s AND agent = %(agent)s),
+     callers AS (DELETE FROM agent_personas WHERE org = %(org)s AND agent = %(agent)s),
+     judges AS (DELETE FROM agent_judges WHERE org = %(org)s AND agent = %(agent)s),
+     watched AS (DELETE FROM monitors WHERE org = %(org)s AND agent = %(agent)s),
+     routed AS (DELETE FROM routes WHERE org = %(org)s AND agent = %(agent)s),
+     runs AS (DELETE FROM eval_runs WHERE org = %(org)s AND agent = %(agent)s),
+     cases AS (DELETE FROM eval_cases WHERE org = %(org)s AND agent = %(agent)s),
+     drifted AS (DELETE FROM drift_calls WHERE org = %(org)s AND agent = %(agent)s),
+     judged AS (DELETE FROM judge_days WHERE org = %(org)s AND agent = %(agent)s),
+     staged AS (DELETE FROM stage_days WHERE org = %(org)s AND agent = %(agent)s),
+     labels AS (DELETE FROM judge_labels WHERE org = %(org)s AND agent = %(agent)s),
+     reads AS (DELETE FROM thread_reads WHERE org = %(org)s AND agent = %(agent)s),
+     spent AS (DELETE FROM tokens WHERE org = %(org)s AND agent = %(agent)s)
+UPDATE members SET agents = array_remove(agents, %(agent)s)
+WHERE org = %(org)s AND %(agent)s = ANY(agents)
+"""
+
+STILL_ON_A_CALL_AS = "{agent} is on call {call} right now: erase it once the call has ended"
 
 TRAIL = """
 INSERT INTO erasures (org, env, what, subject, asked_by, calls, entries, memories, recordings)
@@ -168,6 +202,23 @@ async def org(pool: Pool, recordings: Recordings, org_id: str, *, by: str) -> Er
         entries, memories = await _logs(connection, logs, calls)
         await connection.execute(ERASE_ORG, {"org": org_id, "agents": agents})
         taking = _Taking(org_id, None, "org", org_id, by, calls, entries, memories)
+        return await _written(connection, recordings, taking)
+
+
+async def agent(pool: Pool, recordings: Recordings, org_id: str, slug: str, *, by: str) -> Erased:
+    """Erase one agent of the org, both worlds: its logs and recordings, and every row it owns."""
+    params = {"org": org_id, "agent": slug}
+    async with unbounded(pool) as connection:
+        await connection.execute(ERASING)
+        rows = await (await connection.execute(LOGS_OF_AGENT, params)).fetchall()
+        live = next((str(row["call"]) for row in rows if row["call"] and not row["sealed"]), None)
+        if live is not None:
+            raise Conflict(STILL_ON_A_CALL_AS.format(agent=slug, call=live))
+        logs = [str(row["log"]) for row in rows]
+        calls = [str(row["call"]) for row in rows if row["call"] is not None]
+        entries, memories = await _logs(connection, logs, calls)
+        await connection.execute(ERASE_AGENT, params)
+        taking = _Taking(org_id, None, "agent", slug, by, calls, entries, memories)
         return await _written(connection, recordings, taking)
 
 
