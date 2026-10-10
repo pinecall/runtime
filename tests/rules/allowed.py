@@ -154,6 +154,11 @@ TASK_OWNERS: tuple[Allowed, ...] = (
         "answering_now and handed hold them; closed() cancels and awaits them",
     ),
     Allowed(
+        "pinecall/gateway/simulating/playing.py",
+        "create_task",
+        "playing holds each by its call until it ends; stopped() cancels and awaits them",
+    ),
+    Allowed(
         "pinecall/process/signal.py",
         "create_task",
         "the sender and the listener are cancelled and awaited in RedisSignal.close()",

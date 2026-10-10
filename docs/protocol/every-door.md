@@ -46,6 +46,7 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `PUT` | `/v1/agents/{slug}/personas/{name}` | evals | Write one of the agent's callers whole, or rename one from `was`; its list after it. |
 | `GET` | `/v1/agents/{slug}/personas/{name}/runs` | evals | The calls the persona made to the agent in the key's environment and scope, newest first. |
 | `GET` | `/v1/personas` | evals | Every agent's callers, by agent and then by name; each row says whose. |
+| `POST` | `/v1/simulations` | evals | Put one of the agent's personas on it, written or spoken, against whoever holds it; the call's id at once. |
 | `GET` | `/v1/simulations` | evals | Every simulated call in the key's environment and scope, or the agents named's (`?agent=`, once or more), whichever persona, newest first. |
 | `GET` | `/v1/agents/{slug}/pipeline` | pipeline | The agent's three stages, the catalogue, and the latencies of its last calls. |
 | `GET` | `/v1/agents/{slug}/pipeline/hold-audio` | pipeline | What the agent plays while a tool runs: the platform's melody, silence, or a clip of its own. |

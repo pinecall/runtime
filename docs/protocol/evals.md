@@ -293,6 +293,18 @@ rates, and whether it hung up because the call had spent the providers row's
 `caller.ceiling_usd` ([operator-api.md](operator-api.md)); the line that crosses it is the last
 one said. A model or a voice the rates do not price costs nothing here, as on a call.
 
+`POST /v1/simulations` `{agent, persona, voice?, turns?, interferer_db?, packet_loss?}` is the
+simulation the console starts: one of the agent's personas, by name, put on the agent as anybody
+calls it, so whatever holds it answers — a process deployed, on a server of the org's, or a
+developer's `pinecall start`. Spoken (`voice`, the default) it is the call above; written, it is
+the chat the widget has, each line the persona's model improvises said once the agent's whole
+answer is in, until the caller hangs up (sixty seconds with no answer end the call `timeout`). The
+persona's rules ride the call, which is sealed and judged like any other. What can be refused is
+refused before the answer: a persona nobody wrote for the agent, or nobody holding it in the
+key's world and scope, `404`; the org's limits as on a call. The answer is `{call, voice}` at once,
+the call minted by the platform, and the conversation goes on in the gateway: it is watched as any
+call is, and `GET /v1/simulations` lists it. Its tools run for real, as on any call.
+
 ## Personas — `GET /v1/agents/{slug}/personas`, `PUT` · `DELETE /v1/agents/{slug}/personas/{name}`, `GET /v1/agents/{slug}/personas/{name}/runs`
 
 A persona belongs to one agent, in both environments: two agents of the org may each have an `apurado`

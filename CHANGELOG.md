@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.1.38 — A simulation calls whatever holds the agent, deployed too (2026-10-10)
+
+- `POST /v1/simulations {agent, persona, voice?, turns?, interferer_db?, packet_loss?}`: the
+  gateway plays one of the agent's personas against whoever holds it — a deployed process or a
+  developer's `pinecall start` — spoken (the call `/v1/evals/voice` places) or written (the chat
+  the widget has, each improvised line said once the agent's whole answer is in). Refusals come
+  before the answer; the call's id comes back at once and the conversation is played in the
+  gateway, stopped with the process (`gateway/simulating/`, `evals/simulated.py`).
+- The spoken caller, its model, voice and line are one module both doors use
+  (`gateway/simulating/caller.py`); a written caller's line counts its model alone.
+- Console 1370bb1: Harness ▸ Simulations starts every simulation through the gateway, so a
+  deployed agent is simulated like a local one; it no longer asks the dev socket.
+
 ## 0.1.37 — An agent that is not the org's is erased whole (2026-10-10)
 
 - `DELETE /v1/ops/orgs/{named}/agents/{agent}`: the operator erases one agent of an org, both

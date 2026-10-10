@@ -349,6 +349,27 @@ class PlaceVoiceCallRequest(WireModel):
     state: JsonObject = Field(default_factory=dict[str, Json])
 
 
+class SimulationRequest(WireModel):
+    """POST /v1/simulations, the body: the agent, one of its personas, a written or spoken line."""
+
+    agent: str
+    persona: str
+    # Spoken: a real line, the caller in a voice of its own. Written: the chat the widget has.
+    voice: bool = True
+    # The caller's lines, each paid for by the box: forty at most, fifteen when not said.
+    turns: int = Field(default=15, ge=1, le=40)
+    # Spoken alone: dB of a background voice under the caller's, and the share of packets lost.
+    interferer_db: float | None = None
+    packet_loss: float = Field(default=0.0, ge=0, le=1)
+
+
+class SimulationStarted(WireModel):
+    """POST /v1/simulations, the answer: the call it plays on, watched like any call."""
+
+    call: str
+    voice: bool
+
+
 class PlaceVoiceCallResponse(WireModel):
     """POST /v1/evals/voice, the answer: how many lines the caller said, and on what line."""
 

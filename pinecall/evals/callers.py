@@ -97,8 +97,11 @@ class Spending:
         caller = self.configured.caller
         return caller is not None and self.usd >= caller.ceiling_usd
 
-    def count(self, line: Improvised, speech: tts.TTS[Never]) -> None:
-        """The line's model by its answer, its voice by the characters said."""
+    def count(self, line: Improvised, speech: tts.TTS[Never] | None) -> None:
+        """The line's model by its answer, and its voice by the characters said when spoken."""
+        if speech is None:
+            self.used.extend([] if line.usage is None else [line.usage])
+            return
         characters = len(line.answer.say)
         voiced = TTSModelUsage(
             type="tts_usage",

@@ -9,6 +9,7 @@ from pinecall.fleet.roster import Roster
 from pinecall.gateway._served import ServedCalls, Serving
 from pinecall.gateway._sockets import Sockets
 from pinecall.gateway.calls.threads import Threads
+from pinecall.gateway.simulating.playing import Simulations
 from pinecall.log.logs import Logs
 from pinecall.process.connections import Connections
 from pinecall.process.metrics import Counters
@@ -54,6 +55,8 @@ class Gateway:
     # The loops that must run for the life of the process (the reaper, the sweep), by name: a loop
     # that stopped on an error none of them catches is said on /metrics, for the alert.
     loops: dict[str, asyncio.Task[None]] = field(default_factory=dict[str, asyncio.Task[None]])
+    # The simulated calls being played after their door answered (api/simulations.py).
+    simulations: Simulations = field(default_factory=Simulations)
 
     @property
     def offering(self) -> Offering:

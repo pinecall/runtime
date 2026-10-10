@@ -66,6 +66,7 @@ from pinecall.gateway.api import (
     sessions,
     settings,
     signup,
+    simulations,
     sso_login,
     telemetry,
     threads,
@@ -220,6 +221,7 @@ ROUTERS = (
     sessions,
     settings,
     signup,
+    simulations,
     sso_login,
     telemetry,
     threads,
@@ -330,6 +332,8 @@ async def lifespan(fastapi_app: FastAPI) -> AsyncGenerator[None]:
     async with AsyncExitStack() as stack:
         gateway = await wire(settings, stack)
         fastapi_app.state.gateway = gateway
+        # Pushed after the wiring, so the calls stop before the logs and the pool close under them.
+        stack.push_async_callback(gateway.simulations.stopped)
         reaper = box_task(reap_forever(gateway.serving, gateway.connections.servers))
         stack.push_async_callback(_cancelled, reaper)
         sweep = box_task(sweep_forever(gateway.offering))

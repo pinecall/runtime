@@ -2,19 +2,15 @@
 
 import asyncio
 import dataclasses
-import time
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Annotated, Never
 
 from fastapi import APIRouter, Path, Query
-from livekit import rtc
-from livekit.agents import llm, tts
+from livekit.agents import llm
 from pydantic import BaseModel, Field
 
 from pinecall.channels import rooms
-from pinecall.domain.agent import AgentConfig, Model, Voice
+from pinecall.domain.agent import AgentConfig, Model
 from pinecall.domain.call import CallContext, Route, new_call_id, today_in
 from pinecall.domain.errors import (
     Conflict,
@@ -27,10 +23,9 @@ from pinecall.domain.errors import (
 from pinecall.domain.names import PRODUCTION, THE_WIDGET
 from pinecall.domain.scope import Scope
 from pinecall.evals import checks, dataset, goldens, runs, spoken
-from pinecall.evals.callers import Spending, heard_in, improvise_line
+from pinecall.evals.callers import improvise_line
 from pinecall.evals.case import Case, case_of
 from pinecall.evals.judges import CaseJudge, hangup_judges
-from pinecall.fleet import worlds
 from pinecall.gateway import _deps
 from pinecall.gateway._call_setup import exhausted, keys_of, tuned
 from pinecall.gateway._deps import EvalsKey, GatewayDep, ScopeDep, check_paced
@@ -38,19 +33,23 @@ from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._sockets import NO_AGENT, Registration
 from pinecall.gateway._text_calls import TextSetup, open_text_as
 from pinecall.gateway.ending.seal import compliance_of, drifted, judge_of, judged_call
-from pinecall.log import queries
-from pinecall.log.store import Claim
-from pinecall.providers import catalog, credentials
-from pinecall.providers.build import Running, llm_of, tts_of
+from pinecall.gateway.simulating.caller import (
+    Placed,
+    a_new_call,
+    caller_model,
+    caller_voice,
+    on_the_line,
+    spoken_call,
+)
+from pinecall.providers import catalog
+from pinecall.providers.build import llm_of, tts_of
 from pinecall.providers.catalog import Providers
 from pinecall.providers.credentials import Keyring, thinking
-from pinecall.providers.declared import model_of
-from pinecall.tenancy import judges, personas, scopes, tokens
+from pinecall.tenancy import judges, personas, scopes
 from pinecall.tenancy.keys import check_agent
 from pinecall.tenancy.scopes import Picked
 from pinecall.wire.parts import ModelConfig
 from pinecall.wire.rest.evals import (
-    CallerPersona,
     EvalRunList,
     EvalRunResponse,
     Golden,
@@ -111,15 +110,6 @@ NOT_REMEMBERED = (
 )
 
 
-NO_LINE = "the simulated call could not be held: {broke}"
-
-
-# A call id names a room, a log and a recording: a simulated caller is put on a new one alone.
-NOT_A_NEW_CALL = (
-    "call {call} exists already: a simulated caller is placed on a call id nobody opened"
-)
-
-
 CASES_IN_THE_SANDBOX = (
     "cases are real callers' words played again: they run in the sandbox, against the app a "
     "developer holds there, never through production's, whose tools act for real"
@@ -157,10 +147,6 @@ A_SEAL_MAY_TAKE_S = 25.0
 NEVER_SEALED = (
     "the spoken call {call} never sealed within {seconds:.0f}s: there is nothing to judge"
 )
-
-
-# Longer than any run, so the caller's token never ends a call first.
-A_CALL_MAY_LAST_S = 15 * 60.0
 
 
 class RunListQuery(BaseModel):
@@ -316,7 +302,7 @@ async def next_line(
 ) -> NextLineResponse:
     """The persona's next line on the call so far, improvised by its model."""
     await check_paced(gateway, f"{scope.org} evals/caller", LINES_A_MINUTE, TOO_MANY_LINES)
-    async with _caller_model(gateway, scope, body.persona) as model:
+    async with caller_model(gateway, scope, body.persona) as model:
         return (await improvise_line(model, body)).answer
 
 
@@ -332,51 +318,16 @@ async def place_voice_call(
     persona = body.persona
     if persona.name and await personas.persona(pool, key.org, body.agent, persona.name) is None:
         raise NotFound(personas.NOBODY.format(name=persona.name, agent=body.agent))
-    await _a_new_call(gateway, body.call, body.agent, scope)
+    await a_new_call(gateway, body.call, body.agent, scope)
     line = spoken.Line(interferer_db=body.interferer_db, packet_loss=body.packet_loss)
-    dispatch = rooms.Dispatch(
-        agent=body.agent,
-        org=scope.org,
-        env=scope.env,
-        holder=scope.holder or None,
-        caller=spoken.A_SIMULATED_CALLER,
-        persona=persona.name or None,
-        accepts_when=persona.accepts_when or None,
-        declines_when=persona.declines_when or None,
-        state=dict(body.state),
-    )
-    spending = Spending(await catalog.providers(pool))
-    stopped = False
-    async with _caller_model(gateway, scope, persona) as model:
-        speech = tts_of(await _caller_voice(gateway, scope, body.agent, persona))
-
-        # Asked before each line: the line that crosses the ceiling is the last one said.
-        async def improvised(turns_left: int) -> tuple[str, bool]:
-            nonlocal stopped
-            entries = await gateway.logs.store.whole(body.call)
-            if spoken.is_call_over(entries):
-                return "", True
-            if spending.is_over:
-                stopped = True
-                return "", True
-            request = NextLineRequest(
-                persona=persona, heard=heard_in(entries), turns_left=turns_left
-            )
-            next_one = await improvise_line(model, request)
-            spending.count(next_one, speech)
-            return next_one.answer.say, next_one.answer.hangup
-
-        placed = spoken.SpokenLine("", "", body.call, body.turns, line)
-        try:
-            turns = await _on_the_line(gateway, dispatch, speech, placed, improvised)
-        finally:
-            await speech.aclose()
+    placed = Placed(body.call, body.agent, persona, body.turns, line, dict(body.state))
+    turns, spending = await spoken_call(gateway, scope, placed)
     return PlaceVoiceCallResponse(
         call=body.call,
         turns=turns,
         line=spoken.described(line),
         caller_cost_usd=spending.usd,
-        stopped_at_ceiling=stopped,
+        stopped_at_ceiling=spending.is_over,
     )
 
 
@@ -531,92 +482,15 @@ async def _said_out_loud(
     async def scripted(turns_left: int) -> tuple[str, bool]:
         return (lines[len(lines) - turns_left], False) if turns_left <= len(lines) else ("", False)
 
-    speech = tts_of(await _caller_voice(gateway, scope, registration.slug, None))
+    speech = tts_of(await caller_voice(gateway, scope, registration.slug, None))
     line = spoken.Line(interferer_db=body.interferer_db, packet_loss=body.packet_loss)
     placed = spoken.SpokenLine("", "", opened.call, len(lines), line)
     try:
-        await _on_the_line(gateway, dispatch, speech, placed, scripted)
+        await on_the_line(gateway, dispatch, speech, placed, scripted)
     finally:
         await speech.aclose()
     await _until_sealed(gateway, opened.call)
     return goldens.Played(held=True, requests=())
-
-
-# The head is claimed in the caller's scope before the room is offered, so the worker opens it
-# there or not at all (api/calls.py _unclaimed_or_in), and another org's call can never be named.
-async def _a_new_call(gateway: Gateway, call: str, agent: str, scope: Scope) -> None:
-    if await queries.scope_of_call(gateway.connections.pool, call) is not None:
-        raise Conflict(NOT_A_NEW_CALL.format(call=call))
-    await gateway.logs.store.claim(call, agent, scope.org, Claim(scope))
-
-
-# ── the caller ──
-
-
-@asynccontextmanager
-async def _caller_model(
-    gateway: Gateway, scope: Scope, persona: CallerPersona
-) -> AsyncGenerator[llm.LLM[Never]]:
-    pool = gateway.connections.pool
-    configured = await catalog.providers(pool)
-    declared = model_of(persona.llm or None, "llm", in_use=configured.defaults["llm"].vendor)
-    keys = await keys_of(pool, gateway.connections.vault, scope)
-    model = llm_of(credentials.stage("llm", declared, configured, keys))
-    try:
-        yield model
-    finally:
-        await model.aclose()
-
-
-# The caller speaks in the agent's language and never in the agent's own voice.
-async def _caller_voice(
-    gateway: Gateway, scope: Scope, agent: str, persona: CallerPersona | None
-) -> Running:
-    pool = gateway.connections.pool
-    configured = await catalog.providers(pool)
-    holding = gateway.sockets.of(scope, agent)
-    config = (
-        AgentConfig(slug=agent)
-        if holding is None or holding.scope.org != scope.org
-        else (await tuned(pool, holding.config, holding.scope, configured))[0]
-    )
-    in_use = configured.defaults["tts"].vendor
-    named = None if persona is None else model_of(persona.tts or None, "tts", in_use=in_use)
-    vendor = in_use if named is None else named.provider
-    agents_voice = None if config.voice is None else config.voice.voice_id
-    chosen = (persona.voice if persona is not None else None) or spoken.pick_caller_voice(
-        configured.voices, vendor, agents_voice, config.language
-    )
-    model = None if named is None else named.model or None
-    wanted = Voice(provider=vendor, model=model, voice_id=chosen)
-    keys = await keys_of(pool, gateway.connections.vault, scope)
-    stage = credentials.stage("tts", wanted, configured, keys)
-    return dataclasses.replace(stage, voice=chosen, language=config.language)
-
-
-# The room is deleted whatever happens: that ends the agent's job, and its job seals the log.
-async def _on_the_line(
-    gateway: Gateway,
-    dispatch: rooms.Dispatch,
-    speech: tts.TTS[Never],
-    line: spoken.SpokenLine,
-    next_line: spoken.NextLine,
-) -> int:
-    connections = gateway.connections
-    world = dispatch.env or "sandbox"
-    fleet = worlds.fleet_of(await worlds.fleets(connections.pool), world)
-    visitor = tokens.Visitor(
-        expires_at=time.time() + A_CALL_MAY_LAST_S, identity=spoken.A_SIMULATED_CALLER
-    )
-    token = tokens.room_token(gateway.signer, line.call, "talk", visitor)
-    joined = dataclasses.replace(line, url=connections.settings.livekit_url_of(world), token=token)
-    try:
-        await gateway.offering.offer(line.call, fleet, dispatch)
-        return await spoken.run_spoken(joined, speech, gateway.logs, next_line)
-    except (TimeoutError, rtc.ConnectError) as broke:
-        raise NotAvailable(NO_LINE.format(broke=broke)) from broke
-    finally:
-        await rooms.room_closed(connections.servers[world], line.call)
 
 
 async def _until_sealed(gateway: Gateway, call: str) -> None:
