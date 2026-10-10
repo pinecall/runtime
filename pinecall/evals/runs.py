@@ -15,7 +15,7 @@ from pinecall.domain.errors import Conflict
 from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.evals.case import Case, as_chat
-from pinecall.evals.judges import CaseJudge
+from pinecall.evals.judges import GoldenJudge
 from pinecall.postgres.pool import Pool
 from pinecall.wire.parts import ModelConfig
 from pinecall.wire.rest.evals import (
@@ -203,7 +203,7 @@ async def listed(
 
 
 async def score(
-    judges: Sequence[CaseJudge], case: Case, model: llm.LLM[Never] | None
+    judges: Sequence[GoldenJudge], case: Case, model: llm.LLM[Never] | None
 ) -> list[JudgeScore]:
     """Every judge over one case, in order: its verdict as a score, and the model calls it made."""
     chat = as_chat(case)

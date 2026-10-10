@@ -39,12 +39,13 @@ PENDING_AT_MOST = 50
 THE_PANEL = "the hang-up panel"
 
 
-# Settled into fields of code; every other judge is asked again by name in `expect.judges`.
-BY_CODE = frozenset({"consent", "grounded"})
+# Written into the golden's own fields (the tools consent broke on, `grounded`); every other judge
+# is asked again by name in `expect.judges`.
+IN_FIELDS = frozenset({"consent", "grounded"})
 
 
 # Its rule is the simulated caller's, and a case plays written lines: nobody holds it.
-UNPLAYABLE = frozenset({"persona"})
+UNPLAYABLE = frozenset({"expected-outcome"})
 
 
 # The words of the first caller line a born case is named by.
@@ -250,7 +251,7 @@ def expect_of(judgments: Sequence[Judgment], entries: Sequence[Entry]) -> Expect
     by_name = [
         judgment.name
         for judgment in broken
-        if judgment.name not in BY_CODE and judgment.name not in UNPLAYABLE
+        if judgment.name not in IN_FIELDS and judgment.name not in UNPLAYABLE
     ]
     # Only what broke is set, so the golden a person reads or pulls says nothing it does not mean.
     fields: dict[str, object] = {}
@@ -279,7 +280,7 @@ async def kept_at_hangup(
 ) -> None:
     """Keep a call one of its judges broke on as a pending case, unless the inbox is full."""
     broke = broke_of(score)
-    if not broke or _simulated(entries) or not _caller_spoke(entries):
+    if not broke or simulated(entries) or not _caller_spoke(entries):
         return
     call = next((entry.call for entry in entries if entry.call is not None), "")
     name = _name_of(broke[0].judge, entries, call)
@@ -408,6 +409,15 @@ async def forgotten(pool: Pool, org: str, case: str) -> None:
         raise NotFound(NO_SUCH_CASE.format(id=case))
 
 
+# A persona's call, or a golden's played by the simulated caller: each is one simulation billed.
+def simulated(entries: Sequence[Entry]) -> bool:
+    """Whether a simulated caller, not a person, was on the other end of the call."""
+    for entry in entries:
+        if entry.type == "call.started" and isinstance(started := event_of(entry), CallStarted):
+            return started.persona is not None or started.from_ == A_SIMULATED_CALLER
+    return False
+
+
 def _name_of(judge: str, entries: Sequence[Entry], call: str) -> str:
     """The first judge that broke, the caller's first words, and the call's last six characters."""
     first = next(
@@ -423,13 +433,6 @@ def _name_of(judge: str, entries: Sequence[Entry], call: str) -> str:
     bare = unicodedata.normalize("NFKD", first).encode("ascii", "ignore").decode().casefold()
     words = re.findall(r"[a-z0-9]+", bare)[:NAMED_BY_WORDS]
     return "-".join([judge, *words, call[-6:].casefold()])
-
-
-def _simulated(entries: Sequence[Entry]) -> bool:
-    for entry in entries:
-        if entry.type == "call.started" and isinstance(started := event_of(entry), CallStarted):
-            return started.persona is not None or started.from_ == A_SIMULATED_CALLER
-    return False
 
 
 def _caller_spoke(entries: Sequence[Entry]) -> bool:

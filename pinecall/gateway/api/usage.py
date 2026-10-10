@@ -271,6 +271,8 @@ def usage_row_response(row: UsageRow) -> UsageRowResponse:
         output_tokens=row.used.output_tokens,
         characters=row.used.characters,
         judge_calls=row.used.judge_calls,
+        evals=row.used.evals,
+        simulated=row.used.simulations > 0,
         cost_usd=row.used.cost_usd,
     )
 
@@ -285,6 +287,8 @@ def usage_totals(used: Usage) -> UsageTotals:
         output_tokens=used.output_tokens,
         characters=used.characters,
         judge_calls=used.judge_calls,
+        evals=used.evals,
+        simulations=used.simulations,
         cost_usd=used.cost_usd,
     )
 

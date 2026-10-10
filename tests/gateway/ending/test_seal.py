@@ -5,38 +5,59 @@ import dataclasses
 import json
 import logging
 from collections.abc import AsyncIterator
-from dataclasses import replace
 
 import httpx
 import pytest
 
-from pinecall.domain.agent import AgentConfig, AgentJudge, MemoryPolicy, Versions
+from pinecall.domain.agent import AgentConfig, MemoryPolicy, Model, Versions, block_hash
 from pinecall.domain.call import CallContext
+from pinecall.domain.judging import JudgeSpec
 from pinecall.domain.monitor import Monitor
 from pinecall.domain.names import JsonObject
 from pinecall.domain.org import Quotas
-from pinecall.domain.scope import Scope
+from pinecall.domain.scope import THE_ORGS_OWN, Scope
 from pinecall.domain.webhook import Webhook
 from pinecall.evals import dataset
+from pinecall.evals.catalog import library
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway.calls.serving import opened, served_call
-from pinecall.gateway.ending.seal import A_RUN_JUDGES_IT, NO_JUDGE, drifted, sealed, summed_up
+from pinecall.gateway.ending.seal import (
+    A_RUN_JUDGES_IT,
+    NO_JUDGE,
+    drifted,
+    prompt_of,
+    sealed,
+    summed_up,
+    surroundings_of,
+)
 from pinecall.log.logs import log_name
+from pinecall.log.reduce import Metered, usage_row
 from pinecall.log.store import Claim
 from pinecall.providers import catalog
-from pinecall.providers.catalog import Embedding, Judge, Rate
+from pinecall.providers.catalog import Embedding, Rate
 from pinecall.retrieval import memory
 from pinecall.retrieval.embed import Embedder
-from pinecall.tenancy import admission, consents, judges, monitors, orgs, webhooks
+from pinecall.tenancy import admission, consents, judges, monitors, orgs, vault, webhooks
 from pinecall.tenancy.consents import Given
 from pinecall.wire.frames import Entry
 from pinecall.wire.metrics import LLMModelUsage
+from pinecall.wire.parts import ModelConfig
 from pinecall.wire.rest.calls import SealCallRequest
 from pinecall.wire.scores import CallScore
 from tests.conftest import configured, postgres
 from tests.fakes.embeddings import Embeddings
 from tests.fakes.webhooks import Receiver
-from tests.gateway.conftest import AGENT, OURS, a_call, a_start
+from tests.gateway.conftest import (
+    AGENT,
+    EVERY_HELD,
+    NOT_APPLIES,
+    OURS,
+    a_call,
+    a_hold,
+    a_start,
+    broken,
+    judging,
+)
 
 COUNTED = "select held, broken, config_version from judge_days where org = %(org)s"
 
@@ -110,6 +131,7 @@ async def test_the_seal_counts_the_calls_verdicts_into_its_days_drift_once(wired
     pool = wired.connections.pool
     org = await orgs.create(pool, "clinica-norte", "Clinica Norte")
     scope = Scope(org.id, "sandbox")
+    await catalog.configure(pool, judging(*EVERY_HELD))
     context = a_call(scope)
     await wired.logs.store.claim(context.call, AGENT, org.id, Claim(scope, Versions(config=2)))
     served = served_call(wired.serving, None, context, AgentConfig(slug=AGENT), scope)
@@ -121,7 +143,7 @@ async def test_the_seal_counts_the_calls_verdicts_into_its_days_drift_once(wired
     async with pool.connection() as connection:
         rows = await (await connection.execute(COUNTED, {"org": org.id})).fetchall()
     settled = [judge for judge in score.judges if judge.verdict in {"held", "broken"}]
-    assert settled, "the code judges settle every call"
+    assert len(settled) == len([answer for answer in EVERY_HELD if answer != NOT_APPLIES])
     assert sum(row["held"] + row["broken"] for row in rows) == len(settled)
     assert {row["config_version"] for row in rows} == {2}
 
@@ -228,11 +250,15 @@ async def test_the_seal_prices_the_phone_leg_by_the_trunks_rate_and_never_names_
 
 
 async def sealed_call(
-    wired: Gateway, context: CallContext, *turns: tuple[str, JsonObject]
+    wired: Gateway,
+    context: CallContext,
+    *turns: tuple[str, JsonObject],
+    declared: AgentConfig | None = None,
 ) -> list[Entry]:
-    """A call that said these turns, ended and sealed: its whole log."""
+    """A call of the agent as declared that said these turns, ended and sealed: its whole log."""
     scope = Scope(context.route.org, context.route.env)
-    served = served_call(wired.serving, None, context, AgentConfig(slug=AGENT), scope)
+    config = declared or AgentConfig(slug=AGENT)
+    served = served_call(wired.serving, None, context, config, scope)
     for kind, data in turns:
         await served.log.append(kind, data)
     await served.log.append(
@@ -252,42 +278,50 @@ PRICED: tuple[tuple[str, JsonObject], ...] = (
 )
 
 
+GROUNDED_BROKE = (a_hold(), a_hold(), broken("60 €", 3), NOT_APPLIES, NOT_APPLIES)
+
+
+NONE_OF_THE_LIBRARY = judges.Switched(tuple(library()), on=False, author="m_ana")
+
+
+def verdicts_of(whole: list[Entry]) -> dict[str, str]:
+    """Each judge's verdict on the sealed call, by name."""
+    score = CallScore.model_validate(whole[-1].data)
+    return {judgment.name: judgment.verdict for judgment in score.judges}
+
+
 @postgres
-async def test_a_box_that_names_no_judge_still_judges_by_code_and_skips_the_model_ones(
+async def test_a_box_that_names_no_judge_settles_the_gated_judges_and_skips_the_rest(
     wired: Gateway,
 ) -> None:
     whole = await sealed_call(wired, a_call(), *PRICED)
     score = CallScore.model_validate(whole[-1].data)
-    verdicts = {judgment.name: judgment.verdict for judgment in score.judges}
-    assert verdicts == {
-        "consent": "held",
+    assert verdicts_of(whole) == {
+        "consent": "na",
+        "disclosed": "skipped",
+        "ended-well": "skipped",
         "grounded": "skipped",
-        "promises": "held",
-        "disclosed": "held",
-        "honoured_stop": "held",
+        "honoured-stop": "skipped",
+        "identified": "na",
+        "promises": "skipped",
     }
     grounded = next(judgment for judgment in score.judges if judgment.name == "grounded")
     assert grounded.reason.startswith(NO_JUDGE)
-    assert score.passed is True
+    assert (score.passed, score.evals, score.judge_calls) == (None, 0, 0)
 
 
 @postgres
 async def test_a_box_that_names_a_judge_asks_it_on_its_own_key_and_prices_it(
     wired: Gateway,
 ) -> None:
-    verdict: dict[str, object] = {
-        "name": "submit_verdict",
-        "arguments": {"verdict": "fail", "reasoning": "60 €"},
-    }
-    judged_box = configured([[verdict]]).model_copy(
-        update={"judge": Judge.model_validate({"llm": {"vendor": "acme"}, "ceiling_usd": 0.01})}
-    )
-    await catalog.configure(wired.connections.pool, judged_box)
+    await catalog.configure(wired.connections.pool, judging(*GROUNDED_BROKE))
     whole = await sealed_call(wired, a_call(), *PRICED)
     score = CallScore.model_validate(whole[-1].data)
-    assert {judgment.name: judgment.verdict for judgment in score.judges}["grounded"] == "broken"
+    assert verdicts_of(whole)["grounded"] == "broken"
+    assert verdicts_of(whole)["promises"] == "na"
     assert score.passed is False
-    assert score.judge_calls == 1
+    # Five requests: three questions and two triggers; the triggers' no is not an eval.
+    assert (score.judge_calls, score.evals) == (5, 3)
     assert score.judge_cost_usd is not None
 
 
@@ -297,16 +331,10 @@ async def test_a_call_a_judge_broke_on_waits_in_the_inbox_and_one_that_held_does
 ) -> None:
     pool = wired.connections.pool
     org = await orgs.create(pool, "clinica-norte", "Clinica Norte")
+    await catalog.configure(pool, judging(*EVERY_HELD))
     await sealed_call(wired, a_call(Scope(org.id, "sandbox")), *PRICED)
-    assert await dataset.listed(pool, org.id, AGENT) == [], "no judge model: every judge held"
-    verdict: dict[str, object] = {
-        "name": "submit_verdict",
-        "arguments": {"verdict": "fail", "reasoning": "60 €"},
-    }
-    judged_box = configured([[verdict]]).model_copy(
-        update={"judge": Judge.model_validate({"llm": {"vendor": "acme"}, "ceiling_usd": 0.01})}
-    )
-    await catalog.configure(pool, judged_box)
+    assert await dataset.listed(pool, org.id, AGENT) == [], "every judge held"
+    await catalog.configure(pool, judging(*GROUNDED_BROKE))
     await sealed_call(wired, a_call(Scope(org.id, "sandbox")), *PRICED)
     (case,) = await dataset.listed(pool, org.id, AGENT, "pending")
     assert case.golden.input == ["¿Cuánto cuesta?"]
@@ -348,36 +376,146 @@ GREETED: tuple[tuple[str, JsonObject], ...] = (
 
 
 @postgres
-async def test_the_seal_asks_the_agents_own_judges_and_leaves_a_simulations_one_out(
+async def test_the_seal_asks_the_judges_switched_on_and_the_agents_own_but_no_simulations_one(
     wired: Gateway,
 ) -> None:
     pool = wired.connections.pool
-    verdict: dict[str, object] = {
-        "name": "submit_verdict",
-        "arguments": {"verdict": "pass", "reasoning": "it greeted"},
-    }
-    judged_box = configured([[verdict]]).model_copy(
-        update={"judge": Judge.model_validate({"llm": {"vendor": "acme"}, "ceiling_usd": 0.01})}
+    chose: tuple[str, JsonObject] = (
+        "submit_choice",
+        {"choice": "positive", "reason": "it thanked", "positions": []},
     )
-    await catalog.configure(pool, judged_box)
+    await catalog.configure(pool, judging(chose, a_hold("it greeted")))
     org = await orgs.create(pool, "org-own", "Own")
-    greets = AgentJudge(name="greets", question="The agent greeted the caller.")
-    rehearsed = AgentJudge(name="rehearsed", question="q", runs_on="simulations")
+    every = tuple(library())
+    await judges.switch(
+        pool, org.id, THE_ORGS_OWN, judges.Switched(every, on=False, author="m_ana")
+    )
+    await judges.switch(
+        pool, org.id, AGENT, judges.Switched(("sentiment",), on=True, author="m_ana")
+    )
+    greets = JudgeSpec(name="greets", question="The agent greeted the caller.")
+    rehearsed = JudgeSpec(name="rehearsed", question="q", on="simulations")
     for judge in (greets, rehearsed):
         await judges.put_judge(pool, org.id, AGENT, judge, author="m_ana")
     whole = await sealed_call(wired, a_call(Scope(org.id, "sandbox")), *GREETED)
     score = CallScore.model_validate(whole[-1].data)
-    assert score.panel == [
-        "consent",
-        "grounded",
-        "promises",
-        "disclosed",
-        "honoured_stop",
-        "greets",
-    ]
-    own = next(judgment for judgment in score.judges if judgment.name == "greets")
+    assert score.panel == ["sentiment", "greets"]
+    sentiment, own = score.judges
+    assert (sentiment.verdict, sentiment.choice) == ("classified", "positive")
     assert (own.verdict, own.reason) == ("held", "it greeted")
-    assert score.judge_calls == 1
+    assert (score.passed, score.judge_calls, score.evals) == (True, 2, 2)
+
+
+@postgres
+async def test_a_simulated_call_is_summed_up_as_one_and_meets_the_simulations_judges(
+    wired: Gateway,
+) -> None:
+    pool = wired.connections.pool
+    org = await orgs.create(pool, "org-rehearsed", "Rehearsed")
+    every = tuple(library())
+    await judges.switch(
+        pool, org.id, THE_ORGS_OWN, judges.Switched(every, on=False, author="m_ana")
+    )
+    rehearsed = JudgeSpec(name="rehearsed", question="q", on="simulations")
+    await judges.put_judge(pool, org.id, AGENT, rehearsed, author="m_ana")
+    context = a_call(Scope(org.id, "sandbox"))
+    started = {**a_start(context), "persona": "impatient"}
+    whole = await sealed_call(wired, context, ("call.started", started), *GREETED)
+    summary = next(item for item in whole if item.type == "call.summary")
+    assert summary.data["simulated"] is True
+    assert CallScore.model_validate(whole[-1].data).panel == ["rehearsed"]
+    person = await sealed_call(wired, a_call(Scope(org.id, "sandbox")), *GREETED)
+    assert next(item for item in person if item.type == "call.summary").data["simulated"] is False
+
+
+@postgres
+async def test_a_judge_on_the_orgs_own_key_answers_and_no_eval_of_it_is_billed(
+    wired: Gateway,
+) -> None:
+    pool = wired.connections.pool
+    await catalog.configure(pool, judging(*EVERY_HELD))
+    org = await orgs.create(pool, "org-keyed", "Keyed")
+    await vault.put_credentials(pool, wired.connections.vault, org.id, "acme", {"api_key": "k"})
+    await orgs.set_judge_model(pool, org.id, ModelConfig(provider="acme", model="acme-1"))
+    whole = await sealed_call(wired, a_call(Scope(org.id, "sandbox")), *PRICED)
+    score = CallScore.model_validate(whole[-1].data)
+    assert (score.own_key, score.evals, score.passed) == (True, 3, True)
+    billed = usage_row(Metered(position=whole[-1].seq, org=org.id, entry=whole[-1]))
+    assert (billed.used.evals, billed.used.judge_calls) == (0, 5)
+
+
+@postgres
+async def test_the_agents_judge_model_wins_over_the_orgs_and_the_orgs_over_the_platforms(
+    wired: Gateway,
+) -> None:
+    pool = wired.connections.pool
+    await catalog.configure(pool, judging(*EVERY_HELD))
+    org = await orgs.create(pool, "org-picky", "Picky")
+    where = Scope(org.id, "sandbox")
+    platforms = await sealed_call(wired, a_call(where), *GREETED)
+    await orgs.set_judge_model(pool, org.id, ModelConfig(provider="acme", model="acme-org"))
+    orgs_own = await sealed_call(wired, a_call(where), *GREETED)
+    picky = AgentConfig(slug=AGENT, judge=Model(provider="acme", model="acme-agent"))
+    agents_own = await sealed_call(wired, a_call(where), *GREETED, declared=picky)
+    judged_on = [
+        CallScore.model_validate(whole[-1].data).judged_by
+        for whole in (platforms, orgs_own, agents_own)
+    ]
+    assert [None if by is None else by.model for by in judged_on] == [
+        None,
+        "acme-org",
+        "acme-agent",
+    ]
+
+
+STOPPED: tuple[tuple[str, JsonObject], ...] = (
+    ("turn.user", {"speech_id": "sp_1", "text": "Please stop calling me.", "metrics": {}}),
+    (
+        "turn.agent",
+        {"speech_id": "sp_1", "text": "Understood.", "interrupted": False, "metrics": {}},
+    ),
+)
+
+
+@postgres
+async def test_the_judges_are_told_the_orgs_name_its_opening_and_an_opt_out_on_the_call(
+    wired: Gateway,
+) -> None:
+    pool = wired.connections.pool
+    org = await orgs.create(pool, "org-lawful", "Lawful")
+    where = Scope(org.id, "sandbox")
+    listed = a_call(where, channel="phone")
+    await consents.give(
+        pool,
+        where,
+        listed.caller,
+        Given("opt_out", "the caller asked", "agent:x", call=listed.call),
+    )
+    around = await surroundings_of(pool, org.id, listed.call, AgentConfig(slug=AGENT))
+    assert (around.org, around.opted_out) == ("Lawful", True)
+    assert around.disclosure is not None
+    assert "Lawful" in around.disclosure
+    other = await surroundings_of(pool, org.id, a_call(where).call, None)
+    assert other.opted_out is False
+
+
+@postgres
+async def test_a_judge_that_reads_the_prompt_is_told_each_blocks_last_text(wired: Gateway) -> None:
+    pool = wired.connections.pool
+    org = await orgs.create(pool, "org-prompted", "Prompted")
+    for text in ("You book visits.", "You book visits, briefly."):
+        await wired.serving.prompts.keep(pool, org.id, text)
+    context = a_call(Scope(org.id, "sandbox"))
+    changed: list[tuple[str, JsonObject]] = [
+        ("prompt.changed", {"name": "identity", "hash": block_hash(text), "chars": len(text)})
+        for text in ("You book visits.", "You book visits, briefly.")
+    ]
+    unkept: tuple[str, JsonObject] = (
+        "prompt.changed",
+        {"name": "view", "hash": block_hash("never kept"), "chars": 10},
+    )
+    whole = await sealed_call(wired, context, *changed, unkept, *GREETED)
+    assert await prompt_of(pool, org.id, whole) == "## identity\nYou book visits, briefly."
 
 
 # ── the seal remembers ──
@@ -426,52 +564,6 @@ async def hung_up(embedding: Gateway, scope: Scope, config: AgentConfig) -> list
     )
     await sealed(embedding.serving, served, SealCallRequest(usage=[], outcome="noted"))
     return await embedding.logs.store.whole(context.call)
-
-
-STOPPED: tuple[tuple[str, JsonObject], ...] = (
-    ("turn.user", {"speech_id": "sp_1", "text": "Please stop calling me.", "metrics": {}}),
-    (
-        "turn.agent",
-        {"speech_id": "sp_1", "text": "Understood.", "interrupted": False, "metrics": {}},
-    ),
-)
-
-OPENING = "This is an automated assistant calling on behalf of Lawful."
-
-NAMED: tuple[str, JsonObject] = (
-    "turn.agent",
-    {"speech_id": "sp_0", "text": OPENING, "interrupted": False, "metrics": {}},
-)
-
-
-@postgres
-async def test_the_seal_judges_compliance_from_the_orgs_own_facts(wired: Gateway) -> None:
-    pool = wired.connections.pool
-    org = await orgs.create(pool, "org-lawful", "Lawful")
-    where = Scope(org.id, "sandbox")
-    outbound = replace(a_call(where, channel="phone"), direction="outbound")
-    whole = await sealed_call(wired, outbound, ("call.started", a_start(outbound)), NAMED, *GREETED)
-    score = CallScore.model_validate(whole[-1].data)
-    verdicts = {judgment.name: judgment.verdict for judgment in score.judges}
-    assert (verdicts["identified"], verdicts["disclosed"]) == ("held", "held")
-
-    listed = a_call(where, channel="phone")
-    await consents.give(
-        pool,
-        where,
-        listed.caller,
-        Given("opt_out", "the caller asked", "agent:x", call=listed.call),
-    )
-    honoured = await sealed_call(wired, listed, *STOPPED)
-    ignored = await sealed_call(wired, a_call(where), *STOPPED)
-    assert stop_verdict(honoured) == "held"
-    assert stop_verdict(ignored) == "broken"
-
-
-def stop_verdict(whole: list[Entry]) -> str:
-    """What honoured_stop said of the sealed call."""
-    score = CallScore.model_validate(whole[-1].data)
-    return next(judgment.verdict for judgment in score.judges if judgment.name == "honoured_stop")
 
 
 @postgres

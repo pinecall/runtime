@@ -5,14 +5,19 @@ from typing import Literal
 
 from pydantic import Field
 
-from pinecall.domain.agent import RunsOn
+from pinecall.domain.judging import JudgeAnswer, JudgeOn
 from pinecall.domain.names import Env, Json, JsonObject
 from pinecall.wire.frames import WireModel
 from pinecall.wire.parts import EndReason, ModelConfig, ScoreVerdict
 from pinecall.wire.rest.calls import SessionScore
+from pinecall.wire.scores import Judgment
 
 # How a Spanish-speaking agent addresses the caller.
 type Register = Literal["tu", "usted"]
+
+
+# The call and its tool calls are always read; each of these adds a block to the question.
+type JudgeRead = Literal["prompt", "evidence", "facts"]
 
 
 # `failed` is the run itself; a golden that failed is a score, not a status.
@@ -451,27 +456,72 @@ class PersonaRunList(WireModel):
     next: str | None
 
 
-# ── an agent's own judges ──
+# ── judges: Pinecall's library, the org's own, an agent's own ──
 
 
 class JudgeRequest(WireModel):
-    """PUT /v1/agents/{slug}/judges/{name}, the body: the question, and which calls it reads."""
+    """PUT …/judges/{name}: a judge of one's own, whole, or for one of Pinecall's only `on`."""
 
-    question: str
-    runs_on: RunsOn = "every-call"
+    question: str = ""
+    answer: JudgeAnswer = "verdict"
+    # The answers a `choice` judge picks from: two at least, and only for `choice`.
+    choices: list[str] = Field(default_factory=list[str])
+    # always, only a simulated call, or a call `trigger` says it applies to (a no is N/A).
+    when: JudgeOn = "always"
+    trigger: str = ""
+    reads: list[JudgeRead] = Field(default_factory=list[JudgeRead])
+    # One of Pinecall's judges: whether the org's calls (or the agent's) meet it. Nothing else.
+    on: bool | None = None
 
 
 class JudgeRow(WireModel):
-    """One of the agent's own judges as the list shows it."""
+    """One judge as the list shows it: whose it is, whether it runs, and what it asks."""
 
     name: str
+    # "pinecall" for the library's, "org" for the org's own, else the agent's slug.
+    owner: str
+    on: bool
     question: str
-    runs_on: RunsOn
-    author: str
-    set_at: float
+    answer: JudgeAnswer
+    choices: list[str]
+    when: JudgeOn
+    trigger: str
+    reads: list[JudgeRead]
+    # The library's: one line on what it holds a call to, and the version of its question.
+    summary: str | None = None
+    version: int | None = None
+    # One of the org's own: who wrote it last, and when.
+    author: str | None = None
+    set_at: float | None = None
 
 
 class JudgeList(WireModel):
-    """GET /v1/agents/{slug}/judges: the agent's own judges, by name."""
+    """GET /v1/agents/{slug}/judges: Pinecall's judges first, then the org's, then the agent's."""
 
     judges: list[JudgeRow]
+
+
+class JudgeTry(JudgeRequest):
+    """POST /v1/agents/{slug}/judges/try: a judge asked of finished calls, never saved."""
+
+    # One of Pinecall's by its name alone, or one of the org's own as written in this body.
+    name: str
+    # The agent's newest finished calls, or the calls named; never both.
+    last: int | None = Field(None, ge=1, le=50)
+    calls: list[str] = Field(default_factory=list[str], max_length=50)
+
+
+class JudgeTriedRow(WireModel):
+    """What the judge answered of one call, or why it did not."""
+
+    call: str
+    judgment: Judgment | None
+    not_judged: str | None = None
+
+
+class JudgeTried(WireModel):
+    """The judge's answer on every call it was tried on, the evals spent and what they cost."""
+
+    rows: list[JudgeTriedRow]
+    evals: int
+    cost_usd: float

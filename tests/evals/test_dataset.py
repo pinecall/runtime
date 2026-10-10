@@ -63,7 +63,7 @@ def test_a_broken_verdict_says_what_must_not_happen_again_and_a_model_judge_is_n
         breaking("consent", seqs=[booked]),
         breaking("grounded"),
         breaking("promises"),
-        breaking("persona"),
+        breaking("expected-outcome"),
         holding("disclosed"),
     )
     expect = expect_of(score.judges, log)
@@ -73,7 +73,9 @@ def test_a_broken_verdict_says_what_must_not_happen_again_and_a_model_judge_is_n
     }
     assert expect.not_tools == [BOOK.name]
     assert expect.grounded is True
-    assert expect.judges == ["promises"], "persona needs a simulated caller; a case has none"
+    assert expect.judges == ["promises"], (
+        "expected-outcome needs a simulated caller; a case has none"
+    )
 
 
 def test_a_call_cut_at_a_seq_opens_in_the_state_it_was_in_there_and_plays_what_came_after() -> None:

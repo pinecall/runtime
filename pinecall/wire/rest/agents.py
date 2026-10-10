@@ -4,7 +4,7 @@ from typing import Literal
 
 from pinecall.domain.names import Channel, Env
 from pinecall.wire.frames import WireModel
-from pinecall.wire.parts import GreetingConfig, WidgetTheme
+from pinecall.wire.parts import GreetingConfig, ModelConfig, WidgetTheme
 from pinecall.wire.rest.numbers import LegTrunk
 from pinecall.wire.rest.providers import ProviderRow
 
@@ -100,16 +100,19 @@ class RingHandoff(WireModel):
 
 
 class JudgingSettings(WireModel):
-    """Whether an org's calls are judged at hang-up, and the ceiling per call."""
+    """Whether an org's calls are judged at hang-up, on what model, and the ceiling per call."""
 
     on: bool
     ceiling_usd: float | None
+    # The model the org's calls are judged on, an agent's own over it; null: the platform's.
+    model: ModelConfig | None = None
 
 
 class JudgingRequest(WireModel):
-    """JudgingSettings on or off."""
+    """PUT /v1/org/judging, whole: on or off, and the model; a model left out is the platform's."""
 
     on: bool
+    model: ModelConfig | None = None
 
 
 class HoldAudio(WireModel):

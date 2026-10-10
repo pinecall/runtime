@@ -7,6 +7,7 @@ from dataclasses import replace
 import httpx
 import pytest
 
+from pinecall.domain.names import JsonObject
 from pinecall.domain.scope import Scope
 from pinecall.gateway.app import app
 from pinecall.process import resolver
@@ -55,6 +56,39 @@ async def test_judging_is_turned_off_for_the_org(knocking: Knocking) -> None:
         before = (await tenant.get("/v1/org/judging")).json()
         after = (await tenant.put("/v1/org/judging", json={"on": False})).json()
     assert (before["on"], after["on"]) == (True, False)
+
+
+@postgres
+async def test_the_judge_model_the_org_names_is_kept_and_answered_until_it_names_none(
+    knocking: Knocking,
+) -> None:
+    model: JsonObject = {"provider": "acme", "model": "acme-1"}
+    async with knocking.http(knocking.app["sandbox"]) as tenant:
+        before = (await tenant.get("/v1/org/judging")).json()
+        named = await tenant.put("/v1/org/judging", json={"on": True, "model": model})
+        kept = (await tenant.get("/v1/org/judging")).json()
+        cleared = (await tenant.put("/v1/org/judging", json={"on": True})).json()
+    assert before["model"] is None
+    assert named.status_code == 200, named.text
+    assert (named.json()["model"]["provider"], kept["model"]["model"]) == ("acme", "acme-1")
+    assert cleared["model"] is None
+
+
+@postgres
+@pytest.mark.parametrize(
+    ("provider", "status", "words"),
+    [("openai", 503, "has no key"), ("nobody-sells-this", 400, "is installed here")],
+)
+async def test_a_judge_model_the_org_cannot_run_is_refused_and_nothing_kept(
+    knocking: Knocking, provider: str, status: int, words: str
+) -> None:
+    model: JsonObject = {"provider": provider, "model": "m"}
+    async with knocking.http(knocking.app["sandbox"]) as tenant:
+        refused = await tenant.put("/v1/org/judging", json={"on": True, "model": model})
+        kept = (await tenant.get("/v1/org/judging")).json()
+    assert refused.status_code == status, refused.text
+    assert words in refused.json()["detail"]
+    assert kept["model"] is None
 
 
 # ── the identity provider ──

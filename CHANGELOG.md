@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+## 0.1.45 — Every judge is a model's answer, on the model the org picks (2026-10-10)
+
+- **Every judge asks a model.** The code-settled panel (`evals/compliance.py`, the extractors of
+  `grounded`, the `persona` judge, `PANEL_JUDGES`) is gone: one engine (`evals/_asking.py`) asks
+  each judge's question as a forced tool call over the call rendered line by line under its log
+  positions, and the answer cites them. A judge answers `verdict`, `choice` or `score`, may answer
+  `na`, runs `always`, on `simulations` or on a `trigger` (a yes-or-no asked first), and `reads`
+  the prompt, the evidence and the call's facts on request.
+- **Pinecall's library of judges** (`evals/library/judges/*.md`, versioned): `consent`,
+  `grounded`, `promises`, `disclosed`, `identified`, `honoured-stop` (was `honoured_stop`),
+  `ended-well`, `expected-outcome` (was `persona`) on by default; `relevance`, `repetition`,
+  `sentiment` off. Switched on or off per org and per agent (`judge_switches`, migration 0105;
+  the agent wins); never deleted. A gate settles a judge as `na` before any model is asked.
+- The judge doors list the library first, then the org's own and the agent's own; `PUT` of a
+  library name takes only `on`; own judges are written whole (`answer`, `choices`, `when`,
+  `trigger`, `reads`), and `runs_on` is read no more. `POST /v1/agents/{slug}/judges/try` asks
+  one judge of the agent's last calls and writes nothing.
+- **The judges run on the model the org picks.** The agent's `judge` (class or settings,
+  `judge_builds`/`judge_options` beside it) wins over the org's (`PUT /v1/org/judging {on, model}`,
+  `orgs.judge_model`, migration 0105), which wins over the providers row's on the platform's key.
+  On a key of the org's own — a local model through `base_url` among them — its evals are never
+  billed (`call.score.own_key`) and no platform ceiling applies.
+- **Evals and simulations are counted.** `call.score.evals` (judges that answered: held, broken,
+  classified), `call.summary.simulated`; the usage feed's rows carry `evals` and `simulated`, its
+  totals `evals` and `simulations`. `ScoreVerdict` gains `classified` and `na`; `Judgment` gains
+  `choice` and `score`.
+
 ## 0.1.44 — Smart Turn v3 ends the turn wherever the ears do not (2026-10-10)
 
 - Ears that do not end the turn themselves (everything but Deepgram Flux) run Smart Turn v3 by

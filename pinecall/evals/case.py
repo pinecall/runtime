@@ -49,7 +49,8 @@ PUNCTUATION = ".,;:¿?¡!()\"'"
 METRICS = "metrics."
 
 
-# `skipped` is ours alone: it marks a judge that was never asked.
+# livekit's three words; `skipped`, `na` and `classified` are ours alone: never asked, did not
+# apply, and a choice or a score.
 VERDICT_WORDS: dict[Verdict, ScoreVerdict] = {"pass": "held", "fail": "broken", "maybe": "deferred"}
 
 

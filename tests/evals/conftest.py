@@ -1,11 +1,13 @@
 """What the eval tests share: finished calls written by hand, a clinic's declaration, a judge."""
 
+from collections.abc import Sequence
+
 from livekit.agents.evals import EvaluationResult, JudgmentResult
 
 from pinecall.domain.agent import AgentConfig, ToolSpec
 from pinecall.domain.names import JsonObject
 from pinecall.evals.case import Arrived, Called, Case, Said, as_chat
-from pinecall.evals.judges import CaseJudge
+from pinecall.evals.judges import GoldenJudge
 from pinecall.wire.frames import Entry
 from pinecall.wire.rest.evals import Golden
 from tests.fakes.acme import AcmeLLM
@@ -204,10 +206,16 @@ def case_of_turns(
 
 def a_judge(*verdicts: tuple[str, str]) -> AcmeLLM:
     """A judge model answering each question with the next verdict and its reason."""
-    replies: list[list[str | dict[str, object]]] = [
-        [{"name": "submit_verdict", "arguments": {"verdict": verdict, "reasoning": reason}}]
-        for verdict, reason in verdicts
+    calls: list[dict[str, object]] = [
+        {"name": "submit_verdict", "arguments": {"verdict": given, "reason": reason}}
+        for given, reason in verdicts
     ]
+    return answering(*calls)
+
+
+def answering(*calls: dict[str, object]) -> AcmeLLM:
+    """A judge model answering each request with the next tool call, as written."""
+    replies: list[list[str | dict[str, object]]] = [[called] for called in calls]
     return AcmeLLM(api_key="a judge's key", replies=replies)
 
 
@@ -219,7 +227,7 @@ def prompts_of(model: AcmeLLM) -> list[str]:
     ]
 
 
-def judge_named(judges: list[CaseJudge], name: str) -> CaseJudge:
+def judge_named(judges: Sequence[GoldenJudge], name: str) -> GoldenJudge:
     """The judge of that name among these."""
     return next(judge for judge in judges if judge.name == name)
 
@@ -229,12 +237,12 @@ def expecting(**expect: object) -> Golden:
     return Golden.model_validate({"name": "g", "input": ["hola"], "expect": expect})
 
 
-async def score_of(judge: CaseJudge, case: Case, model: AcmeLLM | None = None) -> float:
+async def score_of(judge: GoldenJudge, case: Case, model: AcmeLLM | None = None) -> float:
     """The judge's verdict as livekit scores it: 1, a half, or 0."""
     result = await verdict(judge, case, model)
     return EvaluationResult(judgments={judge.name: result}).score
 
 
-async def verdict(judge: CaseJudge, case: Case, model: AcmeLLM | None = None) -> JudgmentResult:
+async def verdict(judge: GoldenJudge, case: Case, model: AcmeLLM | None = None) -> JudgmentResult:
     """The judge's verdict on the case, asked of this model."""
     return await judge.evaluate(chat_ctx=as_chat(case), llm=model)

@@ -50,7 +50,9 @@ type EndReason = Literal[
 type EndedBy = Literal["caller", "agent", "supervisor", "platform"]
 
 # skipped: no model was reachable inside the call's judging budget.
-type ScoreVerdict = Literal["held", "broken", "deferred", "skipped"]
+# held/broken: a verdict judge answered. classified: a choice or score judge answered. na: the
+# question did not apply (its trigger said no, or the judge said so), nothing billed.
+type ScoreVerdict = Literal["held", "broken", "classified", "na", "deferred", "skipped"]
 
 # cold: a REFER on the caller's SIP leg. warm: the number is dialled into the room.
 type TransferMode = Literal["cold", "warm"]
@@ -316,6 +318,7 @@ class AgentConfig(WireModel):
     voice: VoiceConfig | None = None
     llm: ModelConfig | None = None
     stt: ModelConfig | None = None
+    judge: ModelConfig | None = None
     turn: TurnConfig | None = None
     says: list[Pronunciation] | None = None
     hears: list[str] | None = None

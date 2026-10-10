@@ -18,7 +18,7 @@ from pinecall.evals.goldens import (
     golden_lookup,
     settled,
 )
-from pinecall.evals.judges import hangup_judges
+from pinecall.evals.judges import Panel, asked_judges
 from pinecall.log.logs import Fanout, Log
 from pinecall.log.store import Store
 from pinecall.wire.frames import Entry
@@ -32,6 +32,7 @@ from tests.evals.conftest import (
     a_log,
     agent,
     agent_line,
+    answering,
     arrived,
     caller,
     caller_line,
@@ -250,7 +251,7 @@ def test_consent_leads_and_the_rest_come_in_the_order_expect_names_them() -> Non
     golden = expecting(
         says=["45"], says_any=["sí"], **{"not": ["gratis"]}, tools=["find"], register="usted"
     )
-    assert [judge.name for judge in golden_judges(golden, case)] == [
+    assert [judge.name for judge in golden_judges(golden, case, asked_judges(case, Panel()))] == [
         "consent",
         "heard",
         "tools",
@@ -262,27 +263,34 @@ def test_consent_leads_and_the_rest_come_in_the_order_expect_names_them() -> Non
 
 
 async def test_a_hang_up_judge_a_golden_names_is_asked_of_its_call_from_the_panel() -> None:
-    model = a_judge(("fail", "it promised a call back nobody booked"))
+    model = answering(
+        {"name": "submit_applies", "arguments": {"applies": True, "reason": "a call back"}},
+        {"name": "submit_verdict", "arguments": {"verdict": "broken", "reason": "nobody booked"}},
+    )
     case = case_of_turns(caller_line("hola"), agent_line("Le llamaremos mañana."))
-    panel = hangup_judges(case, [])
     golden = expecting(judges=["promises", "consent"])
-    judges = golden_judges(golden, case, panel)
+    judges = golden_judges(golden, case, asked_judges(case, Panel()))
     assert [judge.name for judge in judges] == ["consent", "heard", "promises"], "consent once"
     assert await score_of(judge_named(judges, "promises"), case, model) == 0.0
-    assert len(model.requests) == 1
+    assert len(model.requests) == 2, "its trigger, then its question"
 
 
 async def test_a_judge_the_panel_does_not_hold_breaks_the_golden_and_names_the_panel() -> None:
     case = case_of_turns(caller_line("hola"))
     golden = expecting(judges=["persona"])
-    result = await verdict(judge_named(golden_judges(golden, case, []), "persona"), case)
+    result = await verdict(judge_named(golden_judges(golden, case, {}), "persona"), case)
     assert result.failed
-    assert "asks persona, and the panel this call meets has no such judge" in result.reasoning
+    assert result.reasoning == (
+        "this golden asks persona, and there is no such judge: there are no judge at all"
+    )
 
 
 def test_a_golden_with_no_line_for_the_caller_is_not_asked_whether_it_was_heard() -> None:
     golden = Golden.model_validate({"name": "g"})
-    assert [judge.name for judge in golden_judges(golden, case_of_turns())] == ["consent"]
+    case = case_of_turns()
+    assert [judge.name for judge in golden_judges(golden, case, asked_judges(case, Panel()))] == [
+        "consent"
+    ]
 
 
 async def test_a_caller_the_agent_never_heard_breaks_the_golden_whatever_else_held() -> None:
@@ -325,11 +333,10 @@ async def test_a_conversation_that_called_nothing_says_so_rather_than_listing_no
     assert "no tool at all" in result.reasoning
 
 
-# Consent holds on this log (no gate is built), so only not_tools catches the booking.
+# Consent is the judge model's to answer; not_tools catches the booking by code, asking nobody.
 async def test_a_forbidden_tool_that_ran_is_caught_with_the_seq_the_log_gave_it() -> None:
     case = case_of(with_no_gate(), THE_CLINIC)
     judges = golden_judges(expecting(not_tools=["book_appointment"]), case)
-    assert (await verdict(judge_named(judges, "consent"), case)).passed
     result = await verdict(judge_named(judges, "not_tools"), case)
     assert result.reasoning == (
         "the golden forbids book_appointment, and this call ran book_appointment at seq 3"

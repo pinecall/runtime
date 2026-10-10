@@ -221,9 +221,10 @@ def test_every_verdict_livekit_can_return_is_said_in_a_word_of_ours() -> None:
     assert verdict_word("fail") == "broken"
 
 
-def test_skipped_is_ours_alone_and_no_judgment_is_ever_written_as_one() -> None:
-    assert "skipped" not in set(VERDICT_WORDS.values())
-    assert set(VERDICT_WORDS.values()) | {"skipped"} == set(get_args(ScoreVerdict.__value__))
+def test_skipped_na_and_classified_are_ours_alone_and_livekit_never_writes_them() -> None:
+    ours = {"skipped", "na", "classified"}
+    assert not ours & set(VERDICT_WORDS.values())
+    assert set(VERDICT_WORDS.values()) | ours == set(get_args(ScoreVerdict.__value__))
 
 
 def test_a_word_is_read_without_its_case_or_the_punctuation_around_it() -> None:

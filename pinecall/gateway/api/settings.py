@@ -64,6 +64,9 @@ PIPELINE_ONLY = (
     "stt_options",
     "tts_builds",
     "tts_options",
+    "judge",
+    "judge_builds",
+    "judge_options",
     "language",
     "hangup",
     "turn",
@@ -109,6 +112,8 @@ DECLARED_AS = {
     "stt_builds": "stt",
     "end_of_turn": "stt",
     "stt_options": "stt",
+    "judge_builds": "judge",
+    "judge_options": "judge",
     "bases": "docs",
 }
 

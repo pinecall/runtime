@@ -74,9 +74,9 @@ One of: `caller`, `agent`, `supervisor`, `platform`.
 
 ### `ScoreVerdict`
 
-What one judge answered about a finished call. Held: the rule held. Broken: it did not, and the reason names the evidence. Deferred: the judge was asked and could not settle it. Skipped: nobody asked it — no model was reachable inside the call's judging budget.
+What one judge answered about a finished call. Held: the rule held. Broken: it did not, and the reason names the evidence. Classified: a judge that picks a choice or gives a score answered, in `choice` or `score`; it neither holds nor breaks. N/A: the question did not apply to this call — its gate or its trigger said so before the question was asked, or the judge model said so; it is never billed and never counts for `passed`. Deferred: the judge was asked and could not settle it. Skipped: nobody asked it — no model was reachable, the call's judging ceiling was reached, or the org's evals for the month are used up.
 
-One of: `held`, `broken`, `deferred`, `skipped`.
+One of: `held`, `broken`, `classified`, `na`, `deferred`, `skipped`.
 
 ### `TransferMode`
 
@@ -426,6 +426,7 @@ What an app declares about its agent: the prompt's layout, the language, the too
 | `voice` | `VoiceConfig` | no | The voice: its vendor and the vendor's own id for it are both required, and may name the plugin's class and options. Declared, it wins over the settings' voice and TTS. |
 | `llm` | `ModelConfig` | no | The model that answers, and may name the plugin's class and options (the OpenAI Responses WebSocket: `builds` `responses.LLM`, `options` `{"use_websocket": true}`). Declared, it wins over the settings'. |
 | `stt` | `ModelConfig` | no | The ears, as llm. Declared, it wins over the settings'. |
+| `judge` | `ModelConfig` | no | The model the agent's calls are judged on, over the org's choice (`PUT /v1/org/judging`) and the platform's. On a key of the org's own, a local model's server among them (`options` `{"base_url": …}`), its evals are never billed. Declared, it wins over the settings'. |
 | `turn` | `TurnConfig` | no | When the caller has finished and may interrupt. Declared, it wins over the settings'. |
 | `says` | `Pronunciation[]` | no | How the voice pronounces words. Declared, it wins over the agent's lexicon's. |
 | `hears` | `string[]` | no | Words the ears listen for. Declared, it wins over the agent's lexicon's. |

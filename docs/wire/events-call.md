@@ -97,11 +97,13 @@ The last entry of a call: what the judges said about it at hang-up, one row per 
 
 | field | type | required | meaning |
 |---|---|---|---|
-| `passed` | `boolean` | no | Whether no judge answered broken. A deferred or a skipped judge is an answer nobody gave, never a fault of the call. ABSENT when no judge answered at all, which is not the same as false: read not_judged for why nobody did. |
+| `passed` | `boolean` | no | Whether no judge answered broken. Only a judge that answers `verdict` sets it: N/A, a classification (`choice`, `score`), a deferred or a skipped judge is never a fault of the call. ABSENT when no verdict judge held or broke, which is not the same as false: read not_judged for why nobody answered. |
 | `not_judged` | `string` | no | Why nothing judged this call, when nothing did: the judges are not installed on this deployment, or the judging itself failed. Absent on every call a judge answered. |
 | `judges` | `Judgment[]` | yes | One row per judge that was run over this call, in the order they were declared. |
 | `panel` | `string[]` | no | Every judge this call declared, whether or not it answered: a judge that raised is here and absent from judges. Empty when nothing was ever declared, and absent on entries written before this field existed. |
-| `judge_calls` | `integer` | yes | How many questions judging this call actually put to a model. Zero is the happy path: a policy answers by code. |
+| `judge_calls` | `integer` | yes | How many requests judging this call put to the judge model, a trigger's yes-or-no among them. |
+| `evals` | `integer` | no | How many judges answered this call's question: held, broken or classified. N/A, deferred and skipped are not counted. The org is billed one eval for each, unless `own_key`. |
+| `own_key` | `boolean` | no | The judge model ran on a key of the org's own (the agent's `judge`, or the org's at `PUT /v1/org/judging`): the model's bill is the org's, and its evals are never billed. |
 | `judged_by` | `JudgedBy | null` | no | Who gave the score: `{provider, model, criteria}`, the judge model (null for a panel settled by code alone) and the sha256 of every question the panel asked, in its order. Drift tells a worse agent from a changed judge by it. Absent when nothing was judged. |
 | `judge_cost_usd` | `number` | no | What those questions cost in US dollars, priced from the judge model's own usage rows. Absent when no usage was reported, never zero. A score written before money in dollars said `judge_cost_eur`: the same number, read as dollars. |
 
@@ -140,6 +142,7 @@ What the call was about, how it went, what it consumed and what that cost. Writt
 | `usage` | `ModelUsage[]` | yes | One row per model used, as the session summed them. |
 | `cost` | `Cost` | yes | What the call cost in provider fees and, when the platform priced its own compute (`pinecall-compute`), the platform's, in US dollars; informational. |
 | `recording` | `string` | no | Where the recorder wrote the recording, when one was made; `GET /v1/calls/{call}/recording` serves it from wherever it is kept, reading only the file's name from this path: on the disk it is always `<PINECALL_RECORDINGS>/<call>/audio.ogg` or `audio.sealed`, never another file. |
+| `simulated` | `boolean` | no | A simulated caller, not a person, was on the other end: a persona's call, or a golden the simulated caller played. The usage feed meters it as one simulation instead of its minutes. |
 
 ### `call.transferred`
 

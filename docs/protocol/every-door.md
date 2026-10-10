@@ -29,12 +29,13 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/agents/{slug}/lexicon` | pipeline · words | The agent's words as this key sees them: yours, the team's and production's. |
 | `PUT` | `/v1/agents/{slug}/lexicon` | pipeline · words | The agent's next lexicon in this scope or the team's. |
 | `GET` | `/v1/agents/{slug}/lexicon/history` | pipeline · words | One scope's versions of the agent's lexicon, newest first. |
-| `GET` | `/v1/org/judges` | evals | The org's judges, asked of every agent's calls, by name. |
-| `DELETE` | `/v1/org/judges/{name}` | evals | Forget one of the org's judges; a name nobody wrote is a 404. |
-| `PUT` | `/v1/org/judges/{name}` | evals | One of the org's judges, whole: a question asked of every agent's calls at hang-up. |
-| `GET` | `/v1/agents/{slug}/judges` | evals | The agent's own judges, by name: the question each asks and which calls it reads. |
-| `DELETE` | `/v1/agents/{slug}/judges/{name}` | evals | Forget one of the agent's own judges; a name nobody wrote is a 404. |
-| `PUT` | `/v1/agents/{slug}/judges/{name}` | evals | One of the agent's own judges, whole: a question asked of its calls at hang-up. |
+| `GET` | `/v1/org/judges` | evals | Pinecall's judges as the org switched them, then the org's own, asked of every agent's calls. |
+| `DELETE` | `/v1/org/judges/{name}` | evals | Forget one of the org's own judges; a name nobody wrote is a 404, one of Pinecall's a 409. |
+| `PUT` | `/v1/org/judges/{name}` | evals | One of Pinecall's judges switched on or off for every agent, or one of the org's own written whole. |
+| `GET` | `/v1/agents/{slug}/judges` | evals | Every judge the agent's calls may meet: Pinecall's as switched for it, the org's own, its own. |
+| `DELETE` | `/v1/agents/{slug}/judges/{name}` | evals | Forget one of the agent's own judges; a name nobody wrote is a 404, one of Pinecall's a 409. |
+| `PUT` | `/v1/agents/{slug}/judges/{name}` | evals | One of Pinecall's judges switched on or off for this agent, or one of its own written whole. |
+| `POST` | `/v1/agents/{slug}/judges/try` | evals | One judge, written or only in the body, asked of the agent's finished calls; nothing is written. |
 | `DELETE` | `/v1/agents/{slug}/line` | app | Let the line go, to the newest other scope that could take it. |
 | `GET` | `/v1/agents/{slug}/line` | calls | Who holds the agent's line, and who else could take it. |
 | `POST` | `/v1/agents/{slug}/line` | app | Take the agent's line for this scope. |
@@ -262,8 +263,8 @@ took) and FastAPI's own schema and its readers (`/openapi.json`, `/v1/docs`, `/v
 | `GET` | `/v1/org/policy` | team | The org's compliance settings: retention, calling hours, calls a day per number, and who set them. |
 | `PUT` | `/v1/org/policy` | team | The org's compliance settings replaced whole, from the next nightly run. |
 | `GET` | `/v1/org/export` | team | The org's data in the key's environment as JSON Lines: calls and their logs, memories, settings, words, documents. |
-| `GET` | `/v1/org/judging` | calls | Whether hang-up judging is on, and its ceiling per call. |
-| `PUT` | `/v1/org/judging` | usage | Hang-up judging on or off, from the next call. |
+| `GET` | `/v1/org/judging` | calls | Whether hang-up judging is on, the model it runs on, and its ceiling per call. |
+| `PUT` | `/v1/org/judging` | usage | Hang-up judging on or off, and the model it runs on, from the next call. |
 | `DELETE` | `/v1/org/mail` | team | Forget the org's own mailbox: its letters go through the platform's again. |
 | `GET` | `/v1/org/mail` | team | The org's own mailbox, never its password, and how its last letter went. |
 | `PUT` | `/v1/org/mail` | team | Replace the org's own mailbox; its letters go through it from the next one. |

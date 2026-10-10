@@ -77,3 +77,12 @@ def test_who_ends_the_turn_is_the_ears_and_refused_on_the_model() -> None:
     thinking = ModelConfig(provider="openai", model="gpt-5.4-mini", end_of_turn="stt")
     with pytest.raises(DeclarationRefused, match="end_of_turn is the ears'"):
         environment_of(NOTHING, Declared(llm=thinking))
+
+
+def test_the_judge_the_class_declares_is_a_model_and_is_fixed() -> None:
+    local = ModelConfig(provider="openai", model="qwen3-32b", options={"base_url": "http://gpu/v1"})
+    changed = environment_of(NOTHING, Declared(judge=local))
+    assert changed["judge"] == Model("openai", "qwen3-32b", options={"base_url": "http://gpu/v1"})
+    assert changed["fixed"] == frozenset({"judge"})
+    with pytest.raises(DeclarationRefused, match="deepgram has no llm"):
+        environment_of(NOTHING, Declared(judge=ModelConfig(provider="deepgram", model="x")))

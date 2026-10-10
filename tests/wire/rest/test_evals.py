@@ -9,6 +9,7 @@ from pinecall.wire.rest.evals import (
     CallerPersona,
     Golden,
     JudgeRequest,
+    JudgeTry,
     NextLineRequest,
     PersonaRequest,
     PlaceVoiceCallRequest,
@@ -91,16 +92,39 @@ def test_a_persona_naming_the_agents_it_calls_is_refused_since_it_is_one_agents(
         PersonaRequest.read({"goal": "g", "style": "s", "agents": ["recepcion"]}, "persona")
 
 
-def test_a_judge_that_says_nothing_of_when_it_runs_reads_every_call() -> None:
-    assert JudgeRequest.read({"question": "q"}, "judge").runs_on == "every-call"
+def test_a_judge_that_says_nothing_of_how_it_answers_holds_or_breaks_on_every_call() -> None:
+    written = JudgeRequest.read({"question": "q"}, "judge")
+    assert (written.answer, written.when, written.reads, written.on) == (
+        "verdict",
+        "always",
+        [],
+        None,
+    )
 
 
-def test_a_judge_runs_on_every_call_or_on_simulations_and_nothing_else() -> None:
-    assert JudgeRequest.read({"question": "q", "runs_on": "simulations"}, "judge").runs_on == (
+def test_a_judge_runs_always_on_simulations_or_on_a_trigger_and_nothing_else() -> None:
+    assert JudgeRequest.read({"question": "q", "when": "simulations"}, "judge").when == (
         "simulations"
     )
     with pytest.raises(DeclarationRefused):
-        JudgeRequest.read({"question": "q", "runs_on": "sometimes"}, "judge")
+        JudgeRequest.read({"question": "q", "when": "sometimes"}, "judge")
+
+
+def test_a_judge_reads_the_prompt_the_evidence_or_the_facts_and_nothing_else() -> None:
+    assert JudgeRequest.read({"question": "q", "reads": ["prompt", "facts"]}, "judge").reads == [
+        "prompt",
+        "facts",
+    ]
+    with pytest.raises(DeclarationRefused):
+        JudgeRequest.read({"question": "q", "reads": ["the-mind"]}, "judge")
+
+
+def test_a_try_asks_of_fifty_calls_at_most() -> None:
+    assert JudgeTry.read({"name": "consent", "last": 50}, "try").last == 50
+    with pytest.raises(DeclarationRefused):
+        JudgeTry.read({"name": "consent", "last": 51}, "try")
+    with pytest.raises(DeclarationRefused):
+        JudgeTry.read({"name": "consent", "calls": [f"c{n}" for n in range(51)]}, "try")
 
 
 def test_the_simulated_caller_the_box_pays_for_has_a_ceiling() -> None:

@@ -1,13 +1,15 @@
-"""Orgs: their names, the quotas they are born with, and whether their calls are judged."""
+"""Orgs: their names, the quotas they are born with, whether their calls are judged, and on what."""
 
 import secrets
 
 from psycopg.rows import DictRow
+from psycopg.types.json import Jsonb
 
 from pinecall.domain.errors import Conflict
 from pinecall.domain.org import Org
 from pinecall.postgres.pool import Pool
 from pinecall.tenancy.admission import give_first_quotas
+from pinecall.wire.parts import ModelConfig
 
 CREATE = """
 INSERT INTO orgs (id, slug, name) VALUES (%(id)s, %(slug)s, %(name)s)
@@ -20,6 +22,8 @@ REMOVE = "DELETE FROM orgs WHERE id = %(org)s RETURNING id"
 # A column nobody set is on: judging is what an org turns off, never what it turns on.
 JUDGED = "SELECT judging IS NOT FALSE AS judged FROM orgs WHERE id = %(org)s"
 SET_JUDGING = "UPDATE orgs SET judging = %(on)s WHERE id = %(org)s"
+JUDGE_MODEL = "SELECT judge_model FROM orgs WHERE id = %(org)s"
+SET_JUDGE_MODEL = "UPDATE orgs SET judge_model = %(model)s WHERE id = %(org)s"
 
 # An id is minted, never the slug, so a slug can be renamed without touching another row.
 ID_PREFIX = "org_"
@@ -72,6 +76,22 @@ async def set_judging(pool: Pool, org: str, *, on: bool) -> None:
     """Turn the org's judging on or off."""
     async with pool.connection() as connection:
         await connection.execute(SET_JUDGING, {"org": org, "on": on})
+
+
+async def judge_model_of(pool: Pool, org: str) -> ModelConfig | None:
+    """The model the org's calls are judged on, as it was named; None: the platform's."""
+    async with pool.connection() as connection:
+        row = await (await connection.execute(JUDGE_MODEL, {"org": org})).fetchone()
+    if row is None or row["judge_model"] is None:
+        return None
+    return ModelConfig.model_validate(row["judge_model"])
+
+
+async def set_judge_model(pool: Pool, org: str, model: ModelConfig | None) -> None:
+    """Name the model the org's calls are judged on, or None for the platform's."""
+    kept = None if model is None else Jsonb(model.model_dump(mode="json", exclude_none=True))
+    async with pool.connection() as connection:
+        await connection.execute(SET_JUDGE_MODEL, {"org": org, "model": kept})
 
 
 def _org(row: DictRow) -> Org:

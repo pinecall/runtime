@@ -446,7 +446,13 @@ STT: JsonObject = {
     "model": "nova",
     "audio_duration": 118.0,
 }
-A_SCORE: JsonObject = {"passed": True, "judges": [], "judge_calls": 3, "judge_cost_usd": 0.004}
+A_SCORE: JsonObject = {
+    "passed": True,
+    "judges": [],
+    "judge_calls": 3,
+    "evals": 2,
+    "judge_cost_usd": 0.004,
+}
 
 
 def metered(
@@ -465,12 +471,25 @@ def test_a_summary_counts_minutes_turns_the_llms_tokens_and_the_tts_characters()
     used = row.used
     assert (used.calls, used.minutes, used.messages) == (1, 2.0, 8)
     assert (used.input_tokens, used.output_tokens, used.characters) == (900, 150, 320)
-    assert (used.cost_usd, used.judge_calls) == (0.02, 0)
+    assert (used.cost_usd, used.judge_calls, used.evals, used.simulations) == (0.02, 0, 0, 0)
 
 
-def test_a_score_counts_its_judge_calls_and_their_cost_and_nothing_else() -> None:
+def test_a_summary_a_simulated_caller_played_counts_one_simulation_and_its_minutes() -> None:
+    simulated = {**a_summary([LLM]), "simulated": True}
+    used = usage_row(metered(7, "dental", "call.summary", simulated)).used
+    assert (used.simulations, used.calls, used.minutes) == (1, 1, 2.0)
+
+
+def test_a_score_counts_its_judge_calls_its_evals_and_their_cost_and_nothing_else() -> None:
     used = usage_row(metered(8, "dental", "call.score", A_SCORE)).used
-    assert (used.judge_calls, used.cost_usd, used.calls, used.minutes) == (3, 0.004, 0, 0.0)
+    assert (used.judge_calls, used.evals, used.cost_usd) == (3, 2, 0.004)
+    assert (used.calls, used.minutes, used.simulations) == (0, 0.0, 0)
+
+
+def test_a_score_judged_on_the_orgs_own_key_bills_no_eval_and_still_counts_its_calls() -> None:
+    own = {**A_SCORE, "own_key": True}
+    used = usage_row(metered(8, "dental", "call.score", own)).used
+    assert (used.evals, used.judge_calls) == (0, 3)
 
 
 def test_a_score_nobody_judged_costs_nothing_although_its_cost_is_null() -> None:
@@ -509,6 +528,7 @@ def test_totals_add_up_per_org_and_count_a_call_once_for_its_summary() -> None:
         4.0,
     )
     assert (totals["dental"].messages, totals["taller"].input_tokens) == (16, 900)
+    assert (totals["dental"].evals, totals["taller"].evals) == (2, 0)
 
 
 def test_the_metered_types_are_the_summary_and_the_score_and_nothing_else() -> None:

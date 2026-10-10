@@ -44,8 +44,12 @@ says. What each quota counts and when it bites: [limits.md](limits.md).
 
 `GET /v1/ops/usage?after=&org=&limit=`, or the same as a stream with `Accept: text/event-stream`:
 one row per `call.summary` and `call.score`, each `{cursor, org, agent, call, type, at, minutes,
-messages, input_tokens, output_tokens, characters, judge_calls, cost_usd}` (v1's shape, flat), and
-the totals per org, which count `calls` too. The cursor is the store's position: a consumer that keeps the last one resumes
+messages, input_tokens, output_tokens, characters, judge_calls, evals, simulated, cost_usd}` (v1's
+shape, flat, and two more), and the totals per org, which count `calls` and `simulations` too. A
+`call.score` row carries its `evals`, the judges that answered the call on the platform's key (on
+the org's own key, `0`); a `call.summary` row of a
+call a simulated caller played says `simulated: true`, and a layer bills it as one simulation
+rather than its minutes. The cursor is the store's position: a consumer that keeps the last one resumes
 and counts nothing twice. It skips nothing either: a row's position is given as it is written, not
 as it commits, so every write of a metered row takes one lock and holds it to its commit, and the
 positions a feed reads come in the order their rows became visible. `cost_usd` is what the vendors charged the operator, as the providers
@@ -72,7 +76,8 @@ every org's month, `{since, until, rows: [{org, env, name, day, seconds}]}`, and
 own at `GET /v1/hosted/usage`. A price per app-month, prorated by those seconds, is the layer's:
 Pinecall's cloud charges $5 an app a month.
 
-The judges' tokens are on `call.score` (`judge_cost_usd`), apart from the call's. Not in any row:
+The judges' tokens are on `call.score` (`judge_cost_usd`), apart from the call's, and a call
+judged again is a second row with its own `evals`. Not in any row:
 a WhatsApp message (Meta charges for templates only, and the runtime answers inside the 24 hours a
 person opens), a number's monthly rental, the embeddings of a lookup or a push.
 

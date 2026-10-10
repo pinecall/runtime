@@ -1,17 +1,8 @@
-"""Tests for what a call's agent could know, and what it stated."""
+"""Tests for what a call's agent could know, as a judge that reads the evidence is shown it."""
 
 from pinecall.domain.names import JsonObject
-from pinecall.evals._evidence import (
-    AN_HOUR,
-    Evidence,
-    Source,
-    carries,
-    committed_in,
-    evidence_of,
-    missing_from,
-    stated_in,
-    tool_call_text,
-)
+from pinecall.evals._evidence import Evidence, as_text, evidence_of, tool_call_text
+from pinecall.evals.case import Called
 from tests.evals.conftest import agent_line, caller_line, case_of_turns, logged_call
 
 SEEDED: JsonObject = {"patient": {"name": "Ana García", "cita": "jueves a las diez"}}
@@ -28,40 +19,20 @@ def test_a_tool_answer_is_read_with_its_name_and_its_arguments() -> None:
     assert tool_call_text(called) == 'freeSlots({"day": "domingo por la mañana"}) → []'
 
 
-def test_a_person_is_the_name_after_the_title_and_not_the_title() -> None:
-    case = case_of_turns(agent_line("Le atiende la doctora Vidal a las 09:30 el jueves."))
-    assert [(extractor.name, fact) for extractor, fact in stated_in(case)] == [
-        ("hour", "09:30"),
-        ("date", "jueves"),
-        ("person", "Vidal"),
-    ]
-
-
-def test_a_fact_is_found_whatever_the_spacing_and_the_case() -> None:
-    evidence = Evidence(text=(), calls=("slots → 10 : 00",))
-    assert carries(evidence, "10:00", Source.CALL)
-    assert not carries(evidence, "10:00", Source.TEXT)
-
-
-def test_an_hour_only_in_the_written_evidence_is_named_as_a_near_miss() -> None:
-    evidence = Evidence(text=("Horario: 09:30 a 20:00.",), calls=())
-    assert missing_from(evidence, AN_HOUR, "09:30") == (
-        "no call evidence carries the hour '09:30', though the text does"
-    )
-
-
-def test_the_phrases_that_commit_are_found_in_both_languages() -> None:
-    turns = [
-        "Perfecto, un técnico pasará el martes.",
-        "I'll call you back tomorrow.",
-        "La revisión le costará 45 euros.",
-        "¿Me dice su nombre?",
-    ]
-    assert committed_in(turns) == ("un técnico pasará", "I'll call", "le costará")
-
-
 def test_what_retrieval_showed_and_the_knowledge_text_are_text_evidence() -> None:
     case = case_of_turns(
         agent_line("Son 45 euros.", retrieved=("Revisión: 45 €.",)), evidence=("Limpieza: 60 €.",)
     )
     assert evidence_of(case).text == ("Limpieza: 60 €.", "Revisión: 45 €.")
+
+
+def test_a_tool_call_that_never_answered_is_no_evidence() -> None:
+    unanswered = Called(call_id="c1", name="book", arguments={"day": "viernes"}, answer=None)
+    answered = logged_call("find_slots", {"day": "viernes"}, "10:00")
+    case = case_of_turns(agent_line("Le busco hueco.", calls=(unanswered, answered)))
+    assert evidence_of(case).calls == ('find_slots({"day": "viernes"}) → 10:00',)
+
+
+def test_the_evidence_reads_text_then_tool_calls_then_states_one_block_apart() -> None:
+    evidence = Evidence(text=("Revisión: 45 €.",), calls=("slots() → 10:00",), state=('{"a": 1}',))
+    assert as_text(evidence) == 'Revisión: 45 €.\n\nslots() → 10:00\n\n{"a": 1}'

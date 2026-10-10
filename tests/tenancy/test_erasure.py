@@ -1,5 +1,6 @@
 """Tests for erasure: a call, a contact and an org gone, and the log append-only everywhere else."""
 
+from dataclasses import replace
 from pathlib import Path
 
 import httpx
@@ -8,9 +9,10 @@ from cryptography.fernet import Fernet
 from psycopg import errors
 
 from pinecall.domain.errors import Conflict, UpstreamFailed
+from pinecall.domain.judging import JudgeSpec
 from pinecall.domain.names import JsonObject
 from pinecall.domain.person import KEY_SCOPES
-from pinecall.domain.scope import Scope
+from pinecall.domain.scope import THE_ORGS_OWN, Scope
 from pinecall.evals import dataset
 from pinecall.evals.dataset import Promoted
 from pinecall.log import drift, private
@@ -18,8 +20,9 @@ from pinecall.log.store import Store
 from pinecall.postgres.pool import Pool
 from pinecall.process.connections import vault_of
 from pinecall.process.recordings import Bucket, Disk
-from pinecall.tenancy import canary, erasure, personas, recording_keys
+from pinecall.tenancy import canary, erasure, judges, personas, recording_keys
 from pinecall.tenancy.canary import Canary, CanarySet
+from pinecall.tenancy.judges import Switched
 from pinecall.tenancy.personas import Persona, PersonaEdit
 from pinecall.tenancy.prompts import Prompts
 from pinecall.wire.rest.evals import Expect
@@ -383,6 +386,26 @@ async def test_an_agent_erased_takes_its_calls_and_callers_and_leaves_every_othe
     assert len(await personas.personas_of(pool, other.id, "intruso")) == 1
     [row] = await erasure.trail(pool, org.id)
     assert (row.what, row.subject, row.calls) == ("agent", "intruso", 1)
+
+
+@postgres
+async def test_an_agent_erased_takes_its_judges_and_switches_and_leaves_the_orgs(
+    pool: Pool, tmp_path: Path
+) -> None:
+    org = await an_org(pool)
+    asks = JudgeSpec(name="greets", question="The agent greeted.")
+    for agent in (THE_ORGS_OWN, "intruso"):
+        await judges.put_judge(
+            pool, org.id, agent, replace(asks, name=f"greets-{agent or 'org'}"), author="m_1"
+        )
+        await judges.switch(pool, org.id, agent, Switched(("sentiment",), on=True, author="m_1"))
+    await erasure.agent(pool, Disk(tmp_path), org.id, "intruso", by="operator")
+    assert await judges.judges_of(pool, org.id, "intruso") == []
+    assert await judges.switched_at(pool, org.id, "intruso") == {}
+    assert [kept.judge.name for kept in await judges.judges_of(pool, org.id, THE_ORGS_OWN)] == [
+        "greets-org"
+    ]
+    assert await judges.switched_at(pool, org.id, THE_ORGS_OWN) == {"sentiment": True}
 
 
 @postgres

@@ -400,6 +400,57 @@ async def test_an_agents_judge_runs_on_every_call_or_simulations_of_an_org_that_
     assert await column_of(schema, "agent_judges", "runs_on") == ["simulations"]
 
 
+# A judge that ran on simulations before every judge asked a model runs when simulations still.
+@postgres
+async def test_an_own_judge_written_before_keeps_running_on_simulations_alone(schema: str) -> None:
+    await migrated_before(schema, "0105")
+    async with await connect(DSN) as connection:
+        await connection.execute(
+            sql.SQL("set search_path to {}, public").format(sql.Identifier(schema))
+        )
+        await connection.execute(
+            "insert into agent_judges (org, agent, name, question, runs_on) values"
+            " ('default', 'recepcion', 'rehearsed', 'q', 'simulations'),"
+            " ('default', 'recepcion', 'greets', 'q', 'every-call')"
+        )
+    await apply_migrations(DSN, schema=schema)
+    assert await column_of(schema, "agent_judges", "runs_when") == ["always", "simulations"]
+    assert await column_of(schema, "agent_judges", "answer") == ["verdict", "verdict"]
+
+
+@postgres
+async def test_a_librarys_judge_is_switched_once_per_org_and_agent_of_an_org_that_exists(
+    schema: str,
+) -> None:
+    await apply_migrations(DSN, schema=schema)
+    insert = "insert into judge_switches (org, agent, name, is_on) values (%s, %s, 'sentiment', %s)"
+    async with await connect(DSN) as connection:
+        await connection.execute(sql.SQL("set search_path to {}").format(sql.Identifier(schema)))
+        await connection.execute(insert, ("default", "", True))
+        await connection.execute(insert, ("default", "recepcion", False))
+        with pytest.raises(psycopg.errors.UniqueViolation):
+            await connection.execute(insert, ("default", "recepcion", True))
+        with pytest.raises(psycopg.errors.ForeignKeyViolation):
+            await connection.execute(insert, ("nobody", "", True))
+    assert await column_of(schema, "judge_switches", "agent") == ["", "recepcion"]
+
+
+@postgres
+async def test_an_own_judge_answers_and_runs_only_as_the_engine_knows_how(schema: str) -> None:
+    await apply_migrations(DSN, schema=schema)
+    insert = (
+        "insert into agent_judges (org, agent, name, question, answer, runs_when)"
+        " values ('default', 'recepcion', %s, 'q', %s, %s)"
+    )
+    async with await connect(DSN) as connection:
+        await connection.execute(sql.SQL("set search_path to {}").format(sql.Identifier(schema)))
+        await connection.execute(insert, ("feeling", "choice", "trigger"))
+        with pytest.raises(psycopg.errors.CheckViolation):
+            await connection.execute(insert, ("essay", "essay", "always"))
+        with pytest.raises(psycopg.errors.CheckViolation):
+            await connection.execute(insert, ("sometimes", "verdict", "sometimes"))
+
+
 @postgres
 async def test_a_release_is_numbered_from_one_of_an_app_hosted_in_a_world_that_exists(
     schema: str,

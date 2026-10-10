@@ -2,10 +2,12 @@
 
 from pinecall.domain.names import JsonObject
 from pinecall.domain.org import Quotas
+from pinecall.providers import catalog
 from pinecall.tenancy import admission
 from pinecall.wire.rest.calls import OpenCallRequest, SealCallRequest
 from tests.conftest import AGENT, Knocking, postgres
 from tests.gateway.api.conftest import a_call, an_app
+from tests.gateway.conftest import EVERY_HELD, judging
 
 USAGE = "/v1/usage"
 INSIGHTS = "/v1/insights"
@@ -84,12 +86,24 @@ async def test_the_feed_pages_the_orgs_metered_rows_with_totals_and_a_cursor(
     rows = page.json()["rows"]
     assert [(row["call"], row["type"]) for row in rows] == [(call, "call.summary")]
     # Flat, as v1 wrote it: the console and any billing layer read these keys at the row's top.
-    assert set(rows[0]) >= {"minutes", "messages", "input_tokens", "cost_usd", "judge_calls"}
-    assert rows[0]["minutes"] == 1.5
+    assert set(rows[0]) >= {
+        "minutes",
+        "messages",
+        "input_tokens",
+        "cost_usd",
+        "judge_calls",
+        "evals",
+        "simulated",
+    }
+    assert (rows[0]["minutes"], rows[0]["simulated"], rows[0]["evals"]) == (1.5, False, 0)
     assert page.json()["totals"]["calls"] == 1
     assert page.json()["totals"]["minutes"] == 1.5
-    assert [row["type"] for row in rest.json()["rows"]] == ["call.score"]
+    assert page.json()["totals"]["simulations"] == 0
+    [score] = rest.json()["rows"]
+    assert (score["type"], score["simulated"]) == ("call.score", False)
+    assert isinstance(score["evals"], int)
     assert rest.json()["totals"]["calls"] == 0
+    assert rest.json()["totals"]["evals"] == score["evals"]
     await app.close()
 
 
@@ -126,8 +140,9 @@ async def test_a_days_insights_count_the_scopes_calls_and_the_orgs_month(
     knocking: Knocking,
 ) -> None:
     app = await an_app(knocking)
-    await a_sealed_call(knocking)
     pool = knocking.gateway.connections.pool
+    await catalog.configure(pool, judging(*EVERY_HELD))
+    await a_sealed_call(knocking)
     await admission.set_quotas(pool, knocking.org.id, "sandbox", Quotas(budget_usd=50))
     async with knocking.http(knocking.app["sandbox"]) as org:
         today = await org.get(INSIGHTS, params={"day": "1970-01-01"})
@@ -218,8 +233,9 @@ async def test_a_days_stages_and_an_agents_drift_are_read_from_what_the_seal_cou
 @postgres
 async def test_the_limits_say_each_quota_against_what_the_world_used(knocking: Knocking) -> None:
     app = await an_app(knocking)
-    await a_sealed_call(knocking)
     pool = knocking.gateway.connections.pool
+    await catalog.configure(pool, judging(*EVERY_HELD))
+    await a_sealed_call(knocking)
     await admission.set_quotas(
         pool, knocking.org.id, "sandbox", Quotas(minutes=30, agents=2, lends=frozenset({"acme"}))
     )

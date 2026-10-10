@@ -9,16 +9,20 @@ from fastapi.responses import StreamingResponse
 from pinecall.domain.errors import Conflict, DeclarationRefused, NotFound, UpstreamFailed
 from pinecall.domain.person import parse_role
 from pinecall.domain.scope import Scope
+from pinecall.gateway._call_setup import keys_of
 from pinecall.gateway._deps import (
     CallsKey,
     GatewayDep,
+    ScopeDep,
     TeamKey,
     UsageKey,
     asked_by,
     public_url,
 )
-from pinecall.providers import catalog
+from pinecall.postgres.pool import Pool
+from pinecall.providers import catalog, credentials
 from pinecall.providers.catalog import judge_ceiling
+from pinecall.providers.declared import model_from
 from pinecall.tenancy import (
     erasure,
     export,
@@ -78,21 +82,28 @@ NOTHING_TO_TEST = (
 )
 
 
-# Per org, not per world: judging is billed to the org across both.
+# Per org, not per world: an org's evals are counted across both.
 @router.get("/v1/org/judging")
 async def get_judging(key: CallsKey, gateway: GatewayDep) -> JudgingSettings:
-    """Whether hang-up judging is on, and its ceiling per call."""
-    pool = gateway.connections.pool
-    on = await orgs.judged(pool, key.org)
-    return JudgingSettings(on=on, ceiling_usd=judge_ceiling(await catalog.providers(pool)))
+    """Whether hang-up judging is on, the model it runs on, and its ceiling per call."""
+    return await _judging(gateway.connections.pool, key.org)
 
 
+# The model is tried on the org's keys in the key's world, where it would run: one the org cannot
+# key, or a plugin of its own on a lent key, is refused here rather than at the next hang-up.
 @router.put("/v1/org/judging")
-async def put_judging(body: JudgingRequest, key: UsageKey, gateway: GatewayDep) -> JudgingSettings:
-    """Hang-up judging on or off, from the next call."""
-    pool = gateway.connections.pool
-    await orgs.set_judging(pool, key.org, on=body.on)
-    return JudgingSettings(on=body.on, ceiling_usd=judge_ceiling(await catalog.providers(pool)))
+async def put_judging(
+    body: JudgingRequest, key: UsageKey, scope: ScopeDep, gateway: GatewayDep
+) -> JudgingSettings:
+    """Hang-up judging on or off, and the model it runs on, from the next call."""
+    connections = gateway.connections
+    model = model_from(body.model, "llm")
+    if model is not None:
+        keyring = await keys_of(connections.pool, connections.vault, scope)
+        credentials.stage("llm", model, await catalog.providers(connections.pool), keyring)
+    await orgs.set_judging(connections.pool, key.org, on=body.on)
+    await orgs.set_judge_model(connections.pool, key.org, body.model)
+    return await _judging(connections.pool, key.org)
 
 
 # `team`: the provider decides who the org's people are.
@@ -281,3 +292,11 @@ def _mail_row(kept: MailboxStatus | None) -> OrgMailResponse:
 async def _one_per_line(lines: AsyncIterator[str]) -> AsyncIterator[bytes]:
     async for line in lines:
         yield f"{line}\n".encode()
+
+
+async def _judging(pool: Pool, org: str) -> JudgingSettings:
+    return JudgingSettings(
+        on=await orgs.judged(pool, org),
+        ceiling_usd=judge_ceiling(await catalog.providers(pool)),
+        model=await orgs.judge_model_of(pool, org),
+    )

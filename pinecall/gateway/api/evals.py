@@ -2,6 +2,7 @@
 
 import asyncio
 import dataclasses
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Annotated, Never
 
@@ -25,14 +26,14 @@ from pinecall.domain.scope import Scope
 from pinecall.evals import checks, dataset, goldens, runs, spoken
 from pinecall.evals.callers import improvise_line
 from pinecall.evals.case import Case, case_of
-from pinecall.evals.judges import CaseJudge, hangup_judges
+from pinecall.evals.judges import AskedJudge, asked_judges
 from pinecall.gateway import _deps
 from pinecall.gateway._call_setup import exhausted, keys_of, tuned
 from pinecall.gateway._deps import EvalsKey, GatewayDep, ScopeDep, check_paced
 from pinecall.gateway._gateway import Gateway
 from pinecall.gateway._sockets import NO_AGENT, Registration
 from pinecall.gateway._text_calls import TextSetup, open_text_as
-from pinecall.gateway.ending.seal import compliance_of, drifted, judge_of, judged_call
+from pinecall.gateway.ending.seal import drifted, judge_of, judged_call, panel_for
 from pinecall.gateway.simulating.caller import (
     Placed,
     a_new_call,
@@ -45,9 +46,10 @@ from pinecall.providers import catalog
 from pinecall.providers.build import llm_of, tts_of
 from pinecall.providers.catalog import Providers
 from pinecall.providers.credentials import Keyring, thinking
-from pinecall.tenancy import judges, personas, scopes
+from pinecall.tenancy import personas, scopes
 from pinecall.tenancy.keys import check_agent
 from pinecall.tenancy.scopes import Picked
+from pinecall.wire.frames import Entry
 from pinecall.wire.parts import ModelConfig
 from pinecall.wire.rest.evals import (
     EvalRunList,
@@ -287,9 +289,8 @@ async def judge_call(
         entry.type == "call.score" and entry.data.get("passed") is not None for entry in entries
     ):
         raise Conflict(ALREADY_JUDGED.format(call=call))
-    own = await judges.for_call(gateway.connections.pool, key.org, entries[0].agent)
-    org_facts = await compliance_of(gateway.connections.pool, key.org, call, declared)
-    score = await judged_call(gateway.connections, entries, declared, own, org_facts)
+    panel = await panel_for(gateway.connections.pool, key.org, entries, declared)
+    score = await judged_call(gateway.connections, entries, declared, panel, scope)
     await store.rescored(call, entries[0].agent, score.written())
     await drifted(gateway.connections.pool, call, entries, score)
     return score
@@ -363,7 +364,8 @@ async def _with_cases(gateway: Gateway, body: RunSuiteRequest, scope: Scope) -> 
 
 
 async def _judged_suite(gateway: Gateway, suite: Suite, scope: Scope) -> str | None:
-    judge = (await judge_of(gateway.connections, suite.configured)).running
+    connections, config = gateway.connections, suite.setup.config
+    judge = (await judge_of(connections, suite.configured, scope, config)).running
     model = None if judge is None else llm_of(judge)
     try:
         async with asyncio.timeout(runs.A_RUN_MAY_TAKE_S):
@@ -400,7 +402,7 @@ async def _every_golden(gateway: Gateway, suite: Suite, judge: llm.LLM[Never] | 
                 return THE_APP_LEFT.format(done=len(suite.cells), total=total, slug=body.agent)
             entries = await gateway.logs.store.whole(opened.call)
             case = case_of(entries, setup.config)
-            panel = await _panel_of(gateway, suite, case, opened) if golden.expect.judges else []
+            panel = await _judges_of(gateway, suite, case, entries)
             scores = await runs.score(goldens.golden_judges(golden, case, panel), case, judge)
             requests = None if body.voice else played.requests
             suite.cells.append(runs.cell_of(opened, case, scores, requests))
@@ -408,14 +410,14 @@ async def _every_golden(gateway: Gateway, suite: Suite, judge: llm.LLM[Never] | 
     return None
 
 
-# The panel a real call of the agent meets at hang-up: a golden's `expect.judges` picks from it.
-async def _panel_of(
-    gateway: Gateway, suite: Suite, case: Case, opened: OpenedCall
-) -> list[CaseJudge]:
+# Every judge a real call of the agent may meet: a golden's consent, grounded and `expect.judges`
+# are asked from it.
+async def _judges_of(
+    gateway: Gateway, suite: Suite, case: Case, entries: Sequence[Entry]
+) -> dict[str, AskedJudge]:
     pool, scope = gateway.connections.pool, suite.registration.scope
-    own = await judges.for_call(pool, scope.org, suite.body.agent)
-    org_facts = await compliance_of(pool, scope.org, opened.call, suite.setup.config)
-    return hangup_judges(case, [stored.judge for stored in own], org_facts)
+    panel = await panel_for(pool, scope.org, entries, suite.setup.config)
+    return asked_judges(case, panel)
 
 
 # A column runs the agent's own model, or the one named, on the same tuned config and keys.

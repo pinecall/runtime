@@ -7,7 +7,7 @@ from pinecall.wire.frames import WireModel
 
 
 class UsageTotals(WireModel):
-    """What was consumed: calls, minutes, turns, tokens, characters, judge calls, the cost."""
+    """What was consumed: calls, minutes, turns, tokens, characters, judges asked, the cost."""
 
     calls: int
     minutes: float
@@ -16,6 +16,8 @@ class UsageTotals(WireModel):
     output_tokens: int
     characters: int
     judge_calls: int
+    evals: int
+    simulations: int
     cost_usd: float
 
 
@@ -35,6 +37,9 @@ class UsageRow(WireModel):
     output_tokens: int
     characters: int
     judge_calls: int
+    evals: int
+    # A call.summary of a call a simulated caller played: billed as one simulation, not minutes.
+    simulated: bool
     cost_usd: float
 
 

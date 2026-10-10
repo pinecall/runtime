@@ -135,7 +135,7 @@ class Metered:
 # cost_usd is the vendors' estimate, what the call cost the operator, never what is charged.
 @dataclass(frozen=True, slots=True)
 class Usage:
-    """What was consumed: calls, minutes, turns, tokens, characters, judge calls, the cost."""
+    """What was consumed: calls, minutes, turns, tokens, characters, judges asked, the cost."""
 
     calls: int = 0
     minutes: float = 0.0
@@ -144,6 +144,11 @@ class Usage:
     output_tokens: int = 0
     characters: int = 0
     judge_calls: int = 0
+    # Judges that answered a call's question on the platform's key: the evals billed (N/A,
+    # deferred, skipped and the org's own key's are not counted).
+    evals: int = 0
+    # Calls a simulated caller played.
+    simulations: int = 0
     cost_usd: float = 0.0
 
     def __add__(self, other: Self) -> Self:
@@ -156,6 +161,8 @@ class Usage:
             output_tokens=self.output_tokens + other.output_tokens,
             characters=self.characters + other.characters,
             judge_calls=self.judge_calls + other.judge_calls,
+            evals=self.evals + other.evals,
+            simulations=self.simulations + other.simulations,
             cost_usd=self.cost_usd + other.cost_usd,
         )
 
@@ -285,7 +292,11 @@ def usage_row(metered: Metered) -> UsageRow:
         case CallSummary():
             return replace(row, used=_used_by_a_call(data))
         case CallScore():
-            used = Usage(judge_calls=data.judge_calls, cost_usd=data.judge_cost_usd or 0.0)
+            # Evals the org's own key answered are counted nowhere: they are never billed.
+            evals = 0 if data.own_key else data.evals
+            used = Usage(
+                judge_calls=data.judge_calls, evals=evals, cost_usd=data.judge_cost_usd or 0.0
+            )
             return replace(row, used=used)
         case _:
             return row
@@ -608,6 +619,7 @@ def _used_by_a_call(summary: CallSummary) -> Usage:
         input_tokens=sum(row.input_tokens or 0 for row in llm),
         output_tokens=sum(row.output_tokens or 0 for row in llm),
         characters=sum(row.characters_count or 0 for row in tts),
+        simulations=int(summary.simulated),
         cost_usd=summary.cost.usd,
     )
 

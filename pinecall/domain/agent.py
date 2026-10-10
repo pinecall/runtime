@@ -36,24 +36,6 @@ type DocsMode = Literal["retrieved", "tool"]
 type EndOfTurn = Literal["stt", "livekit", "smart-turn"]
 
 
-# every-call: at every hang-up the org judges. simulations: only a call a persona played.
-type RunsOn = Literal["every-call", "simulations"]
-
-
-# The names the platform gives its verdicts, at hang-up and on a golden; a judge of the org's or an
-# agent's takes another, or a call would carry two verdicts under one name.
-PANEL_JUDGES: tuple[str, ...] = (
-    "consent",
-    "grounded",
-    "promises",
-    "persona",
-    "identified",
-    "disclosed",
-    "honoured_stop",
-    "heard",
-)
-
-
 # A name every model vendor accepts as a function name.
 _A_NAME_A_MODEL_CAN_CALL = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 
@@ -297,6 +279,11 @@ class Tuning:
     stt_options: Mapping[str, Json] | None = None
     tts_builds: str | None = None
     tts_options: Mapping[str, Json] | None = None
+    # The model the agent's calls are judged on, `vendor/model` or a vendor; None is the org's
+    # choice, else the platform's. On the org's own key its evals are never billed.
+    judge: str | None = None
+    judge_builds: str | None = None
+    judge_options: Mapping[str, Json] | None = None
     # A tag (`en`, `pt-BR`); None leaves each vendor its own default.
     language: str | None = None
     greeting: Greeting | None = None
@@ -324,6 +311,8 @@ class Tuning:
             ("llm_builds", self.llm_builds),
             ("stt_builds", self.stt_builds),
             ("tts_builds", self.tts_builds),
+            ("judge", self.judge),
+            ("judge_builds", self.judge_builds),
             ("language", self.language),
             ("knowledge", self.knowledge),
         )
@@ -372,15 +361,6 @@ class Versions:
     lexicon: int | None = None
 
 
-@dataclass(frozen=True)
-class AgentJudge:
-    """A question the org wrote about one agent's job, put to the judge model at hang-up."""
-
-    name: str
-    question: str
-    runs_on: RunsOn = "every-call"
-
-
 DEFAULT_LAYOUT: tuple[PromptBlock, ...] = (
     PromptBlock("identity", "static"),
     PromptBlock(KNOWLEDGE, "static"),
@@ -403,6 +383,8 @@ class AgentConfig:
     voice: Voice | None = None
     llm: Model | None = None
     stt: Model | None = None
+    # The model its calls are judged on; None: the org's, else the platform's.
+    judge: Model | None = None
     turn: Turn | None = None
     says: Mapping[str, str] = field(default_factory=dict[str, str])
     hears: tuple[str, ...] = ()

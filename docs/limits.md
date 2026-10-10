@@ -79,3 +79,14 @@ settings) runs that stage only on the org's own key, and is refused on a lent on
 registers, when the settings are set, and when a call's stages are handed out — naming the vendor
 and `pinecall providers add`. An option can point a plugin at another server; the platform's key
 goes to the vendor and nowhere else.
+
+The **simulated caller** (its model and its voice) always runs on the platform's keys. The
+**judge model** does too, the providers row's `judge`, unless the org names its own
+(`PUT /v1/org/judging`) or the agent does (its `judge`): a model on a key of the org's own, a
+local one among them, is the org's to pay and its evals are never billed; one on a key the
+platform lends is lent as any stage is, by `lends`. Neither spends the org's quotas; the org pays
+for them as **evals** (one judge that answered one call on the platform's key: `held`, `broken` or
+`classified`, never `na`) and **simulations** (one call a simulated caller played), which
+`call.score` and `call.summary` carry and the usage feed counts
+([charging-for-it.md](charging-for-it.md) §3). A judge tried at
+`POST /v1/agents/{slug}/judges/try` writes no `call.score`, so it is not counted.

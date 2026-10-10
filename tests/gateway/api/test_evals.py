@@ -7,7 +7,7 @@ import pytest
 from livekit import rtc
 from websockets.asyncio.client import ClientConnection
 
-from pinecall.domain.agent import AgentJudge
+from pinecall.domain.judging import JudgeSpec
 from pinecall.domain.names import Json, JsonObject
 from pinecall.domain.org import Quotas
 from pinecall.domain.scope import Scope
@@ -39,6 +39,18 @@ COUNTED = "select coalesce(sum(held + broken), 0) as verdicts from judge_days wh
 
 
 RUNS = "/v1/evals/runs"
+
+
+# The library's judges on by default that an inbound call meets, in the library's order.
+ON_A_REAL_CALL = [
+    "consent",
+    "disclosed",
+    "ended-well",
+    "grounded",
+    "honoured-stop",
+    "identified",
+    "promises",
+]
 
 
 BOOK: JsonObject = {
@@ -479,13 +491,7 @@ async def test_a_call_its_org_did_not_judge_is_judged_and_the_verdict_lands_on_i
     async with knocking.http(knocking.app["sandbox"]) as http:
         answer = await http.post(f"/v1/evals/judge/{call}")
     assert answer.status_code == 200, answer.text
-    assert answer.json()["panel"] == [
-        "consent",
-        "grounded",
-        "promises",
-        "disclosed",
-        "honoured_stop",
-    ]
+    assert answer.json()["panel"] == ON_A_REAL_CALL
     scores = [
         entry
         for entry in await knocking.gateway.logs.store.whole(call)
@@ -500,19 +506,12 @@ async def test_a_call_its_org_did_not_judge_is_judged_and_the_verdict_lands_on_i
 @postgres
 async def test_a_call_judged_later_meets_the_agents_own_judges_too(knocking: Knocking) -> None:
     pool = knocking.gateway.connections.pool
-    slot = AgentJudge(name="offers-next-slot", question="The agent offered the next slot.")
+    slot = JudgeSpec(name="offers-next-slot", question="The agent offered the next slot.")
     await judges.put_judge(pool, knocking.org.id, AGENT, slot, author="m_ana")
     call = await a_finished_call(knocking, *BOOKED)
     async with knocking.http(knocking.app["sandbox"]) as http:
         answer = await http.post(f"/v1/evals/judge/{call}")
-    assert answer.json()["panel"] == [
-        "consent",
-        "grounded",
-        "promises",
-        "disclosed",
-        "honoured_stop",
-        "offers-next-slot",
-    ]
+    assert answer.json()["panel"] == [*ON_A_REAL_CALL, "offers-next-slot"]
     own = next(row for row in answer.json()["judges"] if row["name"] == "offers-next-slot")
     assert (own["verdict"], own["criteria"]) == ("skipped", slot.question)
 

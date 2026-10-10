@@ -1,438 +1,82 @@
-"""Tests for the judges: settled by code, or by one question to a model."""
+"""Tests for the hang-up panel over a finished call, and the judges a golden is scored with."""
 
 import dataclasses
 
-import pytest
-from livekit.agents.evals import EvaluationResult, JudgmentResult
+from livekit.agents.evals import JudgmentResult
 
-from pinecall.domain.agent import PANEL_JUDGES, AgentJudge
-from pinecall.domain.errors import UpstreamFailed
-from pinecall.domain.names import Json, JsonObject
-from pinecall.evals.case import Case, case_of
-from pinecall.evals.compliance import Panel
+from pinecall.domain.judging import JudgeSpec
+from pinecall.domain.names import Json
+from pinecall.evals._asking import Context
+from pinecall.evals.case import Case
+from pinecall.evals.catalog import Seated, library
 from pinecall.evals.judges import (
+    AskedJudge,
     CaseJudge,
     JudgeModel,
+    Panel,
+    alone,
+    asked_judges,
     at_hangup,
-    evidence_in,
-    hangup_judges,
-    judgment_of,
+    evidence_at,
 )
 from pinecall.providers.build import Running
 from pinecall.providers.catalog import Providers
+from pinecall.wire.frames import Entry
+from pinecall.wire.scores import CallScore
 from tests.conftest import configured
 from tests.evals.conftest import (
     THE_CLINIC,
-    WHEN,
     a_judge,
     a_log,
     agent,
     agent_line,
-    before_the_yes,
+    answering,
     caller,
     caller_line,
     case_of_turns,
-    confirmed,
     entry,
-    judge_named,
-    logged_call,
-    prompts_of,
-    score_of,
     verdict,
-    with_no_gate,
 )
-from tests.fakes.acme import AcmeLLM
 
-SEEDED: JsonObject = {
-    "stage": "choose",
-    "patient": {"name": "Ana García", "cita": "jueves a las diez", "doctor": "la doctora Vidal"},
-}
+SLOT = JudgeSpec(name="offers-next-slot", question="Did the agent offer the next free slot?")
 
 
-def grounded(case: Case) -> CaseJudge:
-    return judge_named(hangup_judges(case, ()), "grounded")
+PRICE = JudgeSpec(name="says-the-price", question="Did the agent say the price?")
 
 
-def promises(case: Case) -> CaseJudge:
-    return judge_named(hangup_judges(case, ()), "promises")
-
-
-# ── consent ──
-
-
-async def test_a_booking_after_the_yes_holds_and_no_judge_is_asked() -> None:
-    model = a_judge()
-    case = case_of(confirmed(), THE_CLINIC)
-    judge = judge_named(hangup_judges(case, ()), "consent")
-    assert await score_of(judge, case, model) == 1.0
-    assert model.requests == []
-
-
-async def test_a_booking_before_the_yes_fails_naming_both_seqs_and_still_asks_nobody() -> None:
-    model = a_judge()
-    case = case_of(before_the_yes(), THE_CLINIC)
-    result = await verdict(judge_named(hangup_judges(case, ()), "consent"), case, model)
-    assert result.failed
-    assert "book_appointment ran at seq 4, before its confirm.granted at seq 6" in result.reasoning
-    assert model.requests == []
-
-
-async def test_a_call_with_no_confirmation_anywhere_is_not_scored_against_the_agent() -> None:
-    case = case_of(with_no_gate(), THE_CLINIC)
-    result = await verdict(judge_named(hangup_judges(case, ()), "consent"), case)
-    assert result.passed
-    assert "the log carries no confirm.* at all" in result.reasoning
-
-
-async def test_a_case_built_without_the_declaration_refuses_to_report_a_pass() -> None:
-    case = case_of(confirmed(), None)
-    result = await verdict(judge_named(hangup_judges(case, ()), "consent"), case)
-    assert result.failed
-    assert "not one declared side effect" in result.reasoning
-
-
-async def test_the_verdict_carries_the_question_it_answered_without_paying_for_it() -> None:
-    model = a_judge()
-    case = case_of(confirmed(), THE_CLINIC)
-    result = await verdict(judge_named(hangup_judges(case, ()), "consent"), case, model)
-    assert result.instructions.startswith("Every irreversible tool call")
-    assert model.requests == []
-
-
-# ── grounded ──
-
-
-async def test_a_call_whose_every_fact_is_in_the_evidence_scores_one_and_asks_nobody() -> None:
-    model = a_judge()
-    case = case_of_turns(
-        caller_line(WHEN),
-        agent_line(
-            "Tengo libre el 13/08 a las 09:30 con la doctora Vidal.",
-            calls=(logged_call("find_slots", {"day": "13/08"}, "13/08 09:30 Vidal"),),
-        ),
-    )
-    assert await score_of(grounded(case), case, model) == 1.0
-    assert model.requests == []
-
-
-async def test_a_call_that_stated_no_concrete_fact_holds_without_a_judge() -> None:
-    model = a_judge()
-    case = case_of_turns(caller_line(WHEN), agent_line("Claro, dígame su nombre."))
-    assert await score_of(grounded(case), case, model) == 1.0
-    assert model.requests == []
-
-
-async def test_a_price_said_in_words_reaches_the_judge() -> None:
-    model = a_judge(("pass", "45 euros is the price"))
-    case = case_of_turns(
-        caller_line(WHEN), agent_line("La revisión son 45 euros.", retrieved=("Revisión: 45 €.",))
-    )
-    judge = grounded(case)
-    assert await score_of(judge, case, model) == 1.0
-    assert judge.calls == 1
-    assert "Revisión: 45 €." in prompts_of(model)[0]
-
-
-async def test_the_judge_saying_no_is_the_score_going_to_zero() -> None:
-    model = a_judge(("fail", "60, not 45"))
-    case = case_of_turns(
-        caller_line(WHEN), agent_line("La revisión son 45 euros.", retrieved=("Revisión: 60 €.",))
-    )
-    assert await score_of(grounded(case), case, model) == 0.0
-    assert len(model.requests) == 1
-
-
-async def test_a_judge_that_is_unsure_scores_a_half_and_never_a_pass() -> None:
-    model = a_judge(("maybe", "cannot tell"))
-    case = case_of_turns(
-        caller_line(WHEN), agent_line("La revisión son 45 euros.", retrieved=("Revisión: 60 €.",))
-    )
-    result = await verdict(grounded(case), case, model)
-    assert (EvaluationResult(judgments={"grounded": result}).score, result.passed) == (0.5, False)
-
-
-async def test_a_verdict_out_of_the_schema_is_read_as_unsure() -> None:
-    model = a_judge(("probably", "cannot tell"))
-    case = case_of_turns(caller_line(WHEN), agent_line("Son 45 euros."))
-    assert (await verdict(grounded(case), case, model)).verdict == "maybe"
-
-
-async def test_a_left_over_fact_with_no_judge_model_reports_it_and_says_nobody_looked() -> None:
-    case = case_of_turns(
-        caller_line(WHEN), agent_line("La revisión son 45 euros.", retrieved=("Revisión: 45 €.",))
-    )
-    result = await verdict(grounded(case), case)
-    assert result.failed
-    assert "no text evidence carries the price '45 euros'" in result.reasoning
-    assert "no judge model was given" in result.reasoning
-
-
-async def test_a_fact_the_seeded_state_carried_is_grounded_and_asks_nobody() -> None:
-    model = a_judge()
-    case = case_of_turns(
-        caller_line("¿Cuándo tengo la cita?"),
-        agent_line("Tiene el jueves con la doctora Vidal."),
-        states=(SEEDED,),
-    )
-    assert await score_of(grounded(case), case, model) == 1.0
-    assert model.requests == []
-
-
-async def test_a_state_the_call_was_never_in_grounds_nothing() -> None:
-    case = case_of_turns(
-        caller_line("¿Cuándo tengo la cita?"),
-        agent_line("Tiene el domingo con la doctora Vidal."),
-        states=(SEEDED,),
-    )
-    result = await verdict(grounded(case), case)
-    assert "no call evidence carries the date 'domingo'" in result.reasoning
-    assert "Vidal" not in result.reasoning
-
-
-async def test_the_state_reaches_the_one_question_a_judge_is_ever_asked() -> None:
-    model = a_judge(("pass", "fine"))
-    case = case_of_turns(
-        caller_line("¿A qué hora?"),
-        agent_line("A las 10:00 con la doctora Vidal.", retrieved=("Horario: 09:00 a 20:00.",)),
-        states=(SEEDED,),
-    )
-    judge = grounded(case)
-    await verdict(judge, case, model)
-    assert judge.calls == 1
-    assert "jueves a las diez" in prompts_of(model)[0]
-
-
-async def test_a_tool_answer_reaches_the_judge_with_its_name_and_arguments() -> None:
-    model = a_judge(("pass", "fine"))
-    case = case_of_turns(
-        caller_line("¿Tiene hueco el domingo por la mañana?"),
-        agent_line(
-            "El domingo por la mañana no hay huecos. La revisión son 45 euros.",
-            calls=(logged_call("freeSlots", {"day": "domingo por la mañana"}, "[]"),),
-        ),
-    )
-    await verdict(grounded(case), case, model)
-    assert 'freeSlots({"day": "domingo por la mañana"}) → []' in prompts_of(model)[0]
-
-
-async def test_a_day_only_the_arguments_carry_is_grounded_and_asks_nobody() -> None:
-    model = a_judge()
-    case = case_of_turns(
-        caller_line("¿Tiene hueco el domingo?"),
-        agent_line(
-            "El domingo no hay hueco.", calls=(logged_call("freeSlots", {"day": "domingo"}, "[]"),)
-        ),
-    )
-    assert await score_of(grounded(case), case, model) == 1.0
-    assert model.requests == []
-
-
-async def test_a_judge_model_that_calls_no_verdict_is_a_vendor_that_failed() -> None:
-    model = AcmeLLM(api_key="k", replies=[["no pienso"]])
-    case = case_of_turns(caller_line(WHEN), agent_line("Son 45 euros."))
-    with pytest.raises(UpstreamFailed):
-        await verdict(grounded(case), case, model)
-
-
-# ── promises ──
-
-
-async def test_a_call_that_promises_nothing_holds_and_asks_nobody() -> None:
-    model = a_judge(("fail", "never asked"))
-    case = case_of_turns(caller_line("¿Abren el sábado?"), agent_line("Sí, de nueve a dos."))
-    assert await score_of(promises(case), case, model) == 1.0
-    assert model.requests == []
-
-
-async def test_a_callback_nobody_booked_reaches_the_judge_with_every_tool_call() -> None:
-    model = a_judge(("fail", "promised a call back and no tool booked one"))
-    case = case_of_turns(
-        caller_line("No me va bien ahora."),
-        agent_line(
-            "Sin problema, le llamaremos mañana por la mañana.",
-            calls=(logged_call("lookupClient", {"phone": "600"}, '{"name": "Ana"}'),),
-        ),
-    )
-    judge = promises(case)
-    assert await score_of(judge, case, model) == 0.0
-    assert judge.calls == 1
-    assert 'lookupClient({"phone": "600"})' in prompts_of(model)[0]
-
-
-# ── the caller's rule ──
-
-
-def ruled(accepts: str, declines: str) -> Case:
-    case = case_of_turns(
-        caller_line("¿Cuánto cuesta la limpieza?"), agent_line("Son 60 € y el viernes hay hueco.")
-    )
-    return dataclasses.replace(case, persona_rule=(accepts, declines))
-
-
-async def persona_verdict(case: Case, model: AcmeLLM | None) -> JudgmentResult:
-    return await verdict(judge_named(hangup_judges(case, ()), "persona"), case, model)
-
-
-async def test_a_call_that_met_the_callers_rule_is_held_and_says_accepted() -> None:
-    model = a_judge(("pass", "the price and a Friday were given"))
-    result = await persona_verdict(ruled("a price and a day this week", ""), model)
-    assert (result.verdict, result.reasoning) == (
-        "pass",
-        "accepted: the price and a Friday were given",
-    )
-
-
-async def test_a_call_that_met_what_declines_it_is_broken_and_says_declined() -> None:
-    model = a_judge(("fail", "they were told to call back"))
-    result = await persona_verdict(ruled("", "they are told to call back"), model)
-    assert (result.verdict, result.reasoning) == ("fail", "declined: they were told to call back")
-
-
-async def test_a_judge_that_cannot_tell_says_so_rather_than_picking_a_side() -> None:
-    model = a_judge(("maybe", "the call ended before a price"))
-    result = await persona_verdict(ruled("a price", ""), model)
-    assert result.reasoning == "could not say: the call ended before a price"
-
-
-async def test_the_judge_is_asked_both_halves_and_never_one_the_caller_left_empty() -> None:
-    both, one_half = a_judge(("pass", "ok")), a_judge(("pass", "ok"))
-    await persona_verdict(ruled("a price", "a call back"), both)
-    await persona_verdict(ruled("a price", ""), one_half)
-    assert "accepts the call only if this happened on it: a price" in prompts_of(both)[0]
-    assert "declines the call if this happened on it: a call back" in prompts_of(both)[0]
-    assert "declines the call" not in prompts_of(one_half)[0]
-
-
-async def test_the_judge_is_shown_every_tool_the_agent_called_and_what_it_answered() -> None:
-    model = a_judge(("pass", "ok"))
-    case = case_of_turns(
-        caller_line("Quiero cita el viernes"),
-        agent_line(
-            "Hecho, viernes a las 10.", calls=(logged_call("book", {"day": "viernes"}, "#12"),)
-        ),
-    )
-    await persona_verdict(dataclasses.replace(case, persona_rule=("a booking", "")), model)
-    prompt = prompts_of(model)[0]
-    assert (
-        'assistant: Hecho, viernes a las 10.\n[function call: book({"day": "viernes"})]' in prompt
-    )
-    assert "[function output: #12]" in prompt
-
-
-async def test_with_no_judge_model_nothing_is_settled_and_nothing_is_passed() -> None:
-    result = await persona_verdict(ruled("a price", ""), None)
-    assert result.failed
-    assert result.instructions
-
-
-def test_only_a_call_whose_caller_wrote_a_rule_gets_this_judge() -> None:
-    plain = case_of_turns(caller_line("hola"))
-    assert [judge.name for judge in hangup_judges(plain, ())] == ["consent", "grounded", "promises"]
-    assert [judge.name for judge in hangup_judges(ruled("a price", ""), ())][-1] == "persona"
-
-
-# ── the agent's own ──
-
-
-SLOT = AgentJudge(name="offers-next-slot", question="The agent offered the next free slot.")
-
-
-REHEARSED = AgentJudge(
-    name="names-the-doctor", question="The agent named the doctor.", runs_on="simulations"
+MOOD = JudgeSpec(
+    name="mood", question="How did the caller feel?", answer="choice", choices=("good", "bad")
 )
 
 
-def offered() -> Case:
-    return case_of_turns(caller_line("¿Hay hueco?"), agent_line("El viernes a las diez."))
+REHEARSED = JudgeSpec(name="names-the-doctor", question="Was the doctor named?", on="simulations")
 
 
-async def own_verdict(case: Case, judge: AgentJudge, model: AcmeLLM | None) -> JudgmentResult:
-    return await verdict(judge_named(hangup_judges(case, (judge,)), judge.name), case, model)
+REFUND = JudgeSpec(
+    name="refund-offered",
+    question="Did the agent offer the refund?",
+    on="trigger",
+    trigger="The caller asked for a refund.",
+)
 
 
-async def test_a_question_the_call_answered_holds_under_the_judges_own_name() -> None:
-    model = a_judge(("pass", "the Friday slot was offered"))
-    result = await own_verdict(offered(), SLOT, model)
-    assert (result.verdict, result.reasoning) == ("pass", "the Friday slot was offered")
-    assert judgment_of(SLOT.name, result, []).verdict == "held"
+def only(*names: str) -> dict[str, bool]:
+    """Switches that leave on only the library's judges named."""
+    return {name: name in names for name in library()}
 
 
-async def test_a_question_the_call_did_not_answer_is_broken_and_says_why() -> None:
-    model = a_judge(("fail", "no slot was offered"))
-    result = await own_verdict(offered(), SLOT, model)
-    assert judgment_of(SLOT.name, result, []).verdict == "broken"
-    assert result.reasoning == "no slot was offered"
+def answered(given: str, reason: str = "because", positions: list[int] | None = None) -> Json:
+    """One scripted reply: the judge's verdict, its reason and the positions it rests on."""
+    seqs: list[Json] = list(positions or [])
+    arguments: Json = {"verdict": given, "reason": reason, "positions": seqs}
+    return [{"name": "submit_verdict", "arguments": arguments}]
 
 
-async def test_the_model_is_asked_the_orgs_own_words_and_shown_the_call() -> None:
-    model = a_judge(("pass", "ok"))
-    result = await own_verdict(offered(), SLOT, model)
-    prompt = prompts_of(model)[0]
-    assert SLOT.question in prompt
-    assert "assistant: El viernes a las diez." in prompt
-    assert result.instructions.startswith(SLOT.question)
+def judge_model_of(acme: str, replies: list[Json]) -> Running:
+    return Running(vendor=acme, credentials="k", model="acme-1", options={"replies": replies})
 
 
-async def test_with_no_judge_model_the_question_is_never_passed() -> None:
-    result = await own_verdict(offered(), SLOT, None)
-    assert result.failed
-
-
-def test_the_agents_own_judges_follow_the_panel_in_the_order_they_were_given() -> None:
-    other = AgentJudge(name="says-the-price", question="The agent said the price.")
-    names = [judge.name for judge in hangup_judges(offered(), (SLOT, other))]
-    assert names == ["consent", "grounded", "promises", SLOT.name, other.name]
-
-
-def test_a_judge_for_simulations_reads_a_simulated_call_and_never_a_real_one() -> None:
-    real, simulated = offered(), dataclasses.replace(offered(), simulated=True)
-    assert REHEARSED.name not in [judge.name for judge in hangup_judges(real, (REHEARSED,))]
-    assert REHEARSED.name in [judge.name for judge in hangup_judges(simulated, (REHEARSED,))]
-    assert SLOT.name in [judge.name for judge in hangup_judges(real, (SLOT,))]
-
-
-async def test_at_hang_up_the_agents_own_judge_answers_in_call_score_and_in_the_panel(
-    acme: str,
-) -> None:
-    replies: list[Json] = [
-        [{"name": "submit_verdict", "arguments": {"verdict": "fail", "reasoning": "none"}}]
-    ]
-    log = a_log(caller("¿Hay hueco?"), agent("Llame mañana."))
-    judge = Running(vendor=acme, credentials="k", model="acme-1", options={"replies": replies})
-    score = await at_hangup(
-        log, THE_CLINIC, Panel(own=(SLOT,)), JudgeModel(judge, 0.01), configured=configured()
-    )
-    assert score.panel == ["consent", "grounded", "promises", SLOT.name]
-    own = next(judgment for judgment in score.judges if judgment.name == SLOT.name)
-    assert (own.verdict, own.reason) == ("broken", "none")
-    assert score.passed is False
-
-
-# ── what call.score carries ──
-
-
-def test_the_seqs_a_reason_names_become_the_entries_a_reader_opens() -> None:
-    grant = entry(93, "confirm.granted", {"said": "Sí, confirmo."})
-    evidence = evidence_in("book_slot ran at seq 79, before its confirm.granted at seq 93", [grant])
-    assert evidence.seqs == [79, 93]
-    assert evidence.said == "Sí, confirmo."
-
-
-def test_a_reason_that_cites_nothing_carries_no_evidence_and_no_words() -> None:
-    evidence = evidence_in("no irreversible tool ran in this call", [])
-    assert evidence.seqs == []
-    assert evidence.said is None
-
-
-def test_a_judgment_keeps_the_question_it_answered_beside_the_answer() -> None:
-    result = JudgmentResult(verdict="fail", reasoning="the tool ran at seq 79")
-    result.instructions = "Every irreversible tool call ran after a confirm.granted."
-    row = judgment_of("consent", result, [])
-    assert (row.name, row.verdict) == ("consent", "broken")
-    assert (row.criteria, row.reason) == (result.instructions, result.reasoning)
-
-
-def with_a_judge(replies: list[Json]) -> Providers:
+def priced(replies: list[Json]) -> Providers:
     return Providers.model_validate(
         {
             **configured().model_dump(mode="json"),
@@ -442,84 +86,247 @@ def with_a_judge(replies: list[Json]) -> Providers:
     )
 
 
-async def test_at_hang_up_with_no_model_the_code_judges_answer_and_the_model_ones_are_skipped() -> (
-    None
-):
-    log = a_log(caller("¿Cuánto?"), agent("Son 45 euros."))
-    score = await at_hangup(
-        log, THE_CLINIC, Panel(), JudgeModel(None, 0.0, "no judge"), configured=configured()
-    )
-    verdicts = {judgment.name: judgment.verdict for judgment in score.judges}
-    assert verdicts == {"consent": "held", "grounded": "skipped", "promises": "held"}
-    assert score.passed is True
-    assert score.panel == ["consent", "grounded", "promises"]
-    assert score.judge_calls == 0
-    grounded_row = next(judgment for judgment in score.judges if judgment.name == "grounded")
-    assert grounded_row.reason.startswith("no judge: ")
-    assert score.judged_by is not None
-    assert (score.judged_by.provider, score.judged_by.model) == (None, None)
+def a_call() -> list[Entry]:
+    return a_log(caller("¿Cuánto cuesta?"), agent("Son 45 euros."))
 
 
-async def test_at_hang_up_the_model_is_asked_counted_and_priced(acme: str) -> None:
-    replies: list[Json] = [
-        [{"name": "submit_verdict", "arguments": {"verdict": "pass", "reasoning": "fine"}}]
-    ]
-    log = a_log(caller("¿Cuánto?"), agent("Son 45 euros."))
-    judge = Running(vendor=acme, credentials="k", model="acme-1", options={"replies": replies})
-    score = await at_hangup(
-        log, THE_CLINIC, Panel(), JudgeModel(judge, 0.01), configured=with_a_judge(replies)
-    )
-    assert {judgment.name: judgment.verdict for judgment in score.judges}["grounded"] == "held"
-    assert score.judge_calls == 1
+async def judged(panel: Panel, judge: JudgeModel, replies: list[Json] | None = None) -> CallScore:
+    return await at_hangup(a_call(), THE_CLINIC, panel, judge, configured=priced(replies or []))
+
+
+def verdicts_of(score: CallScore) -> dict[str, str]:
+    return {judgment.name: judgment.verdict for judgment in score.judges}
+
+
+def offered() -> Case:
+    return case_of_turns(caller_line("¿Hay hueco?"), agent_line("El viernes a las diez."))
+
+
+# ── at hang-up ──
+
+
+async def test_a_held_verdict_passes_the_call_and_is_one_eval_counted_and_priced(
+    acme: str,
+) -> None:
+    replies = [answered("held", "the price was in the tool's answer")]
+    model = JudgeModel(judge_model_of(acme, replies), 0.01)
+    score = await judged(Panel(switches=only("grounded")), model, replies)
+    assert verdicts_of(score) == {"grounded": "held"}
+    assert (score.passed, score.evals, score.judge_calls) == (True, 1, 1)
+    assert score.panel == ["grounded"]
     assert score.judge_cost_usd is not None
     assert score.judge_cost_usd > 0
     assert score.judged_by is not None
     assert (score.judged_by.provider, score.judged_by.model) == (acme, "acme-1")
-    again = await at_hangup(
-        log, THE_CLINIC, Panel(), JudgeModel(judge, 0.01), configured=with_a_judge(replies)
+
+
+async def test_the_same_questions_hash_the_same_whatever_the_call_said(acme: str) -> None:
+    first = await judged(
+        Panel(switches=only("grounded")), JudgeModel(judge_model_of(acme, [answered("held")]), 0.01)
     )
-    assert again.judged_by == score.judged_by
+    second = await judged(
+        Panel(switches=only("grounded")),
+        JudgeModel(judge_model_of(acme, [answered("broken")]), 0.01),
+    )
+    assert first.judged_by == second.judged_by
 
 
-async def test_a_model_judge_asked_past_the_ceiling_is_skipped_and_the_ones_before_it_stand(
+async def test_a_broken_verdict_fails_the_call_and_carries_the_lines_it_rests_on(
+    acme: str,
+) -> None:
+    replies = [answered("broken", "45 is nowhere", positions=[2, 9])]
+    score = await judged(
+        Panel(switches=only("grounded")), JudgeModel(judge_model_of(acme, replies), 0.01)
+    )
+    [judgment] = score.judges
+    assert (judgment.verdict, judgment.reason, score.passed) == ("broken", "45 is nowhere", False)
+    assert judgment.evidence.seqs == [2]
+    assert judgment.evidence.said == "Son 45 euros."
+    assert judgment.criteria == library()["grounded"].spec.question
+
+
+async def test_a_gate_settles_na_before_any_model_is_asked_and_bills_nothing(acme: str) -> None:
+    score = await judged(
+        Panel(switches=only("consent")), JudgeModel(judge_model_of(acme, []), 0.01)
+    )
+    [judgment] = score.judges
+    assert (judgment.verdict, judgment.reason) == (
+        "na",
+        "no tool this agent declares irreversible ran on this call",
+    )
+    assert (score.passed, score.not_judged, score.evals, score.judge_calls) == (None, None, 0, 0)
+
+
+async def test_with_no_model_every_judge_is_skipped_saying_why() -> None:
+    score = await judged(Panel(switches=only("grounded")), JudgeModel(None, 0.0, "no judge here"))
+    assert verdicts_of(score) == {"grounded": "skipped"}
+    assert (score.passed, score.not_judged, score.judge_calls) == (None, "no judge here", 0)
+    assert score.judged_by is not None
+    assert (score.judged_by.provider, score.judged_by.model) == (None, None)
+
+
+async def test_a_judge_whose_model_failed_is_skipped_and_the_call_still_scored(acme: str) -> None:
+    replies: list[Json] = [["nada"]]
+    score = await judged(
+        Panel(switches=only("grounded")), JudgeModel(judge_model_of(acme, replies), 0.01)
+    )
+    [judgment] = score.judges
+    assert judgment.verdict == "skipped"
+    assert "the judge model failed" in judgment.reason
+    assert score.not_judged == "every judge run over this call failed and not one of them answered"
+
+
+async def test_a_judge_asked_past_the_ceiling_is_skipped_and_the_ones_before_it_stand(
+    acme: str,
+) -> None:
+    replies = [answered("held")] * 2
+    tight = JudgeModel(judge_model_of(acme, replies), 0.000001)
+    score = await judged(Panel(switches=only(), own=(SLOT, PRICE)), tight, replies)
+    assert verdicts_of(score) == {SLOT.name: "held", PRICE.name: "skipped"}
+    assert score.judges[1].reason.startswith("judging this call reached its ceiling of $1e-06")
+    assert (score.judge_calls, score.evals, score.passed) == (1, 1, True)
+
+
+async def test_once_the_orgs_evals_are_used_up_the_judges_after_are_not_asked(acme: str) -> None:
+    replies = [answered("held")] * 2
+    one_left = JudgeModel(judge_model_of(acme, replies), 0.01, evals_left=1)
+    score = await judged(Panel(switches=only(), own=(SLOT, PRICE)), one_left, replies)
+    assert verdicts_of(score) == {SLOT.name: "held", PRICE.name: "skipped"}
+    assert score.judges[1].reason.startswith("the org's evals for the month are used up")
+    none_left = JudgeModel(judge_model_of(acme, replies), 0.01, evals_left=0)
+    nothing = await judged(Panel(switches=only(), own=(SLOT,)), none_left, replies)
+    assert (verdicts_of(nothing), nothing.judge_calls) == ({SLOT.name: "skipped"}, 0)
+
+
+async def test_a_classification_is_an_eval_and_never_passes_or_fails_the_call(acme: str) -> None:
+    replies: list[Json] = [
+        [{"name": "submit_choice", "arguments": {"choice": "bad", "reason": "r"}}]
+    ]
+    score = await judged(
+        Panel(switches=only(), own=(MOOD,)),
+        JudgeModel(judge_model_of(acme, replies), 0.01),
+        replies,
+    )
+    [judgment] = score.judges
+    assert (judgment.verdict, judgment.choice) == ("classified", "bad")
+    assert (score.passed, score.not_judged, score.evals) == (None, None, 1)
+
+
+async def test_a_trigger_that_did_not_hold_is_na_its_request_counted_and_no_eval(
     acme: str,
 ) -> None:
     replies: list[Json] = [
-        [{"name": "submit_verdict", "arguments": {"verdict": "pass", "reasoning": "fine"}}]
-    ] * 3
-    log = a_log(caller("¿Cuánto?"), agent("Son 45 euros."))
-    judge = Running(vendor=acme, credentials="k", model="acme-1", options={"replies": replies})
-    other = AgentJudge(name="says-the-price", question="The agent said the price.")
-    tight = JudgeModel(judge, 0.000001)
-    score = await at_hangup(
-        log, THE_CLINIC, Panel(own=(SLOT, other)), tight, configured=with_a_judge(replies)
+        [{"name": "submit_applies", "arguments": {"applies": False, "reason": "no refund"}}]
+    ]
+    score = await judged(
+        Panel(switches=only(), own=(REFUND,)),
+        JudgeModel(judge_model_of(acme, replies), 0.01),
+        replies,
     )
-    verdicts = {judgment.name: judgment.verdict for judgment in score.judges}
-    assert (verdicts["grounded"], verdicts[SLOT.name], verdicts[other.name]) == (
-        "held",
-        "skipped",
-        "skipped",
+    assert verdicts_of(score) == {REFUND.name: "na"}
+    assert (score.judge_calls, score.evals) == (1, 0)
+
+
+async def test_the_library_switched_on_comes_first_then_the_orgs_own(acme: str) -> None:
+    replies = [answered("held")] * 3
+    score = await judged(
+        Panel(switches=only("grounded"), own=(SLOT, REHEARSED)),
+        JudgeModel(judge_model_of(acme, replies), 0.01),
+        replies,
     )
-    skipped = next(judgment for judgment in score.judges if judgment.name == SLOT.name)
-    assert skipped.reason.startswith("judging this call reached its ceiling of $1e-06")
-    assert score.judge_calls == 1
+    assert score.panel == ["grounded", SLOT.name], "a judge for simulations meets no real call"
 
 
-def test_the_panel_gives_its_verdicts_the_names_a_judge_of_ones_own_may_not_take() -> None:
-    names = {judge.name for judge in hangup_judges(offered(), ())}
-    assert names <= set(PANEL_JUDGES)
-    assert "persona" in PANEL_JUDGES
+# ── a golden's judges ──
 
 
-async def test_at_hang_up_a_judge_whose_model_failed_is_skipped_and_the_call_still_scored(
-    acme: str,
-) -> None:
-    log = a_log(caller("¿Cuánto?"), agent("Son 45 euros."))
-    judge = Running(vendor=acme, credentials="k", model="acme-1", options={"replies": [["nada"]]})
-    score = await at_hangup(
-        log, THE_CLINIC, Panel(), JudgeModel(judge, 0.01), configured=configured()
+def test_a_golden_may_name_any_judge_of_the_library_or_of_the_orgs_own() -> None:
+    by_name = asked_judges(offered(), Panel(switches=only(), own=(SLOT,)))
+    assert set(by_name) == {*library(), SLOT.name}
+
+
+def asked_of(spec: JudgeSpec, case: Case | None = None) -> AskedJudge:
+    return AskedJudge(Seated(spec), case or offered(), Context())
+
+
+async def test_a_judge_asked_of_a_golden_fails_only_on_broken() -> None:
+    broken = await verdict(asked_of(SLOT), offered(), a_judge(("broken", "no slot")))
+    holding = await verdict(asked_of(SLOT), offered(), a_judge(("held", "the Friday")))
+    na = await verdict(asked_of(SLOT), offered(), a_judge(("na", "nothing asked")))
+    assert [result.verdict for result in (broken, holding, na)] == ["fail", "pass", "pass"]
+    assert (broken.reasoning, broken.instructions) == ("no slot", SLOT.question)
+
+
+async def test_a_golden_judge_counts_every_request_it_made() -> None:
+    model = answering(
+        {"name": "submit_applies", "arguments": {"applies": True, "reason": "asked"}},
+        {"name": "submit_verdict", "arguments": {"verdict": "held", "reason": "ok"}},
     )
-    grounded_row = next(judgment for judgment in score.judges if judgment.name == "grounded")
-    assert grounded_row.verdict == "skipped"
-    assert "the judge model failed" in grounded_row.reason
-    assert score.passed is True
+    judge = asked_of(REFUND)
+    await verdict(judge, offered(), model)
+    assert judge.calls == 2
+
+
+async def test_a_golden_judge_its_gate_settles_passes_without_a_model() -> None:
+    consent = library()["consent"]
+    judge = AskedJudge(Seated(consent.spec, consent.gate), offered(), Context())
+    result = await verdict(judge, offered())
+    assert result.passed
+    assert judge.calls == 0
+
+
+async def test_a_golden_judge_with_no_model_fails_saying_so() -> None:
+    result = await verdict(asked_of(SLOT), offered())
+    assert result.failed
+    assert "needs the judge model" in result.reasoning
+
+
+async def test_an_expectation_settled_by_code_answers_what_code_settled() -> None:
+    settled = JudgmentResult(verdict="fail", reasoning="heard 1 of 2")
+    result = await verdict(CaseJudge("heard", "every line was heard", settled), offered())
+    assert (result.verdict, result.reasoning, result.instructions) == (
+        "fail",
+        "heard 1 of 2",
+        "every line was heard",
+    )
+
+
+# ── one judge alone ──
+
+
+def test_one_of_the_librarys_alone_is_its_switch_on_and_every_other_off() -> None:
+    panel = alone(library()["sentiment"].spec, Panel(switches={"grounded": True}, own=(SLOT,)))
+    assert {name for name, on in panel.switches.items() if on} == {"sentiment"}
+    assert panel.own == []
+
+
+def test_a_judge_of_ones_own_alone_is_the_whole_library_off() -> None:
+    panel = alone(PRICE, Panel(own=(SLOT,), prompt="You are Sofía."))
+    assert not any(panel.switches.values())
+    assert (panel.own, panel.prompt) == ([PRICE], "You are Sofía.")
+
+
+def test_a_question_rewritten_under_a_librarys_name_is_asked_as_written() -> None:
+    rewritten = dataclasses.replace(library()["sentiment"].spec, question="Was the caller calm?")
+    panel = alone(rewritten, Panel())
+    assert not any(panel.switches.values())
+    assert panel.own == [rewritten]
+
+
+# ── the lines an answer rests on ──
+
+
+def test_the_positions_an_answer_names_become_the_entries_a_reader_opens() -> None:
+    log = [entry(4, "tool.call", {}), entry(6, "turn.agent", {"text": "Hecho."})]
+    evidence = evidence_at([9, 4, 6], log)
+    assert (evidence.seqs, evidence.said) == ([4, 6], "Hecho.")
+
+
+def test_an_answer_that_names_no_line_carries_no_evidence_and_no_words() -> None:
+    evidence = evidence_at([], a_call())
+    assert (evidence.seqs, evidence.said) == ([], None)
+
+
+def test_a_simulated_call_is_judged_by_what_simulations_run() -> None:
+    simulated = dataclasses.replace(offered(), simulated=True)
+    assert REHEARSED.name in asked_judges(simulated, Panel(own=(REHEARSED,)))

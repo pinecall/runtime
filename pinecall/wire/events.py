@@ -249,6 +249,8 @@ class CallSummary(WireModel):
     usage: list[ModelUsage]
     cost: Cost
     recording: str | None = None
+    # A simulated caller played the other end: the call is billed as one simulation, not minutes.
+    simulated: bool = False
 
 
 class CallTransferred(WireModel):

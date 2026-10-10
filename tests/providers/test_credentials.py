@@ -207,6 +207,18 @@ def test_a_plugin_of_the_agents_own_runs_on_the_orgs_key_and_is_refused_on_a_len
     assert pipeline(warmer, configured, Keyring(box=THE_BOX)).llm.options["temperature"] == 0.9
 
 
+def test_a_local_judge_runs_on_the_orgs_own_key_alone(configured: Providers) -> None:
+    local = Model("openai", "qwen3-32b", options={"base_url": "http://gpu:8000/v1"})
+    judged_locally = AgentConfig(slug="a", judge=local)
+    with pytest.raises(Conflict, match="llm options and builds run on the org's own openai key"):
+        refuse_what_cannot_run(
+            judged_locally, configured, Keyring(box={**THE_BOX, "openai": "box-o"})
+        )
+    refuse_what_cannot_run(
+        judged_locally, configured, Keyring(own={"openai": "org-o"}, box=THE_BOX)
+    )
+
+
 def test_the_model_judged_for_lending_is_the_one_that_runs(configured: Providers) -> None:
     keys = Keyring(
         box=THE_BOX, lends=frozenset({"anthropic/claude-haiku-5-5", "deepgram", "cartesia"})

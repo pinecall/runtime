@@ -21,6 +21,9 @@ class Judgment(WireModel):
     criteria: str
     reason: str
     evidence: JudgmentEvidence
+    # What a classifying judge answered (verdict `classified`): one of its choices, or 1 to 5.
+    choice: str | None = None
+    score: int | None = None
 
 
 class JudgedBy(WireModel):
@@ -39,7 +42,12 @@ class CallScore(WireModel):
     not_judged: str | None = None
     judges: list[Judgment]
     panel: list[str] | None = None
+    # Every model call the panel made, the trigger questions among them.
     judge_calls: int
+    # The judges that answered (held, broken or classified): what the org is billed for.
+    evals: int = 0
+    # The judge model ran on a key of the org's own: its evals are the org's to pay, never billed.
+    own_key: bool = False
     # A score written before money in dollars said it in euros: the same number, read as dollars.
     judge_cost_usd: float | None = Field(
         default=None, validation_alias=AliasChoices("judge_cost_usd", "judge_cost_eur")

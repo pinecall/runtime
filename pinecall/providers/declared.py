@@ -4,12 +4,17 @@ import dataclasses
 from collections.abc import Mapping
 
 from pinecall.domain.agent import AgentConfig, Lexicon, Model, Tuning, Voice
+from pinecall.domain.errors import DeclarationRefused
 from pinecall.providers.build import Modality, doing, installed
 from pinecall.providers.catalog import Stage
+from pinecall.wire.parts import ModelConfig
 
 # Model ids carry slashes of their own (`openai/gpt-5` on LiveKit Inference): the first one ends
 # the vendor.
 SEPARATOR = "/"
+
+
+NOT_THE_EARS = "end_of_turn is the ears': @stt('<vendor>', {{ endOfTurn: '{said}' }})"
 
 
 def apply_tuning(
@@ -32,6 +37,7 @@ def apply_tuning(
         voice=kept("voice", declared.voice, _voice(declared, tuning, defaults)),
         stt=kept("stt", declared.stt, _ears(declared, tuning, defaults)),
         llm=kept("llm", declared.llm, _thinking(declared, tuning, defaults)),
+        judge=kept("judge", declared.judge, _judging(declared, tuning, defaults)),
         hangup=kept("hangup", declared.hangup, tuning.hangup),
         turn=kept("turn", declared.turn, tuning.turn),
         memory=kept("memory", declared.memory, tuning.memory),
@@ -46,6 +52,23 @@ def apply_tuning(
         bases=kept("docs", declared.bases, tuning.bases or ()),
         says=kept("says", declared.says, dict(lexicon.said)),
         hears=kept("hears", declared.hears, lexicon.heard),
+    )
+
+
+# A vendor not installed, or one that does not do the stage, is refused where it is named.
+def model_from(wanted: ModelConfig | None, modality: Modality) -> Model | None:
+    """A model as the wire names it, its vendor checked for the stage."""
+    if wanted is None:
+        return None
+    if wanted.end_of_turn is not None and modality != "stt":
+        raise DeclarationRefused(NOT_THE_EARS.format(said=wanted.end_of_turn))
+    return Model(
+        provider=doing(wanted.provider.lower(), modality),
+        model=wanted.model,
+        temperature=wanted.temperature,
+        builds=wanted.builds,
+        options=dict(wanted.options or {}),
+        end_of_turn=wanted.end_of_turn,
     )
 
 
@@ -97,6 +120,21 @@ def _thinking(
         temperature=tuning.temperature,
         builds=tuning.llm_builds,
         options=dict(tuning.llm_options or {}),
+    )
+
+
+# Named whole (`vendor/model`) or by its vendor; its class and options on the org's own key alone.
+def _judging(
+    declared: AgentConfig, tuning: Tuning, defaults: Mapping[Modality, Stage]
+) -> Model | None:
+    in_use = _in_use(declared.judge, defaults["llm"])
+    named = model_of(tuning.judge, "llm", in_use=in_use)
+    if tuning.judge_builds is None and tuning.judge_options is None:
+        return named
+    return dataclasses.replace(
+        named or Model(provider=in_use, model=""),
+        builds=tuning.judge_builds,
+        options=dict(tuning.judge_options or {}),
     )
 
 

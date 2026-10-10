@@ -214,6 +214,7 @@ def refuse_what_cannot_run(config: AgentConfig, configured: Providers, keys: Key
         ("llm", config.llm),
         ("stt", config.stt),
         ("tts", config.voice),
+        ("llm", config.judge),
     )
     for modality, declared in stages:
         if declared is not None and _names_its_own(declared):

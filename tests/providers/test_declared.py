@@ -220,3 +220,34 @@ def test_who_ends_the_turn_is_set_on_the_ears_in_use(configured: Providers) -> N
         DECLARED, Tuning(end_of_turn="smart-turn"), NOTHING, defaults=configured.defaults
     )
     assert config.stt == Model("deepgram", "", end_of_turn="smart-turn")
+
+
+def test_the_judge_is_named_as_the_model_is_and_unset_it_is_the_orgs_choice(
+    configured: Providers,
+) -> None:
+    def judge_of(tuning: Tuning) -> Model | None:
+        return apply_tuning(DECLARED, tuning, NOTHING, defaults=configured.defaults).judge
+
+    assert judge_of(Tuning()) is None
+    assert judge_of(Tuning(judge="openai/gpt-5.4-mini")) == Model("openai", "gpt-5.4-mini")
+    local = Tuning(judge="openai/qwen3-32b", judge_options={"base_url": "http://gpu:8000/v1"})
+    assert judge_of(local) == Model(
+        "openai", "qwen3-32b", options={"base_url": "http://gpu:8000/v1"}
+    )
+
+
+def test_a_judge_the_class_declares_wins_over_the_settings_one(configured: Providers) -> None:
+    declared = AgentConfig(
+        slug="clinica-norte",
+        judge=Model("anthropic", "claude-haiku-5-5"),
+        fixed=frozenset({"judge"}),
+    )
+    config = apply_tuning(
+        declared, Tuning(judge="openai/gpt-5.4-mini"), NOTHING, defaults=configured.defaults
+    )
+    assert config.judge == Model("anthropic", "claude-haiku-5-5")
+
+
+def test_a_blank_judge_is_refused() -> None:
+    with pytest.raises(DeclarationRefused, match="judge"):
+        Tuning(judge="  ")

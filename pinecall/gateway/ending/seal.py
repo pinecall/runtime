@@ -3,6 +3,7 @@
 import asyncio
 import dataclasses
 import logging
+import math
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
@@ -10,8 +11,10 @@ import psycopg
 
 from pinecall.domain.agent import AgentConfig, Model
 from pinecall.domain.errors import NotAvailable, PinecallError, QuotaExhausted
+from pinecall.domain.scope import Scope
 from pinecall.evals import dataset, judges
-from pinecall.evals.compliance import Compliance, Panel
+from pinecall.evals.catalog import Surroundings
+from pinecall.evals.judges import Panel
 from pinecall.gateway import _alerts
 from pinecall.gateway._call_setup import exhausted, keys_of
 from pinecall.gateway._served import Served, Serving
@@ -25,10 +28,21 @@ from pinecall.process.connections import Connections
 from pinecall.providers import catalog, credentials, prices
 from pinecall.providers.catalog import Providers
 from pinecall.providers.credentials import Keyring, thinking
+from pinecall.providers.declared import model_from
 from pinecall.retrieval import extraction, lookups, memory
 from pinecall.retrieval.extraction import MemoryWrite
-from pinecall.tenancy import admission, consents, disclosure, monitors, orgs, policy, spend, vault
-from pinecall.tenancy.judges import StoredJudge, for_call
+from pinecall.tenancy import (
+    admission,
+    consents,
+    disclosure,
+    monitors,
+    orgs,
+    policy,
+    prompts,
+    spend,
+    vault,
+)
+from pinecall.tenancy import judges as judging
 from pinecall.wire.events import (
     CallEnded,
     CallSummary,
@@ -52,6 +66,10 @@ A_RUN_JUDGES_IT = "an eval run opened this call, and its own judges scored it in
 NO_JUDGE = "this box's providers configuration names no judge model"
 
 NO_CEILING = "the providers row gives the judge a ceiling of zero, so no judge model may be asked"
+NO_LENT_CEILING = (
+    "the judge model named runs on a key the platform lends, and the providers row gives the "
+    "platform's judging no ceiling: name a model on a key of the org's own"
+)
 
 JUDGING_BROKE = "judging this call failed: {broke}"
 
@@ -159,47 +177,89 @@ async def judged_call(
     connections: Connections,
     entries: Sequence[Entry],
     declared: AgentConfig | None,
-    own: Sequence[StoredJudge],
-    org_facts: Compliance | None,
+    panel: Panel,
+    scope: Scope,
 ) -> CallScore:
-    """The hang-up panel, compliance and the agent's own judges over a finished call."""
+    """The panel over a finished call: the library's judges switched on, then the org's own."""
     call = next((entry.call for entry in entries if entry.call is not None), "")
     try:
         configured = await catalog.providers(connections.pool)
-        judge = await judge_of(connections, configured)
-        judged_by = Panel(own=[stored.judge for stored in own], compliance=org_facts)
-        return await judges.at_hangup(entries, declared, judged_by, judge, configured=configured)
+        judge = await judge_of(connections, configured, scope, declared)
+        return await judges.at_hangup(entries, declared, panel, judge, configured=configured)
     except PinecallError as broke:
         logger.warning("call %s: nothing judged it", call, exc_info=True)
         return CallScore(judges=[], judge_calls=0, not_judged=JUDGING_BROKE.format(broke=broke))
 
 
+async def panel_for(
+    pool: Pool, org: str, entries: Sequence[Entry], declared: AgentConfig | None
+) -> Panel:
+    """What a call is judged by: the switches, the org's own judges, what the judges are told."""
+    call = next((entry.call for entry in entries if entry.call is not None), "")
+    agent = entries[0].agent if entries else ""
+    own = await judging.for_call(pool, org, agent)
+    return Panel(
+        switches=await judging.switches_for(pool, org, agent),
+        own=[stored.judge for stored in own],
+        around=await surroundings_of(pool, org, call, declared),
+        prompt=await prompt_of(pool, org, entries),
+    )
+
+
 # The org as the call spoke for it: its name, the opening sentence it set, and an opt-out it took.
-async def compliance_of(
+async def surroundings_of(
     pool: Pool, org: str, call: str, declared: AgentConfig | None
-) -> Compliance:
-    """What the compliance judges read beyond the call's log."""
+) -> Surroundings:
+    """What the judges that read facts are told beyond the call's log."""
     found = await orgs.find(pool, org)
     name = org if found is None else found.name
     kept = (await policy.policy_of(pool, org)).policy
     language = None if declared is None else declared.language
     opening = disclosure.disclosure_of(kept, name, language)
-    return Compliance(
+    return Surroundings(
         org=name, disclosure=opening, opted_out=await consents.opted_out_on(pool, call)
     )
 
 
-# Always the box's key, never an org's: judging is the platform's measure, the same for all.
-async def judge_of(connections: Connections, configured: Providers) -> judges.JudgeModel:
-    """The judge model on the box's key, or None and the sentence that says why there is none."""
+# Each block's last text, as the call's last turn was told it; a block the org never kept is left
+# out rather than guessed.
+async def prompt_of(pool: Pool, org: str, entries: Sequence[Entry]) -> str:
+    """The prompt the call ran on, block by block, for a judge that reads the agent's prompt."""
+    latest: dict[str, str] = {}
+    for entry in entries:
+        if entry.type == "prompt.changed":
+            latest[str(entry.data["name"])] = str(entry.data["hash"])
+    texts = await prompts.texts_of(pool, org, set(latest.values()))
+    blocks = (f"## {name}\n{texts[kept]}" for name, kept in latest.items() if kept in texts)
+    return "\n\n".join(blocks)
+
+
+# The agent's model, else the org's, on the org's keys in the call's world: on its own key nothing
+# is billed and no ceiling of the platform's applies; on a lent one the providers row's ceiling
+# does. Neither named, the providers row's judge on the box's key.
+async def judge_of(
+    connections: Connections, configured: Providers, scope: Scope, declared: AgentConfig | None
+) -> judges.JudgeModel:
+    """The judge model and its key, or None and the sentence that says why there is none."""
+    named = None if declared is None else declared.judge
+    if named is None:
+        named = model_from(await orgs.judge_model_of(connections.pool, scope.org), "llm")
+    if named is not None:
+        keyring = await keys_of(connections.pool, connections.vault, scope)
+        chosen = credentials.stage("llm", named, configured, keyring)
+        if not chosen.lent:
+            return judges.JudgeModel(chosen, math.inf)
+        if configured.judge is None or configured.judge.ceiling_usd <= 0:
+            return judges.JudgeModel(None, 0.0, NO_LENT_CEILING)
+        return judges.JudgeModel(chosen, configured.judge.ceiling_usd)
     if configured.judge is None:
         return judges.JudgeModel(None, 0.0, NO_JUDGE)
     if configured.judge.ceiling_usd <= 0:
         return judges.JudgeModel(None, 0.0, NO_CEILING)
     box = await vault.box_credentials(connections.pool, connections.vault)
-    named = configured.judge.llm
-    declared = Model(provider=named.vendor, model=named.model or "")
-    stage = credentials.stage("llm", declared, configured, Keyring(box=box))
+    row = configured.judge.llm
+    platforms = Model(provider=row.vendor, model=row.model or "")
+    stage = credentials.stage("llm", platforms, configured, Keyring(box=box))
     return judges.JudgeModel(stage, configured.judge.ceiling_usd)
 
 
@@ -229,6 +289,7 @@ async def summed_up(pool: Pool, store: Store, log: Log, sealing: SealCallRequest
         usage=sealing.usage,
         cost=prices.cost(sealing.usage, configured, legs=phone_legs(entries), seconds=duration),
         recording=sealing.recording,
+        simulated=dataset.simulated(entries),
     )
     # Once per log: two gateways sealing one call (a lease lapsed under a stalled seal) price it
     # once.
@@ -254,9 +315,8 @@ async def _scored(serving: Serving, served: Served) -> CallScore:
     if not await orgs.judged(pool, served.scope.org):
         return CallScore(judges=[], judge_calls=0, not_judged=JUDGING_OFF.format(call=served.call))
     entries = await serving.logs.store.whole(served.call)
-    own = await for_call(pool, served.scope.org, served.agent)
-    org_facts = await compliance_of(pool, served.scope.org, served.call, served.config)
-    return await judged_call(serving.connections, entries, served.config, own, org_facts)
+    panel = await panel_for(pool, served.scope.org, entries, served.config)
+    return await judged_call(serving.connections, entries, served.config, panel, served.scope)
 
 
 # True once another gateway sealed it; False when its lease ran out (that gateway died sealing)

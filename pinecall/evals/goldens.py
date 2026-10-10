@@ -1,13 +1,13 @@
 """A golden played on a written call, and the judges its expectations set."""
 
 import asyncio
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 from pinecall.domain.errors import PinecallError
 from pinecall.domain.names import JsonObject
 from pinecall.evals.case import AGENT, CALLER, PUNCTUATION, Case, calls_of, said_by
-from pinecall.evals.judges import CaseJudge, consent_judge, failing, grounded_judge, passing
+from pinecall.evals.judges import CaseJudge, GoldenJudge, failing, passing
 from pinecall.log.logs import Subscription
 from pinecall.session import text
 from pinecall.session.call import Lookup
@@ -74,14 +74,11 @@ NO_EVENT = "this golden expects a reply to an event, and no event.received reach
 REGISTER = "The agent addressed the caller as {register} in every one of its turns."
 
 
-ON_THE_PANEL = "The hang-up judge {name} held of this call."
+ON_THE_PANEL = "The judge {name} held of this call."
 
 
-# A check that could not look must not pass: a judge the panel does not hold for this call (a
-# persona's, which needs a simulated caller; a name the org never wrote) breaks the golden.
-NOT_ON_THE_PANEL = (
-    "this golden asks {name}, and the panel this call meets has no such judge: it holds {panel}"
-)
+# A check that could not look must not pass: a judge nobody wrote breaks the golden.
+NOT_ON_THE_PANEL = "this golden asks {name}, and there is no such judge: there are {panel}"
 
 
 # Unmistakable tú; `té` (tea) carries its accent, so `te` never matches it.
@@ -103,10 +100,14 @@ class Played:
     requests: tuple[JsonObject, ...]
 
 
-def golden_judges(golden: Golden, case: Case, panel: Sequence[CaseJudge] = ()) -> list[CaseJudge]:
-    """Consent, one judge per expectation set, then the hang-up judges it names, from `panel`."""
+# `panel` is every judge the agent's calls may meet, the library's and the org's own, by name.
+def golden_judges(
+    golden: Golden, case: Case, panel: Mapping[str, GoldenJudge] | None = None
+) -> list[GoldenJudge]:
+    """Consent, one judge per expectation set, then the judges it names, from `panel`."""
     expect = golden.expect
-    judges = [consent_judge(case)]
+    panel = panel or {}
+    judges: list[GoldenJudge] = [panel["consent"]] if "consent" in panel else []
     # Without it an unheard caller would pass every "never did X".
     if golden.input:
         judges.append(_heard(case, len(golden.input)))
@@ -121,7 +122,7 @@ def golden_judges(golden: Golden, case: Case, panel: Sequence[CaseJudge] = ()) -
     if expect.says_any:
         judges.append(_says_any(case, expect.says_any))
     if expect.grounded:
-        judges.append(grounded_judge(case))
+        judges.append(_on_the_panel(panel, "grounded"))
     if expect.addressed_as is not None:
         judges.append(_register_judge(case, expect.addressed_as))
     if expect.replies is not None:
@@ -197,12 +198,12 @@ async def _played(
     return True
 
 
-def _on_the_panel(panel: Sequence[CaseJudge], name: str) -> CaseJudge:
-    """The panel's judge of that name, or one that breaks saying the panel has none."""
-    found = next((judge for judge in panel if judge.name == name), None)
+def _on_the_panel(panel: Mapping[str, GoldenJudge], name: str) -> GoldenJudge:
+    """The judge of that name, or one that breaks saying there is none."""
+    found = panel.get(name)
     if found is not None:
         return found
-    names = ", ".join(judge.name for judge in panel) or "no judge at all"
+    names = ", ".join(panel) or "no judge at all"
     ruling = failing(NOT_ON_THE_PANEL.format(name=name, panel=names))
     return CaseJudge(name, ON_THE_PANEL.format(name=name), ruling)
 

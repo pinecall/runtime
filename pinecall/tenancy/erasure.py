@@ -106,6 +106,7 @@ WITH settings AS (DELETE FROM agent_config WHERE org = %(org)s AND agent = %(age
      words AS (DELETE FROM lexicon WHERE org = %(org)s AND agent = %(agent)s),
      callers AS (DELETE FROM agent_personas WHERE org = %(org)s AND agent = %(agent)s),
      judges AS (DELETE FROM agent_judges WHERE org = %(org)s AND agent = %(agent)s),
+     switched AS (DELETE FROM judge_switches WHERE org = %(org)s AND agent = %(agent)s),
      watched AS (DELETE FROM monitors WHERE org = %(org)s AND agent = %(agent)s),
      routed AS (DELETE FROM routes WHERE org = %(org)s AND agent = %(agent)s),
      runs AS (DELETE FROM eval_runs WHERE org = %(org)s AND agent = %(agent)s),

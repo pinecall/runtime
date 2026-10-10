@@ -51,7 +51,7 @@ A rollback is a new version equal to an old one, and the history says so.
 ```
 
 `fixed` names the settings the class holding the agent declares itself, by the declaration's names
-(`language`, `voice`, `llm`, `stt`, `greeting`, `hangup`, `turn`, `knowledge`, `docs`, `memory`,
+(`language`, `voice`, `llm`, `stt`, `judge`, `greeting`, `hangup`, `turn`, `knowledge`, `docs`, `memory`,
 `record`): these run as the class says whatever the rows below hold. Empty when no app holds the
 agent here, or its class declares none. Each scope's **own** newest, or null when that scope set nothing; never the fallthrough, because
 `if_version` is about the scope being written. `config` carries only the knobs the row set: `voice`,
@@ -64,7 +64,11 @@ model on the worker; unset, the row's choice for the vendor), `llm_builds`, `stt
 it: `responses.LLM`) and `llm_options`, `stt_options`, `tts_options` (that class's keyword arguments
 as the plugin names them, each replacing the providers row's of the same name; both only on the
 org's own key for the vendor, `409` on a lent one; set on an agent whose row names no vendor for
-the stage, these name the one in use, which then runs without the default's fallbacks), `language` (a tag, `en` or
+the stage, these name the one in use, which then runs without the default's fallbacks), `judge`,
+`judge_builds`, `judge_options` (the model the agent's calls are judged on, named as `llm` is, over
+the org's choice at `PUT /v1/org/judging` and the platform's; on a key of the org's own, a local
+model's server among them through `judge_options` `{"base_url": …}`, its evals are never billed —
+[evals.md](evals.md)), `language` (a tag, `en` or
 `pt-BR`, given to the ears and the voice; unset, each vendor's own default), `greeting` (`{say}` or
 `{reply}`, an empty reply the model opening on its prompt alone, and `allow_interruptions`, false
 unless set), `hangup {when}`, `turn {min_interruption_words, endpointing_ms, eot_threshold,
@@ -98,7 +102,8 @@ a vendor that does not answer is `502 … nothing was kept, try again`. A save t
 asks no vendor anything. `409` when the scope is not at `if_version`, and `409 voice set by the
 class of clinica-norte: …` when the set changes a knob the class declares (`tts`, `tts_model`,
 `tts_builds` and `tts_options` are the class's `voice`; `temperature`, `llm_builds` and
-`llm_options` its `llm`; `stt_builds`, `stt_options` and `end_of_turn` its `stt`; `bases` its `docs`), before
+`llm_options` its `llm`; `stt_builds`, `stt_options` and `end_of_turn` its `stt`; `judge_builds` and
+`judge_options` its `judge`; `bases` its `docs`), before
 anything is tried or kept. A set whose plugin class or options would run on a key the platform
 lends is `409 llm options and builds run on the org's own openai key, and this agent's llm would run
 on the platform's: …`, nothing kept. Answers the `GET` shape.

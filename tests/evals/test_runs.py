@@ -107,10 +107,7 @@ async def test_a_matrix_of_code_judges_asks_nothing_and_says_so() -> None:
     case = case_of(confirmed(), THE_CLINIC)
     golden = Golden.model_validate({"name": "confirmed", "expect": {"says": ["reservada"]}})
     scores = await score(golden_judges(golden, case), case, None)
-    assert [(judge_score.metric, judge_score.score) for judge_score in scores] == [
-        ("consent", 1.0),
-        ("says", 1.0),
-    ]
+    assert [(judge_score.metric, judge_score.score) for judge_score in scores] == [("says", 1.0)]
     assert matrix_of([cell(HAIKU, "confirmed", *scores)]).judge_calls == 0
 
 

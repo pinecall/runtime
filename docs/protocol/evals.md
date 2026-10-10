@@ -102,8 +102,8 @@ four words and the call's last six characters (`promises-me-llaman-manana-por-29
 |---|---|
 | `consent` | `not_tools`: the tool that ran unasked, by the seqs the verdict cites |
 | `grounded` | `grounded: true` |
-| `promises`, the compliance judges, the org's and the agent's own | `judges: [name]`, asked again of the replay |
-| `persona` | nothing: its rule is a simulated caller's, and a case plays written lines |
+| any other judge of the library, the org's own, the agent's own | `judges: [name]`, asked again of the replay |
+| `expected-outcome` | nothing: its expectations are a simulated caller's, and a case plays written lines |
 
 A call a simulated caller made is never kept (it is meant to break things), nor one whose caller
 said nothing, nor a call already kept. At most **50** cases wait per agent: past it a broken call
@@ -167,26 +167,20 @@ null. Erasing the call takes its labels.
 
 ## The judges
 
-A judge is settled by code, or by one question to the judge model when code leaves the answer
-open. A model that is unsure scores a half and never passes.
+Every judge is one question a model answers about a finished call (below, *Judges*). A golden is
+held to them and to checks settled by code, which read what the golden expects:
 
-| metric | when | settled by |
+| check | when | settled by |
 |---|---|---|
-| `consent` | always, first | code: every irreversible tool call ran after its own `confirm.granted`, for the same audience; a call with no `confirm.*` at all holds, saying so; a call whose tools ran and not one of them declares a side effect breaks, since nothing says which were irreversible |
 | `heard` | a golden with lines | code: every line reached the agent |
 | `tools` · `not_tools` | `expect.tools`, `expect.not_tools` | code, the second naming the seq of the call that ran |
 | `silence` · `says` | `expect.not`, `expect.says` | code, case-blind; the turn is named |
 | `says_any` | `expect.says_any` | code, case-blind: any one of the phrases is enough, for an expectation with several right answers (`de 9 a 14`, `de nueve a dos`); the reason names the one said, or every one when none was |
-| `grounded` | `expect.grounded`, and at hang-up | every price, hour, date and name stated is in the evidence of its scope (prices in the text shown, the rest in tool answers and states); what code cannot match goes to the model |
 | `register` | `expect.register` | code: no word of the other register (`tú`, `usted`) |
 | `replies` | `expect.replies` | code: the agent's turn after each fact names what it carried, or does not |
-| `promises` | at hang-up | a phrase that commits the business goes to the model with every tool call |
-| `identified` | at hang-up, an outbound call | code: the agent's first turn names the org, or says the org's opening sentence (`disclosure`, [gateway-api.md](gateway-api.md) §7) |
-| `disclosed` | at hang-up | code: an agent turn says it is automated (an AI, a virtual or automated assistant) before the caller's second turn; failing that, the caller never asked whether a person was speaking, or the agent's next turn after they asked says so |
-| `honoured_stop` | at hang-up | code: a caller who said *stop calling*, *remove me*, *no me llamen* and the like had their number put on the do-not-call list on that call (`call.opt_out`); nobody asking holds |
-| `persona` | at hang-up, when the caller wrote a rule | the model reads the caller's `accepts_when`/`declines_when` |
-| the agent's own | at hang-up, every call or only simulations | the model reads the question the org wrote for the agent |
-| any hang-up judge, by name | `expect.judges` | the panel's own judge asked of the golden's call, the one field of `expect` a model may answer; a name the panel does not hold for that call (`persona`, a judge nobody wrote) breaks the golden, naming the panel |
+| `consent` | always, first | the library's judge, asked of the golden's call |
+| `grounded` | `expect.grounded` | the library's judge, asked of the golden's call |
+| any judge, by name | `expect.judges` | the library's, the org's own or the agent's own judge asked of the golden's call, whether or not the org switched it on; a name nobody wrote breaks the golden |
 
 ## A finished call
 
@@ -226,42 +220,80 @@ judges are the ones written when the endpoint runs, not when the call ended.
 ## At hang-up
 
 The seal judges every call when three things hold: the org judges its calls (`PUT /v1/org/judging`),
-the platform's providers row names a `judge` model, and that judge's `ceiling_usd` is above zero. The
-panel is consent, grounded, promises, the compliance judges (`identified` on an outbound call,
-`disclosed`, `honoured_stop`: settled by code, so every judged call carries them), persona when
-the caller wrote a rule, then the org's own
-judges and the agent's own (below), by name. The judge runs on the platform's key, and the ceiling is
-what one call may spend on it: a model judge asked once the calls before it reached the ceiling is
-`skipped`, saying so, while the code judges still answer. Without a model the code judges still answer and the ones that needed a model are
-`skipped`, saying why; a judge whose model failed is skipped too, and the call seals all the same.
-`judge_calls` counts the model's requests and `judge_cost_usd` prices them at the row's rates. An
-org that judges nothing gets `not_judged` saying so; a call an eval run opened is judged by the run.
-Each settled verdict is counted into the day's drift, by the version of the agent's settings the
-call ran and the hash of the judge's question, which `GET /v1/insights/drift` reads to say which
-judge's pass rate moved ([console-api.md](console-api.md)), and a call that did not pass is kept
-as a pending case (the dataset, above).
+the platform's providers row names a `judge` model, and that judge's `ceiling_usd` is above zero.
+The panel is the library's judges switched on for the agent, then the org's own, then the
+agent's own, each asked once.
 
-## An agent's own judges — `GET /v1/agents/{slug}/judges`, `PUT` · `DELETE /v1/agents/{slug}/judges/{name}`
+**The judge model** is the agent's `judge` (its class's, else its settings'), else the org's
+(`PUT /v1/org/judging {on, model}`, the model tried on the org's keys before it is kept), else
+the providers row's on the platform's key. A model the org names runs on its own key for the
+vendor when it has one — a local model's server among them, through `options`
+`{"base_url": …}` — and then its answers are never billed (`call.score.own_key`) and no
+ceiling of the platform's applies; on a key the platform lends, or on the platform's own judge,
+the org pays for its answers in **evals** (below), and the providers row's `ceiling_usd` is what
+one call may spend: a judge reached past it is `skipped`, saying so, as is one whose model failed,
+and the call seals all the same. The judge is asked for a forced tool call, so a local model must
+call tools. `judge_calls` counts the model's requests (a trigger's yes-or-no among them),
+`judge_cost_usd` prices them at the row's rates, and `evals` counts the judges that answered. An
+org that judges nothing gets `not_judged` saying so; a call an eval run opened is judged by the
+run. Each `held` and `broken` is counted into the day's drift, by the version of the agent's
+settings the call ran and the hash of the judge's question, which `GET /v1/insights/drift` reads
+to say which judge's pass rate moved ([console-api.md](console-api.md)); `na` and a classification
+are not. A call that did not pass is kept as a pending case (the dataset, above).
 
-A judge of the agent's own is a question about its job that the org writes, one list per agent
-for both environments. At hang-up the judge model reads it with the whole call, both sides' turns and
-the tool calls between them, and answers `held` or `broken`; its verdict is one more entry of
-`call.score`'s `judges`, under the judge's name, and the name is in `panel`.
+## Judges — `GET` · `PUT` · `DELETE /v1/org/judges[/{name}]`, `/v1/agents/{slug}/judges[/{name}]`
+
+A judge is a name, a question, how it answers, when it runs and what it reads. It answers
+`verdict` (`held` or `broken`), `choice` (one of two or more `choices`, written `classified`
+with the `choice`) or `score` (1 to 5, `classified` with the `score`); any of them may answer
+`na`, the question did not apply. Only a verdict judge sets `passed`. It runs `always`, only on a
+call a simulated caller played (`simulations`), or on a `trigger`: a short yes-or-no asked first,
+and a no is `na` without the question. It always reads the whole call, both sides' turns and the
+tool calls between them, each line under its log position, and cites the positions it rests on;
+`reads` adds `prompt` (the agent's prompt as the call ran it), `evidence` (the text the call
+carried, the tool answers, the states) and `facts` (the org, the direction, the irreversible tools
+and the confirmations, an opt-out, the disclosure sentence, how it ended, what a simulated caller
+expected).
+
+**The library** is Pinecall's, the same for every org, each judge's question in the runtime's
+`evals/library/judges/` under a version: `consent`, `grounded`, `promises`, `disclosed`,
+`identified`, `honoured-stop`, `ended-well` and `expected-outcome` are on by default; `relevance`,
+`repetition` and `sentiment` are off. Some settle as `na` by a fact before any model is asked:
+`consent` and `promises` when no irreversible tool ran, `identified` on a call that came in,
+`expected-outcome` when the simulated caller expected nothing; an `na` is never an eval.
 
 ```
 $ pinecall judges add offers-next-slot --asks 'The agent offered the next free slot.'
 PUT /v1/agents/recepcion/judges/offers-next-slot
-{"question": "The agent offered the next free slot.", "runs_on": "every-call"}
+{"question": "The agent offered the next free slot.", "when": "always", "reads": ["prompt"]}
 
-{"judges": [{"name": "offers-next-slot", "question": "The agent offered the next free slot.",
-             "runs_on": "every-call", "author": "m_ana", "set_at": 1790000000.1}]}
+{"judges": [{"name": "consent", "owner": "pinecall", "on": true, "question": "…", "answer": "verdict",
+             "choices": [], "when": "always", "trigger": "", "reads": ["facts"],
+             "summary": "…", "version": 1}, …,
+            {"name": "offers-next-slot", "owner": "recepcion", "on": true, "question": "…",
+             "answer": "verdict", "choices": [], "when": "always", "trigger": "",
+             "reads": ["prompt"], "author": "m_ana", "set_at": 1790000000.1}]}
 ```
 
-The name is lower-case words joined by hyphens. `runs_on` is `every-call` (the default) or
-`simulations`: a call a persona played, named on `call.started` or placed as the spoken caller of
-`/v1/evals/voice`, and no other. Writing a name again replaces it; each endpoint answers the agent's
-list after it, and `DELETE` of a name nobody wrote is `404`. The judges run only when the seal
-judges at all (the three conditions above), and each is one more request to the judge model.
+A list is the library first, then the org's own (`owner: "org"`), then, on an agent's, the
+agent's own (`owner`: its slug); one list serves both environments. `PUT` of a library name takes
+`{"on": true}` or `{"on": false}` and nothing else (a question is `409`): at `/v1/org/judges` it is
+the org's default for every agent, at an agent's it is that agent's, and the agent's wins. `PUT`
+of any other name writes one of the org's own or the agent's own whole (`on` is `409`: it runs
+while it is written); the name is lower-case words joined by hyphens, and the org's and an
+agent's may not share one. `DELETE` forgets one of the org's own or the agent's own: a name
+nobody wrote is `404`, a library name `409`.
+
+`POST /v1/agents/{slug}/judges/try {name, …, last?, calls?}` asks one judge of the agent's
+`last` 1 to 50 finished calls, or of the `calls` named, and writes nothing: a library judge or a
+written one by `name` alone, or a judge not yet saved, written whole in the body.
+`{rows: [{call, judgment, not_judged?}], evals, cost_usd}`; a call still going is a row
+`not_judged`.
+
+**Evals.** One eval is one judge that answered one call's question: `held`, `broken` or
+`classified`. `na`, `deferred` and `skipped` are never counted. `call.score` carries `evals`, and
+the usage feed counts those the platform's key answered into the org's month; on the org's own key
+(`own_key`) they are counted nowhere ([limits.md](../limits.md)).
 
 ## The simulated caller
 

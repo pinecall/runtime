@@ -8,18 +8,15 @@ from pinecall.domain.agent import (
     Greeting,
     Hangup,
     MemoryPolicy,
-    Model,
     Turn,
     Voice,
 )
 from pinecall.domain.errors import DeclarationRefused
 from pinecall.domain.names import Json
-from pinecall.providers.build import Modality, doing
+from pinecall.providers.build import doing
+from pinecall.providers.declared import model_from
 from pinecall.wire.parts import AgentConfig as Declared
-from pinecall.wire.parts import GreetingConfig, ModelConfig, VoiceConfig
-
-NOT_THE_EARS = "end_of_turn is the ears': @stt('<vendor>', {{ endOfTurn: '{said}' }})"
-
+from pinecall.wire.parts import GreetingConfig, VoiceConfig
 
 NO_VENDOR = (
     "a voice the class declares names its vendor and the voice: @voice('<vendor>', '<voice>')"
@@ -50,8 +47,9 @@ def _converted(declared: Declared) -> dict[str, tuple[str, object]]:
     return {
         "language": ("language", declared.language),
         "voice": ("voice", _voice_of(declared.voice)),
-        "llm": ("llm", _model_of(declared.llm, "llm")),
-        "stt": ("stt", _model_of(declared.stt, "stt")),
+        "llm": ("llm", model_from(declared.llm, "llm")),
+        "stt": ("stt", model_from(declared.stt, "stt")),
+        "judge": ("judge", model_from(declared.judge, "llm")),
         "greeting": ("greeting", _greeting_of(declared.greeting)),
         "hangup": ("hangup", None if declared.hangup is None else Hangup(declared.hangup.when)),
         "turn": ("turn", None if declared.turn is None else Turn(**declared.turn.model_dump())),
@@ -84,22 +82,6 @@ def _voice_of(wanted: VoiceConfig | None) -> Voice | None:
         voice_id=wanted.voice_id or wanted.name,
         builds=wanted.builds,
         options=_options(wanted.options),
-    )
-
-
-# A vendor not installed, or one that does not do the stage, is refused when declared.
-def _model_of(wanted: ModelConfig | None, modality: Modality) -> Model | None:
-    if wanted is None:
-        return None
-    if wanted.end_of_turn is not None and modality != "stt":
-        raise DeclarationRefused(NOT_THE_EARS.format(said=wanted.end_of_turn))
-    return Model(
-        provider=doing(wanted.provider.lower(), modality),
-        model=wanted.model,
-        temperature=wanted.temperature,
-        builds=wanted.builds,
-        options=_options(wanted.options),
-        end_of_turn=wanted.end_of_turn,
     )
 
 

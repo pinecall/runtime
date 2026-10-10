@@ -41,6 +41,10 @@ class SettingsBody(WireModel):
     stt_options: JsonObject | None = None
     llm_builds: str | None = None
     llm_options: JsonObject | None = None
+    # The model the agent's calls are judged on, `vendor/model`; null is the org's choice.
+    judge: str | None = None
+    judge_builds: str | None = None
+    judge_options: JsonObject | None = None
     knowledge: str | None = None
     bases: list[DocsConfig] | None = None
 
